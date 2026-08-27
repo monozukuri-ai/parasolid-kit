@@ -1,0 +1,80 @@
+[build-system]
+requires = ["maturin>=1.11,<2"]
+build-backend = "maturin"
+
+[project]
+name = "parasolid-kit"
+version = "0.1.0.dev0"
+description = "Schema-aware Python parser for Parasolid X_T and X_B data"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Rust",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/monozukuri-ai/parasolid-kit"
+
+[project.scripts]
+parasolid-kit = "parasolid_kit.cli:main"
+
+[dependency-groups]
+dev = [
+  "jsonschema>=4.23,<5",
+  "maturin>=1.11,<2",
+  "pytest>=8.3,<9",
+  "ruff>=0.11,<1",
+]
+
+[tool.maturin]
+manifest-path = "crates/parasolid-python/Cargo.toml"
+python-source = "src"
+module-name = "parasolid_kit._core"
+bindings = "pyo3"
+include = [
+  { path = "docs/**/*", format = "sdist" },
+  { path = "scripts/**/*", format = "sdist" },
+  { path = "tests/**/*", format = "sdist" },
+  { path = "fuzz/Cargo.toml", format = "sdist" },
+  { path = "fuzz/Cargo.lock", format = "sdist" },
+  { path = "fuzz/fuzz_targets/**/*", format = "sdist" },
+  { path = "corpus/README.md", format = "sdist" },
+  { path = "corpus/manifest.schema.json", format = "sdist" },
+]
+exclude = [
+  "**/__pycache__/**",
+  "**/*.pyc",
+  "data/**",
+  "corpus/generated/**",
+  "corpus/local/**",
+  "corpus/downloads/**",
+  "fuzz/artifacts/**",
+  "fuzz/corpus/**",
+  "fuzz/target/**",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = ["target"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"

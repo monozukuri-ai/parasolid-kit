@@ -1,0 +1,119 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.8.15"
+          enable-cache: true
+
+      - name: Install Rust MSRV
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: 1.88.0
+          components: clippy,rustfmt
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Test Python facade
+        run: uv run pytest
+
+      - name: Lint and format Python
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Test and lint Rust workspace
+        run: |
+          cargo test --workspace --all-targets --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo fmt --all --check
+
+      - name: Verify public corpus provenance
+        run: uv run python scripts/verify_corpus.py
+
+  fuzz-smoke:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install nightly Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+
+      - name: Run bounded sanitizer smoke
+        working-directory: fuzz
+        run: |
+          cargo +nightly fuzz run inspect -- -runs=100 -max_len=65536
+          cargo +nightly fuzz run parse -- -runs=100 -max_len=65536
+          cargo +nightly fuzz run schema_catalog -- -runs=100 -max_len=65536
+
+  distribution:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.8.15"
+          enable-cache: true
+
+      - name: Install Rust MSRV
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: 1.88.0
+
+      - name: Install build dependencies and cold Python
+        run: |
+          uv sync --locked
+          uv python install 3.10
+
+      - name: Build wheel and sdist
+        run: |
+          uv run maturin build --release --out dist --compatibility pypi
+          uv run maturin sdist --out dist
+
+      - name: Verify archive members and metadata
+        run: >-
+          uv run python scripts/verify_artifacts.py
+          --wheel dist/*.whl
+          --sdist dist/*.tar.gz
+          --require-license
+
+      - name: Verify isolated wheel and sdist installs
+        run: >-
+          uv run python scripts/verify_isolated_install.py
+          --wheel dist/*.whl
+          --sdist dist/*.tar.gz
+          --python 3.10

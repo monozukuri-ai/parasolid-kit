@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.dylib
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+target/
+*.egg-info/
+
+# Maintainer design records are local-only and are not part of the public
+# repository or source distribution.
+/.internal/
+
+# Native CAD files are local research inputs until provenance and redistribution
+# rights have been recorded in the corpus manifest.
+/data/
+/corpus/local/
+/corpus/downloads/

@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "parasolid-kit corpus manifest entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "lineage_id",
+    "source_kind",
+    "generator",
+    "recipe",
+    "parasolid_version",
+    "encoding",
+    "path",
+    "sha256",
+    "redistribution",
+    "expected"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "lineage_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "source_kind": {
+      "enum": [
+        "self_generated",
+        "synthetic",
+        "third_party",
+        "local_reference"
+      ]
+    },
+    "generator": {
+      "$ref": "#/$defs/generator"
+    },
+    "recipe": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parasolid_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "encoding": {
+      "enum": ["text", "binary"]
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Repository-relative path to an X_T/X_B family file"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "related": {
+      "$ref": "#/$defs/related"
+    },
+    "redistribution": {
+      "enum": ["allowed", "local_only", "unknown", "prohibited"]
+    },
+    "source_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "acquired_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected": {
+      "$ref": "#/$defs/expected"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product", "product_version", "document_version"],
+      "properties": {
+        "product": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "document_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exporter_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "export_settings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "integer", "boolean", "null"]
+          }
+        }
+      }
+    },
+    "related": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "required_node_types"],
+      "properties": {
+        "schema": {
+          "type": ["string", "null"]
+        },
+        "required_node_types": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "body_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

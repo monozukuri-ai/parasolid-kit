@@ -1,0 +1,15 @@
+[package]
+name = "parasolid-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "parasolid_core"
+
+[lints]
+workspace = true
