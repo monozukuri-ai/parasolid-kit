@@ -25,7 +25,27 @@ the parser for production data.
 
 ## Installation
 
-Python 3.10 or newer is required. Install a downloaded wheel with `pip`:
+Python 3.10 or newer is required. Install the current development release from
+[PyPI](https://pypi.org/project/parasolid-kit/):
+
+```bash
+python -m pip install --pre parasolid-kit
+```
+
+The `--pre` option is required while only development releases are available.
+To install the current release by exact version instead:
+
+```bash
+python -m pip install "parasolid-kit==0.1.0.dev0"
+```
+
+Stable releases, once available, can be installed without `--pre`:
+
+```bash
+python -m pip install parasolid-kit
+```
+
+Alternatively, install a downloaded wheel directly:
 
 ```bash
 python -m pip install /path/to/parasolid_kit-0.1.0.dev0-cp310-abi3-PLATFORM.whl
@@ -38,10 +58,6 @@ git clone https://github.com/monozukuri-ai/parasolid-kit.git
 cd parasolid-kit
 python -m pip install .
 ```
-
-The project is not yet claiming a published PyPI release. Once a release is
-available there, the installation command will be `python -m pip install
-parasolid-kit`.
 
 ## Schema catalogs
 
