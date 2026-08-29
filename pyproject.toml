@@ -29,6 +29,14 @@ Repository = "https://github.com/monozukuri-ai/parasolid-kit"
 [project.scripts]
 parasolid-kit = "parasolid_kit.cli:main"
 
+[project.optional-dependencies]
+occt = [
+  "cadquery-ocp-novtk>=7.9.3.1,<7.10",
+]
+cadquery = [
+  "cadquery>=2.8,<2.9",
+]
+
 [dependency-groups]
 dev = [
   "jsonschema>=4.23,<5",
@@ -37,14 +45,41 @@ dev = [
   "ruff>=0.11,<1",
 ]
 
+[tool.uv]
+# uv resolves every optional extra into one universal lock. Limit that
+# maintainer lock to the Python range shared by the CadQuery profile; published
+# package metadata remains >=3.10 and keeps the CadQuery requirement unmarked.
+environments = [
+  "python_version >= '3.11'",
+]
+conflicts = [
+  [
+    { extra = "occt" },
+    { extra = "cadquery" },
+  ],
+]
+
 [tool.maturin]
 manifest-path = "crates/parasolid-python/Cargo.toml"
 python-source = "src"
 module-name = "parasolid_kit._core"
 bindings = "pyo3"
 include = [
+  "src/parasolid_kit/interop/preview/static/*.html",
+  "src/parasolid_kit/interop/preview/static/*.js",
+  "src/parasolid_kit/interop/preview/static/*.css",
   { path = "docs/**/*", format = "sdist" },
-  { path = "scripts/**/*", format = "sdist" },
+  { path = "scripts/inspect_xb_headers.py", format = "sdist" },
+  { path = "scripts/verify_artifacts.py", format = "sdist" },
+  { path = "scripts/verify_corpus.py", format = "sdist" },
+  { path = "scripts/verify_isolated_install.py", format = "sdist" },
+  { path = "scripts/verify_optional_install.py", format = "sdist" },
+  { path = "scripts/verify_optional_interop_i0.py", format = "sdist" },
+  { path = "scripts/verify_optional_interop_i3.py", format = "sdist" },
+  { path = "scripts/verify_optional_interop_i4.py", format = "sdist" },
+  { path = "scripts/verify_optional_interop_i5.py", format = "sdist" },
+  { path = "scripts/verify_optional_interop_i6.py", format = "sdist" },
+  { path = "scripts/verify_optional_interop_i7.py", format = "sdist" },
   { path = "tests/**/*", format = "sdist" },
   { path = "fuzz/Cargo.toml", format = "sdist" },
   { path = "fuzz/Cargo.lock", format = "sdist" },

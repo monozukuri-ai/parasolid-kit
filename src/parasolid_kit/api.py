@@ -7,7 +7,7 @@ import sys
 from collections.abc import Mapping
 from math import isfinite
 from pathlib import Path
-from typing import Any, TypeAlias, cast
+from typing import Any, Literal, TypeAlias, cast
 
 from . import _core
 from ._native import mapping_value as _mapping_value
@@ -25,11 +25,13 @@ from .schema.api import (
     _type_from_native,
 )
 from .schema.model import FieldType, SchemaKey
-from .schema.provider import SchemaCatalog, SchemaProvider
+from .schema.provider import DirectorySchemaProvider, SchemaCatalog, SchemaProvider
+from .summary import BrepSummary, ParsedBrep
 from .text import XtHeader, XtTermination
 from .validation import ComparisonDifference, DocumentComparison
 
 ParasolidSource: TypeAlias = str | os.PathLike[str] | bytes | bytearray | memoryview
+ReadSourceFormat: TypeAlias = Literal["auto", "x-b", "x-t"]
 
 
 def inspect_xb(
@@ -219,6 +221,53 @@ def map_brep(
     if response.get("ok") is False:
         raise _parse_error_from_native(_mapping_value(response, "error"))
     raise RuntimeError("native B-Rep response has no boolean 'ok' field")
+
+
+def read_brep(
+    source: ParasolidSource,
+    *,
+    schema_provider: SchemaProvider | None = None,
+    schema_dir: str | os.PathLike[str] | None = None,
+    source_format: ReadSourceFormat = "auto",
+    limits: ParseLimits = DEFAULT_PARSE_LIMITS,
+) -> ParsedBrep:
+    """Parse and map one X_T/X_B source through the complete B-Rep pipeline.
+
+    Pass either an explicit ``schema_provider`` or a caller-owned
+    ``schema_dir``. The directory provider loads only the exact
+    ``sch_<provider-schema>.sch_txt`` filename selected by the internal stream
+    key. Neither argument is required for a self-contained stream whose
+    embedded definitions are sufficient, but they are mutually exclusive.
+    """
+
+    if not isinstance(limits, ParseLimits):
+        raise TypeError("limits must be a ParseLimits value")
+    if schema_provider is not None and schema_dir is not None:
+        raise ValueError("schema_provider and schema_dir are mutually exclusive")
+    if schema_provider is not None and not isinstance(schema_provider, SchemaProvider):
+        raise TypeError("schema_provider must implement SchemaProvider")
+
+    data = _read_source(source, limits)
+    resolved_format = _read_source_format(source, data, source_format)
+    parser = parse_xb if resolved_format == "binary" else parse_xt
+    inspector = inspect_xb if resolved_format == "binary" else inspect_xt
+
+    provider = schema_provider
+    if schema_dir is not None:
+        directory_provider = DirectorySchemaProvider(schema_dir, limits=limits)
+        header = inspector(data, limits=limits)
+        required_schema = SchemaKey.parse(header.schema_key).provider_schema
+        if directory_provider.get_schema(required_schema) is None:
+            raise FileNotFoundError(
+                "required exact schema catalog does not exist: "
+                f"{directory_provider.catalog_path(required_schema)}"
+            )
+        provider = directory_provider
+
+    document = parser(data, schema_provider=provider, limits=limits)
+    model = map_brep(document, limits=limits)
+    summary = BrepSummary.from_parsed(document, model)
+    return ParsedBrep(document=document, brep=model, summary=summary)
 
 
 def compare_documents(
@@ -476,6 +525,33 @@ def _read_source(source: ParasolidSource, limits: ParseLimits) -> bytes:
         data = stream.read(limits.max_file_size + 1)
     limits.ensure_file_size(len(data))
     return data
+
+
+def _read_source_format(
+    source: ParasolidSource,
+    data: bytes,
+    requested: ReadSourceFormat,
+) -> Literal["binary", "text"]:
+    if requested == "x-b":
+        return "binary"
+    if requested == "x-t":
+        return "text"
+    if requested != "auto":
+        raise ValueError("source_format must be 'auto', 'x-b', or 'x-t'")
+
+    if isinstance(source, (str, os.PathLike)):
+        suffix = Path(source).suffix.lower()
+        if suffix in {".x_b", ".xb"}:
+            return "binary"
+        if suffix in {".x_t", ".xt"}:
+            return "text"
+
+    prefix = data[:4096]
+    if prefix.startswith(b"PS\0\0") or b"\nPS\0\0" in prefix:
+        return "binary"
+    if prefix.startswith(b"T") or prefix.startswith(b"**PART"):
+        return "text"
+    raise ValueError("cannot identify source encoding; pass source_format='x-b' or 'x-t'")
 
 
 def _header_from_native(value: Mapping[str, Any]) -> XbHeader:

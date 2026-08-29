@@ -26,8 +26,27 @@ LICENSE_EXPRESSION = "MIT"
 RUST_PACKAGE_NAME = "parasolid-python"
 RUST_PACKAGE_VERSION = "0.1.0-dev0"
 RUST_SBOM_FILENAME = f"{RUST_PACKAGE_NAME}.cyclonedx.json"
+APPROVED_EXTRAS = frozenset({"cadquery", "occt"})
+APPROVED_EXTRA_REQUIREMENTS = {
+    ("cadquery", "cadquery"): frozenset({">=2.8", "<2.9"}),
+    ("cadquery-ocp-novtk", "occt"): frozenset({">=7.9.3.1", "<7.10"}),
+}
 EXPECTED_LICENSE_BYTES = (ROOT / "LICENSE").read_bytes()
 EXPECTED_LICENSE_SHA256 = hashlib.sha256(EXPECTED_LICENSE_BYTES).hexdigest()
+VIEWER_ASSET_VERSION = "1.0.0"
+VIEWER_ASSET_LICENSE = "MIT"
+VIEWER_ASSET_MARKER = b'content="1.0.0; license=MIT"'
+VIEWER_ASSET_SHA256 = {
+    "parasolid_kit/interop/preview/static/index.html": (
+        "0a80d9176e27433c009cebba64671d75f1bc405b979d2ed43bea248b6e184ca4"
+    ),
+    "parasolid_kit/interop/preview/static/viewer.css": (
+        "c6b6f8778e83ef6c16f6a42d03b864f05f3ee99fe10b272d046717e9290de296"
+    ),
+    "parasolid_kit/interop/preview/static/viewer.js": (
+        "81094c0fbb08865157d6091fd60be9f85ffbc3cdcc60153325ee27a313351d6e"
+    ),
+}
 NATIVE_CAD_SUFFIXES = {
     ".asm",
     ".icd",
@@ -64,6 +83,26 @@ SDIST_ROOT_DIRECTORIES = {
     "src",
     "tests",
 }
+SDIST_SCRIPT_FILES = frozenset(
+    {
+        "scripts/inspect_xb_headers.py",
+        "scripts/verify_artifacts.py",
+        "scripts/verify_corpus.py",
+        "scripts/verify_isolated_install.py",
+        "scripts/verify_optional_install.py",
+        "scripts/verify_optional_interop_i0.py",
+        "scripts/verify_optional_interop_i3.py",
+        "scripts/verify_optional_interop_i4.py",
+        "scripts/verify_optional_interop_i5.py",
+        "scripts/verify_optional_interop_i6.py",
+        "scripts/verify_optional_interop_i7.py",
+    }
+)
+_REQUIREMENT = re.compile(
+    r"^\s*(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*"
+    r"(?P<specifier>\([^)]*\)|[^;]*?)\s*(?:;\s*(?P<marker>.+))?$"
+)
+_EXTRA_MARKER = re.compile(r"^extra\s*==\s*(['\"])([a-z0-9][a-z0-9._-]*)\1$")
 
 
 def _arguments() -> argparse.Namespace:
@@ -107,6 +146,65 @@ def _forbidden_path(path: PurePosixPath) -> str | None:
 def _license_expression(metadata: Any) -> str | None:
     expression = metadata.get("License-Expression")
     return expression.strip() if expression and expression.strip() else None
+
+
+def _verify_dependency_metadata(
+    metadata: Any,
+    *,
+    artifact: str,
+    errors: list[str],
+) -> tuple[list[str], list[str]]:
+    """Require the exact approved optional-dependency metadata and no base dependency."""
+
+    provides_extra = list(metadata.get_all("Provides-Extra", []) or [])
+    requires_dist = list(metadata.get_all("Requires-Dist", []) or [])
+    if len(provides_extra) != len(set(provides_extra)):
+        errors.append(f"{artifact} metadata contains duplicate Provides-Extra values")
+    if set(provides_extra) != APPROVED_EXTRAS:
+        errors.append(
+            f"{artifact} Provides-Extra must be exactly {sorted(APPROVED_EXTRAS)}, "
+            f"got {sorted(provides_extra)}"
+        )
+
+    observed: set[tuple[str, str]] = set()
+    for requirement in requires_dist:
+        match = _REQUIREMENT.fullmatch(requirement)
+        if match is None:
+            errors.append(f"{artifact} has an unparseable Requires-Dist: {requirement!r}")
+            continue
+        name = re.sub(r"[-_.]+", "-", match.group("name")).lower()
+        marker = match.group("marker")
+        if marker is None:
+            errors.append(f"{artifact} has an unconditional Requires-Dist: {requirement!r}")
+            continue
+        marker_match = _EXTRA_MARKER.fullmatch(marker.strip())
+        if marker_match is None:
+            errors.append(f"{artifact} has a non-exact extra marker: {requirement!r}")
+            continue
+        extra = marker_match.group(2)
+        key = (name, extra)
+        if key in observed:
+            errors.append(f"{artifact} has a duplicate extra requirement: {requirement!r}")
+            continue
+        observed.add(key)
+
+        specifier = match.group("specifier").strip()
+        if specifier.startswith("(") and specifier.endswith(")"):
+            specifier = specifier[1:-1].strip()
+        specifiers = frozenset(item.strip() for item in specifier.split(",") if item.strip())
+        expected = APPROVED_EXTRA_REQUIREMENTS.get(key)
+        if expected is None:
+            errors.append(f"{artifact} has an unapproved extra requirement: {requirement!r}")
+        elif specifiers != expected:
+            errors.append(
+                f"{artifact} has an unapproved version range for {name}[{extra}]: "
+                f"{sorted(specifiers)}, expected {sorted(expected)}"
+            )
+
+    missing = set(APPROVED_EXTRA_REQUIREMENTS) - observed
+    if missing:
+        errors.append(f"{artifact} is missing approved extra requirements: {sorted(missing)}")
+    return sorted(provides_extra), requires_dist
 
 
 def _verify_rust_sbom(payload: bytes, errors: list[str]) -> None:
@@ -175,6 +273,27 @@ def _verify_record(archive: zipfile.ZipFile, record_name: str, errors: list[str]
             errors.append(f"wheel RECORD size mismatch: {name}")
 
 
+def _verify_viewer_asset(
+    name: str,
+    payload: bytes,
+    *,
+    artifact: str,
+    errors: list[str],
+) -> None:
+    expected = VIEWER_ASSET_SHA256.get(name)
+    if expected is None:
+        errors.append(f"{artifact} contains an unapproved viewer asset: {name}")
+        return
+    digest = hashlib.sha256(payload).hexdigest()
+    if digest != expected:
+        errors.append(f"{artifact} viewer asset SHA-256 mismatch: {name}")
+    if name.endswith("/index.html") and VIEWER_ASSET_MARKER not in payload:
+        errors.append(
+            f"{artifact} viewer asset marker must declare "
+            f"version {VIEWER_ASSET_VERSION} and license {VIEWER_ASSET_LICENSE}"
+        )
+
+
 def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, object]:
     """Inspect one wheel without extracting or importing it."""
 
@@ -185,6 +304,9 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
     license_file = False
     license_file_sha256: str | None = None
     rust_sbom = False
+    provides_extra: list[str] = []
+    requires_dist: list[str] = []
+    viewer_assets: set[str] = set()
     try:
         with zipfile.ZipFile(path) as archive:
             members = [item for item in archive.infolist() if not item.is_dir()]
@@ -201,7 +323,15 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
                     errors.append(f"wheel contains {forbidden}: {name}")
                 top = pure_path.parts[0]
                 if top == IMPORT_NAME:
-                    if pure_path.name != "py.typed" and pure_path.suffix not in {
+                    if name in VIEWER_ASSET_SHA256:
+                        viewer_assets.add(name)
+                        _verify_viewer_asset(
+                            name,
+                            archive.read(name),
+                            artifact="wheel",
+                            errors=errors,
+                        )
+                    elif pure_path.name != "py.typed" and pure_path.suffix not in {
                         ".py",
                         ".pyi",
                         ".pyd",
@@ -229,6 +359,10 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
                 else:
                     errors.append(f"unexpected wheel top-level path: {name}")
 
+            missing_viewer_assets = set(VIEWER_ASSET_SHA256) - viewer_assets
+            for missing in sorted(missing_viewer_assets):
+                errors.append(f"required wheel viewer asset is missing: {missing}")
+
             native_extensions = [
                 name
                 for name in names
@@ -252,8 +386,11 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
                     errors.append(f"unexpected project version: {metadata.get('Version')}")
                 if metadata.get("Requires-Python") != ">=3.10":
                     errors.append(f"unexpected Requires-Python: {metadata.get('Requires-Python')}")
-                if metadata.get_all("Requires-Dist"):
-                    errors.append("wheel unexpectedly declares runtime dependencies")
+                provides_extra, requires_dist = _verify_dependency_metadata(
+                    metadata,
+                    artifact="wheel",
+                    errors=errors,
+                )
                 license_expression = _license_expression(metadata)
                 metadata_license_file = "LICENSE" in metadata.get_all("License-File", [])
 
@@ -306,6 +443,11 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
         "license_file": license_file,
         "license_file_sha256": license_file_sha256,
         "rust_sbom": rust_sbom,
+        "provides_extra": provides_extra,
+        "requires_dist": requires_dist,
+        "viewer_asset_version": VIEWER_ASSET_VERSION,
+        "viewer_asset_license": VIEWER_ASSET_LICENSE,
+        "viewer_assets": sorted(viewer_assets),
         "errors": errors,
     }
 
@@ -369,6 +511,9 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
     metadata_license_file = False
     license_file = False
     license_file_sha256: str | None = None
+    provides_extra: list[str] = []
+    requires_dist: list[str] = []
+    viewer_assets: set[str] = set()
     try:
         members, read_error = _sdist_members(path)
     except (OSError, tarfile.TarError, zipfile.BadZipFile) as error:
@@ -421,8 +566,24 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
             }
         ):
             errors.append(f"unexpected fuzz runtime file in sdist: {relative.as_posix()}")
+        if top == "scripts" and relative.as_posix() not in SDIST_SCRIPT_FILES:
+            errors.append(f"unexpected maintainer script in sdist: {relative.as_posix()}")
         if relative.name in {"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"}:
             license_file = True
+        viewer_prefix = ("src", "parasolid_kit", "interop", "preview", "static")
+        if relative.parts[: len(viewer_prefix)] == viewer_prefix:
+            wheel_name = PurePosixPath(*relative.parts[1:]).as_posix()
+            payload = _read_sdist_file(path, relative.as_posix())
+            if payload is None:
+                errors.append(f"cannot read sdist viewer asset: {relative.as_posix()}")
+            else:
+                viewer_assets.add(wheel_name)
+                _verify_viewer_asset(
+                    wheel_name,
+                    payload,
+                    artifact="sdist",
+                    errors=errors,
+                )
 
     if len(prefixes) != 1:
         errors.append(f"sdist must have exactly one archive root, got {sorted(prefixes)}")
@@ -444,10 +605,49 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "fuzz/fuzz_targets/parse.rs",
         "fuzz/fuzz_targets/schema_catalog.rs",
         "pyproject.toml",
+        "scripts/verify_optional_install.py",
+        "scripts/verify_optional_interop_i0.py",
+        "scripts/verify_optional_interop_i3.py",
+        "scripts/verify_optional_interop_i4.py",
+        "scripts/verify_optional_interop_i5.py",
+        "scripts/verify_optional_interop_i6.py",
+        "scripts/verify_optional_interop_i7.py",
         "src/parasolid_kit/__init__.py",
+        "src/parasolid_kit/interop/__init__.py",
+        "src/parasolid_kit/interop/_typing.py",
+        "src/parasolid_kit/interop/cadquery.py",
+        "src/parasolid_kit/interop/dependency.py",
+        "src/parasolid_kit/interop/errors.py",
+        "src/parasolid_kit/interop/limits.py",
+        "src/parasolid_kit/interop/occt/__init__.py",
+        "src/parasolid_kit/interop/occt/conversion.py",
+        "src/parasolid_kit/interop/occt/coverage.py",
+        "src/parasolid_kit/interop/occt/geometry.py",
+        "src/parasolid_kit/interop/occt/model.py",
+        "src/parasolid_kit/interop/occt/options.py",
+        "src/parasolid_kit/interop/occt/step.py",
+        "src/parasolid_kit/interop/occt/topology.py",
+        "src/parasolid_kit/interop/occt/validation.py",
+        "src/parasolid_kit/interop/preview/__init__.py",
+        "src/parasolid_kit/interop/preview/glb.py",
+        "src/parasolid_kit/interop/preview/model.py",
+        "src/parasolid_kit/interop/preview/server.py",
+        "src/parasolid_kit/interop/preview/static/index.html",
+        "src/parasolid_kit/interop/preview/static/viewer.css",
+        "src/parasolid_kit/interop/preview/static/viewer.js",
+        "src/parasolid_kit/interop/preview/tessellation.py",
+        "src/parasolid_kit/interop/preview/writer.py",
+        "tests/_occt_fixtures.py",
+        "tests/test_cadquery_adapter.py",
+        "tests/test_geometry_coverage.py",
+        "tests/test_occt_conversion.py",
+        "tests/test_preview.py",
+        "tests/test_step_export.py",
     }
     for missing in sorted(required - file_names):
         errors.append(f"required sdist file is missing: {missing}")
+    for missing in sorted(set(VIEWER_ASSET_SHA256) - viewer_assets):
+        errors.append(f"required sdist viewer asset is missing: src/{missing}")
 
     try:
         pkg_info = _read_sdist_file(path, "PKG-INFO")
@@ -455,6 +655,11 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
             metadata = BytesParser().parsebytes(pkg_info)
             license_expression = _license_expression(metadata)
             metadata_license_file = "LICENSE" in metadata.get_all("License-File", [])
+            provides_extra, requires_dist = _verify_dependency_metadata(
+                metadata,
+                artifact="sdist",
+                errors=errors,
+            )
         license_bytes = _read_sdist_file(path, "LICENSE")
         if license_bytes is not None:
             license_file_sha256 = hashlib.sha256(license_bytes).hexdigest()
@@ -479,6 +684,11 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "metadata_license_file": metadata_license_file,
         "license_file": license_file,
         "license_file_sha256": license_file_sha256,
+        "provides_extra": provides_extra,
+        "requires_dist": requires_dist,
+        "viewer_asset_version": VIEWER_ASSET_VERSION,
+        "viewer_asset_license": VIEWER_ASSET_LICENSE,
+        "viewer_assets": sorted(viewer_assets),
         "errors": errors,
     }
 

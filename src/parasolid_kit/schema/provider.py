@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from ..limits import DEFAULT_PARSE_LIMITS, ParseLimits
 from .model import SchemaSource, TypeDefinition
 
 
@@ -122,3 +125,81 @@ class InMemorySchemaProvider:
         """Return one loaded catalog without guessing compatible versions."""
 
         return self._catalogs.get(schema_id)
+
+
+class DirectorySchemaProvider:
+    """Load exact caller-owned ``sch_<id>.sch_txt`` catalogs on demand.
+
+    The directory and catalog files must not be symbolic links. Missing exact
+    filenames return ``None`` as required by :class:`SchemaProvider`; no nearby
+    version, alternate spelling, or recursively discovered file is considered.
+    Successfully loaded catalogs are cached for the lifetime of the provider.
+    """
+
+    def __init__(
+        self,
+        directory: str | os.PathLike[str],
+        *,
+        limits: ParseLimits = DEFAULT_PARSE_LIMITS,
+    ) -> None:
+        if not isinstance(directory, (str, os.PathLike)):
+            raise TypeError("directory must be a filesystem path")
+        if not isinstance(limits, ParseLimits):
+            raise TypeError("limits must be a ParseLimits value")
+        requested = Path(directory).expanduser()
+        if requested.is_symlink():
+            raise ValueError(f"schema directory must not be a symbolic link: {requested}")
+        resolved = requested.resolve()
+        if not resolved.is_dir():
+            raise NotADirectoryError(f"schema directory does not exist: {resolved}")
+        self._directory = resolved
+        self._limits = limits
+        self._catalogs: dict[str, SchemaCatalog] = {}
+
+    @property
+    def directory(self) -> Path:
+        """Return the absolute caller-owned catalog directory."""
+
+        return self._directory
+
+    def catalog_path(self, schema_id: str) -> Path:
+        """Return the one exact path eligible for ``schema_id``."""
+
+        _validate_schema_id(schema_id)
+        return self._directory / f"sch_{schema_id}.sch_txt"
+
+    def get_schema(self, schema_id: str) -> SchemaCatalog | None:
+        """Load and cache one exact catalog, or return ``None`` when absent."""
+
+        path = self.catalog_path(schema_id)
+        cached = self._catalogs.get(schema_id)
+        if cached is not None:
+            return cached
+        if path.is_symlink():
+            raise ValueError(f"schema catalog must not be a symbolic link: {path}")
+        if not path.exists():
+            return None
+        if not path.is_file():
+            raise FileNotFoundError(f"schema catalog is not a regular file: {path}")
+
+        # Local import avoids a provider/api module cycle: schema.api owns the
+        # native catalog parser while schema.provider owns this lookup policy.
+        from .api import load_schema_catalog
+
+        catalog = load_schema_catalog(
+            path,
+            expected_schema_id=schema_id,
+            limits=self._limits,
+        )
+        self._catalogs[schema_id] = catalog
+        return catalog
+
+
+def _validate_schema_id(schema_id: str) -> None:
+    if (
+        not isinstance(schema_id, str)
+        or not schema_id
+        or not schema_id.isascii()
+        or not schema_id.isdigit()
+    ):
+        raise ValueError("schema_id must contain only ASCII digits")

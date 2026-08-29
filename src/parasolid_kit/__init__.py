@@ -1,6 +1,15 @@
 """Public contracts for the Parasolid parser package."""
 
-from .api import compare_documents, inspect_xb, inspect_xt, map_brep, parse_xb, parse_xt, write_xb
+from .api import (
+    compare_documents,
+    inspect_xb,
+    inspect_xt,
+    map_brep,
+    parse_xb,
+    parse_xt,
+    read_brep,
+    write_xb,
+)
 from .binary import (
     ByteRange,
     FieldValue,
@@ -64,12 +73,14 @@ from .diagnostics import (
 from .errors import LimitExceededError, ParasolidError, ParseError, SchemaError
 from .limits import DEFAULT_PARSE_LIMITS, ParseLimits
 from .schema import (
+    DirectorySchemaProvider,
     InMemorySchemaProvider,
     SchemaCatalog,
     SchemaKey,
     SchemaProvider,
     load_schema_catalog,
 )
+from .summary import BrepEntityCounts, BrepSummary, ParsedBrep
 from .text import XtHeader, XtTermination
 from .validation import ComparisonDifference, DocumentComparison
 
@@ -81,8 +92,10 @@ __all__ = [
     "Body",
     "BodyKind",
     "BoundingBox",
+    "BrepEntityCounts",
     "BrepMetrics",
     "BrepModel",
+    "BrepSummary",
     "ByteRange",
     "CircleCurve",
     "ComparisonDifference",
@@ -93,6 +106,7 @@ __all__ = [
     "Diagnostic",
     "DiagnosticKind",
     "DiagnosticSeverity",
+    "DirectorySchemaProvider",
     "DocumentComparison",
     "Edge",
     "EllipseCurve",
@@ -113,6 +127,7 @@ __all__ = [
     "ParasolidError",
     "ParseError",
     "ParseLimits",
+    "ParsedBrep",
     "PlaneSurface",
     "PointGeometry",
     "RawField",
@@ -150,6 +165,7 @@ __all__ = [
     "map_brep",
     "parse_xb",
     "parse_xt",
+    "read_brep",
     "write_xb",
 ]
 

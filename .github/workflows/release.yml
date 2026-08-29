@@ -103,8 +103,8 @@ jobs:
 
       - name: Install verification dependencies and cold Python
         run: |
-          uv sync --locked --no-install-project
-          uv python install 3.10
+          uv python install 3.10 3.11
+          uv sync --locked --no-install-project --python 3.11
 
       - name: Build wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
@@ -131,6 +131,28 @@ jobs:
           --wheel dist/*.whl
           --sdist sdist-check/*.tar.gz
           --python 3.10
+
+      - name: Verify OCCT profile
+        run: >-
+          uv run --no-sync python scripts/verify_optional_install.py
+          --wheel dist/*.whl
+          --profile occt
+          --python 3.10
+
+      - name: Verify CadQuery profile
+        run: >-
+          uv run --no-sync python scripts/verify_optional_install.py
+          --wheel dist/*.whl
+          --profile cadquery
+          --python 3.11
+
+      - name: Verify CadQuery rejects Python 3.10
+        run: >-
+          uv run --no-sync python scripts/verify_optional_install.py
+          --wheel dist/*.whl
+          --profile cadquery
+          --python 3.10
+          --expect-unsupported-python
 
       - name: Add source distribution to Linux release artifacts
         if: matrix.include-sdist

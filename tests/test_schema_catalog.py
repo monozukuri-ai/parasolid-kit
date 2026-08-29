@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from parasolid_kit import SchemaError, load_schema_catalog
+from parasolid_kit import DirectorySchemaProvider, SchemaError, load_schema_catalog
 from parasolid_kit.schema import FieldType, SchemaSource
 
 
@@ -72,3 +72,64 @@ def test_load_schema_catalog_rejects_wrong_expected_id_and_invalid_counts() -> N
     assert invalid.value.diagnostic.code == "schema.field_count_mismatch"
     assert invalid.value.diagnostic.location is not None
     assert invalid.value.diagnostic.location.byte_offset > 0
+
+
+def test_directory_schema_provider_loads_only_the_exact_catalog_and_caches_it(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "sch_30000.sch_txt"
+    path.write_bytes(_catalog_bytes())
+    provider = DirectorySchemaProvider(tmp_path)
+
+    first = provider.get_schema("30000")
+    assert first is not None
+    assert first.source_path == str(path.resolve())
+    assert provider.catalog_path("30000") == path.resolve()
+    assert provider.get_schema("30001") is None
+
+    path.write_bytes(b"the cached catalog must not be silently replaced")
+    assert provider.get_schema("30000") is first
+
+
+def test_directory_schema_provider_rejects_invalid_paths_ids_and_catalog_identity(
+    tmp_path: Path,
+) -> None:
+    not_a_directory = tmp_path / "file"
+    not_a_directory.write_bytes(b"not a directory")
+    with pytest.raises(NotADirectoryError):
+        DirectorySchemaProvider(not_a_directory)
+
+    provider = DirectorySchemaProvider(tmp_path)
+    for invalid in ("", "../30000", "3000é", "SCH_30000"):
+        with pytest.raises(ValueError, match="ASCII digits"):
+            provider.get_schema(invalid)
+
+    mismatched = tmp_path / "sch_13006.sch_txt"
+    mismatched.write_bytes(_catalog_bytes())
+    with pytest.raises(SchemaError) as captured:
+        provider.get_schema("13006")
+    assert captured.value.diagnostic.code == "schema.catalog_id_mismatch"
+
+
+def test_directory_schema_provider_rejects_directory_and_catalog_symlinks(
+    tmp_path: Path,
+) -> None:
+    real_directory = tmp_path / "real"
+    real_directory.mkdir()
+    directory_link = tmp_path / "schemas"
+    try:
+        directory_link.symlink_to(real_directory, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"symbolic links are unavailable: {error}")
+
+    with pytest.raises(ValueError, match="symbolic link"):
+        DirectorySchemaProvider(directory_link)
+
+    target = real_directory / "target.sch_txt"
+    target.write_bytes(_catalog_bytes())
+    link = real_directory / "sch_30000.sch_txt"
+    link.symlink_to(target)
+
+    provider = DirectorySchemaProvider(real_directory)
+    with pytest.raises(ValueError, match="symbolic link"):
+        provider.get_schema("30000")

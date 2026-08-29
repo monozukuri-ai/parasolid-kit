@@ -12,9 +12,10 @@ from .model import (
     SchemaSource,
     TypeDefinition,
 )
-from .provider import InMemorySchemaProvider, SchemaCatalog, SchemaProvider
+from .provider import DirectorySchemaProvider, InMemorySchemaProvider, SchemaCatalog, SchemaProvider
 
 __all__ = [
+    "DirectorySchemaProvider",
     "FieldDefinition",
     "FieldType",
     "InMemorySchemaProvider",

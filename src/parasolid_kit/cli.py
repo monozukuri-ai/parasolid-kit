@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from collections import Counter
 from collections.abc import Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import Literal, TextIO
 
 from . import __version__
-from .api import compare_documents, inspect_xb, inspect_xt, map_brep, parse_xb, parse_xt
+from .api import compare_documents, inspect_xb, inspect_xt, map_brep, parse_xb, parse_xt, read_brep
 from .binary.document import ParasolidDocument
-from .brep import BrepModel
+from .brep import BrepModel, Vector3
+from .diagnostics import Diagnostic
 from .errors import ParasolidError
-from .schema import InMemorySchemaProvider, SchemaKey, load_schema_catalog
+from .schema import DirectorySchemaProvider, SchemaKey
+from .summary import BrepSummary
 
 SourceFormat = Literal["binary", "text"]
 
@@ -42,6 +46,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_format_argument(parse_command)
 
+    check_command = commands.add_parser(
+        "check",
+        help="parse, map, and show a compact B-Rep completeness report",
+    )
+    check_command.add_argument("path", type=Path)
+    check_command.add_argument("--schema-dir", type=Path, required=True)
+    check_command.add_argument(
+        "--json",
+        action="store_true",
+        help="write the compact report as JSON instead of human-readable text",
+    )
+    _add_format_argument(check_command)
+
     compare_command = commands.add_parser(
         "compare",
         help="compare two complete documents after pointer-index remapping",
@@ -51,6 +68,115 @@ def _parser() -> argparse.ArgumentParser:
     compare_command.add_argument("--schema-dir", type=Path, required=True)
     compare_command.add_argument("--absolute-tolerance", type=float, default=1.0e-12)
     compare_command.add_argument("--relative-tolerance", type=float, default=1.0e-12)
+
+    export_step_command = commands.add_parser(
+        "export-step",
+        help="convert a complete B-Rep and export validated AP242 plus a JSON sidecar",
+    )
+    export_step_command.add_argument("path", type=Path)
+    export_step_command.add_argument("output", type=Path)
+    export_step_command.add_argument("--schema-dir", type=Path, required=True)
+    export_step_command.add_argument(
+        "--source-unit",
+        choices=("m", "cm", "mm", "in", "ft"),
+        required=True,
+        help="physical length unit of Parasolid coordinates; never inferred",
+    )
+    export_step_command.add_argument(
+        "--output-unit",
+        choices=("m", "cm", "mm", "in", "ft"),
+        default="mm",
+        help="length unit declared by the AP242 file (default: mm)",
+    )
+    export_step_command.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace an existing STEP and conversion sidecar",
+    )
+    export_step_command.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="skip the default separate-process STEP reimport check",
+    )
+    _add_format_argument(export_step_command)
+
+    view_command = commands.add_parser(
+        "view",
+        help="write a bounded GLB preview and serve its bundled UI on localhost",
+    )
+    view_command.add_argument("path", type=Path)
+    view_command.add_argument("--schema-dir", type=Path, required=True)
+    view_command.add_argument(
+        "--source-unit",
+        choices=("m", "cm", "mm", "in", "ft"),
+        required=True,
+        help="physical length unit of Parasolid coordinates; never inferred",
+    )
+    view_command.add_argument(
+        "--target-unit",
+        choices=("m", "cm", "mm", "in", "ft"),
+        default="mm",
+        help="coordinate unit used by the preview GLB (default: mm)",
+    )
+    view_command.add_argument(
+        "--output",
+        type=Path,
+        help="self-contained output directory (default: <input-stem>.parasolid-preview)",
+    )
+    view_command.add_argument(
+        "--linear-deflection",
+        type=float,
+        default=0.1,
+        help="OCCT mesh deflection in target units (default: 0.1)",
+    )
+    view_command.add_argument(
+        "--angular-deflection",
+        type=float,
+        default=0.5,
+        help="OCCT mesh angular deflection in radians (default: 0.5)",
+    )
+    view_command.add_argument(
+        "--no-edges",
+        action="store_true",
+        help="omit edge line primitives and edge picking",
+    )
+    view_command.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="write an explicitly warned preview when source entities are missing",
+    )
+    view_command.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace an existing preview directory",
+    )
+    view_command.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="HTTP bind address (default: 127.0.0.1)",
+    )
+    view_command.add_argument(
+        "--port",
+        type=int,
+        default=0,
+        help="HTTP port; zero selects an ephemeral port (default: 0)",
+    )
+    view_command.add_argument(
+        "--allow-external",
+        action="store_true",
+        help="explicitly permit a non-loopback --host",
+    )
+    view_command.add_argument(
+        "--no-open",
+        action="store_true",
+        help="do not launch a browser automatically",
+    )
+    view_command.add_argument(
+        "--write-only",
+        action="store_true",
+        help="write GLB, manifest, and UI without starting the HTTP server",
+    )
+    _add_format_argument(view_command)
     return parser
 
 
@@ -86,14 +212,20 @@ def _header(path: Path, source_format: SourceFormat) -> object:
     return inspect_xb(path) if source_format == "binary" else inspect_xt(path)
 
 
-def _provider(path: Path, source_format: SourceFormat, schema_dir: Path) -> InMemorySchemaProvider:
+def _provider(
+    path: Path,
+    source_format: SourceFormat,
+    schema_dir: Path,
+) -> DirectorySchemaProvider:
     header = _header(path, source_format)
     schema_key = SchemaKey.parse(header.schema_key)  # type: ignore[attr-defined]
-    schema_path = schema_dir.expanduser().resolve() / f"sch_{schema_key.provider_schema}.sch_txt"
-    if not schema_path.is_file():
-        raise FileNotFoundError(f"required exact schema catalog does not exist: {schema_path}")
-    catalog = load_schema_catalog(schema_path, expected_schema_id=schema_key.provider_schema)
-    return InMemorySchemaProvider((catalog,))
+    provider = DirectorySchemaProvider(schema_dir)
+    if provider.get_schema(schema_key.provider_schema) is None:
+        raise FileNotFoundError(
+            "required exact schema catalog does not exist: "
+            f"{provider.catalog_path(schema_key.provider_schema)}"
+        )
+    return provider
 
 
 def _document(
@@ -150,6 +282,97 @@ def _write_json(value: object, *, stream: TextIO | None = None) -> None:
     )
 
 
+def _write_check_summary(
+    path: Path,
+    summary: BrepSummary,
+    *,
+    stream: TextIO | None = None,
+) -> None:
+    output = sys.stdout if stream is None else stream
+    status = "complete" if summary.complete and summary.topology.valid else "incomplete"
+    print(f"Parasolid B-Rep check: {status}", file=output)
+    print(f"  Path: {path}", file=output)
+    print(f"  Format: {'X_B' if summary.source_format == 'binary' else 'X_T'}", file=output)
+    print(f"  Schema: {summary.schema_key.raw}", file=output)
+    print(f"  Provider schema: {summary.schema_key.provider_schema}", file=output)
+    print(f"  Modeller: {summary.modeller_version}", file=output)
+    print(f"  File size: {summary.file_size} bytes", file=output)
+    print(f"  Nodes: {summary.node_count}", file=output)
+    print(
+        "  Resolved schema: "
+        f"{summary.resolved_schema_type_count} types, "
+        f"{summary.resolved_schema_field_count} fields",
+        file=output,
+    )
+    print(f"  Complete: {'yes' if summary.complete else 'no'}", file=output)
+    print(f"  Topology valid: {'yes' if summary.topology.valid else 'no'}", file=output)
+
+    print("Counts:", file=output)
+    for name, count in summary.counts.to_dict().items():
+        print(f"  {name}: {count}", file=output)
+
+    print("Kinds:", file=output)
+    print(f"  bodies: {_format_kind_counts(summary.body_kind_counts)}", file=output)
+    print(f"  curves: {_format_kind_counts(summary.curve_kind_counts)}", file=output)
+    print(f"  surfaces: {_format_kind_counts(summary.surface_kind_counts)}", file=output)
+
+    print("Metrics (source transmit units; physical length unit unknown):", file=output)
+    bounding_box = summary.metrics.bounding_box
+    if bounding_box is None:
+        print("  bounding_box: unavailable", file=output)
+    else:
+        print(
+            "  bounding_box: "
+            f"min={_format_vector(bounding_box.minimum)} "
+            f"max={_format_vector(bounding_box.maximum)}",
+            file=output,
+        )
+        print(f"  extents: {_format_vector(bounding_box.extents)}", file=output)
+    print(f"  surface_area: {_format_metric(summary.metrics.surface_area)}", file=output)
+    print(f"  volume: {_format_metric(summary.metrics.volume)}", file=output)
+
+    print(f"Diagnostics ({summary.diagnostic_count}):", file=output)
+    if summary.diagnostic_count == 0:
+        print("  none", file=output)
+    else:
+        for layer, diagnostics in (
+            ("document", summary.document_diagnostics),
+            ("brep", summary.brep_diagnostics),
+        ):
+            for diagnostic in diagnostics:
+                print(
+                    f"  [{layer}] {diagnostic.severity.value} "
+                    f"{diagnostic.code} ({_format_diagnostic_entity(diagnostic)}): "
+                    f"{diagnostic.message}",
+                    file=output,
+                )
+
+
+def _format_kind_counts(counts: tuple[tuple[str, int], ...]) -> str:
+    return "none" if not counts else ", ".join(f"{kind}={count}" for kind, count in counts)
+
+
+def _format_diagnostic_entity(diagnostic: Diagnostic) -> str:
+    coordinates: list[str] = []
+    if diagnostic.node_id is not None:
+        coordinates.append(f"node_id={diagnostic.node_id}")
+    if diagnostic.node_type is not None:
+        coordinates.append(f"node_type={diagnostic.node_type}")
+    return ", ".join(coordinates) if coordinates else "entity=unknown"
+
+
+def _format_vector(vector: Vector3) -> str:
+    return "(" + ", ".join(_format_number(value) for value in vector) + ")"
+
+
+def _format_metric(value: float | None) -> str:
+    return "unavailable" if value is None else _format_number(value)
+
+
+def _format_number(value: float) -> str:
+    return format(value, ".12g")
+
+
 def _run(arguments: argparse.Namespace) -> int:
     if arguments.command == "inspect":
         source_format = _source_format(arguments.path, arguments.format)
@@ -175,6 +398,24 @@ def _run(arguments: argparse.Namespace) -> int:
             report["brep"] = _brep_summary(map_brep(document))
         _write_json(report)
         return 0
+    if arguments.command == "check":
+        parsed = read_brep(
+            arguments.path,
+            schema_dir=arguments.schema_dir,
+            source_format=arguments.format,
+        )
+        complete = parsed.summary.complete and parsed.summary.topology.valid
+        if arguments.json:
+            _write_json(
+                {
+                    "status": "complete" if complete else "incomplete",
+                    "path": str(arguments.path),
+                    "summary": parsed.summary.to_dict(),
+                }
+            )
+        else:
+            _write_check_summary(arguments.path, parsed.summary)
+        return 0 if complete else 1
     if arguments.command == "compare":
         left_format = _source_format(arguments.left)
         right_format = _source_format(arguments.right)
@@ -195,16 +436,138 @@ def _run(arguments: argparse.Namespace) -> int:
             }
         )
         return 0 if comparison.equivalent else 1
+    if arguments.command == "export-step":
+        from .interop.occt import to_occt
+        from .interop.occt.step import write_step
+
+        parsed = read_brep(
+            arguments.path,
+            schema_dir=arguments.schema_dir,
+            source_format=arguments.format,
+        )
+        source_sha256 = hashlib.sha256(parsed.document.raw_bytes).hexdigest()
+        converted = to_occt(
+            parsed.brep,
+            source_unit=arguments.source_unit,
+            target_unit="mm",
+            source_identity=f"sha256:{source_sha256}",
+        )
+        exported = write_step(
+            converted,
+            arguments.output,
+            output_unit=arguments.output_unit,
+            validate=not arguments.no_validate,
+            overwrite=arguments.overwrite,
+        )
+        step_report = exported.report
+        _write_json(
+            {
+                "status": step_report.status,
+                "source": str(arguments.path),
+                "source_sha256": source_sha256,
+                "output": str(exported.path),
+                "sidecar": str(exported.sidecar_path),
+                "step": {
+                    "schema": step_report.step_schema,
+                    "output_unit": step_report.output_unit,
+                    "conversion_target_unit": converted.report.options.target_unit,
+                    "exchange_working_unit": "mm",
+                    "geometry_scale_to_mm": step_report.geometry_scale_to_mm,
+                    "transfer_status": step_report.transfer_status,
+                    "write_status": step_report.write_status,
+                },
+                "artifact": step_report.artifact.to_dict(),
+                "conversion": {
+                    "source_complete": converted.report.source_complete,
+                    "conversion_complete": converted.report.conversion_complete,
+                    "occt_valid": converted.report.occt_valid,
+                    "output_topology": converted.report.output_topology.to_dict(),
+                    "metrics": converted.report.metrics.to_dict(),
+                },
+                "validation": (
+                    None if step_report.validation is None else step_report.validation.to_dict()
+                ),
+            }
+        )
+        return 0
+    if arguments.command == "view":
+        from .interop.occt import to_occt
+        from .interop.preview import (
+            PreviewOptions,
+            create_preview_server,
+            write_preview,
+        )
+
+        parsed = read_brep(
+            arguments.path,
+            schema_dir=arguments.schema_dir,
+            source_format=arguments.format,
+        )
+        source_sha256 = hashlib.sha256(parsed.document.raw_bytes).hexdigest()
+        converted = to_occt(
+            parsed.brep,
+            source_unit=arguments.source_unit,
+            target_unit=arguments.target_unit,
+            require_complete=not arguments.allow_partial,
+            source_identity=f"sha256:{source_sha256}",
+        )
+        output = arguments.output or arguments.path.with_name(
+            f"{arguments.path.stem}.parasolid-preview"
+        )
+        preview = write_preview(
+            converted,
+            parsed.brep,
+            output,
+            options=PreviewOptions(
+                linear_deflection=arguments.linear_deflection,
+                angular_deflection=arguments.angular_deflection,
+                include_edges=not arguments.no_edges,
+                allow_partial=arguments.allow_partial,
+            ),
+            overwrite=arguments.overwrite,
+        )
+        response: dict[str, object] = {
+            "status": "generated" if arguments.write_only else "serving",
+            "source_sha256": source_sha256,
+            "output": str(preview.directory),
+            "index": str(preview.index_path),
+            "glb": str(preview.glb_path),
+            "manifest": str(preview.manifest_path),
+            "preview": preview.report.to_dict(),
+        }
+        if arguments.write_only:
+            _write_json(response)
+            return 0
+        with create_preview_server(
+            preview.directory,
+            host=arguments.host,
+            port=arguments.port,
+            allow_external=arguments.allow_external,
+        ) as server:
+            response["url"] = server.url
+            _write_json(response)
+            sys.stdout.flush()
+            if not arguments.no_open:
+                server.open_browser()
+            with suppress(KeyboardInterrupt):
+                server.serve_forever()
+        return 0
     raise RuntimeError("unreachable CLI command")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the CLI and return 0 for success, 1 for differences, or 2 for errors."""
+    """Run the CLI and return 0 for success, 1 for incomplete/different, or 2 for errors."""
 
     arguments = _parser().parse_args(argv)
     try:
         return _run(arguments)
     except (ParasolidError, OSError, TypeError, ValueError) as error:
+        if arguments.command == "check" and not arguments.json:
+            if isinstance(error, ParasolidError) and hasattr(error, "diagnostic"):
+                print(f"error [{error.diagnostic.code}]: {error}", file=sys.stderr)
+            else:
+                print(f"error: {error}", file=sys.stderr)
+            return 2
         report: dict[str, object] = {
             "status": "error",
             "error_type": type(error).__name__,
@@ -212,5 +575,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
         if isinstance(error, ParasolidError) and hasattr(error, "diagnostic"):
             report["diagnostic"] = error.diagnostic.to_dict()
+        error_report = getattr(error, "report", None)
+        if error_report is not None and hasattr(error_report, "to_dict"):
+            report["report"] = error_report.to_dict()
         _write_json(report, stream=sys.stderr)
         return 2

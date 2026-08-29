@@ -2153,6 +2153,264 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
+    fn maps_i7_exact_analytic_trim_nurbs_and_offset_geometry() {
+        fn vector(name: &str, values: [f64; 3]) -> (FieldDefinition, Vec<FieldValue>) {
+            field(name, 0, vec![FieldValue::Vector(values.map(Some))])
+        }
+
+        fn double(name: &str, value: f64) -> (FieldDefinition, Vec<FieldValue>) {
+            field(name, 0, vec![FieldValue::Double(Some(value))])
+        }
+
+        let mut nodes = Vec::new();
+
+        let mut line = common_curve_fields(0);
+        line.extend([
+            vector("pvec", [0.0, 0.0, 0.0]),
+            vector("direction", [1.0, 0.0, 0.0]),
+        ]);
+        nodes.push(node(1, 30, "LINE", line));
+
+        let mut circle = common_curve_fields(0);
+        circle.extend([
+            vector("centre", [0.0, 0.0, 0.0]),
+            vector("normal", [0.0, 0.0, 1.0]),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+            double("radius", 5.0),
+        ]);
+        nodes.push(node(2, 31, "CIRCLE", circle));
+
+        let mut ellipse = common_curve_fields(0);
+        ellipse.extend([
+            vector("centre", [0.0, 0.0, 0.0]),
+            vector("normal", [0.0, 0.0, 1.0]),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+            double("major_radius", 8.0),
+            double("minor_radius", 4.0),
+        ]);
+        nodes.push(node(3, 32, "ELLIPSE", ellipse));
+
+        let mut parabola = common_curve_fields(0);
+        parabola.extend([
+            vector("origin", [0.0, 0.0, 0.0]),
+            vector("normal", [0.0, 0.0, 1.0]),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+            double("focal_length", 2.0),
+        ]);
+        nodes.push(node(4, 33, "PARABOLA", parabola));
+
+        let mut hyperbola = common_curve_fields(0);
+        hyperbola.extend([
+            vector("origin", [0.0, 0.0, 0.0]),
+            vector("normal", [0.0, 0.0, 1.0]),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+            double("transverse_radius", 3.0),
+            double("conjugate_radius", 2.0),
+        ]);
+        nodes.push(node(5, 34, "HYPERBOLA", hyperbola));
+
+        let mut trimmed = common_curve_fields(0);
+        trimmed.extend([
+            field("basis_curve", 1008, vec![FieldValue::PointerIndex(2)]),
+            vector("point_1", [5.0, 0.0, 0.0]),
+            vector("point_2", [-5.0, 0.0, 0.0]),
+            double("parm_1", 0.0),
+            double("parm_2", std::f64::consts::PI),
+        ]);
+        nodes.push(node(6, 35, "TRIMMED_CURVE", trimmed));
+
+        let mut plane = common_surface_fields(0);
+        plane.extend([
+            vector("pvec", [0.0, 0.0, 0.0]),
+            vector("normal", [0.0, 0.0, 1.0]),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+        ]);
+        nodes.push(node(7, 50, "PLANE", plane));
+
+        let mut cylinder = common_surface_fields(0);
+        cylinder.extend([
+            vector("pvec", [0.0, 0.0, 0.0]),
+            vector("axis", [0.0, 0.0, 1.0]),
+            double("radius", 5.0),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+        ]);
+        nodes.push(node(8, 51, "CYLINDER", cylinder));
+
+        let mut cone = common_surface_fields(0);
+        cone.extend([
+            vector("pvec", [0.0, 0.0, 0.0]),
+            vector("axis", [0.0, 0.0, 1.0]),
+            double("radius", 8.0),
+            double("sin_half_angle", -0.316_227_766_016_837_94),
+            double("cos_half_angle", 0.948_683_298_050_513_8),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+        ]);
+        nodes.push(node(9, 52, "CONE", cone));
+
+        let mut sphere = common_surface_fields(0);
+        sphere.extend([
+            vector("centre", [0.0, 0.0, 0.0]),
+            double("radius", 6.0),
+            vector("axis", [0.0, 0.0, 1.0]),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+        ]);
+        nodes.push(node(10, 53, "SPHERE", sphere));
+
+        let mut torus = common_surface_fields(0);
+        torus.extend([
+            vector("centre", [0.0, 0.0, 0.0]),
+            vector("axis", [0.0, 0.0, 1.0]),
+            double("major_radius", 8.0),
+            double("minor_radius", 2.0),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+        ]);
+        nodes.push(node(11, 54, "TORUS", torus));
+
+        let mut offset = common_surface_fields(0);
+        offset.extend([
+            field("surface", 1006, vec![FieldValue::PointerIndex(7)]),
+            double("offset", 2.0),
+        ]);
+        nodes.push(node(12, 55, "OFFSET_SURF", offset));
+
+        let mut b_surface = common_surface_fields(0);
+        b_surface.push(field("nurbs", 137, vec![FieldValue::PointerIndex(14)]));
+        nodes.push(node(13, 135, "B_SURFACE", b_surface));
+        nodes.extend([
+            node(
+                14,
+                137,
+                "NURBS_SURF",
+                vec![
+                    field("u_degree", 0, vec![FieldValue::ShortInteger(Some(1))]),
+                    field("v_degree", 0, vec![FieldValue::ShortInteger(Some(1))]),
+                    field("n_u_vertices", 0, vec![FieldValue::Integer(Some(2))]),
+                    field("n_v_vertices", 0, vec![FieldValue::Integer(Some(2))]),
+                    field("vertex_dim", 0, vec![FieldValue::ShortInteger(Some(3))]),
+                    field("n_u_knots", 0, vec![FieldValue::Integer(Some(2))]),
+                    field("n_v_knots", 0, vec![FieldValue::Integer(Some(2))]),
+                    field("u_knot_type", 0, vec![FieldValue::UnsignedByte(1)]),
+                    field("v_knot_type", 0, vec![FieldValue::UnsignedByte(1)]),
+                    field("u_periodic", 0, vec![FieldValue::Logical(false)]),
+                    field("v_periodic", 0, vec![FieldValue::Logical(false)]),
+                    field("u_closed", 0, vec![FieldValue::Logical(false)]),
+                    field("v_closed", 0, vec![FieldValue::Logical(false)]),
+                    field("rational", 0, vec![FieldValue::Logical(false)]),
+                    field("surface_form", 0, vec![FieldValue::UnsignedByte(0)]),
+                    field("bspline_vertices", 45, vec![FieldValue::PointerIndex(15)]),
+                    field("u_knot_mult", 127, vec![FieldValue::PointerIndex(16)]),
+                    field("v_knot_mult", 127, vec![FieldValue::PointerIndex(17)]),
+                    field("u_knots", 128, vec![FieldValue::PointerIndex(18)]),
+                    field("v_knots", 128, vec![FieldValue::PointerIndex(19)]),
+                ],
+            ),
+            node(
+                15,
+                45,
+                "BSPLINE_VERTICES",
+                vec![field(
+                    "vertices",
+                    0,
+                    [
+                        0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 10.0, 0.0, 0.0, 10.0, 10.0, 0.0,
+                    ]
+                    .into_iter()
+                    .map(|value| FieldValue::Double(Some(value)))
+                    .collect(),
+                )],
+            ),
+            node(
+                16,
+                127,
+                "KNOT_MULT",
+                vec![field(
+                    "mult",
+                    0,
+                    vec![
+                        FieldValue::ShortInteger(Some(2)),
+                        FieldValue::ShortInteger(Some(2)),
+                    ],
+                )],
+            ),
+            node(
+                17,
+                127,
+                "KNOT_MULT",
+                vec![field(
+                    "mult",
+                    0,
+                    vec![
+                        FieldValue::ShortInteger(Some(2)),
+                        FieldValue::ShortInteger(Some(2)),
+                    ],
+                )],
+            ),
+            node(
+                18,
+                128,
+                "KNOT_SET",
+                vec![field(
+                    "knots",
+                    0,
+                    vec![FieldValue::Double(Some(0.0)), FieldValue::Double(Some(1.0))],
+                )],
+            ),
+            node(
+                19,
+                128,
+                "KNOT_SET",
+                vec![field(
+                    "knots",
+                    0,
+                    vec![FieldValue::Double(Some(0.0)), FieldValue::Double(Some(1.0))],
+                )],
+            ),
+        ]);
+
+        let mut mapper = Mapper::new(BrepSourceFormat::Text, "SCH_TEST", &nodes);
+        let curve_kinds = (1..=6)
+            .map(|index| mapper.map_curve(index).map(|curve| curve.kind.as_str()))
+            .collect::<Result<Vec<_>, _>>();
+        assert_eq!(
+            curve_kinds,
+            Ok(vec![
+                "line",
+                "circle",
+                "ellipse",
+                "parabola",
+                "hyperbola",
+                "trimmed",
+            ])
+        );
+        let surface_kinds = (7..=13)
+            .map(|index| {
+                mapper
+                    .map_surface(index)
+                    .map(|surface| surface.kind.as_str())
+            })
+            .collect::<Result<Vec<_>, _>>();
+        assert_eq!(
+            surface_kinds,
+            Ok(vec![
+                "plane", "cylinder", "cone", "sphere", "torus", "offset", "nurbs",
+            ])
+        );
+        let nurbs = mapper.map_surface(13);
+        assert!(matches!(
+            nurbs.map(|surface| surface.kind),
+            Ok(SurfaceKind::Nurbs(NurbsSurface {
+                u_degree: 1,
+                v_degree: 1,
+                u_control_vertex_count: 2,
+                v_control_vertex_count: 2,
+                rational: false,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
     fn retains_an_unsupported_curve_and_marks_the_model_incomplete() {
         let mut nodes = wire_acorn_nodes();
         nodes.push(node(6, 200, "FUTURE_CURVE", common_curve_fields(4)));

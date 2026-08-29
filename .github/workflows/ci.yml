@@ -35,7 +35,12 @@ jobs:
           components: clippy,rustfmt
 
       - name: Install Python dependencies
-        run: uv sync --locked
+        run: |
+          uv python install 3.11
+          uv sync --locked --python 3.11
+
+      - name: Verify dependency lock
+        run: uv lock --check
 
       - name: Test Python facade
         run: uv run pytest
@@ -96,8 +101,8 @@ jobs:
 
       - name: Install build dependencies and cold Python
         run: |
-          uv sync --locked
-          uv python install 3.10
+          uv python install 3.10 3.11
+          uv sync --locked --python 3.11
 
       - name: Build wheel and sdist
         run: |
@@ -117,3 +122,55 @@ jobs:
           --wheel dist/*.whl
           --sdist dist/*.tar.gz
           --python 3.10
+
+  optional-profiles:
+    name: Optional ${{ matrix.profile }} / Python ${{ matrix.python }}
+    needs: quality
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: occt
+            python: "3.10"
+          - profile: cadquery
+            python: "3.11"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.8.15"
+          enable-cache: true
+
+      - name: Install Rust MSRV
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: 1.88.0
+
+      - name: Install build dependencies and profile Python
+        run: |
+          uv python install 3.11 ${{ matrix.python }}
+          uv sync --locked --no-install-project --python 3.11
+
+      - name: Build wheel
+        run: uv run --no-sync maturin build --release --out dist --compatibility pypi
+
+      - name: Verify optional profile in a cold environment
+        run: >-
+          uv run --no-sync python scripts/verify_optional_install.py
+          --wheel dist/*.whl
+          --profile ${{ matrix.profile }}
+          --python ${{ matrix.python }}
+
+      - name: Verify CadQuery rejects Python 3.10
+        if: matrix.profile == 'cadquery'
+        run: |
+          uv python install 3.10
+          uv run --no-sync python scripts/verify_optional_install.py \
+            --wheel dist/*.whl \
+            --profile cadquery \
+            --python 3.10 \
+            --expect-unsupported-python

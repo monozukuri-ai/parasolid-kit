@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="parasolid-kit-asset-bundle" content="1.0.0; license=MIT">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'"
+    >
+    <title>parasolid-kit preview</title>
+    <link rel="stylesheet" href="viewer.css">
+    <script src="viewer.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">parasolid-kit</p>
+        <h1>B-Rep preview</h1>
+      </div>
+      <div id="status-strip" class="status-strip" aria-label="conversion status">
+        <span id="source-status" class="status-chip">Source</span>
+        <span id="conversion-status" class="status-chip">Conversion</span>
+        <span id="occt-status" class="status-chip">OCCT</span>
+      </div>
+    </header>
+
+    <div id="partial-banner" class="partial-banner" hidden role="alert">
+      <strong>Partial preview</strong>
+      <span>Some source geometry is absent from the rendered result.</span>
+      <ul id="missing-list"></ul>
+    </div>
+
+    <main class="workspace">
+      <section class="viewport-panel" aria-label="3D viewport">
+        <div class="toolbar">
+          <label>
+            Pick
+            <select id="pick-kind">
+              <option value="face">Faces</option>
+              <option value="edge">Edges</option>
+            </select>
+          </label>
+          <label>
+            Body
+            <select id="body-filter"><option value="">All</option></select>
+          </label>
+          <label>
+            Surface
+            <select id="surface-filter"><option value="">All</option></select>
+          </label>
+          <label>
+            Diagnostic
+            <select id="diagnostic-filter"><option value="">All</option></select>
+          </label>
+          <button id="fit-view" type="button">Fit view</button>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="viewer" aria-label="Interactive Parasolid model preview"></canvas>
+          <div class="viewport-help">Drag to orbit · Wheel to zoom · Click to inspect</div>
+        </div>
+      </section>
+
+      <aside class="inspector">
+        <section>
+          <p class="eyebrow">Selection</p>
+          <h2 id="selection-title">Nothing selected</h2>
+          <dl id="selection-details" class="details"></dl>
+        </section>
+        <section>
+          <div class="entity-heading">
+            <div>
+              <p class="eyebrow">Visible entities</p>
+              <h2>Source map</h2>
+            </div>
+            <span id="visible-count" class="count-badge">0</span>
+          </div>
+          <div id="entity-list" class="entity-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <footer>
+      Offline asset bundle <span id="bundle-version">unknown</span> · MIT · no source path or bytes
+    </footer>
+    <output id="self-test" data-status="idle" hidden>idle</output>
+  </body>
+</html>
