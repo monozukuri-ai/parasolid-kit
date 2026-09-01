@@ -3,11 +3,12 @@
 mod brep;
 
 use parasolid_core::{
-    ComparisonDifference, ComparisonOptions, DocumentComparison, DocumentLimits, ErrorDetails,
-    FieldDefinition, FieldType, FieldValue, InMemorySchemaProvider, InspectionLimits, ParseError,
-    ParsedSchemaCatalog, RawField, RawNode, SchemaCatalogLimits, SchemaCoverageReport, SchemaEdit,
-    SchemaKey, SchemaLimits, SchemaResolution, SchemaSource, TypeDefinition, XbDocument, XbHeader,
-    XbTermination, XtDocument, XtHeader, XtTermination, decode_embedded_schema,
+    BuiltinProfileRegistry, ComparisonDifference, ComparisonOptions, DocumentComparison,
+    DocumentLimits, ErrorDetails, FieldDefinition, FieldType, FieldValue, InMemorySchemaProvider,
+    InspectionLimits, ParseError, ParsedSchemaCatalog, RawField, RawNode, SchemaCatalogLimits,
+    SchemaCoverageReport, SchemaEdit, SchemaKey, SchemaLimits, SchemaProviderResolution,
+    SchemaResolution, SchemaSource, TypeDefinition, XbDocument, XbHeader, XbTermination,
+    XtDocument, XtHeader, XtTermination, decode_embedded_schema,
 };
 use pyo3::{
     Bound, Py, PyRef, PyResult, Python,
@@ -28,6 +29,11 @@ pub(crate) struct NativeXbDocument {
 #[pyclass(name = "_NativeXtDocument", frozen)]
 pub(crate) struct NativeXtDocument {
     pub(crate) document: XtDocument,
+}
+
+#[pyclass(name = "_NativeSchemaProvider", frozen)]
+struct NativeSchemaProvider {
+    provider: InMemorySchemaProvider,
 }
 
 #[pyfunction(name = "_inspect_xb")]
@@ -115,7 +121,7 @@ fn parse_schema_catalog_native<'py>(
     Ok(response)
 }
 
-#[pyfunction(name = "_parse_xb")]
+#[pyfunction(name = "_parse_xb", signature = (data, schema_id, definitions, max_file_size, max_nodes, max_schema_types, max_fields_per_type, max_string_bytes, max_variable_elements, allow_builtin=false))]
 #[allow(clippy::too_many_arguments)]
 fn parse_xb<'py>(
     py: Python<'py>,
@@ -128,22 +134,50 @@ fn parse_xb<'py>(
     max_fields_per_type: usize,
     max_string_bytes: usize,
     max_variable_elements: usize,
+    allow_builtin: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
+    let use_builtin = allow_builtin && schema_id.is_none() && definitions.is_none();
     let provider = provider_from_python(schema_id, definitions)?;
     let response = PyDict::new(py);
-    match parasolid_core::parse_xb(
-        data,
-        &provider,
-        DocumentLimits {
-            max_file_size,
-            max_nodes,
-            max_schema_types,
-            max_fields_per_type,
-            max_string_bytes,
-            max_variable_elements,
-        },
-    ) {
+    let limits = DocumentLimits {
+        max_file_size,
+        max_nodes,
+        max_schema_types,
+        max_fields_per_type,
+        max_string_bytes,
+        max_variable_elements,
+    };
+    let parsed = (|| {
+        if use_builtin {
+            let header = parasolid_core::inspect_xb(
+                data,
+                InspectionLimits {
+                    max_file_size,
+                    max_string_bytes,
+                },
+            )?;
+            let key = SchemaKey::parse(&header.schema_key)?;
+            if let Some(builtin) = BuiltinProfileRegistry::compiled()?.provider_for_key(&key) {
+                return parasolid_core::parse_xb(data, &builtin, limits);
+            }
+        }
+        parasolid_core::parse_xb(data, &provider, limits)
+    })();
+    match parsed {
         Ok(document) => {
+            // Even a node-free stream must have a registered default key.
+            if use_builtin && document.schema_provider == SchemaProviderResolution::CallerSupplied {
+                response.set_item("ok", false)?;
+                response.set_item(
+                    "error",
+                    missing_builtin_to_python(
+                        py,
+                        &document.schema_key,
+                        document.terminator.byte_range.start,
+                    )?,
+                )?;
+                return Ok(response);
+            }
             let value = document_to_python(py, &document)?;
             value.set_item(
                 "native_document",
@@ -154,13 +188,17 @@ fn parse_xb<'py>(
         }
         Err(error) => {
             response.set_item("ok", false)?;
-            response.set_item("error", error_to_python(py, &error)?)?;
+            let detail = error_to_python(py, &error)?;
+            if use_builtin && error.kind() == parasolid_core::ErrorKind::MissingBaseSchema {
+                detail.set_item("message", "no built-in profile supports this exact schema key; supply an explicit schema provider with the required catalog")?;
+            }
+            response.set_item("error", detail)?;
         }
     }
     Ok(response)
 }
 
-#[pyfunction(name = "_parse_xt")]
+#[pyfunction(name = "_parse_xt", signature = (data, schema_id, definitions, max_file_size, max_nodes, max_schema_types, max_fields_per_type, max_string_bytes, max_variable_elements, allow_builtin=false))]
 #[allow(clippy::too_many_arguments)]
 fn parse_xt<'py>(
     py: Python<'py>,
@@ -173,12 +211,106 @@ fn parse_xt<'py>(
     max_fields_per_type: usize,
     max_string_bytes: usize,
     max_variable_elements: usize,
+    allow_builtin: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
+    let use_builtin = allow_builtin && schema_id.is_none() && definitions.is_none();
     let provider = provider_from_python(schema_id, definitions)?;
     let response = PyDict::new(py);
-    match parasolid_core::parse_xt(
+    let limits = DocumentLimits {
+        max_file_size,
+        max_nodes,
+        max_schema_types,
+        max_fields_per_type,
+        max_string_bytes,
+        max_variable_elements,
+    };
+    let parsed = (|| {
+        if use_builtin {
+            let header = parasolid_core::inspect_xt(
+                data,
+                InspectionLimits {
+                    max_file_size,
+                    max_string_bytes,
+                },
+            )?;
+            let key = SchemaKey::parse(&header.schema_key)?;
+            if let Some(builtin) = BuiltinProfileRegistry::compiled()?.provider_for_key(&key) {
+                return parasolid_core::parse_xt(data, &builtin, limits);
+            }
+        }
+        parasolid_core::parse_xt(data, &provider, limits)
+    })();
+    match parsed {
+        Ok(document) => {
+            // Even a node-free stream must have a registered default key.
+            if use_builtin && document.schema_provider == SchemaProviderResolution::CallerSupplied {
+                response.set_item("ok", false)?;
+                response.set_item(
+                    "error",
+                    missing_builtin_to_python(
+                        py,
+                        &document.schema_key,
+                        document.terminator.byte_range.start,
+                    )?,
+                )?;
+                return Ok(response);
+            }
+            let value = xt_document_to_python(py, &document)?;
+            value.set_item(
+                "native_document",
+                Py::new(py, NativeXtDocument { document })?,
+            )?;
+            response.set_item("ok", true)?;
+            response.set_item("value", value)?;
+        }
+        Err(error) => {
+            response.set_item("ok", false)?;
+            let detail = error_to_python(py, &error)?;
+            if use_builtin && error.kind() == parasolid_core::ErrorKind::MissingBaseSchema {
+                detail.set_item("message", "no built-in profile supports this exact schema key; supply an explicit schema provider with the required catalog")?;
+            }
+            response.set_item("error", detail)?;
+        }
+    }
+    Ok(response)
+}
+
+#[pyfunction(name = "_compile_schema_provider")]
+fn compile_schema_provider(
+    schema_id: Option<String>,
+    definitions: Option<Vec<CatalogType>>,
+) -> PyResult<NativeSchemaProvider> {
+    Ok(NativeSchemaProvider {
+        provider: provider_from_python(schema_id, definitions)?,
+    })
+}
+
+#[pyfunction(name = "_scan_xt_node_types")]
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+fn scan_xt_node_types<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    provider: PyRef<'_, NativeSchemaProvider>,
+    target_node_types: Vec<u16>,
+    max_file_size: usize,
+    max_nodes: usize,
+    max_schema_types: usize,
+    max_fields_per_type: usize,
+    max_string_bytes: usize,
+    max_variable_elements: usize,
+) -> PyResult<Bound<'py, PyDict>> {
+    if target_node_types
+        .iter()
+        .any(|node_type| !(2..=32_767).contains(node_type))
+    {
+        return Err(PyValueError::new_err(
+            "target node types must identify non-termination 16-bit node types",
+        ));
+    }
+    let response = PyDict::new(py);
+    match parasolid_core::scan_xt_node_types(
         data,
-        &provider,
+        &provider.provider,
         DocumentLimits {
             max_file_size,
             max_nodes,
@@ -187,13 +319,12 @@ fn parse_xt<'py>(
             max_string_bytes,
             max_variable_elements,
         },
+        &target_node_types,
     ) {
-        Ok(document) => {
-            let value = xt_document_to_python(py, &document)?;
-            value.set_item(
-                "native_document",
-                Py::new(py, NativeXtDocument { document })?,
-            )?;
+        Ok(summary) => {
+            let value = PyDict::new(py);
+            value.set_item("record_count", summary.record_count)?;
+            value.set_item("target_type_counts", summary.target_type_counts)?;
             response.set_item("ok", true)?;
             response.set_item("value", value)?;
         }
@@ -607,6 +738,10 @@ fn document_to_python<'py>(py: Python<'py>, document: &XbDocument) -> PyResult<B
         "schema_coverage",
         schema_coverage_to_python(py, &document.schema_coverage)?,
     )?;
+    value.set_item(
+        "schema_resolution",
+        provider_resolution_to_python(py, &document.schema_provider)?,
+    )?;
     value.set_item("raw_bytes", PyBytes::new(py, document.raw_bytes()))?;
     Ok(value)
 }
@@ -642,7 +777,34 @@ fn xt_document_to_python<'py>(
         "schema_coverage",
         schema_coverage_to_python(py, &document.schema_coverage)?,
     )?;
+    value.set_item(
+        "schema_resolution",
+        provider_resolution_to_python(py, &document.schema_provider)?,
+    )?;
     value.set_item("raw_bytes", PyBytes::new(py, document.raw_bytes()))?;
+    Ok(value)
+}
+
+fn provider_resolution_to_python<'py>(
+    py: Python<'py>,
+    resolution: &SchemaProviderResolution,
+) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    value.set_item("kind", resolution.kind())?;
+    if let SchemaProviderResolution::Builtin {
+        profile_id,
+        profile_revision,
+        schema_key,
+        coverage,
+        profile_sha256,
+    } = resolution
+    {
+        value.set_item("profile_id", profile_id)?;
+        value.set_item("profile_revision", profile_revision)?;
+        value.set_item("schema_key", schema_key)?;
+        value.set_item("coverage", coverage.as_str())?;
+        value.set_item("profile_sha256", profile_sha256)?;
+    }
     Ok(value)
 }
 
@@ -661,6 +823,7 @@ fn schema_key_to_python<'py>(
 
 fn raw_node_to_python<'py>(py: Python<'py>, node: &RawNode) -> PyResult<Bound<'py, PyDict>> {
     let value = PyDict::new(py);
+    value.set_item("user_fields", &node.user_fields)?;
     value.set_item("node_type", node.node_type)?;
     value.set_item("index", node.index)?;
     value.set_item("variable_length", node.variable_length)?;
@@ -861,6 +1024,28 @@ fn schema_edit_to_python<'py>(py: Python<'py>, edit: &SchemaEdit) -> PyResult<Bo
     Ok(value)
 }
 
+fn missing_builtin_to_python<'py>(
+    py: Python<'py>,
+    key: &SchemaKey,
+    offset: usize,
+) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    value.set_item("code", "schema.missing_base_schema")?;
+    value.set_item("message", "no built-in profile supports this exact schema key; supply an explicit schema provider with the required catalog")?;
+    value.set_item("offset", offset)?;
+    value.set_item(
+        "details",
+        error_details_to_python(
+            py,
+            &ErrorDetails::SchemaLookup {
+                schema: key.provider_schema().to_owned(),
+                node_type: 0,
+            },
+        )?,
+    )?;
+    Ok(value)
+}
+
 fn error_to_python<'py>(py: Python<'py>, error: &ParseError) -> PyResult<Bound<'py, PyDict>> {
     let value = PyDict::new(py);
     value.set_item("code", error.kind().code())?;
@@ -915,6 +1100,19 @@ fn error_details_to_python<'py>(
             value.set_item("schema", schema)?;
             value.set_item("node_type", node_type)?;
         }
+        ErrorDetails::BuiltinProfileLookup {
+            profile_id,
+            profile_revision,
+            selected_schema_key,
+            requested_schema_key,
+            node_type,
+        } => {
+            value.set_item("profile_id", profile_id)?;
+            value.set_item("profile_revision", profile_revision)?;
+            value.set_item("selected_schema_key", selected_schema_key)?;
+            value.set_item("requested_schema_key", requested_schema_key)?;
+            value.set_item("node_type", node_type)?;
+        }
         ErrorDetails::NodeType { node_type } => {
             value.set_item("node_type", node_type)?;
         }
@@ -956,6 +1154,8 @@ fn _core(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(parse_schema_catalog_native, module)?)?;
     module.add_function(wrap_pyfunction!(parse_xb, module)?)?;
     module.add_function(wrap_pyfunction!(parse_xt, module)?)?;
+    module.add_function(wrap_pyfunction!(compile_schema_provider, module)?)?;
+    module.add_function(wrap_pyfunction!(scan_xt_node_types, module)?)?;
     module.add_function(wrap_pyfunction!(write_xb, module)?)?;
     module.add_function(wrap_pyfunction!(compare_xb_xb, module)?)?;
     module.add_function(wrap_pyfunction!(compare_xt_xt, module)?)?;

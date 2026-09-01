@@ -12,7 +12,8 @@ data.
 ## Features
 
 - Inspect X_T and X_B headers without a schema catalog.
-- Parse complete X_T and X_B node streams with the exact caller-provided schema.
+- Parse the verified Onshape V30 subset without an external schema file.
+- Use an explicit schema provider for inputs outside the built-in profile.
 - Reconstruct an unmodified parsed X_B document byte-for-byte.
 - Compare X_T and X_B documents after pointer-index remapping.
 - Map supported topology, analytic geometry, and NURBS records to a typed B-Rep
@@ -60,10 +61,13 @@ Alternatively, install a downloaded wheel directly:
 python -m pip install /path/to/parasolid_kit-0.1.0.dev0-cp310-abi3-PLATFORM.whl
 ```
 
-Header inspection works immediately after installation. Complete parsing,
-B-Rep checking, STEP export, CadQuery conversion, and the viewer also require
-the exact Parasolid schema catalog named by the input file. See
-[Schema catalogs](#schema-catalogs) before trying those commands.
+Header inspection works immediately after installation. Complete parsing and
+B-Rep checking also work without a schema file for the built-in
+`SCH_3000000_30000` profile (`verified_subset`): Onshape V30 text/neutral binary
+exports of single solid boxes, prisms, cylinders, and through-holes with zero
+user fields. Other keys and uncovered types require an explicit provider; see
+[Schema catalogs](#schema-catalogs). STEP, CadQuery, and preview operations also
+require an optional runtime and geometry supported by that adapter.
 
 ### Optional interoperability profiles
 
@@ -106,7 +110,7 @@ Convert a parsed result by naming the source length unit explicitly:
 from parasolid_kit import read_brep
 from parasolid_kit.interop.occt import to_occt, write_step
 
-parsed = read_brep("model.x_t", schema_dir="/path/to/schema")
+parsed = read_brep("box-v30.x_t")
 converted = to_occt(
     parsed.brep,
     source_unit="m",
@@ -197,10 +201,17 @@ python -m pip install .
 
 ## Schema catalogs
 
-Header inspection works without external data. Complete parsing requires the
-exact `sch_*.sch_txt` catalog identified by the file's internal schema key.
-There is no fallback to a nearby version and no inferred replacement for a
-missing catalog.
+The built-in `onshape-sch30000-r1` profile (revision 1, `verified_subset`) is
+selected when neither a provider nor a schema directory is supplied and the
+internal key is exactly `SCH_3000000_30000`. It needs no catalog, network, or
+CAD installation at runtime. [Profile provenance and coverage](docs/builtin-profiles.md)
+records its source, canonical hash, and validation scope.
+
+Use an external catalog for other keys, including embedded-base keys, or for
+types outside the built-in subset. An explicit provider is authoritative: an
+empty provider or missing exact catalog fails without switching to the built-in
+profile. `schema_provider=None` means default selection. Nearby versions and
+the human-readable X_T common-header `SCH` value are never used as substitutes.
 
 Siemens schema catalogs are not included in this repository or its packages.
 Obtain the catalog from a Parasolid SDK or a Parasolid-based product available
@@ -215,8 +226,8 @@ Inspecting the header does not require a catalog:
 parasolid-kit inspect model.x_b
 ```
 
-Read `header.schema_key` in the JSON output. The required filename is selected
-as follows:
+Read `header.schema_key` in the JSON output. When using an external provider,
+the required filename is selected as follows:
 
 | Internal schema key | Required catalog |
 |---|---|
@@ -274,17 +285,17 @@ from parasolid_kit import read_brep
 source = Path("model.x_b")
 parsed = read_brep(
     source,
-    schema_dir="/path/to/schema",
 )
 
 print(parsed.summary.to_dict())
 print(len(parsed.document.nodes), len(parsed.brep.bodies), parsed.complete)
 ```
 
-`read_brep()` selects X_T/X_B from a known suffix or signature, loads only the
-exact `sch_<provider-schema>.sch_txt` catalog, parses the document, maps the
-B-Rep, and returns all three views as `ParsedBrep`. It never chooses a nearby
-schema catalog.
+`read_brep()` selects X_T/X_B from a known suffix or signature, resolves the
+exact built-in profile (or an explicitly supplied catalog), parses the document,
+maps the B-Rep, and returns all three views as `ParsedBrep`.
+`parsed.document.schema_resolution` and `parsed.summary.schema_resolution`
+record the selected provider and built-in profile metadata.
 
 The lower-level `inspect_xb()`, `parse_xb()`, `map_brep()`, and `write_xb()`
 APIs remain available when each stage must be controlled independently.
@@ -295,31 +306,32 @@ interpreted.
 
 ## Command line
 
+These examples assume an input covered by the built-in profile. Add
+`--schema-dir /path/to/schema` to select an external catalog explicitly.
+
 ```bash
 # Header inspection does not need a schema catalog.
 parasolid-kit inspect model.x_b
 
 # Parse, map, and print a compact human-readable report.
-parasolid-kit check model.x_b --schema-dir /path/to/schema
+parasolid-kit check model.x_b
 
 # Use stable JSON when the result is consumed by another program.
-parasolid-kit check model.x_t --schema-dir /path/to/schema --json
+parasolid-kit check model.x_t --json
 
-# Complete parsing and comparison require the exact catalog in --schema-dir.
-parasolid-kit parse model.x_t --schema-dir /path/to/schema
-parasolid-kit parse model.x_b --schema-dir /path/to/schema --brep
-parasolid-kit compare model.x_t model.x_b --schema-dir /path/to/schema
+# These examples use the exact built-in SCH_3000000_30000 subset.
+parasolid-kit parse model.x_t
+parasolid-kit parse model.x_b --brep
+parasolid-kit compare model.x_t model.x_b
 
 # Requires one optional profile; source units are explicit and output is
 # cold-reimported before model.step becomes visible.
 parasolid-kit export-step model.x_t model.step \
-  --schema-dir /path/to/schema \
   --source-unit m
 
 # Generate the same bounded artifacts, bind an ephemeral localhost port, and
 # open the bundled offline viewer. Use --no-open for remote/CI shells.
 parasolid-kit view model.x_t \
-  --schema-dir /path/to/schema \
   --source-unit m
 ```
 
@@ -340,6 +352,7 @@ an incomplete B-Rep mapping or a valid comparison that found differences, and
 
 - [Python API](docs/api.md)
 - [Format support and limitations](docs/format-support.md)
+- [Built-in profile provenance](docs/builtin-profiles.md)
 - [Corpus provenance and redistribution policy](corpus/README.md)
 
 ## Project boundaries

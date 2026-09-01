@@ -6,10 +6,76 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+# Installed before package import in every runtime subprocess. Build/install may
+# fetch ordinary dependencies; runtime may not read the checkout or catalogs.
+RUNTIME_GUARD_CODE = """
+import sys
+from pathlib import Path
+checkout = Path(sys.argv[1]).resolve()
+installed_environment = Path(sys.argv[2]).resolve()
+def runtime_guard(event, args):
+    if event.startswith("socket."):
+        raise RuntimeError("network operation during isolated parser runtime")
+    if event == "open" and isinstance(args[0], (str, bytes)):
+        import os
+        path = Path(os.fsdecode(args[0])).resolve()
+        if path.is_relative_to(checkout) or path.name.lower().endswith(".sch_txt"):
+            raise RuntimeError("checkout/catalog read during isolated parser runtime")
+sys.addaudithook(runtime_guard)
+""".strip()
+
+BUILTIN_CODE = """
+from parasolid_kit import (
+    InMemorySchemaProvider, SchemaError, compare_documents, write_xb,
+)
+expected_profile = {
+    "kind": "builtin", "profile_id": "onshape-sch30000-r1", "profile_revision": 1,
+    "schema_key": "SCH_3000000_30000", "coverage": "verified_subset",
+    "profile_sha256": "e28a5e11a7713573a7134025bd8c3d83f194fc663662f079e839a95ea5981f80",
+}
+""".strip()
+
+FIXTURE_CODE = """
+import hashlib
+import json
+import parasolid_kit
+from parasolid_kit import parse_xt, parse_xb, read_brep
+assert Path(parasolid_kit.__file__).resolve().is_relative_to(installed_environment)
+paths = [Path(p) for p in sys.argv[3:]]
+assert len(paths) == 2
+text, binary = parse_xt(paths[0]), parse_xb(paths[1])
+assert compare_documents(text, binary).equivalent
+assert write_xb(binary) == paths[1].read_bytes()
+reports = []
+for path, document in zip(paths, (text, binary)):
+    assert document.schema_resolution.to_dict() == expected_profile
+    result = read_brep(path)
+    assert result.brep.complete and result.brep.topology.valid
+    assert not result.brep.diagnostics and not document.diagnostics
+    assert result.summary.schema_resolution == document.schema_resolution
+    reports.append({
+        "input_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "records": len(document.nodes),
+        "fields": sum(len(n.fields) for n in document.nodes),
+        "summary": result.summary.to_dict(),
+    })
+assert "OCP" not in sys.modules and "cadquery" not in sys.modules
+print(json.dumps({"equivalent": True, "complete": True, "streams": reports}))
+""".strip()
+
+CLI_CODE = """
+import runpy
+sys.argv = ["parasolid-kit", *sys.argv[3:]]
+runpy.run_module("parasolid_kit", run_name="__main__")
+""".strip()
 
 SMOKE_CODE = """
 import json
@@ -31,6 +97,7 @@ from parasolid_kit import (
     parse_xt,
     read_brep,
 )
+assert Path(parasolid_kit.__file__).resolve().is_relative_to(installed_environment)
 assert parasolid_kit.__version__ == "0.1.0.dev0"
 assert callable(read_brep)
 assert BrepSummary.__module__ == "parasolid_kit.summary"
@@ -74,6 +141,33 @@ payload += len(schema).to_bytes(4, "big", signed=True) + schema
 payload += (0).to_bytes(4, "big", signed=True)
 header = inspect_xb(payload)
 assert header.schema_key == schema.decode("ascii")
+# Synthetic integer-array record (variable length precedes the compact index).
+payload += (82).to_bytes(2, "big") + (2).to_bytes(4, "big")
+payload += (2).to_bytes(2, "big") + (7).to_bytes(4, "big")
+payload += (-32764).to_bytes(4, "big", signed=True) + bytes([0, 1, 0, 1])
+text_payload = (f"T{len(modeller)} {modeller.decode()}{len(schema)} "
+                f"{schema.decode()}0 82 2 1 7 ?1 0 ").encode()
+text, binary = parse_xt(text_payload), parse_xb(payload)
+assert compare_documents(text, binary).equivalent
+assert [v.value for v in binary.nodes[0].fields[0].values] == [7, None]
+for parsed in (text, binary):
+    assert parsed.schema_resolution.to_dict() == expected_profile
+for parser, data in ((parse_xt, text_payload), (parse_xb, payload)):
+    try:
+        parser(data, schema_provider=InMemorySchemaProvider())
+    except SchemaError as error:
+        assert error.diagnostic.code == "schema.missing_base_schema"
+    else:
+        raise AssertionError("explicit empty provider fell back")
+    try:
+        parser(data.replace(b"SCH_3000000_30000", b"SCH_3000001_30000"))
+    except SchemaError as error:
+        assert error.diagnostic.code == "schema.missing_base_schema"
+    else:
+        raise AssertionError("near key selected a profile")
+Path("synthetic.x_t").write_bytes(text_payload)
+Path("synthetic.x_b").write_bytes(payload)
+assert "OCP" not in sys.modules and "cadquery" not in sys.modules
 print(json.dumps({
     "version": parasolid_kit.__version__,
     "api": "imported",
@@ -81,6 +175,8 @@ print(json.dumps({
     "viewer_assets": sorted(preview.STATIC_ASSET_SHA256),
     "geometry_coverage_rows": len(occt.GEOMETRY_COVERAGE),
     "native_inspect_schema": header.schema_key,
+    "schema_resolution": text.schema_resolution.to_dict(),
+    "synthetic_pair_equivalent": True,
 }))
 """.strip()
 
@@ -90,6 +186,15 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--wheel", type=Path, required=True)
     parser.add_argument("--sdist", type=Path, required=True)
     parser.add_argument("--python", default=sys.executable)
+    parser.add_argument(
+        "--fixture-pair",
+        type=Path,
+        nargs=2,
+        action="append",
+        default=[],
+        metavar=("X_T", "X_B"),
+        help="separate local real fixture pair; repeat for more pairs (never bundled)",
+    )
     return parser.parse_args()
 
 
@@ -120,10 +225,16 @@ def _run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> str:
     return completed.stdout.strip()
 
 
-def verify_install(artifact: Path, python: str) -> dict[str, object]:
+def verify_install(
+    artifact: Path,
+    python: str,
+    *,
+    fixture_pairs: tuple[tuple[Path, Path], ...] = (),
+) -> dict[str, object]:
     """Install one artifact with uv and run from outside the checkout."""
 
     artifact = artifact.resolve()
+    fixture_reports = []
     with tempfile.TemporaryDirectory(prefix="parasolid-kit-cold-") as temporary:
         root = Path(temporary)
         environment_path = root / "environment"
@@ -158,11 +269,52 @@ def verify_install(artifact: Path, python: str) -> dict[str, object]:
             cwd=work_dir,
             environment=environment,
         )
+        runtime = [str(environment_python), "-I", "-c"]
+        runtime_args = [str(ROOT), str(environment_path)]
         imported = _run(
-            [str(environment_python), "-I", "-c", SMOKE_CODE],
+            [*runtime, RUNTIME_GUARD_CODE + "\n" + BUILTIN_CODE + "\n" + SMOKE_CODE, *runtime_args],
             cwd=work_dir,
             environment=environment,
         )
+
+        def runtime_cli(*args: str) -> dict[str, object]:
+            return json.loads(
+                _run(
+                    [*runtime, RUNTIME_GUARD_CODE + "\n" + CLI_CODE, *runtime_args, *args],
+                    cwd=work_dir,
+                    environment=environment,
+                )
+            )
+
+        for suffix in ("x_t", "x_b"):
+            parsed = runtime_cli("parse", f"synthetic.{suffix}")
+            assert (
+                parsed["document"]["schema_resolution"] == json.loads(imported)["schema_resolution"]
+            )
+        assert runtime_cli("compare", "synthetic.x_t", "synthetic.x_b")["comparison"]["equivalent"]
+        for index, pair in enumerate(fixture_pairs):
+            copied = []
+            for source, suffix in zip(pair, ("x_t", "x_b"), strict=True):
+                target = work_dir / f"fixture-{index}.{suffix}"
+                shutil.copyfile(source, target)
+                copied.append(str(target))
+            checked = json.loads(
+                _run(
+                    [
+                        *runtime,
+                        RUNTIME_GUARD_CODE + "\n" + BUILTIN_CODE + "\n" + FIXTURE_CODE,
+                        *runtime_args,
+                        *copied,
+                    ],
+                    cwd=work_dir,
+                    environment=environment,
+                )
+            )
+            for path, stream in zip(copied, checked["streams"], strict=True):
+                assert runtime_cli("parse", path, "--brep")["brep"]["complete"]
+                assert runtime_cli("check", path, "--json")["summary"] == stream["summary"]
+            assert runtime_cli("compare", *copied)["comparison"]["equivalent"]
+            fixture_reports.append(checked)
         module_version = _run(
             [str(environment_python), "-I", "-m", "parasolid_kit", "--version"],
             cwd=work_dir,
@@ -179,6 +331,9 @@ def verify_install(artifact: Path, python: str) -> dict[str, object]:
         "import": json.loads(imported),
         "module_cli": module_version,
         "console_cli": console_version,
+        "runtime_python_guards": ["network", "checkout_reads", "catalog_reads"],
+        "real_fixture_pair_count": len(fixture_reports),
+        "real_fixtures": fixture_reports,
     }
 
 
@@ -189,8 +344,14 @@ def main() -> int:
     reports: list[dict[str, object]] = []
     try:
         for artifact in (arguments.wheel, arguments.sdist):
-            reports.append(verify_install(artifact, arguments.python))
-    except (OSError, RuntimeError, json.JSONDecodeError) as error:
+            reports.append(
+                verify_install(
+                    artifact,
+                    arguments.python,
+                    fixture_pairs=tuple(tuple(p) for p in arguments.fixture_pair),
+                )
+            )
+    except (OSError, RuntimeError, AssertionError, json.JSONDecodeError) as error:
         report = {"status": "failed", "artifacts": reports, "error": str(error)}
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 1

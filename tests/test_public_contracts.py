@@ -33,6 +33,7 @@ def test_public_contracts_import_without_optional_cad_dependencies() -> None:
     assert parasolid_kit.CurveGeometry.__module__ == "parasolid_kit.brep.geometry"
     assert parasolid_kit.Sense.UNKNOWN.value == "unknown"
     assert callable(schema.resolve_schema_blob)
+    assert parasolid_kit.SchemaProviderResolution is schema.SchemaProviderResolution
     assert callable(schema.schema_coverage)
     assert callable(schema.load_schema_catalog)
     assert schema.SchemaKey.parse("SCH_3000000_30000_13006").provider_schema == "13006"

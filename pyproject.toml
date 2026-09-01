@@ -69,14 +69,12 @@ include = [
   "src/parasolid_kit/interop/preview/static/*.js",
   "src/parasolid_kit/interop/preview/static/*.css",
   { path = "docs/**/*", format = "sdist" },
-  { path = "scripts/inspect_xb_headers.py", format = "sdist" },
   { path = "scripts/verify_artifacts.py", format = "sdist" },
   { path = "scripts/verify_corpus.py", format = "sdist" },
   { path = "scripts/verify_isolated_install.py", format = "sdist" },
+  { path = "scripts/prepare_fuzz_corpus.py", format = "sdist" },
   { path = "scripts/verify_optional_install.py", format = "sdist" },
   { path = "scripts/verify_optional_interop_i0.py", format = "sdist" },
-  { path = "scripts/verify_optional_interop_i3.py", format = "sdist" },
-  { path = "scripts/verify_optional_interop_i4.py", format = "sdist" },
   { path = "scripts/verify_optional_interop_i5.py", format = "sdist" },
   { path = "scripts/verify_optional_interop_i6.py", format = "sdist" },
   { path = "scripts/verify_optional_interop_i7.py", format = "sdist" },
@@ -88,6 +86,7 @@ include = [
   { path = "corpus/manifest.schema.json", format = "sdist" },
 ]
 exclude = [
+  ".internal/**",
   "**/__pycache__/**",
   "**/*.pyc",
   "data/**",

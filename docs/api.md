@@ -15,11 +15,23 @@ between development releases.
 object. Inspection validates only the header and must not be treated as proof
 that the node stream or geometry is valid.
 
-Complete parsing uses the schema key inside the X_B/X_T stream. For
-`SCH_<modeller>_<effective>` the provider must supply `<effective>`; for
-`SCH_<modeller>_<effective>_<base>` it must supply `<base>`. The parser does not
-fall back to a nearby version, infer an unknown field layout, or select the
-human-oriented common-header `SCH` value in X_T.
+Complete parsing selects by the internal stream key. Omitting `schema_provider`
+(or passing `None`) selects the compiled `onshape-sch30000-r1` revision 1 profile
+only for `SCH_3000000_30000`. This is a `verified_subset`, covering Onshape V30
+text/neutral binary exports with zero user fields and the documented single-solid
+box, prism, cylinder, and through-hole scope. No runtime catalog or network is
+needed. See [profile provenance](builtin-profiles.md).
+
+```python
+from parasolid_kit import compare_documents, parse_xb, parse_xt
+
+text = parse_xt("box-v30.x_t")
+binary = parse_xb("box-v30.x_b")
+assert compare_documents(text, binary).equivalent
+print(text.schema_resolution.to_dict())
+```
+
+For inputs outside that scope, supply an explicit provider:
 
 ```python
 from parasolid_kit import DirectorySchemaProvider, parse_xb
@@ -28,21 +40,27 @@ provider = DirectorySchemaProvider("/caller/owned/schema")
 document = parse_xb("model.x_b", schema_provider=provider)
 ```
 
-`DirectorySchemaProvider` constructs exactly
-`sch_<requested-schema>.sch_txt`, rejects symbolic-link directories/catalogs,
-validates the catalog's internal identifier, and caches a successful load. A
-missing exact file returns `None` to the parser; it does not scan recursively or
-select another version.
+An explicit provider is authoritative, including an empty provider that returns
+`None`. It never falls back to built-in definitions. For
+`SCH_<modeller>_<effective>` it must supply `<effective>`; for
+`SCH_<modeller>_<effective>_<base>` it must supply `<base>`. Embedded data does
+not remove that base requirement. The parser never selects a nearby version or
+the human-oriented common-header `SCH` value in X_T.
 
-The repository and package contain no Siemens schema catalog. Use
-`parasolid-kit inspect MODEL.x_b` to read the internal schema key without a
-catalog. A key such as `SCH_3000000_30000` requires `sch_30000.sch_txt`; an
-embedded-base key such as `SCH_3000310_30000_13006` requires
-`sch_13006.sch_txt`. Obtain that exact catalog from an available Parasolid SDK
-or Parasolid-based product and pass its containing directory to
-`DirectorySchemaProvider` or `--schema-dir`. See
-[Schema catalogs](../README.md#schema-catalogs) for acquisition and location
-instructions.
+`DirectorySchemaProvider` constructs exactly `sch_<requested-schema>.sch_txt`,
+rejects symbolic-link directories/catalogs, validates the internal identifier,
+and caches a successful load. A missing exact file returns `None` to the parser;
+`read_brep(schema_dir=...)` and the CLI report `FileNotFoundError` for that case.
+The repository and package do not contain Siemens catalogs. See
+[Schema catalogs](../README.md#schema-catalogs) for the external-provider path.
+
+| Condition | Diagnostic / error |
+|---|---|
+| Default selection with an unsupported or embedded key | `schema.missing_base_schema`, with an explanation of built-in scope |
+| Explicit provider returns no catalog | `schema.missing_base_schema` |
+| Explicit catalog has no requested type | `schema.missing_type_definition` |
+| Built-in profile has no reviewed type | `schema.builtin_profile_uncovered_type`, including profile and node type |
+| Built-in input has nonzero user fields | `node.unsupported_user_fields`, before record payload decoding |
 
 ## Entry points
 
@@ -66,8 +84,7 @@ For normal inspection, `read_brep()` is the shortest complete path:
 from parasolid_kit import read_brep
 
 parsed = read_brep(
-    "model.x_t",
-    schema_dir="/caller/owned/schema",
+    "box-v30.x_t",
 )
 
 print(parsed.complete)
@@ -91,14 +108,22 @@ units; `unit_basis="source_transmit_units"` does not claim a physical unit.
 `source_format="auto"` accepts only known `.x_b`/`.xb` and `.x_t`/`.xt`
 suffixes or known binary/text signatures. Use `source_format="x-b"` or
 `source_format="x-t"` for an ambiguous bytes-like source. `schema_provider` and
-`schema_dir` are mutually exclusive. Neither is required when an embedded
-schema is independently sufficient for the complete stream.
+`schema_dir` are mutually exclusive. Omitting both selects the supported exact
+built-in profile; embedded-base keys require an external provider.
 
 `ParasolidDocument.format` is `"binary"` or `"text"`. Its `nodes` remain in
 physical source order and retain node indices, effective definitions, decoded
 field values, exact byte ranges, schema-resolution provenance, terminator, raw
 bytes, diagnostics, and schema-coverage data. Public model objects provide
 `to_dict()` where a JSON-compatible report is required.
+
+`ParasolidDocument.schema_resolution` and `BrepSummary.schema_resolution` hold
+an immutable `SchemaProviderResolution`. Its `kind` is `"caller_supplied"` or
+`"builtin"`; built-in results also expose `profile_id`, `profile_revision`, the
+exact `schema_key`, `coverage`, and `profile_sha256`. This identifies the
+provider independently of each type's `SchemaSource` (base or embedded).
+Both fields are appended with default `None` for older manual constructions;
+native parse results always carry the actual resolution.
 
 `write_xb` rejects an X_T-derived document. It is a reconstruction API, not a
 general editor or serializer for a mutated object graph.
@@ -163,7 +188,7 @@ I3 introduced the public kernel adapter; I7 expands its exact geometry coverage:
 from parasolid_kit import read_brep
 from parasolid_kit.interop.occt import ValidationTolerances, to_occt
 
-parsed = read_brep("model.x_b", schema_dir="/caller/owned/schema")
+parsed = read_brep("box-v30.x_b")
 result = to_occt(
     parsed.brep,
     source_unit="m",
@@ -406,15 +431,15 @@ same interface:
 
 ```text
 parasolid-kit inspect MODEL.x_b
-parasolid-kit check MODEL.x_b --schema-dir /caller/owned/schema
-parasolid-kit check MODEL.x_t --schema-dir /caller/owned/schema --json
-parasolid-kit parse MODEL.x_t --schema-dir /caller/owned/schema
-parasolid-kit parse MODEL.x_b --schema-dir /caller/owned/schema --brep
-parasolid-kit compare LEFT.x_t RIGHT.x_b --schema-dir /caller/owned/schema
+parasolid-kit check MODEL.x_b
+parasolid-kit check MODEL.x_t --json
+parasolid-kit parse MODEL.x_t
+parasolid-kit parse MODEL.x_b --brep
+parasolid-kit compare LEFT.x_t RIGHT.x_b
 parasolid-kit export-step MODEL.x_t MODEL.step \
-  --schema-dir /caller/owned/schema --source-unit m
+  --source-unit m
 parasolid-kit view MODEL.x_t \
-  --schema-dir /caller/owned/schema --source-unit m
+  --source-unit m
 ```
 
 `check` writes a compact human-readable report by default and uses human-readable
@@ -424,8 +449,10 @@ complete/exported result or equivalent documents, `1` for an incomplete B-Rep
 mapping or a valid comparison that is different, and `2` for input, schema,
 parse, mapping, conversion, or export errors.
 Auto-detection accepts only known suffixes or signatures; ambiguous files
-require `--format x-b` or `--format x-t`. Complete parsing loads only the exact
-`sch_<provider-schema>.sch_txt` path and never guesses a fallback catalog.
+require `--format x-b` or `--format x-t`. The schema directory is optional for
+the built-in subset. An explicit
+`--schema-dir` selects only the exact `sch_<provider-schema>.sch_txt` catalog.
+`compare` resolves each input by its own internal key.
 `export-step` additionally requires `--source-unit`; it hashes the source for
 the sidecar, converts to an mm OCCT working result, writes AP242 in
 `--output-unit` (default `mm`), and rejects existing outputs unless

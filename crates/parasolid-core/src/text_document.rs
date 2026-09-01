@@ -1,12 +1,14 @@
 //! Strict raw-node parsing for Parasolid text transmit (`X_T`) data.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use crate::header::locate_payload_start;
 use crate::schema::{
     EffectiveSchemaRegistry, FieldDefinition, FieldType, SchemaCoverageReport, SchemaEdit,
-    SchemaKey, SchemaLimits, SchemaProvider, SchemaResolution, SchemaSource, TypeDefinition,
+    SchemaKey, SchemaLimits, SchemaProvider, SchemaProviderResolution, SchemaResolution,
+    SchemaSource, TypeDefinition, missing_type_definition_error, unavailable_schema_error,
+    validate_builtin_input,
 };
 use crate::text_reader::TextReader;
 use crate::{DocumentLimits, ErrorDetails, ErrorKind, FieldValue, ParseError, RawField, RawNode};
@@ -50,6 +52,8 @@ pub struct XtDocument {
     pub header: XtHeader,
     /// Parsed schema-key components.
     pub schema_key: SchemaKey,
+    /// Provider provenance retained independently of per-type schema provenance.
+    pub schema_provider: SchemaProviderResolution,
     /// Non-termination nodes in source order.
     pub nodes: Vec<RawNode>,
     /// One resolution per encountered node type.
@@ -73,7 +77,7 @@ impl XtDocument {
 ///
 /// # Errors
 ///
-/// Returns a structured error for an invalid common header, non-ASCII body,
+/// Returns a structured error for an invalid common header, unsupported control byte,
 /// malformed text flag, invalid length-prefixed strings, schema key, or user-field size.
 pub fn inspect_xt(data: &[u8], limits: crate::InspectionLimits) -> Result<XtHeader, ParseError> {
     read_header(data, limits).map(|(header, _)| header)
@@ -90,24 +94,88 @@ pub fn parse_xt<P: SchemaProvider>(
     provider: &P,
     limits: DocumentLimits,
 ) -> Result<XtDocument, ParseError> {
+    let mut nodes = Vec::new();
+    let stream = read_xt_stream::<true, _>(data, provider, limits, |node| nodes.push(node))?;
+    Ok(XtDocument {
+        header: stream.header,
+        schema_key: stream.schema_key,
+        schema_provider: stream.schema_provider,
+        nodes,
+        schemas: stream.schemas,
+        terminator: stream.terminator,
+        schema_coverage: stream.schema_coverage,
+        raw_bytes: data.to_vec(),
+    })
+}
+
+/// Counts returned only after the entire text stream has passed strict parsing.
+#[doc(hidden)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XtNodeTypeCounts {
+    pub record_count: usize,
+    pub target_type_counts: BTreeMap<u16, usize>,
+}
+
+/// Strict target counting for development tooling without retaining decoded fields.
+///
+/// Uses the same schema, scalar, index, limit and termination checks as `parse_xt`.
+/// Memory still includes the logical text reader, effective schemas and node indices;
+/// this is not a constant-memory or schema-independent parser.
+///
+/// # Errors
+///
+/// Returns the same parse diagnostics as `parse_xt`; no partial counts are returned.
+#[doc(hidden)]
+pub fn scan_xt_node_types<P: SchemaProvider>(
+    data: &[u8],
+    provider: &P,
+    limits: DocumentLimits,
+    target_node_types: &[u16],
+) -> Result<XtNodeTypeCounts, ParseError> {
+    let mut target_type_counts = target_node_types
+        .iter()
+        .map(|&t| (t, 0))
+        .collect::<BTreeMap<_, _>>();
+    let stream = read_xt_stream::<false, _>(data, provider, limits, |node| {
+        if let Some(count) = target_type_counts.get_mut(&node.node_type) {
+            *count += 1;
+        }
+    })?;
+    Ok(XtNodeTypeCounts {
+        record_count: stream.record_count,
+        target_type_counts,
+    })
+}
+
+struct XtStreamSummary {
+    header: XtHeader,
+    schema_key: SchemaKey,
+    schema_provider: SchemaProviderResolution,
+    schemas: Vec<SchemaResolution>,
+    terminator: XtTermination,
+    schema_coverage: SchemaCoverageReport,
+    record_count: usize,
+}
+
+fn read_xt_stream<const RETAIN_FIELDS: bool, P: SchemaProvider>(
+    data: &[u8],
+    provider: &P,
+    limits: DocumentLimits,
+    mut visit: impl FnMut(RawNode),
+) -> Result<XtStreamSummary, ParseError> {
     validate_limits(limits)?;
     let (header, mut reader) = read_header(data, limits.inspection())?;
     let schema_key = SchemaKey::parse(&header.schema_key)?;
-    if header.user_field_size != 0 {
-        return Err(ParseError::new(
-            ErrorKind::UnsupportedUserFields,
-            header.header_range.end,
-            "user fields require node-visibility metadata not present in an effective schema",
-            ErrorDetails::InvalidLength {
-                field: "user_field_size",
-                value: i64::from(header.user_field_size),
-            },
-        ));
-    }
-
+    validate_builtin_input(
+        provider,
+        &schema_key,
+        header.user_field_size,
+        header.header_range.end,
+    )?;
+    let schema_provider = SchemaProviderResolution::from(provider.provenance());
     let mut registry = EffectiveSchemaRegistry::new(limits.max_schema_types);
     let mut indices = BTreeSet::new();
-    let mut nodes = Vec::new();
+    let mut record_count = 0_usize;
     loop {
         if reader.is_empty() {
             return Err(ParseError::new(
@@ -123,18 +191,18 @@ pub fn parse_xt<P: SchemaProvider>(
             let terminator = read_terminator(&mut reader, node_start)?;
             let schema_coverage = registry.coverage();
             let schemas = registry.resolutions().cloned().collect();
-            return Ok(XtDocument {
+            return Ok(XtStreamSummary {
                 header,
                 schema_key,
-                nodes,
+                schema_provider,
                 schemas,
                 terminator,
                 schema_coverage,
-                raw_bytes: data.to_vec(),
+                record_count,
             });
         }
         let node_type = validate_node_type(serialized_node_type, node_start, &header)?;
-        let next_count = nodes.len().saturating_add(1);
+        let next_count = record_count.saturating_add(1);
         if next_count > limits.max_nodes {
             return Err(ParseError::limit(
                 node_start,
@@ -143,7 +211,7 @@ pub fn parse_xt<P: SchemaProvider>(
                 limits.max_nodes,
             ));
         }
-        nodes.push(read_raw_node(
+        visit(read_raw_node::<RETAIN_FIELDS, _>(
             data,
             &mut reader,
             &schema_key,
@@ -153,7 +221,9 @@ pub fn parse_xt<P: SchemaProvider>(
             limits,
             node_type,
             node_start,
+            header.user_field_size,
         )?);
+        record_count = next_count;
     }
 }
 
@@ -303,7 +373,7 @@ fn validate_node_type(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn read_raw_node<P: SchemaProvider>(
+fn read_raw_node<const RETAIN_FIELDS: bool, P: SchemaProvider>(
     data: &[u8],
     reader: &mut TextReader,
     schema_key: &SchemaKey,
@@ -313,7 +383,14 @@ fn read_raw_node<P: SchemaProvider>(
     limits: DocumentLimits,
     node_type: u16,
     node_start: usize,
+    user_field_size: u8,
 ) -> Result<RawNode, ParseError> {
+    let user_word_count = crate::user_fields::word_count(
+        node_type,
+        user_field_size,
+        node_start,
+        limits.max_variable_elements,
+    )?;
     let (definition, first_schema) = resolve_node_definition(
         data, reader, schema_key, provider, registry, limits, node_type,
     )?;
@@ -326,7 +403,14 @@ fn read_raw_node<P: SchemaProvider>(
         None
     };
     let index = read_node_index(reader, indices)?;
-    let fields = read_node_fields(reader, &definition, variable_length, limits)?;
+    let fields = read_node_fields::<RETAIN_FIELDS>(reader, &definition, variable_length, limits)?;
+    let mut user_fields = Vec::new();
+    for _ in 0..user_word_count {
+        let word = reader.nullable_integer("user_field_word")?;
+        if RETAIN_FIELDS {
+            user_fields.push(word);
+        }
+    }
     Ok(RawNode {
         node_type,
         index,
@@ -334,6 +418,7 @@ fn read_raw_node<P: SchemaProvider>(
         definition,
         first_schema,
         fields,
+        user_fields,
         byte_range: node_start..reader.source_position(),
     })
 }
@@ -351,15 +436,9 @@ fn resolve_node_definition<P: SchemaProvider>(
     let is_first = registry.get(node_type).is_none();
     if is_first {
         let offset = reader.source_position();
-        if !provider.contains_schema(schema_key.provider_schema()) {
-            return Err(ParseError::new(
-                ErrorKind::MissingBaseSchema,
-                offset,
-                "required schema catalog is not loaded",
-                ErrorDetails::SchemaLookup {
-                    schema: schema_key.provider_schema().to_owned(),
-                    node_type,
-                },
+        if !provider.supports_schema_key(schema_key) {
+            return Err(unavailable_schema_error(
+                provider, schema_key, node_type, offset,
             ));
         }
         let resolution = if schema_key.base().is_some() {
@@ -374,16 +453,16 @@ fn resolve_node_definition<P: SchemaProvider>(
             let definition = provider
                 .type_definition(schema_key.provider_schema(), node_type)
                 .ok_or_else(|| {
-                    ParseError::new(
-                        ErrorKind::MissingSchemaType,
-                        offset,
-                        "standard schema does not define the requested node type",
-                        ErrorDetails::SchemaLookup {
-                            schema: schema_key.provider_schema().to_owned(),
-                            node_type,
-                        },
-                    )
+                    missing_type_definition_error(provider, schema_key, node_type, offset)
                 })?;
+            if definition.fields.len() > limits.max_fields_per_type {
+                return Err(ParseError::limit(
+                    offset,
+                    "schema_fields_per_type",
+                    definition.fields.len(),
+                    limits.max_fields_per_type,
+                ));
+            }
             let mut definition = definition.clone();
             definition.source = SchemaSource::Base;
             SchemaResolution {
@@ -435,13 +514,17 @@ fn read_node_index(
     Ok(index)
 }
 
-fn read_node_fields(
+fn read_node_fields<const RETAIN_FIELDS: bool>(
     reader: &mut TextReader,
     definition: &TypeDefinition,
     variable_length: Option<u32>,
     limits: DocumentLimits,
 ) -> Result<Vec<RawField>, ParseError> {
-    let mut fields = Vec::with_capacity(definition.fields.len());
+    let mut fields = if RETAIN_FIELDS {
+        Vec::with_capacity(definition.fields.len())
+    } else {
+        Vec::new()
+    };
     for field in &definition.fields {
         let count = field_value_count(field, variable_length);
         apply_element_limit(
@@ -452,13 +535,18 @@ fn read_node_fields(
         let start = reader.source_position();
         let mut values = Vec::new();
         for _ in 0..count {
-            values.push(read_field_value(reader, field.field_type)?);
+            let value = read_field_value(reader, field.field_type)?;
+            if RETAIN_FIELDS {
+                values.push(value);
+            }
         }
-        fields.push(RawField {
-            definition: field.clone(),
-            values,
-            byte_range: start..reader.source_position(),
-        });
+        if RETAIN_FIELDS {
+            fields.push(RawField {
+                definition: field.clone(),
+                values,
+                byte_range: start..reader.source_position(),
+            });
+        }
     }
     Ok(fields)
 }
@@ -475,7 +563,7 @@ fn read_field_value(
             FieldValue::ShortInteger(reader.nullable_short("short_integer")?)
         }
         FieldType::UnicodeCharacter => {
-            FieldValue::UnicodeCharacter(reader.unsigned_short("unicode_character")?)
+            FieldValue::UnicodeCharacter(reader.unicode_character("unicode_character")?)
         }
         FieldType::Integer => FieldValue::Integer(reader.nullable_integer("integer")?),
         FieldType::PointerIndex => {
@@ -921,6 +1009,43 @@ mod tests {
     use super::*;
     use crate::schema::InMemorySchemaProvider;
 
+    fn parse_with_scan_parity<P: SchemaProvider>(
+        data: &[u8],
+        provider: &P,
+        limits: DocumentLimits,
+    ) -> Result<XtDocument, ParseError> {
+        let parsed = parse_xt(data, provider, limits);
+        let mut targets = BTreeSet::from([110, 111, 112]);
+        if let Ok(document) = &parsed {
+            targets.extend(document.nodes.iter().map(|node| node.node_type));
+        }
+        let targets = targets.into_iter().collect::<Vec<_>>();
+        let expected = parsed
+            .as_ref()
+            .map(|document| XtNodeTypeCounts {
+                record_count: document.nodes.len(),
+                target_type_counts: targets
+                    .iter()
+                    .map(|&t| {
+                        (
+                            t,
+                            document
+                                .nodes
+                                .iter()
+                                .filter(|node| node.node_type == t)
+                                .count(),
+                        )
+                    })
+                    .collect(),
+            })
+            .map_err(Clone::clone);
+        assert_eq!(
+            scan_xt_node_types(data, provider, limits, &targets),
+            expected
+        );
+        parsed
+    }
+
     fn header(schema: &str) -> Vec<u8> {
         let modeller = ": TRANSMIT FILE created by modeller version 3000000";
         format!(
@@ -1013,9 +1138,13 @@ mod tests {
         provider.insert("30000", definition(12, fields));
         let mut data = header("SCH_3000000_30000");
         data.extend_from_slice(b"12 1 0 T?1 0 ");
-        let result = parse_xt(&data, &provider, DocumentLimits::default());
+        let result = parse_with_scan_parity(&data, &provider, DocumentLimits::default());
         assert!(result.is_ok(), "{result:?}");
         if let Ok(document) = result {
+            assert_eq!(
+                document.schema_provider,
+                SchemaProviderResolution::CallerSupplied
+            );
             assert_eq!(document.nodes.len(), 1);
             assert_eq!(
                 document.nodes[0].fields[0].values[0],
@@ -1040,7 +1169,7 @@ mod tests {
         let mut data = embedded_header("SCH_3000000_30000_13006", 205);
         // type 204, variable length 2, full schema with one variable double field.
         data.extend_from_slice(b"204 1 4 TEST4 Test6 values0 1 1 fT2 1 1 2 1 0 ");
-        let result = parse_xt(&data, &provider, DocumentLimits::default());
+        let result = parse_with_scan_parity(&data, &provider, DocumentLimits::default());
         assert!(result.is_ok());
         if let Ok(document) = result {
             assert_eq!(document.nodes.len(), 1);
@@ -1061,7 +1190,7 @@ mod tests {
         let mut data = embedded_header("SCH_3000000_30000_13006", 205);
         data.extend_from_slice(b"12 255 1 7 1 0 ");
 
-        let result = parse_xt(&data, &provider, DocumentLimits::default());
+        let result = parse_with_scan_parity(&data, &provider, DocumentLimits::default());
         assert!(result.is_ok(), "{result:?}");
         if let Ok(document) = result {
             let resolution = document.nodes[0].first_schema.as_ref();
@@ -1103,7 +1232,7 @@ mod tests {
         let mut data = header("SCH_3000000_30000");
         data.extend_from_slice(b"12 1 255 \\0T-12 9731 ?0 42 -1.25e+2 ?1 2 3 0 1 2 3 4 5 ?1 0 ");
 
-        let result = parse_xt(&data, &provider, DocumentLimits::default());
+        let result = parse_with_scan_parity(&data, &provider, DocumentLimits::default());
         assert!(result.is_ok(), "{result:?}");
         if let Ok(document) = result {
             let fields = &document.nodes[0].fields;
@@ -1141,6 +1270,33 @@ mod tests {
     }
 
     #[test]
+    fn count_only_stream_does_not_retain_fields_even_within_one_node() -> Result<(), ParseError> {
+        let mut provider = InMemorySchemaProvider::new();
+        provider.insert(
+            "30000",
+            definition(110, vec![field("text", FieldType::Character, 0, 1, true)]),
+        );
+        let mut data = header("SCH_3000000_30000");
+        data.extend_from_slice(b"110 3 1 A\tB110 3 2 XYZ1 0 ");
+        let mut visited = 0;
+        let summary =
+            read_xt_stream::<false, _>(&data, &provider, DocumentLimits::default(), |node| {
+                assert_eq!(node.fields.capacity(), 0);
+                assert_eq!(node.node_type, 110);
+                visited += 1;
+            })?;
+        assert_eq!(visited, 2);
+        assert_eq!(summary.record_count, 2);
+        let parsed = parse_with_scan_parity(&data, &provider, DocumentLimits::default())?;
+        assert_eq!(
+            parsed.nodes[0].fields[0].values[1],
+            FieldValue::Character(9)
+        );
+        assert_eq!(parsed.raw_bytes(), data);
+        Ok(())
+    }
+
+    #[test]
     fn resolves_every_text_delta_opcode() {
         let base_fields = vec![
             field("a", FieldType::Logical, 0, 0, true),
@@ -1153,7 +1309,7 @@ mod tests {
         // C(a), D(b), I(inserted), C(c), A(tail), Z; four effective fields.
         data.extend_from_slice(b"12 4 CDI8 inserted0 0 1 dCA4 tail0 2 1 uZ1 T7 2.5 3 4 1 0 ");
 
-        let result = parse_xt(&data, &provider, DocumentLimits::default());
+        let result = parse_with_scan_parity(&data, &provider, DocumentLimits::default());
         assert!(result.is_ok(), "{result:?}");
         if let Ok(document) = result {
             let resolution = document.nodes[0].first_schema.as_ref();

@@ -11,6 +11,7 @@ from ..schema.model import (
     FieldType,
     SchemaCoverageReport,
     SchemaKey,
+    SchemaProviderResolution,
     SchemaResolution,
     TypeDefinition,
 )
@@ -134,6 +135,7 @@ class RawNode:
     first_schema: SchemaResolution | None
     fields: tuple[RawField, ...]
     byte_range: ByteRange
+    user_fields: tuple[int | None, ...] = ()
 
     def __post_init__(self) -> None:
         if not 2 <= self.node_type <= 32_767:
@@ -154,6 +156,13 @@ class RawNode:
             raise ValueError("fields must contain RawField values")
         if tuple(item.definition for item in self.fields) != self.definition.fields:
             raise ValueError("raw fields must follow the complete effective definition")
+        if not isinstance(self.user_fields, tuple):
+            object.__setattr__(self, "user_fields", tuple(self.user_fields))
+        if len(self.user_fields) > 16 or any(
+            word is not None and (type(word) is not int or not -(2**31) <= word < 2**31)
+            for word in self.user_fields
+        ):
+            raise ValueError("user_fields must contain at most 16 signed integer words or None")
 
     @property
     def type_name(self) -> str:
@@ -167,6 +176,7 @@ class RawNode:
         return {
             "node_type": self.node_type,
             "type_name": self.type_name,
+            "user_fields": list(self.user_fields),
             "index": self.index,
             "variable_length": self.variable_length,
             "definition": self.definition.to_dict(),
@@ -207,8 +217,17 @@ class ParasolidDocument:
     raw_bytes: bytes
     _native_document: object = field(repr=False, compare=False)
     diagnostics: tuple[Diagnostic, ...] = ()
+    schema_resolution: SchemaProviderResolution | None = None
 
     def __post_init__(self) -> None:
+        if self.schema_resolution is not None:
+            if not isinstance(self.schema_resolution, SchemaProviderResolution):
+                raise TypeError("schema_resolution must be a SchemaProviderResolution or None")
+            if (
+                self.schema_resolution.kind == "builtin"
+                and self.schema_resolution.schema_key != self.schema_key.raw
+            ):
+                raise ValueError("built-in provenance key must match the document")
         if self.format not in {"binary", "text"}:
             raise ValueError("document format must be 'binary' or 'text'")
         expected_header = XbHeader if self.format == "binary" else XtHeader
@@ -257,6 +276,9 @@ class ParasolidDocument:
             "nodes": [node.to_dict() for node in self.nodes],
             "terminator": self.terminator.to_dict(),
             "schema_coverage": self.schema_coverage.to_dict(),
+            "schema_resolution": None
+            if self.schema_resolution is None
+            else self.schema_resolution.to_dict(),
             "raw_byte_count": len(self.raw_bytes),
             "diagnostics": [diagnostic.to_dict() for diagnostic in self.diagnostics],
         }

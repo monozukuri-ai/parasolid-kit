@@ -5,7 +5,8 @@ use std::ops::Range;
 
 use crate::schema::{
     EffectiveSchemaRegistry, FieldDefinition, FieldType, SchemaCoverageReport, SchemaKey,
-    SchemaLimits, SchemaProvider, SchemaResolution, TypeDefinition,
+    SchemaLimits, SchemaProvider, SchemaProviderResolution, SchemaResolution, TypeDefinition,
+    validate_builtin_input,
 };
 use crate::{
     BinaryReader, ErrorDetails, ErrorKind, InspectionLimits, ParseError, XbHeader, inspect_xb,
@@ -137,8 +138,11 @@ pub struct RawNode {
     pub first_schema: Option<SchemaResolution>,
     /// Decoded effective fields.
     pub fields: Vec<RawField>,
-    /// Complete record range, beginning at node type and ending after fields.
+    /// Complete record range, including any trailing user-field words.
     pub byte_range: Range<usize>,
+    /// Application-owned integer words, separate from effective schema fields.
+    /// The documented integer unset sentinel is retained as `None`.
+    pub user_fields: Vec<Option<i32>>,
 }
 
 /// Validated end marker for a complete node stream.
@@ -157,6 +161,8 @@ pub struct XbDocument {
     pub header: XbHeader,
     /// Parsed schema-key components.
     pub schema_key: SchemaKey,
+    /// Provider provenance retained independently of per-type schema provenance.
+    pub schema_provider: SchemaProviderResolution,
     /// Non-termination nodes in source order.
     pub nodes: Vec<RawNode>,
     /// One resolution per encountered node type.
@@ -191,18 +197,13 @@ pub fn parse_xb<P: SchemaProvider>(
     validate_limits(limits)?;
     let header = inspect_xb(data, limits.inspection())?;
     let schema_key = SchemaKey::parse(&header.schema_key)?;
-    if header.user_field_size != 0 {
-        return Err(ParseError::new(
-            ErrorKind::UnsupportedUserFields,
-            header.header_range.end,
-            "user fields require node-visibility metadata not present in an effective schema",
-            ErrorDetails::InvalidLength {
-                field: "user_field_size",
-                value: i64::from(header.user_field_size),
-            },
-        ));
-    }
-
+    validate_builtin_input(
+        provider,
+        &schema_key,
+        header.user_field_size,
+        header.header_range.end,
+    )?;
+    let schema_provider = SchemaProviderResolution::from(provider.provenance());
     let mut reader = BinaryReader::with_position(data, header.header_range.end)?;
     let mut registry = EffectiveSchemaRegistry::new(limits.max_schema_types);
     let mut indices = BTreeSet::new();
@@ -219,6 +220,7 @@ pub fn parse_xb<P: SchemaProvider>(
             return Ok(XbDocument {
                 header,
                 schema_key,
+                schema_provider,
                 nodes,
                 schemas,
                 terminator,
@@ -246,6 +248,7 @@ pub fn parse_xb<P: SchemaProvider>(
             limits,
             node_type,
             node_start,
+            header.user_field_size,
         )?);
     }
 }
@@ -344,13 +347,23 @@ fn read_raw_node<P: SchemaProvider>(
     limits: DocumentLimits,
     node_type: u16,
     node_start: usize,
+    user_field_size: u8,
 ) -> Result<RawNode, ParseError> {
+    let user_word_count = crate::user_fields::word_count(
+        node_type,
+        user_field_size,
+        node_start,
+        limits.max_variable_elements,
+    )?;
     let (definition, first_schema) = resolve_node_definition(
         data, reader, schema_key, provider, registry, limits, node_type,
     )?;
     let variable_length = read_variable_length(reader, &definition, limits)?;
     let index = read_node_index(reader, indices)?;
     let fields = read_node_fields(reader, &definition, variable_length, limits)?;
+    let user_fields = (0..user_word_count)
+        .map(|_| reader.nullable_i32())
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(RawNode {
         node_type,
         index,
@@ -358,6 +371,7 @@ fn read_raw_node<P: SchemaProvider>(
         definition,
         first_schema,
         fields,
+        user_fields,
         byte_range: node_start..reader.position(),
     })
 }
@@ -715,6 +729,10 @@ mod tests {
         let parsed = parse_xb(&data, &standard_provider(), DocumentLimits::default());
         assert!(parsed.is_ok());
         if let Ok(document) = parsed {
+            assert_eq!(
+                document.schema_provider,
+                SchemaProviderResolution::CallerSupplied
+            );
             assert_eq!(document.nodes.len(), 2);
             assert_eq!(document.nodes[0].index, 1);
             assert_eq!(document.nodes[0].fields.len(), 12);
@@ -813,7 +831,8 @@ mod tests {
             Some(ErrorKind::TrailingBytes)
         );
 
-        let user_fields = header("SCH_3000000_30000", None, 1);
+        let mut user_fields = header("SCH_3000000_30000", None, 1);
+        append_i16(&mut user_fields, 110); // Visibility is absent from the public table.
         let error = parse_xb(&user_fields, &provider, DocumentLimits::default()).err();
         assert_eq!(
             error.as_ref().map(ParseError::kind),

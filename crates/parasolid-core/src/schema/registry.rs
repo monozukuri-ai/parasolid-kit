@@ -6,7 +6,7 @@ use crate::{ErrorDetails, ErrorKind, ParseError};
 
 use super::{
     SchemaCoverageReport, SchemaKey, SchemaLimits, SchemaProvider, SchemaResolution, SchemaSource,
-    decode_embedded_schema,
+    decode_embedded_schema, missing_type_definition_error, unavailable_schema_error,
 };
 
 /// Effective definitions resolved at the first occurrence of each node type.
@@ -98,15 +98,9 @@ impl EffectiveSchemaRegistry {
         limits: SchemaLimits,
     ) -> Result<usize, ParseError> {
         let provider_schema = schema_key.provider_schema();
-        if !provider.contains_schema(provider_schema) {
-            return Err(ParseError::new(
-                ErrorKind::MissingBaseSchema,
-                offset,
-                "required schema catalog is not loaded",
-                ErrorDetails::SchemaLookup {
-                    schema: provider_schema.to_owned(),
-                    node_type,
-                },
+        if !provider.supports_schema_key(schema_key) {
+            return Err(unavailable_schema_error(
+                provider, schema_key, node_type, offset,
             ));
         }
 
@@ -122,16 +116,16 @@ impl EffectiveSchemaRegistry {
             let definition = provider
                 .type_definition(provider_schema, node_type)
                 .ok_or_else(|| {
-                    ParseError::new(
-                        ErrorKind::MissingSchemaType,
-                        offset,
-                        "standard schema does not define the requested node type",
-                        ErrorDetails::SchemaLookup {
-                            schema: provider_schema.to_owned(),
-                            node_type,
-                        },
-                    )
+                    missing_type_definition_error(provider, schema_key, node_type, offset)
                 })?;
+            if definition.fields.len() > limits.max_fields_per_type {
+                return Err(ParseError::limit(
+                    offset,
+                    "schema_fields_per_type",
+                    definition.fields.len(),
+                    limits.max_fields_per_type,
+                ));
+            }
             let mut definition = definition.clone();
             definition.source = SchemaSource::Base;
             SchemaResolution {

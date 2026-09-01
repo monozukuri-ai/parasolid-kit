@@ -38,7 +38,11 @@ impl TextReader {
                 content_end -= 1;
             }
             for (offset, byte) in data[line_start..content_end].iter().copied().enumerate() {
-                if !byte.is_ascii() || byte.is_ascii_control() {
+                // Numeric and structural readers validate their own ASCII grammar. Keep
+                // non-ASCII bytes and literal tabs here so schema-driven character
+                // arrays preserve text emitted by real exporters. A tab is data,
+                // never layout: numeric and structural readers reject it below.
+                if byte.is_ascii_control() && byte != b'\t' {
                     return Err(ParseError::invalid_byte(
                         ErrorKind::InvalidAscii,
                         line_start + offset,
@@ -91,6 +95,14 @@ impl TextReader {
 
     /// Read one exact physical character such as the `T` flag or a schema opcode.
     pub(crate) fn raw_character(&mut self, field: &'static str) -> Result<u8, ParseError> {
+        if self.peek() == Some(b'\t') {
+            return Err(ParseError::invalid_byte(
+                ErrorKind::InvalidAscii,
+                self.source_position(),
+                field,
+                b'\t',
+            ));
+        }
         if self.character_expansion.is_some() {
             return Err(ParseError::new(
                 ErrorKind::InvalidTextEscape,
@@ -184,6 +196,18 @@ impl TextReader {
         let offset = self.source_position();
         let value = self.unsigned(field)?;
         u16::try_from(value).map_err(|_| Self::out_of_range(offset, field, value))
+    }
+
+    /// Read one 16-bit Unicode code unit written as signed or unsigned decimal text.
+    pub(crate) fn unicode_character(&mut self, field: &'static str) -> Result<u16, ParseError> {
+        let offset = self.source_position();
+        let value = self.signed(field)?;
+        if let Ok(unsigned) = u16::try_from(value) {
+            return Ok(unsigned);
+        }
+        i16::try_from(value)
+            .map(|signed| u16::from_ne_bytes(signed.to_ne_bytes()))
+            .map_err(|_| ParseError::invalid_length(offset, field, value))
     }
 
     /// Read a non-negative integer used for indices, lengths, and array counts.
@@ -386,6 +410,14 @@ impl TextReader {
         let offset = self.source_position();
         let start = self.position;
         while let Some(byte) = self.peek() {
+            if byte == b'\t' {
+                return Err(ParseError::invalid_byte(
+                    ErrorKind::InvalidAscii,
+                    self.source_position(),
+                    field,
+                    byte,
+                ));
+            }
             if byte == b' ' {
                 break;
             }
@@ -480,6 +512,80 @@ mod tests {
     }
 
     #[test]
+    fn preserves_non_ascii_bytes_for_schema_driven_character_fields() -> Result<(), ParseError> {
+        let encoded = "û".as_bytes();
+        let mut reader = TextReader::new(encoded, 0)?;
+        assert_eq!(reader.character(), Ok(encoded[0]));
+        assert_eq!(reader.character(), Ok(encoded[1]));
+        assert!(reader.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn preserves_literal_tabs_in_character_data_and_source_offsets() -> Result<(), ParseError> {
+        let mut reader = TextReader::new(b"A\t\n\tB\t\r\nC", 0)?;
+        for (offset, expected) in [
+            (0, b'A'),
+            (1, b'\t'),
+            (3, b'\t'),
+            (4, b'B'),
+            (5, b'\t'),
+            (8, b'C'),
+        ] {
+            assert_eq!(reader.source_position(), offset);
+            assert_eq!(reader.character(), Ok(expected));
+        }
+        assert!(reader.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_tabs_in_numeric_and_structural_fields() -> Result<(), ParseError> {
+        for token in [b"\t12 ".as_slice(), b"1\t2 ", b"12\t", b"12\t "] {
+            let mut reader = TextReader::new(token, 0)?;
+            let error = reader.integer("value").err();
+            assert_eq!(
+                error.as_ref().map(ParseError::kind),
+                Some(ErrorKind::InvalidAscii)
+            );
+            assert_eq!(
+                error.as_ref().map(ParseError::offset),
+                token.iter().position(|byte| *byte == b'\t')
+            );
+        }
+        let mut reader = TextReader::new(b"\t", 0)?;
+        assert_eq!(
+            reader
+                .raw_character("schema_opcode")
+                .err()
+                .as_ref()
+                .map(ParseError::kind),
+            Some(ErrorKind::InvalidAscii)
+        );
+        let mut logical = TextReader::new(b"\t", 0)?;
+        assert_eq!(
+            logical.logical().err().as_ref().map(ParseError::kind),
+            Some(ErrorKind::InvalidAscii)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn still_rejects_other_literal_control_bytes() {
+        for byte in (0_u8..=31).chain(std::iter::once(127)) {
+            if matches!(byte, b'\t' | b'\r' | b'\n') {
+                continue;
+            }
+            let error = TextReader::new(&[b'A', byte], 0).err();
+            assert_eq!(
+                error.as_ref().map(ParseError::kind),
+                Some(ErrorKind::InvalidAscii)
+            );
+            assert_eq!(error.as_ref().map(ParseError::offset), Some(1));
+        }
+    }
+
+    #[test]
     fn distinguishes_logical_and_numeric_delimiter_errors() -> Result<(), ParseError> {
         let mut logical = TextReader::new(b"TFX", 0)?;
         assert_eq!(logical.logical(), Ok(true));
@@ -496,6 +602,27 @@ mod tests {
             error.as_ref().map(ParseError::kind),
             Some(ErrorKind::InvalidTextDelimiter)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn decodes_signed_and_unsigned_unicode_code_units() -> Result<(), ParseError> {
+        let mut reader = TextReader::new(b"-28440 37096 65535 -32768 X", 0)?;
+        assert_eq!(reader.unicode_character("unicode"), Ok(0x90e8));
+        assert_eq!(reader.unicode_character("unicode"), Ok(0x90e8));
+        assert_eq!(reader.unicode_character("unicode"), Ok(u16::MAX));
+        assert_eq!(reader.unicode_character("unicode"), Ok(0x8000));
+        assert_eq!(reader.raw_character("suffix"), Ok(b'X'));
+        assert!(reader.is_empty());
+
+        for token in [b"-32769 X".as_slice(), b"65536 X".as_slice()] {
+            let mut invalid = TextReader::new(token, 0)?;
+            let error = invalid.unicode_character("unicode").err();
+            assert_eq!(
+                error.as_ref().map(ParseError::kind),
+                Some(ErrorKind::InvalidLength)
+            );
+        }
         Ok(())
     }
 }

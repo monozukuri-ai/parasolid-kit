@@ -24,7 +24,7 @@ from .schema.api import (
     _resolution_from_native,
     _type_from_native,
 )
-from .schema.model import FieldType, SchemaKey
+from .schema.model import FieldType, SchemaKey, SchemaProviderResolution
 from .schema.provider import DirectorySchemaProvider, SchemaCatalog, SchemaProvider
 from .summary import BrepSummary, ParsedBrep
 from .text import XtHeader, XtTermination
@@ -91,8 +91,9 @@ def parse_xb(
 ) -> ParasolidDocument:
     """Parse a complete neutral X_B node stream in the Rust core.
 
-    The provider must return the exact numeric catalog named by the schema key.
-    No compatible-version fallback or inferred field layout is attempted.
+    Omitting the provider selects a compiled profile for an exact supported key.
+    An explicit provider must return the exact catalog; it never falls back to
+    built-in definitions, including when it is empty.
     """
 
     data = _read_source(source, limits)
@@ -119,6 +120,7 @@ def parse_xb(
         min(limits.max_fields_per_type, sys.maxsize),
         min(limits.max_string_bytes, sys.maxsize),
         min(limits.max_variable_elements, sys.maxsize),
+        allow_builtin=schema_provider is None,
     )
     if not isinstance(response, Mapping):
         raise RuntimeError("native parse response is not a mapping")
@@ -139,8 +141,9 @@ def parse_xt(
 ) -> ParasolidDocument:
     """Parse a complete X_T node stream in the Rust core.
 
-    The provider must return the exact catalog named by the internal text stream;
-    the human-oriented common-header ``SCH`` value is not used for selection.
+    Omitting the provider selects a compiled profile for an exact supported key.
+    An explicit provider must supply the exact catalog and never falls back.
+    Selection uses the internal stream key, not the common-header ``SCH`` value.
     """
 
     data = _read_source(source, limits)
@@ -167,6 +170,7 @@ def parse_xt(
         min(limits.max_fields_per_type, sys.maxsize),
         min(limits.max_string_bytes, sys.maxsize),
         min(limits.max_variable_elements, sys.maxsize),
+        allow_builtin=schema_provider is None,
     )
     if not isinstance(response, Mapping):
         raise RuntimeError("native parse response is not a mapping")
@@ -233,11 +237,12 @@ def read_brep(
 ) -> ParsedBrep:
     """Parse and map one X_T/X_B source through the complete B-Rep pipeline.
 
-    Pass either an explicit ``schema_provider`` or a caller-owned
-    ``schema_dir``. The directory provider loads only the exact
-    ``sch_<provider-schema>.sch_txt`` filename selected by the internal stream
-    key. Neither argument is required for a self-contained stream whose
-    embedded definitions are sufficient, but they are mutually exclusive.
+    Omit both schema arguments to use a compiled profile for an exact supported
+    key. Alternatively pass an explicit ``schema_provider`` or ``schema_dir``;
+    these are mutually exclusive and never fall back to a built-in profile.
+    A directory must contain the exact ``sch_<provider-schema>.sch_txt`` catalog
+    selected by the internal stream key. Other keys, including embedded-base
+    keys, require an external provider.
     """
 
     if not isinstance(limits, ParseLimits):
@@ -420,6 +425,7 @@ def _document_from_native(value: Mapping[str, Any]) -> ParasolidDocument:
         schema_coverage=_coverage_from_native(_mapping_value(value, "schema_coverage")),
         raw_bytes=raw_bytes,
         _native_document=native_document,
+        schema_resolution=SchemaProviderResolution(**_mapping_value(value, "schema_resolution")),
     )
 
 
@@ -443,6 +449,9 @@ def _node_from_native(value: object) -> RawNode:
     fields_value = mapping.get("fields")
     if not isinstance(fields_value, list):
         raise RuntimeError("native node fields are not a list")
+    user_fields = mapping.get("user_fields")
+    if not isinstance(user_fields, list):
+        raise RuntimeError("native node user fields are not a list")
     first_schema = mapping.get("first_schema")
     return RawNode(
         node_type=_int_value(mapping, "node_type"),
@@ -455,6 +464,7 @@ def _node_from_native(value: object) -> RawNode:
             else _resolution_from_native(_require_mapping(first_schema, "first schema"))
         ),
         fields=tuple(_field_record_from_native(item) for item in fields_value),
+        user_fields=tuple(user_fields),
         byte_range=_range_value(mapping.get("byte_range")),
     )
 

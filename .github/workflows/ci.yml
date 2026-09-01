@@ -74,6 +74,9 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --version 0.13.2 --locked
 
+      - name: Prepare synthetic compiled-profile seeds
+        run: python3 scripts/prepare_fuzz_corpus.py
+
       - name: Run bounded sanitizer smoke
         working-directory: fuzz
         run: |

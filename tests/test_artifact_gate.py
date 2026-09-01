@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 
 from scripts.verify_artifacts import (
+    BUILTIN_SOURCE_FILES,
     EXPECTED_LICENSE_BYTES,
     VIEWER_ASSET_LICENSE,
     VIEWER_ASSET_SHA256,
@@ -97,10 +98,10 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         "fuzz/fuzz_targets/parse.rs",
         "fuzz/fuzz_targets/schema_catalog.rs",
         "pyproject.toml",
+        "scripts/prepare_fuzz_corpus.py",
+        "scripts/verify_isolated_install.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
-        "scripts/verify_optional_interop_i3.py",
-        "scripts/verify_optional_interop_i4.py",
         "scripts/verify_optional_interop_i5.py",
         "scripts/verify_optional_interop_i6.py",
         "scripts/verify_optional_interop_i7.py",
@@ -140,6 +141,7 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files["LICENSE"] = EXPECTED_LICENSE_BYTES
     files["PKG-INFO"] = _metadata()
     files.update({f"src/{name}": payload for name, payload in VIEWER_ASSETS.items()})
+    files.update({name: (ROOT / name).read_bytes() for name in BUILTIN_SOURCE_FILES})
     files.update(extra or {})
     with tarfile.open(path, "w:gz") as archive:
         for relative, payload in files.items():
@@ -386,3 +388,20 @@ def test_sdist_gate_rejects_path_traversal(tmp_path: Path) -> None:
 
     assert report["status"] == "failed"
     assert any("unsafe sdist path" in error for error in report["errors"])
+
+
+def test_sdist_gate_rejects_changed_compiled_profile(tmp_path: Path) -> None:
+    sdist = tmp_path / "package.tar.gz"
+    _sdist(sdist, extra={BUILTIN_SOURCE_FILES[0]: b"changed compiled wire table"})
+    report = verify_sdist(sdist)
+    assert report["status"] == "failed"
+    assert any("profile source differs" in error for error in report["errors"])
+
+
+def test_archives_reject_catalogs_and_internal_evidence(tmp_path: Path) -> None:
+    wheel, sdist = tmp_path / "package.whl", tmp_path / "package.tar.gz"
+    for name in (".internal/evidence.json", "schemas/sch_30000.sch_txt"):
+        _wheel(wheel, extra={f"parasolid_kit/{name}": b"forbidden"})
+        _sdist(sdist, extra={f"crates/{name}": b"forbidden"})
+        assert verify_wheel(wheel)["status"] == "failed"
+        assert verify_sdist(sdist)["status"] == "failed"

@@ -2,15 +2,205 @@
 
 use std::collections::BTreeMap;
 
-use super::TypeDefinition;
+use crate::{ErrorDetails, ErrorKind, ParseError};
 
-/// Supplies complete standard/base schema definitions without prescribing storage.
+use super::{BuiltinProfileCoverage, SchemaKey, TypeDefinition};
+
+/// Origin metadata retained by a schema provider without changing field provenance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaProviderProvenance<'a> {
+    /// Definitions were supplied by a caller-managed provider.
+    CallerSupplied,
+    /// Definitions came from one exact compiled built-in profile.
+    Builtin {
+        /// Stable project-owned profile identifier.
+        profile_id: &'a str,
+        /// Monotonic profile revision.
+        profile_revision: u32,
+        /// Exact schema key selected from the profile allowlist.
+        schema_key: &'a str,
+        /// Reviewed completeness claim for the selected profile.
+        coverage: BuiltinProfileCoverage,
+        /// Declared SHA-256 of the reviewed profile source.
+        profile_sha256: &'a str,
+    },
+}
+
+/// Owned provider provenance retained by a successfully parsed document.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SchemaProviderResolution {
+    /// Definitions were supplied by the caller-selected provider path.
+    CallerSupplied,
+    /// Definitions came from one exact compiled built-in profile.
+    Builtin {
+        /// Stable project-owned profile identifier.
+        profile_id: String,
+        /// Monotonic profile revision.
+        profile_revision: u32,
+        /// Exact schema key selected from the profile allowlist.
+        schema_key: String,
+        /// Reviewed completeness claim for the selected profile.
+        coverage: BuiltinProfileCoverage,
+        /// Declared SHA-256 of the reviewed profile source.
+        profile_sha256: String,
+    },
+}
+
+impl SchemaProviderResolution {
+    /// Return the stable provider-kind name used by bindings and reports.
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::CallerSupplied => "caller_supplied",
+            Self::Builtin { .. } => "builtin",
+        }
+    }
+}
+
+impl From<SchemaProviderProvenance<'_>> for SchemaProviderResolution {
+    fn from(value: SchemaProviderProvenance<'_>) -> Self {
+        match value {
+            SchemaProviderProvenance::CallerSupplied => Self::CallerSupplied,
+            SchemaProviderProvenance::Builtin {
+                profile_id,
+                profile_revision,
+                schema_key,
+                coverage,
+                profile_sha256,
+            } => Self::Builtin {
+                profile_id: profile_id.to_owned(),
+                profile_revision,
+                schema_key: schema_key.to_owned(),
+                coverage,
+                profile_sha256: profile_sha256.to_owned(),
+            },
+        }
+    }
+}
+
+/// Supplies exact standard/base definitions without prescribing storage.
 pub trait SchemaProvider {
-    /// Return whether the named schema catalog is loaded and complete.
+    /// Return whether the named provider schema is loaded.
     fn contains_schema(&self, schema: &str) -> bool;
 
     /// Return one type from a loaded schema, or `None` when that type is absent.
     fn type_definition(&self, schema: &str, node_type: u16) -> Option<&TypeDefinition>;
+
+    /// Return whether this provider may be used for the complete transmit schema key.
+    ///
+    /// Caller-managed catalogs are selected by their provider-schema component. A
+    /// built-in provider overrides this method to require an exact allowlisted key.
+    fn supports_schema_key(&self, schema_key: &SchemaKey) -> bool {
+        self.contains_schema(schema_key.provider_schema())
+    }
+
+    /// Return provider origin metadata independently of per-type `SchemaSource`.
+    fn provenance(&self) -> SchemaProviderProvenance<'_> {
+        SchemaProviderProvenance::CallerSupplied
+    }
+}
+
+/// Validate the current built-in scope even for streams with no data records.
+/// User-field layouts have not yet been verified for compiled profiles.
+pub(crate) fn validate_builtin_input<P: SchemaProvider>(
+    provider: &P,
+    schema_key: &SchemaKey,
+    user_field_size: u8,
+    offset: usize,
+) -> Result<(), ParseError> {
+    if matches!(
+        provider.provenance(),
+        SchemaProviderProvenance::Builtin { .. }
+    ) {
+        if !provider.supports_schema_key(schema_key) {
+            // No node has been read at this header-time check.
+            return Err(unavailable_schema_error(provider, schema_key, 0, offset));
+        }
+        if user_field_size != 0 {
+            return Err(ParseError::new(
+                ErrorKind::UnsupportedUserFields,
+                offset,
+                "built-in profiles currently require zero user fields",
+                ErrorDetails::InvalidLength {
+                    field: "user_field_size",
+                    value: i64::from(user_field_size),
+                },
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn unavailable_schema_error<P: SchemaProvider>(
+    provider: &P,
+    schema_key: &SchemaKey,
+    node_type: u16,
+    offset: usize,
+) -> ParseError {
+    match provider.provenance() {
+        SchemaProviderProvenance::CallerSupplied => ParseError::new(
+            ErrorKind::MissingBaseSchema,
+            offset,
+            "required schema catalog is not loaded",
+            ErrorDetails::SchemaLookup {
+                schema: schema_key.provider_schema().to_owned(),
+                node_type,
+            },
+        ),
+        SchemaProviderProvenance::Builtin {
+            profile_id,
+            profile_revision,
+            schema_key: selected_schema_key,
+            ..
+        } => ParseError::new(
+            ErrorKind::UnsupportedBuiltinSchemaKey,
+            offset,
+            "built-in profile does not allow the requested complete schema key",
+            ErrorDetails::BuiltinProfileLookup {
+                profile_id: profile_id.to_owned(),
+                profile_revision,
+                selected_schema_key: selected_schema_key.to_owned(),
+                requested_schema_key: schema_key.raw().to_owned(),
+                node_type,
+            },
+        ),
+    }
+}
+
+pub(crate) fn missing_type_definition_error<P: SchemaProvider>(
+    provider: &P,
+    schema_key: &SchemaKey,
+    node_type: u16,
+    offset: usize,
+) -> ParseError {
+    match provider.provenance() {
+        SchemaProviderProvenance::CallerSupplied => ParseError::new(
+            ErrorKind::MissingSchemaType,
+            offset,
+            "standard schema does not define the requested node type",
+            ErrorDetails::SchemaLookup {
+                schema: schema_key.provider_schema().to_owned(),
+                node_type,
+            },
+        ),
+        SchemaProviderProvenance::Builtin {
+            profile_id,
+            profile_revision,
+            schema_key: selected_schema_key,
+            ..
+        } => ParseError::new(
+            ErrorKind::BuiltinProfileUncoveredType,
+            offset,
+            "selected built-in profile has no reviewed definition for the node type",
+            ErrorDetails::BuiltinProfileLookup {
+                profile_id: profile_id.to_owned(),
+                profile_revision,
+                selected_schema_key: selected_schema_key.to_owned(),
+                requested_schema_key: schema_key.raw().to_owned(),
+                node_type,
+            },
+        ),
+    }
 }
 
 /// Deterministic provider used by callers, tests, and future file loaders.

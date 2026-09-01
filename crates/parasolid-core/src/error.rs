@@ -46,6 +46,12 @@ pub enum ErrorKind {
     MissingBaseSchema,
     /// A standard schema did not contain the requested node type.
     MissingSchemaType,
+    /// A compiled built-in profile violated its declared structural invariants.
+    InvalidBuiltinProfile,
+    /// A built-in provider was used with a schema key outside its exact allowlist.
+    UnsupportedBuiltinSchemaKey,
+    /// A selected built-in profile did not cover one encountered node type.
+    BuiltinProfileUncoveredType,
     /// One node type was registered more than once.
     DuplicateSchemaType,
     /// A decoded field sequence did not match its declared count.
@@ -64,7 +70,7 @@ pub enum ErrorKind {
     InvalidTermination,
     /// Bytes remained after the complete termination record.
     TrailingBytes,
-    /// User fields cannot be framed without node visibility metadata.
+    /// User fields lack visibility metadata or are outside the selected profile scope.
     UnsupportedUserFields,
     /// A text transmit stream did not start with the `T` format flag.
     InvalidTextFlag,
@@ -117,6 +123,9 @@ impl ErrorKind {
             Self::UnsupportedSchemaFieldType => "schema.unsupported_field_type",
             Self::MissingBaseSchema => "schema.missing_base_schema",
             Self::MissingSchemaType => "schema.missing_type_definition",
+            Self::InvalidBuiltinProfile => "schema.invalid_builtin_profile",
+            Self::UnsupportedBuiltinSchemaKey => "schema.unsupported_builtin_key",
+            Self::BuiltinProfileUncoveredType => "schema.builtin_profile_uncovered_type",
             Self::DuplicateSchemaType => "schema.duplicate_type",
             Self::SchemaFieldCountMismatch => "schema.field_count_mismatch",
             Self::InvalidNodeType => "node.invalid_type",
@@ -170,6 +179,14 @@ pub enum ErrorDetails {
     },
     /// Schema catalog and node type needed for one lookup.
     SchemaLookup { schema: String, node_type: u16 },
+    /// Exact built-in profile selection associated with one lookup failure.
+    BuiltinProfileLookup {
+        profile_id: String,
+        profile_revision: u32,
+        selected_schema_key: String,
+        requested_schema_key: String,
+        node_type: u16,
+    },
     /// Node type associated with a schema failure.
     NodeType { node_type: u16 },
     /// Node index associated with a framing failure.

@@ -85,19 +85,25 @@ SDIST_ROOT_DIRECTORIES = {
 }
 SDIST_SCRIPT_FILES = frozenset(
     {
-        "scripts/inspect_xb_headers.py",
+        "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_artifacts.py",
         "scripts/verify_corpus.py",
         "scripts/verify_isolated_install.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
-        "scripts/verify_optional_interop_i3.py",
-        "scripts/verify_optional_interop_i4.py",
         "scripts/verify_optional_interop_i5.py",
         "scripts/verify_optional_interop_i6.py",
         "scripts/verify_optional_interop_i7.py",
     }
 )
+BUILTIN_SOURCE_FILES = (
+    "crates/parasolid-core/src/schema/profiles/sch30000.rs",
+    "crates/parasolid-core/src/schema/profiles/mod.rs",
+    "crates/parasolid-core/src/schema/profile.rs",
+    "crates/parasolid-core/src/brep/profile_roles.rs",
+    "docs/builtin-profiles.md",
+)
+
 _REQUIREMENT = re.compile(
     r"^\s*(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*"
     r"(?P<specifier>\([^)]*\)|[^;]*?)\s*(?:;\s*(?P<marker>.+))?$"
@@ -134,7 +140,10 @@ def _forbidden_path(path: PurePosixPath) -> str | None:
     lowered_parts = tuple(part.lower() for part in path.parts)
     if "__pycache__" in lowered_parts or any(part.endswith(".egg-info") for part in lowered_parts):
         return "cache/build metadata"
-    if any(part in {"data", "downloads", "local", "target", "artifacts"} for part in lowered_parts):
+    if any(
+        part in {".internal", "data", "downloads", "local", "target", "artifacts"}
+        for part in lowered_parts
+    ):
         return "local or generated build data"
     if path.suffix.lower() in NATIVE_CAD_SUFFIXES:
         return "native CAD fixture"
@@ -598,6 +607,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "crates/parasolid-core/Cargo.toml",
         "crates/parasolid-python/Cargo.toml",
         "docs/api.md",
+        *BUILTIN_SOURCE_FILES,
         "docs/format-support.md",
         "fuzz/Cargo.lock",
         "fuzz/Cargo.toml",
@@ -605,10 +615,10 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "fuzz/fuzz_targets/parse.rs",
         "fuzz/fuzz_targets/schema_catalog.rs",
         "pyproject.toml",
+        "scripts/prepare_fuzz_corpus.py",
+        "scripts/verify_isolated_install.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
-        "scripts/verify_optional_interop_i3.py",
-        "scripts/verify_optional_interop_i4.py",
         "scripts/verify_optional_interop_i5.py",
         "scripts/verify_optional_interop_i6.py",
         "scripts/verify_optional_interop_i7.py",
@@ -666,6 +676,18 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
     except (OSError, tarfile.TarError, zipfile.BadZipFile) as error:
         errors.append(f"cannot read sdist PKG-INFO: {error}")
 
+    # Wire hash correctness is tested in Rust. This checks that the reviewed
+    # definition/selection/role sources and provenance doc actually ship intact.
+    builtin_sources = {}
+    for relative in BUILTIN_SOURCE_FILES:
+        payload = _read_sdist_file(path, relative) if relative in file_names else None
+        if payload is not None:
+            builtin_sources[relative] = hashlib.sha256(payload).hexdigest()
+            if payload != (ROOT / relative).read_bytes():
+                errors.append(
+                    f"sdist built-in profile source differs from reviewed source: {relative}"
+                )
+
     if require_license:
         if license_expression != LICENSE_EXPRESSION:
             errors.append(
@@ -679,6 +701,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
             errors.append("sdist LICENSE content differs from the repository LICENSE")
     return {
         "path": str(path),
+        "builtin_sources_sha256": builtin_sources,
         "status": "passed" if not errors else "failed",
         "license_expression": license_expression,
         "metadata_license_file": metadata_license_file,

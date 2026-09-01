@@ -11,6 +11,7 @@ mod reader;
 pub mod schema;
 mod text_document;
 mod text_reader;
+mod user_fields;
 
 pub use comparison::{
     ComparisonDifference, ComparisonOptions, DocumentComparison, compare_xb_documents,
@@ -23,9 +24,13 @@ pub use error::{ErrorDetails, ErrorKind, ParseError};
 pub use header::{InspectionLimits, XbBinaryFormat, XbHeader, inspect_xb};
 pub use reader::BinaryReader;
 pub use schema::{
-    EffectiveSchemaRegistry, FieldDefinition, FieldType, InMemorySchemaProvider,
-    ParsedSchemaCatalog, SchemaCatalogLimits, SchemaCoverageReport, SchemaEdit, SchemaKey,
-    SchemaLimits, SchemaProvider, SchemaResolution, SchemaSource, TypeDefinition,
+    BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinProfileRegistry, BuiltinSchemaProfile,
+    BuiltinSchemaProvider, EffectiveSchemaRegistry, FieldDefinition, FieldType,
+    InMemorySchemaProvider, ParsedSchemaCatalog, SchemaCatalogLimits, SchemaCoverageReport,
+    SchemaEdit, SchemaKey, SchemaLimits, SchemaProvider, SchemaProviderProvenance,
+    SchemaProviderResolution, SchemaResolution, SchemaSource, TypeDefinition,
     decode_embedded_schema, parse_schema_catalog,
 };
 pub use text_document::{XtDocument, XtHeader, XtTermination, inspect_xt, parse_xt};
+#[doc(hidden)]
+pub use text_document::{XtNodeTypeCounts, scan_xt_node_types};

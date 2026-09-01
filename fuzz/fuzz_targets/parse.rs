@@ -2,8 +2,8 @@
 
 use libfuzzer_sys::fuzz_target;
 use parasolid_core::{
-    DocumentLimits, InMemorySchemaProvider, InspectionLimits, SchemaKey, SchemaSource,
-    TypeDefinition, inspect_xb, inspect_xt, parse_xb, parse_xt,
+    BuiltinProfileRegistry, DocumentLimits, InMemorySchemaProvider, InspectionLimits, SchemaKey,
+    SchemaSource, TypeDefinition, inspect_xb, inspect_xt, parse_xb, parse_xt,
 };
 
 const INSPECTION_LIMITS: InspectionLimits = InspectionLimits {
@@ -44,13 +44,25 @@ fn provider(schema_key: &str) -> Option<InMemorySchemaProvider> {
 
 fuzz_target!(|data: &[u8]| {
     if let Ok(header) = inspect_xb(data, INSPECTION_LIMITS)
-        && let Some(provider) = provider(&header.schema_key)
+        && let Ok(key) = SchemaKey::parse(&header.schema_key)
     {
-        let _ = parse_xb(data, &provider, DOCUMENT_LIMITS);
+        if let Ok(registry) = BuiltinProfileRegistry::compiled()
+            && let Some(builtin) = registry.provider_for_key(&key)
+        {
+            let _ = parse_xb(data, &builtin, DOCUMENT_LIMITS);
+        } else if let Some(provider) = provider(&header.schema_key) {
+            let _ = parse_xb(data, &provider, DOCUMENT_LIMITS);
+        }
     }
     if let Ok(header) = inspect_xt(data, INSPECTION_LIMITS)
-        && let Some(provider) = provider(&header.schema_key)
+        && let Ok(key) = SchemaKey::parse(&header.schema_key)
     {
-        let _ = parse_xt(data, &provider, DOCUMENT_LIMITS);
+        if let Ok(registry) = BuiltinProfileRegistry::compiled()
+            && let Some(builtin) = registry.provider_for_key(&key)
+        {
+            let _ = parse_xt(data, &builtin, DOCUMENT_LIMITS);
+        } else if let Some(provider) = provider(&header.schema_key) {
+            let _ = parse_xt(data, &provider, DOCUMENT_LIMITS);
+        }
     }
 });

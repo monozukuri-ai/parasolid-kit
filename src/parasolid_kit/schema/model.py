@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Literal
 
 from ..binary.header import ByteRange
 
@@ -58,6 +59,55 @@ class SchemaKey:
             "base": self.base,
             "provider_schema": self.provider_schema,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class SchemaProviderResolution:
+    """Document provider provenance, separate from per-type schema sources."""
+
+    kind: Literal["caller_supplied", "builtin"]
+    profile_id: str | None = None
+    profile_revision: int | None = None
+    schema_key: str | None = None
+    coverage: Literal["verified_subset"] | None = None
+    profile_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind == "caller_supplied":
+            if any(
+                getattr(self, name) is not None
+                for name in self.__dataclass_fields__
+                if name != "kind"
+            ):
+                raise ValueError("caller-supplied provenance cannot claim a built-in profile")
+        elif self.kind == "builtin":
+            if not isinstance(self.profile_id, str) or not self.profile_id:
+                raise ValueError("built-in profile_id must not be empty")
+            if (
+                type(self.profile_revision) is not int
+                or not 1 <= self.profile_revision <= 0xFFFF_FFFF
+            ):
+                raise ValueError("profile_revision must be a positive unsigned 32-bit integer")
+            if SchemaKey.parse(self.schema_key).base is not None:
+                raise ValueError("built-in provenance requires a standard exact schema key")
+            if self.coverage != "verified_subset":
+                raise ValueError("built-in coverage must be verified_subset")
+            digest = self.profile_sha256
+            if (
+                not isinstance(digest, str)
+                or len(digest) != 64
+                or any(c not in "0123456789abcdef" for c in digest)
+            ):
+                raise ValueError("profile_sha256 must be a lowercase SHA-256 digest")
+        else:
+            raise ValueError("provider kind must be caller_supplied or builtin")
+
+    def to_dict(self) -> dict[str, object]:
+        """Return the selected provider and, when applicable, its profile metadata."""
+
+        if self.kind == "caller_supplied":
+            return {"kind": self.kind}
+        return {name: getattr(self, name) for name in self.__dataclass_fields__}
 
 
 class FieldType(str, Enum):

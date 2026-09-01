@@ -9,7 +9,7 @@ compatibility with every Parasolid version, producer, or geometry type.
 | Operation | X_B | X_T |
 |---|---:|---:|
 | Inspect the common and internal header | Supported | Supported |
-| Parse a complete node stream | Supported with the exact schema | Supported with the exact schema |
+| Parse a complete node stream | Built-in subset or exact external schema | Built-in subset or exact external schema |
 | Preserve source bytes and byte ranges | Supported | Supported |
 | Reconstruct an unmodified document | Byte-exact | Not supported |
 | Compare decoded documents | Supported | Supported |
@@ -24,35 +24,43 @@ Inputs can be filesystem paths or `bytes`, `bytearray`, and `memoryview`
 values. File-like objects are not accepted. Inspection validates the header
 only; it does not prove that the remaining node stream or geometry is valid.
 
-## Schema requirement
+## Schema selection and built-in scope
 
-Complete parsing selects the schema from the internal stream key. For
-`SCH_<modeller>_<effective>`, the parser requires `<effective>`. For
-`SCH_<modeller>_<effective>_<base>`, it requires `<base>` and applies the
-embedded definitions or deltas carried by the stream.
+Default parsing uses `onshape-sch30000-r1` revision 1 only for the exact internal
+key `SCH_3000000_30000`. Its coverage is `verified_subset`: Onshape V30 text and
+neutral binary exports, zero user fields, and single-solid boxes, prisms,
+cylinders, and through-holes. The same producer with a different modeller/key
+component is not selected. See [profile provenance](builtin-profiles.md) for
+sources, canonical hash, covered types, and local evidence.
 
-The required catalog must be supplied by the caller. The parser does not:
+The built-in raw decoder covers 22 node types / 179 field groups, including
+associated lists and attributes. The B-Rep role mapping covers 13 topology and
+point/line/circle/plane/cylinder types. Decoding an attribute record does not
+mean the high-level model exposes its semantic meaning. A successful raw parse
+is separate from a complete B-Rep and from successful OCCT/STEP conversion.
+For the curved solid fixtures, core area/volume remain unavailable; the built-in
+profile does not extend the adapter's arc-trimming coverage. Planar box/prism
+exports are the validated built-in STEP/preview path.
 
-- bundle Siemens schema catalogs;
-- download catalogs;
-- choose a nearby schema version;
-- infer fields that are absent from the transmitted data; or
-- use the human-readable common-header `SCH` value in place of the internal
-  X_T schema key.
+There is no general support claim for other producers/keys, embedded bases,
+nonzero user fields, NURBS, assemblies, multiple bodies, or sheets through this
+profile. Structural checks control parsing; matching a key is not a guarantee
+that every shape emitted under that key has been verified.
 
-`DirectorySchemaProvider` and the `--schema-dir` CLI option consider only the
-exact `sch_<provider-schema>.sch_txt` file in the requested directory. They do
-not recurse, follow symbolic-link catalogs, or select a similarly numbered
-catalog.
+An explicit `SchemaProvider` or `--schema-dir` selects the caller's catalog
+without fallback. For `SCH_<modeller>_<effective>` the required catalog is
+`<effective>`; for `SCH_<modeller>_<effective>_<base>` it is `<base>`, even when
+embedded definitions are present. `DirectorySchemaProvider` considers only
+`sch_<provider-schema>.sch_txt`, rejects symbolic links, and does not recurse or
+substitute a nearby version. The human-readable common-header `SCH` in X_T is
+not used for selection. [Schema catalogs](../README.md#schema-catalogs) describes
+the external-provider path.
 
-To determine `<provider-schema>`, run `parasolid-kit inspect MODEL.x_b` or
-`parasolid-kit inspect MODEL.x_t` and read `header.schema_key`. Use the second
-number in `SCH_<modeller>_<effective>` and the third number in
-`SCH_<modeller>_<effective>_<base>`. Obtain the resulting exact catalog from an
-available Parasolid SDK or Parasolid-based product, then pass the directory
-containing it as `--schema-dir`. The complete acquisition and file-location
-walkthrough is in the README's
-[Schema catalogs](../README.md#schema-catalogs) section.
+Unsupported default keys use `schema.missing_base_schema`; uncovered built-in
+types use `schema.builtin_profile_uncovered_type`; nonzero built-in user fields
+use `node.unsupported_user_fields`. None causes a guessed layout or a different
+profile to be selected. Siemens catalogs and native CAD fixtures are excluded
+from wheel/sdist; runtime code does not download them.
 
 ## B-Rep topology
 
@@ -67,7 +75,9 @@ treated as persistent Parasolid identifiers.
 
 ## Typed geometry
 
-The mapper currently provides typed values for these effective geometry types:
+With a suitable explicit schema provider, the mapper provides typed values for
+the following effective geometry types. This broader mapper table does not
+expand the built-in profile's raw/type coverage:
 
 | Category | Effective types |
 |---|---|
@@ -84,7 +94,8 @@ being converted to an empty shape.
 
 ## Parse, OCCT, and STEP geometry coverage
 
-This table is rendered from
+This adapter table assumes an already mapped `BrepModel`; it does not imply
+built-in raw support for every listed type. This table is rendered from
 `parasolid_kit.interop.occt.GEOMETRY_COVERAGE`; a test requires the embedded
 text to match that machine-readable contract exactly. `conditional` means the
 listed constraints are checked before OCCT is imported. It does not mean that
@@ -142,7 +153,13 @@ does not currently establish the physical length unit.
   history; I4 exports geometry/topology only.
 - No inferred CadQuery assembly, Workplane chain, or editable feature history;
   I5 returns shapes only.
-- Non-zero user fields are not decoded.
+- Application-owned user fields are retained separately as integer words in
+  `RawNode.user_fields` and included in document comparisons. Non-zero user fields
+  are supported only for node types whose PK visibility is documented in the
+  April 2008 XT reference; unknown visibility is rejected, not guessed. Synthetic
+  X_T/X_B parity is tested, but compatibility with arbitrary non-zero-user-field
+  producers is not established. This does not supply missing schema definitions
+  or enable schema-free parsing.
 - A transmitted opaque `q` field is rejected because its neutral-file byte
   representation is not defined by the current schema model.
 

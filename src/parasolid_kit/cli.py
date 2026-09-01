@@ -38,7 +38,11 @@ def _parser() -> argparse.ArgumentParser:
 
     parse_command = commands.add_parser("parse", help="parse one complete document at L1/L4")
     parse_command.add_argument("path", type=Path)
-    parse_command.add_argument("--schema-dir", type=Path, required=True)
+    parse_command.add_argument(
+        "--schema-dir",
+        type=Path,
+        help="exact external catalog directory (default: compiled profile)",
+    )
     parse_command.add_argument(
         "--brep",
         action="store_true",
@@ -51,7 +55,11 @@ def _parser() -> argparse.ArgumentParser:
         help="parse, map, and show a compact B-Rep completeness report",
     )
     check_command.add_argument("path", type=Path)
-    check_command.add_argument("--schema-dir", type=Path, required=True)
+    check_command.add_argument(
+        "--schema-dir",
+        type=Path,
+        help="exact external catalog directory (default: compiled profile)",
+    )
     check_command.add_argument(
         "--json",
         action="store_true",
@@ -65,7 +73,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     compare_command.add_argument("left", type=Path)
     compare_command.add_argument("right", type=Path)
-    compare_command.add_argument("--schema-dir", type=Path, required=True)
+    compare_command.add_argument(
+        "--schema-dir",
+        type=Path,
+        help="exact external catalog directory (default: compiled profile)",
+    )
     compare_command.add_argument("--absolute-tolerance", type=float, default=1.0e-12)
     compare_command.add_argument("--relative-tolerance", type=float, default=1.0e-12)
 
@@ -75,7 +87,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     export_step_command.add_argument("path", type=Path)
     export_step_command.add_argument("output", type=Path)
-    export_step_command.add_argument("--schema-dir", type=Path, required=True)
+    export_step_command.add_argument(
+        "--schema-dir",
+        type=Path,
+        help="exact external catalog directory (default: compiled profile)",
+    )
     export_step_command.add_argument(
         "--source-unit",
         choices=("m", "cm", "mm", "in", "ft"),
@@ -105,7 +121,11 @@ def _parser() -> argparse.ArgumentParser:
         help="write a bounded GLB preview and serve its bundled UI on localhost",
     )
     view_command.add_argument("path", type=Path)
-    view_command.add_argument("--schema-dir", type=Path, required=True)
+    view_command.add_argument(
+        "--schema-dir",
+        type=Path,
+        help="exact external catalog directory (default: compiled profile)",
+    )
     view_command.add_argument(
         "--source-unit",
         choices=("m", "cm", "mm", "in", "ft"),
@@ -231,9 +251,9 @@ def _provider(
 def _document(
     path: Path,
     source_format: SourceFormat,
-    schema_dir: Path,
+    schema_dir: Path | None,
 ) -> ParasolidDocument:
-    provider = _provider(path, source_format, schema_dir)
+    provider = None if schema_dir is None else _provider(path, source_format, schema_dir)
     parser = parse_xb if source_format == "binary" else parse_xt
     return parser(path, schema_provider=provider)
 
@@ -246,6 +266,9 @@ def _document_summary(document: ParasolidDocument) -> dict[str, object]:
         "node_count": len(document.nodes),
         "node_type_counts": {str(key): value for key, value in sorted(type_counts.items())},
         "schema_coverage": document.schema_coverage.to_dict(),
+        "schema_resolution": None
+        if document.schema_resolution is None
+        else document.schema_resolution.to_dict(),
         "termination": document.terminator.to_dict(),
         "diagnostics": [item.to_dict() for item in document.diagnostics],
     }
@@ -295,6 +318,16 @@ def _write_check_summary(
     print(f"  Format: {'X_B' if summary.source_format == 'binary' else 'X_T'}", file=output)
     print(f"  Schema: {summary.schema_key.raw}", file=output)
     print(f"  Provider schema: {summary.schema_key.provider_schema}", file=output)
+    if summary.schema_resolution is not None:
+        resolution = summary.schema_resolution
+        print(f"  Schema provider: {resolution.kind}", file=output)
+        if resolution.kind == "builtin":
+            print(
+                f"  Profile: {resolution.profile_id} "
+                f"(revision {resolution.profile_revision}, {resolution.coverage})",
+                file=output,
+            )
+            print(f"  Profile SHA-256: {resolution.profile_sha256}", file=output)
     print(f"  Modeller: {summary.modeller_version}", file=output)
     print(f"  File size: {summary.file_size} bytes", file=output)
     print(f"  Nodes: {summary.node_count}", file=output)

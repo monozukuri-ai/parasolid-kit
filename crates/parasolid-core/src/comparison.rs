@@ -474,6 +474,20 @@ fn compare_node_pair(
         return;
     }
     let node_type = Some(left.node_type);
+    if left.user_fields != right.user_fields {
+        builder.difference(
+            "comparison.user_fields_mismatch",
+            "field_value",
+            "mapped nodes contain different application user-field words",
+            node_type,
+            Some(left.index),
+            Some(right.index),
+            None,
+            None,
+            Some(format!("{:?}", left.user_fields)),
+            Some(format!("{:?}", right.user_fields)),
+        );
+    }
     if !definition_equal(&left.definition, &right.definition) {
         builder.difference(
             "comparison.node_definition_mismatch",
@@ -888,6 +902,7 @@ mod tests {
         RawNode {
             node_type: 12,
             index,
+            user_fields: Vec::new(),
             variable_length: None,
             definition,
             first_schema: None,

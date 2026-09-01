@@ -13,8 +13,8 @@ dist/
 target/
 *.egg-info/
 
-# Maintainer design records are local-only and are not part of the public
-# repository or source distribution.
+# Maintainer research scripts, tests, schemas, and records are local-only
+# and are not part of the public repository or source distribution.
 /.internal/
 
 # Native CAD files are local research inputs until provenance and redistribution

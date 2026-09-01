@@ -10,7 +10,7 @@ from typing import Literal, TypeAlias
 from .binary import ParasolidDocument
 from .brep import BrepMetrics, BrepModel, TopologyValidation
 from .diagnostics import Diagnostic
-from .schema import SchemaKey
+from .schema import SchemaKey, SchemaProviderResolution
 
 SourceFormat: TypeAlias = Literal["binary", "text"]
 KindCounts: TypeAlias = tuple[tuple[str, int], ...]
@@ -84,8 +84,17 @@ class BrepSummary:
     metrics: BrepMetrics
     document_diagnostics: tuple[Diagnostic, ...]
     brep_diagnostics: tuple[Diagnostic, ...]
+    schema_resolution: SchemaProviderResolution | None = None
 
     def __post_init__(self) -> None:
+        if self.schema_resolution is not None:
+            if not isinstance(self.schema_resolution, SchemaProviderResolution):
+                raise TypeError("schema_resolution must be a SchemaProviderResolution or None")
+            if (
+                self.schema_resolution.kind == "builtin"
+                and self.schema_resolution.schema_key != self.schema_key.raw
+            ):
+                raise ValueError("built-in provenance key must match the summary")
         if self.source_format not in {"binary", "text"}:
             raise ValueError("source_format must be 'binary' or 'text'")
         if not self.modeller_version:
@@ -147,6 +156,7 @@ class BrepSummary:
             metrics=model.metrics,
             document_diagnostics=document.diagnostics,
             brep_diagnostics=model.diagnostics,
+            schema_resolution=document.schema_resolution,
         )
 
     @property
@@ -162,6 +172,9 @@ class BrepSummary:
             "format": self.source_format,
             "modeller_version": self.modeller_version,
             "schema_key": self.schema_key.to_dict(),
+            "schema_resolution": None
+            if self.schema_resolution is None
+            else self.schema_resolution.to_dict(),
             "file_size": self.file_size,
             "node_count": self.node_count,
             "resolved_schema_type_count": self.resolved_schema_type_count,

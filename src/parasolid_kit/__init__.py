@@ -78,6 +78,7 @@ from .schema import (
     SchemaCatalog,
     SchemaKey,
     SchemaProvider,
+    SchemaProviderResolution,
     load_schema_catalog,
 )
 from .summary import BrepEntityCounts, BrepSummary, ParsedBrep
@@ -138,6 +139,7 @@ __all__ = [
     "SchemaError",
     "SchemaKey",
     "SchemaProvider",
+    "SchemaProviderResolution",
     "Sense",
     "Shell",
     "SourceLocation",

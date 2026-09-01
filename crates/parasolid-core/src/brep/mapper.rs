@@ -13,6 +13,7 @@ use super::model::{
     Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind,
     TopologyValidation, Vector3, Vertex,
 };
+use super::profile_roles::RoleAccess;
 
 /// Map a complete `X_B` raw document into the Parasolid-native B-Rep model.
 ///
@@ -39,6 +40,7 @@ pub fn map_xb_brep_with_diagnostic_limit(
         BrepSourceFormat::Binary,
         document.schema_key.raw(),
         &document.nodes,
+        RoleAccess::select(&document.schema_provider, document.schema_key.raw())?,
     )
     .with_max_diagnostics(max_diagnostics)
     .map()
@@ -69,6 +71,7 @@ pub fn map_xt_brep_with_diagnostic_limit(
         BrepSourceFormat::Text,
         document.schema_key.raw(),
         &document.nodes,
+        RoleAccess::select(&document.schema_provider, document.schema_key.raw())?,
     )
     .with_max_diagnostics(max_diagnostics)
     .map()
@@ -97,19 +100,19 @@ struct IdMaps {
 }
 
 impl IdMaps {
-    fn new(nodes: &[RawNode]) -> Self {
+    fn new(nodes: &[RawNode], roles: RoleAccess) -> Self {
         Self {
-            bodies: assign_ids(nodes, |node| node.definition.name == "BODY"),
-            regions: assign_ids(nodes, |node| node.definition.name == "REGION"),
-            shells: assign_ids(nodes, |node| node.definition.name == "SHELL"),
-            faces: assign_ids(nodes, |node| node.definition.name == "FACE"),
-            loops: assign_ids(nodes, |node| node.definition.name == "LOOP"),
-            half_edges: assign_ids(nodes, |node| node.definition.name == "HALFEDGE"),
-            edges: assign_ids(nodes, |node| node.definition.name == "EDGE"),
-            vertices: assign_ids(nodes, |node| node.definition.name == "VERTEX"),
-            points: assign_ids(nodes, |node| node.definition.name == "POINT"),
-            curves: assign_ids(nodes, is_curve_node),
-            surfaces: assign_ids(nodes, is_surface_node),
+            bodies: assign_ids(nodes, |node| roles.type_name(node) == "BODY"),
+            regions: assign_ids(nodes, |node| roles.type_name(node) == "REGION"),
+            shells: assign_ids(nodes, |node| roles.type_name(node) == "SHELL"),
+            faces: assign_ids(nodes, |node| roles.type_name(node) == "FACE"),
+            loops: assign_ids(nodes, |node| roles.type_name(node) == "LOOP"),
+            half_edges: assign_ids(nodes, |node| roles.type_name(node) == "HALFEDGE"),
+            edges: assign_ids(nodes, |node| roles.type_name(node) == "EDGE"),
+            vertices: assign_ids(nodes, |node| roles.type_name(node) == "VERTEX"),
+            points: assign_ids(nodes, |node| roles.type_name(node) == "POINT"),
+            curves: assign_ids(nodes, |node| roles.is_curve(node)),
+            surfaces: assign_ids(nodes, |node| roles.is_surface(node)),
         }
     }
 }
@@ -123,45 +126,29 @@ fn assign_ids(nodes: &[RawNode], predicate: impl Fn(&RawNode) -> bool) -> BTreeM
         .collect()
 }
 
-fn is_curve_node(node: &RawNode) -> bool {
-    has_common_geometry_fields(node)
-        && field_definition(node, "owner").is_some_and(|field| field.pointer_class == 1010)
-}
-
-fn is_surface_node(node: &RawNode) -> bool {
-    has_common_geometry_fields(node)
-        && field_definition(node, "owner").is_some_and(|field| field.pointer_class == 1007)
-}
-
-fn has_common_geometry_fields(node: &RawNode) -> bool {
-    ["owner", "next", "previous", "geometric_owner", "sense"]
-        .into_iter()
-        .all(|name| field_definition(node, name).is_some())
-}
-
-fn field_definition<'a>(node: &'a RawNode, name: &str) -> Option<&'a crate::FieldDefinition> {
-    node.fields
-        .iter()
-        .find(|field| field.definition.name == name)
-        .map(|field| &field.definition)
-}
-
 struct Mapper<'a> {
     source_format: BrepSourceFormat,
     schema_key: &'a str,
     nodes: BTreeMap<u32, &'a RawNode>,
     ids: IdMaps,
+    roles: RoleAccess,
     diagnostics: Vec<BrepDiagnostic>,
     max_diagnostics: usize,
 }
 
 impl<'a> Mapper<'a> {
-    fn new(source_format: BrepSourceFormat, schema_key: &'a str, nodes: &'a [RawNode]) -> Self {
+    fn new(
+        source_format: BrepSourceFormat,
+        schema_key: &'a str,
+        nodes: &'a [RawNode],
+        roles: RoleAccess,
+    ) -> Self {
         Self {
             source_format,
             schema_key,
             nodes: nodes.iter().map(|node| (node.index, node)).collect(),
-            ids: IdMaps::new(nodes),
+            ids: IdMaps::new(nodes, roles),
+            roles,
             diagnostics: Vec::new(),
             max_diagnostics: usize::MAX,
         }
@@ -454,7 +441,7 @@ impl<'a> Mapper<'a> {
     #[allow(clippy::too_many_lines)]
     fn map_curve(&mut self, index: u32) -> Result<CurveGeometry, ParseError> {
         let node = self.node(index)?;
-        let kind = match node.definition.name.as_str() {
+        let kind = match self.roles.type_name(node) {
             "LINE" => CurveKind::Line {
                 point: self.vector(node, "pvec")?,
                 direction: self.vector(node, "direction")?,
@@ -552,7 +539,7 @@ impl<'a> Mapper<'a> {
     #[allow(clippy::too_many_lines)]
     fn map_surface(&mut self, index: u32) -> Result<SurfaceGeometry, ParseError> {
         let node = self.node(index)?;
-        let kind = match node.definition.name.as_str() {
+        let kind = match self.roles.type_name(node) {
             "PLANE" => SurfaceKind::Plane {
                 point: self.vector(node, "pvec")?,
                 normal: self.vector(node, "normal")?,
@@ -979,6 +966,21 @@ impl<'a> Mapper<'a> {
             }
         }
         for edge in edges {
+            if matches!(self.roles, RoleAccess::OnshapeSch30000)
+                && !bodies.iter().any(|body| {
+                    body.source.node_index == edge.owner.node_index && body.edges.contains(&edge.id)
+                })
+                && !shells.iter().any(|shell| {
+                    shell.source.node_index == edge.owner.node_index
+                        && shell.wire_edges.contains(&edge.id)
+                })
+            {
+                return Err(self.invalid_topology_source(
+                    &edge.source,
+                    "edge_owner_inverse",
+                    "edge owner does not contain the edge in its chain",
+                ));
+            }
             let count = edge.half_edges.len();
             for (position, half_edge_id) in edge.half_edges.iter().enumerate() {
                 let half_edge =
@@ -1001,6 +1003,22 @@ impl<'a> Mapper<'a> {
             }
         }
         for vertex in vertices {
+            if matches!(self.roles, RoleAccess::OnshapeSch30000)
+                && !bodies.iter().any(|body| {
+                    body.source.node_index == vertex.owner.node_index
+                        && body.vertices.contains(&vertex.id)
+                })
+                && !shells.iter().any(|shell| {
+                    shell.source.node_index == vertex.owner.node_index
+                        && shell.isolated_vertex == Some(vertex.id)
+                })
+            {
+                return Err(self.invalid_topology_source(
+                    &vertex.source,
+                    "vertex_owner_inverse",
+                    "vertex owner does not contain the vertex",
+                ));
+            }
             if usize::try_from(vertex.point).map_or(true, |id| id >= self.ids.points.len()) {
                 return Err(self.invalid_topology_source(
                     &vertex.source,
@@ -1127,9 +1145,8 @@ impl<'a> Mapper<'a> {
     }
 
     fn field<'b>(&self, node: &'b RawNode, name: &'static str) -> Result<&'b RawField, ParseError> {
-        node.fields
-            .iter()
-            .find(|field| field.definition.name == name)
+        self.roles
+            .field(node, name)
             .ok_or_else(|| self.invalid_field(node, name, "required effective field is absent"))
     }
 
@@ -1326,7 +1343,7 @@ impl<'a> Mapper<'a> {
                 "required geometry auxiliary pointer is unresolved",
             )
         })?;
-        if target_node.definition.name != expected {
+        if self.roles.type_name(target_node) != expected {
             return Err(self.invalid_reference(
                 node,
                 field,
@@ -1388,7 +1405,7 @@ impl<'a> Mapper<'a> {
         node: &RawNode,
         field: &'static str,
     ) -> Result<Option<SourceNodeRef>, ParseError> {
-        if node.fields.iter().all(|item| item.definition.name != field) {
+        if self.roles.field(node, field).is_none() {
             return Ok(None);
         }
         self.optional_source(node, field)
@@ -1756,12 +1773,10 @@ impl<'a> Mapper<'a> {
         Ok(())
     }
 
-    #[allow(clippy::unused_self)]
     fn source(&self, node: &RawNode) -> SourceNodeRef {
-        let node_id = node
-            .fields
-            .iter()
-            .find(|field| field.definition.name == "node_id")
+        let node_id = self
+            .roles
+            .field(node, "node_id")
             .and_then(|field| field.values.first())
             .and_then(|value| match value {
                 FieldValue::Integer(value) => *value,
@@ -1932,6 +1947,7 @@ mod tests {
         RawNode {
             node_type,
             index,
+            user_fields: Vec::new(),
             variable_length,
             definition,
             first_schema: None,
@@ -2126,7 +2142,13 @@ mod tests {
             ),
         ]);
 
-        let model = Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes).map();
+        let model = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map();
         assert!(model.is_ok());
         if let Ok(model) = model {
             assert!(model.complete);
@@ -2368,7 +2390,12 @@ mod tests {
             ),
         ]);
 
-        let mut mapper = Mapper::new(BrepSourceFormat::Text, "SCH_TEST", &nodes);
+        let mut mapper = Mapper::new(
+            BrepSourceFormat::Text,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
         let curve_kinds = (1..=6)
             .map(|index| mapper.map_curve(index).map(|curve| curve.kind.as_str()))
             .collect::<Result<Vec<_>, _>>();
@@ -2415,7 +2442,13 @@ mod tests {
         let mut nodes = wire_acorn_nodes();
         nodes.push(node(6, 200, "FUTURE_CURVE", common_curve_fields(4)));
 
-        let model = Mapper::new(BrepSourceFormat::Text, "SCH_TEST", &nodes).map();
+        let model = Mapper::new(
+            BrepSourceFormat::Text,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map();
         assert!(model.is_ok());
         if let Ok(model) = model {
             assert!(!model.complete);
@@ -2435,9 +2468,14 @@ mod tests {
         nodes.push(node(6, 200, "FUTURE_CURVE", common_curve_fields(4)));
         nodes.push(node(7, 201, "ANOTHER_FUTURE_CURVE", common_curve_fields(4)));
 
-        let result = Mapper::new(BrepSourceFormat::Text, "SCH_TEST", &nodes)
-            .with_max_diagnostics(1)
-            .map();
+        let result = Mapper::new(
+            BrepSourceFormat::Text,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .with_max_diagnostics(1)
+        .map();
 
         assert!(result.is_err());
         if let Err(error) = result {
@@ -2462,7 +2500,12 @@ mod tests {
             "HALFEDGE",
             vec![field("sense", 0, vec![FieldValue::Character(b'?')])],
         )];
-        let mapper = Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes);
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
 
         assert_eq!(mapper.sense(&nodes[0], "sense"), Ok(Sense::Unknown));
         assert_eq!(Sense::Unknown.multiplier(), None);
@@ -2512,7 +2555,12 @@ mod tests {
             node(4, 56, "BLENDED_EDGE", blend_fields),
             node(5, 59, "BLEND_BOUND", boundary_fields),
         ];
-        let mut mapper = Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes);
+        let mut mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
 
         let blend = mapper.map_surface(4);
         assert!(blend.is_ok());
@@ -2555,9 +2603,14 @@ mod tests {
             region.values = vec![FieldValue::PointerIndex(99)];
         }
 
-        let error = Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes)
-            .map()
-            .err();
+        let error = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map()
+        .err();
         assert_eq!(
             error.as_ref().map(ParseError::kind),
             Some(ErrorKind::InvalidBrepReference)

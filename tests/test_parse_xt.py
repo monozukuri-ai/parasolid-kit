@@ -98,7 +98,7 @@ def test_parse_xt_returns_shared_raw_model_and_reports_missing_catalog() -> None
     assert document.raw_bytes == _xt_document()
 
     with pytest.raises(SchemaError) as captured:
-        parse_xt(_xt_document())
+        parse_xt(_xt_document(), schema_provider=InMemorySchemaProvider())
     assert captured.value.diagnostic.code == "schema.missing_base_schema"
     assert captured.value.diagnostic.details["schema"] == "30000"
 
@@ -140,3 +140,46 @@ def test_parse_xt_reports_text_delimiter_and_trailing_content() -> None:
     with pytest.raises(ParseError) as captured_trailing:
         parse_xt(trailing, schema_provider=_provider())
     assert captured_trailing.value.diagnostic.code == "text.trailing_content"
+
+
+@pytest.mark.parametrize("value", [b"A\tB", b"\tA\t\tB\t", b"\t"])
+def test_literal_tabs_are_character_values_not_layout(value: bytes) -> None:
+    field = FieldDefinition("text", FieldType.CHARACTER, 0, 1, True)
+    definition = TypeDefinition(
+        42, "TEXT", "Synthetic character array", True, (field,), SchemaSource.BASE
+    )
+    provider = InMemorySchemaProvider((SchemaCatalog("30000", (definition,)),))
+    data = text_header() + f"42 {len(value)} 1 ".encode("ascii") + value + b"1 0 "
+
+    header = inspect_xt(data)
+    document = parse_xt(data, schema_provider=provider)
+    assert document.header == header
+    assert bytes(item.value for item in document.nodes[0].fields[0].values) == value
+    assert document.raw_bytes == data
+
+    binary_data = (
+        SyntheticXbBuilder(schema_name="SCH_3000000_30000", schema_max_type=None)
+        .add_raw_node(42, struct.pack(">i", len(value)) + positive_integer(1) + value)
+        .build()
+    )
+    binary = parse_xb(binary_data, schema_provider=provider)
+    assert compare_documents(document, binary).equivalent
+    assert write_xb(binary) == binary_data
+
+
+@pytest.mark.parametrize("body", [b"12\t1 0 1 1 0 ", b"12 1 0 1\t0 1 0 ", b"1 0\t"])
+def test_header_inspection_does_not_accept_tabs_as_numeric_layout(body: bytes) -> None:
+    data = text_header() + body
+    assert inspect_xt(data).schema_key == "SCH_3000000_30000"
+    with pytest.raises(ParseError) as captured:
+        parse_xt(data, schema_provider=_provider())
+    assert captured.value.diagnostic.code == "binary.invalid_ascii"
+    assert captured.value.diagnostic.location.byte_offset == data.index(b"\t")
+
+
+def test_tab_in_internal_header_number_is_rejected() -> None:
+    data = text_header().replace(b"T51 ", b"T51\t", 1)
+    with pytest.raises(ParseError) as captured:
+        inspect_xt(data)
+    assert captured.value.diagnostic.code == "binary.invalid_ascii"
+    assert captured.value.diagnostic.location.byte_offset == 3

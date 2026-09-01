@@ -3,6 +3,7 @@
 mod mapper;
 mod metrics;
 mod model;
+mod profile_roles;
 
 pub use mapper::{
     map_xb_brep, map_xb_brep_with_diagnostic_limit, map_xt_brep, map_xt_brep_with_diagnostic_limit,
