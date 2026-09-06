@@ -21,10 +21,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "parasolid-kit"
 IMPORT_NAME = "parasolid_kit"
-VERSION = "0.1.0.dev2"
+VERSION = "0.1.0.dev3"
 LICENSE_EXPRESSION = "MIT"
 RUST_PACKAGE_NAME = "parasolid-python"
-RUST_PACKAGE_VERSION = "0.1.0-dev2"
+RUST_PACKAGE_VERSION = "0.1.0-dev3"
 RUST_SBOM_FILENAME = f"{RUST_PACKAGE_NAME}.cyclonedx.json"
 APPROVED_EXTRAS = frozenset({"cadquery", "occt"})
 APPROVED_EXTRA_REQUIREMENTS = {

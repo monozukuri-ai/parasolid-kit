@@ -127,17 +127,22 @@ jobs:
           --python 3.10
 
   optional-profiles:
-    name: Optional ${{ matrix.profile }} / Python ${{ matrix.python }}
+    name: Optional ${{ matrix.profile }} / Python ${{ matrix.python }} / ${{ matrix.runner }}
     needs: quality
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - profile: occt
             python: "3.10"
+            runner: ubuntu-latest
           - profile: cadquery
             python: "3.11"
+            runner: ubuntu-latest
+          - profile: cadquery
+            python: "3.11"
+            runner: windows-2025
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -162,11 +167,16 @@ jobs:
         run: uv run --no-sync maturin build --release --out dist --compatibility pypi
 
       - name: Verify optional profile in a cold environment
-        run: >-
-          uv run --no-sync python scripts/verify_optional_install.py
-          --wheel dist/*.whl
-          --profile ${{ matrix.profile }}
-          --python ${{ matrix.python }}
+        # Launch native Windows DLLs without Git Bash's MSYS environment.
+        shell: python
+        run: |
+          import glob
+          import subprocess
+          subprocess.run([
+              "uv", "run", "--no-sync", "python", "scripts/verify_optional_install.py",
+              "--wheel", *glob.glob("dist/*.whl"),
+              "--profile", "${{ matrix.profile }}", "--python", "${{ matrix.python }}",
+          ], check=True)
 
       - name: Verify CadQuery rejects Python 3.10
         if: matrix.profile == 'cadquery'

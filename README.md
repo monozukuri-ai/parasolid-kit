@@ -46,7 +46,7 @@ The `--pre` option is required while only development releases are available.
 To install the current release by exact version instead:
 
 ```bash
-python -m pip install "parasolid-kit==0.1.0.dev2"
+python -m pip install "parasolid-kit==0.1.0.dev3"
 ```
 
 Stable releases, once available, can be installed without `--pre`:
@@ -58,7 +58,7 @@ python -m pip install parasolid-kit
 Alternatively, install a downloaded wheel directly:
 
 ```bash
-python -m pip install /path/to/parasolid_kit-0.1.0.dev2-cp310-abi3-PLATFORM.whl
+python -m pip install /path/to/parasolid_kit-0.1.0.dev3-cp310-abi3-PLATFORM.whl
 ```
 
 Header inspection works immediately after installation. Complete parsing and

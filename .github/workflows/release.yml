@@ -133,18 +133,25 @@ jobs:
           --python 3.10
 
       - name: Verify OCCT profile
-        run: >-
-          uv run --no-sync python scripts/verify_optional_install.py
-          --wheel dist/*.whl
-          --profile occt
-          --python 3.10
+        # Launch native Windows DLLs without Git Bash's MSYS environment.
+        shell: python
+        run: |
+          import glob
+          import subprocess
+          subprocess.run([
+              "uv", "run", "--no-sync", "python", "scripts/verify_optional_install.py",
+              "--wheel", *glob.glob("dist/*.whl"), "--profile", "occt", "--python", "3.10",
+          ], check=True)
 
       - name: Verify CadQuery profile
-        run: >-
-          uv run --no-sync python scripts/verify_optional_install.py
-          --wheel dist/*.whl
-          --profile cadquery
-          --python 3.11
+        shell: python
+        run: |
+          import glob
+          import subprocess
+          subprocess.run([
+              "uv", "run", "--no-sync", "python", "scripts/verify_optional_install.py",
+              "--wheel", *glob.glob("dist/*.whl"), "--profile", "cadquery", "--python", "3.11",
+          ], check=True)
 
       - name: Verify CadQuery rejects Python 3.10
         run: >-
