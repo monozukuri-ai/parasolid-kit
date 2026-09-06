@@ -46,7 +46,7 @@ The `--pre` option is required while only development releases are available.
 To install the current release by exact version instead:
 
 ```bash
-python -m pip install "parasolid-kit==0.1.0.dev1"
+python -m pip install "parasolid-kit==0.1.0.dev2"
 ```
 
 Stable releases, once available, can be installed without `--pre`:
@@ -58,7 +58,7 @@ python -m pip install parasolid-kit
 Alternatively, install a downloaded wheel directly:
 
 ```bash
-python -m pip install /path/to/parasolid_kit-0.1.0.dev1-cp310-abi3-PLATFORM.whl
+python -m pip install /path/to/parasolid_kit-0.1.0.dev2-cp310-abi3-PLATFORM.whl
 ```
 
 Header inspection works immediately after installation. Complete parsing and
@@ -87,6 +87,10 @@ Do not install both profiles in one environment. Their OCP distributions can
 provide the same Python import namespace; `parasolid-kit` detects that state
 before importing OCP and reports commands for returning to one profile. There
 is intentionally no `[all]` extra.
+
+On Intel macOS, the CadQuery extra uses Numba 0.62.x, the last release series
+with prebuilt wheels for that platform. Use Python 3.11–3.13 for this profile
+on Intel Macs; see [Numba's platform notice](https://numba.readthedocs.io/en/stable/release/0.63.0-notes.html#deprecation-of-macos-x86-64-intel-support).
 
 The `[occt]` profile converts the documented exact I7 subset from `BrepModel` into a
 validated OCCT shape and can export that result directly as AP242. The

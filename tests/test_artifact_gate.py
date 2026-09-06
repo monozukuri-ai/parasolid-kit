@@ -9,6 +9,8 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from scripts.verify_artifacts import (
     BUILTIN_SOURCE_FILES,
     EXPECTED_LICENSE_BYTES,
@@ -19,7 +21,7 @@ from scripts.verify_artifacts import (
     verify_wheel,
 )
 
-DIST_INFO = "parasolid_kit-0.1.0.dev1.dist-info"
+DIST_INFO = "parasolid_kit-0.1.0.dev2.dist-info"
 RUST_SBOM = f"{DIST_INFO}/sboms/parasolid-python.cyclonedx.json"
 ROOT = Path(__file__).resolve().parents[1]
 VIEWER_ASSETS = {name: (ROOT / "src" / name).read_bytes() for name in VIEWER_ASSET_SHA256}
@@ -30,12 +32,16 @@ def _metadata(
     license_expression: str = "MIT",
     occt_requirement: str = ("cadquery-ocp-novtk<7.10,>=7.9.3.1; extra == 'occt'"),
     cadquery_requirement: str = "cadquery<2.9,>=2.8; extra == 'cadquery'",
+    numba_requirement: str = (
+        "numba<0.63,>=0.62.1; sys_platform == 'darwin' "
+        "and platform_machine == 'x86_64' and extra == 'cadquery'"
+    ),
     additional_headers: tuple[str, ...] = (),
 ) -> bytes:
     lines = [
         "Metadata-Version: 2.4",
         "Name: parasolid-kit",
-        "Version: 0.1.0.dev1",
+        "Version: 0.1.0.dev2",
         "Requires-Python: >=3.10",
         f"License-Expression: {license_expression}",
         "License-File: LICENSE",
@@ -43,6 +49,7 @@ def _metadata(
         "Provides-Extra: occt",
         f"Requires-Dist: {cadquery_requirement}",
         f"Requires-Dist: {occt_requirement}",
+        f"Requires-Dist: {numba_requirement}",
         *additional_headers,
         "",
         "",
@@ -62,7 +69,7 @@ def _record(files: dict[str, bytes]) -> bytes:
 
 def _wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files = {
-        "parasolid_kit/__init__.py": b'__version__ = "0.1.0.dev1"\n',
+        "parasolid_kit/__init__.py": b'__version__ = "0.1.0.dev2"\n',
         "parasolid_kit/_core.abi3.so": b"native-placeholder",
         f"{DIST_INFO}/METADATA": _metadata(),
         f"{DIST_INFO}/WHEEL": b"Wheel-Version: 1.0\nRoot-Is-Purelib: false\n",
@@ -81,6 +88,7 @@ def _wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
 
 def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     required = {
+        ".gitattributes",
         "Cargo.lock",
         "Cargo.toml",
         "LICENSE",
@@ -145,7 +153,7 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files.update(extra or {})
     with tarfile.open(path, "w:gz") as archive:
         for relative, payload in files.items():
-            name = f"parasolid_kit-0.1.0.dev1/{relative}"
+            name = f"parasolid_kit-0.1.0.dev2/{relative}"
             info = tarfile.TarInfo(name)
             info.size = len(payload)
             archive.addfile(info, io.BytesIO(payload))
@@ -162,7 +170,7 @@ def test_wheel_gate_accepts_expected_files_and_license(tmp_path: Path) -> None:
     assert report["metadata_license_file"] is True
     assert report["license_file"] is True
     assert report["provides_extra"] == ["cadquery", "occt"]
-    assert len(report["requires_dist"]) == 2
+    assert len(report["requires_dist"]) == 3
     assert report["viewer_asset_version"] == VIEWER_ASSET_VERSION
     assert report["viewer_asset_license"] == VIEWER_ASSET_LICENSE
     assert report["viewer_assets"] == sorted(VIEWER_ASSET_SHA256)
@@ -187,7 +195,7 @@ def test_wheel_gate_accepts_maturin_rust_sbom(tmp_path: Path) -> None:
         "metadata": {
             "component": {
                 "name": "parasolid-python",
-                "version": "0.1.0-dev1",
+                "version": "0.1.0-dev2",
                 "licenses": [{"expression": "MIT"}],
             }
         },
@@ -223,7 +231,7 @@ def test_sdist_gate_accepts_the_declared_source_layout(tmp_path: Path) -> None:
     assert report["metadata_license_file"] is True
     assert report["license_file"] is True
     assert report["provides_extra"] == ["cadquery", "occt"]
-    assert len(report["requires_dist"]) == 2
+    assert len(report["requires_dist"]) == 3
     assert report["viewer_assets"] == sorted(VIEWER_ASSET_SHA256)
 
 
@@ -358,6 +366,40 @@ def test_sdist_gate_rejects_a_non_exact_extra_marker(tmp_path: Path) -> None:
 
     assert report["status"] == "failed"
     assert any("non-exact extra marker" in error for error in report["errors"])
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "extra == 'cadquery'",
+        "sys_platform == 'darwin' and extra == 'cadquery'",
+        "sys_platform == 'darwin' and platform_machine == 'arm64' and extra == 'cadquery'",
+        "sys_platform == 'darwin' and platform_machine == 'x86_64' and extra == 'occt'",
+    ],
+)
+def test_numba_constraint_must_be_scoped_to_intel_macos_cadquery(
+    tmp_path: Path, marker: str
+) -> None:
+    metadata = _metadata(numba_requirement=f"numba<0.63,>=0.62.1; {marker}")
+    wheel, sdist = tmp_path / "package.whl", tmp_path / "package.tar.gz"
+    _wheel(wheel, extra={f"{DIST_INFO}/METADATA": metadata})
+    _sdist(sdist, extra={"PKG-INFO": metadata})
+
+    for report in (verify_wheel(wheel), verify_sdist(sdist)):
+        assert report["status"] == "failed"
+        assert any("non-exact Intel macOS marker" in error for error in report["errors"])
+
+
+def test_numba_constraint_accepts_reordered_marker_terms(tmp_path: Path) -> None:
+    metadata = _metadata(
+        numba_requirement=(
+            'numba>=0.62.1,<0.63; extra == "cadquery" '
+            'and platform_machine == "x86_64" and sys_platform == "darwin"'
+        )
+    )
+    wheel = tmp_path / "package.whl"
+    _wheel(wheel, extra={f"{DIST_INFO}/METADATA": metadata})
+    assert verify_wheel(wheel)["status"] == "passed"
 
 
 def test_sdist_gate_rejects_a_bundled_siemens_catalog(tmp_path: Path) -> None:

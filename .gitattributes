@@ -1,0 +1,4 @@
+# Viewer assets are hash-pinned at build time and runtime on every platform.
+/src/parasolid_kit/interop/preview/static/*.html text eol=lf
+/src/parasolid_kit/interop/preview/static/*.css text eol=lf
+/src/parasolid_kit/interop/preview/static/*.js text eol=lf

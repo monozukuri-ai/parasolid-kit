@@ -21,16 +21,20 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "parasolid-kit"
 IMPORT_NAME = "parasolid_kit"
-VERSION = "0.1.0.dev1"
+VERSION = "0.1.0.dev2"
 LICENSE_EXPRESSION = "MIT"
 RUST_PACKAGE_NAME = "parasolid-python"
-RUST_PACKAGE_VERSION = "0.1.0-dev1"
+RUST_PACKAGE_VERSION = "0.1.0-dev2"
 RUST_SBOM_FILENAME = f"{RUST_PACKAGE_NAME}.cyclonedx.json"
 APPROVED_EXTRAS = frozenset({"cadquery", "occt"})
 APPROVED_EXTRA_REQUIREMENTS = {
     ("cadquery", "cadquery"): frozenset({">=2.8", "<2.9"}),
     ("cadquery-ocp-novtk", "occt"): frozenset({">=7.9.3.1", "<7.10"}),
+    ("numba", "cadquery"): frozenset({">=0.62.1", "<0.63"}),
 }
+MACOS_INTEL_NUMBA_MARKERS = frozenset(
+    {'sys_platform == "darwin"', 'platform_machine == "x86_64"', 'extra == "cadquery"'}
+)
 EXPECTED_LICENSE_BYTES = (ROOT / "LICENSE").read_bytes()
 EXPECTED_LICENSE_SHA256 = hashlib.sha256(EXPECTED_LICENSE_BYTES).hexdigest()
 VIEWER_ASSET_VERSION = "1.0.0"
@@ -62,6 +66,7 @@ NATIVE_CAD_SUFFIXES = {
     ".xt",
 }
 SDIST_ROOT_FILES = {
+    ".gitattributes",
     ".gitignore",
     "Cargo.lock",
     "Cargo.toml",
@@ -186,11 +191,18 @@ def _verify_dependency_metadata(
         if marker is None:
             errors.append(f"{artifact} has an unconditional Requires-Dist: {requirement!r}")
             continue
-        marker_match = _EXTRA_MARKER.fullmatch(marker.strip())
-        if marker_match is None:
-            errors.append(f"{artifact} has a non-exact extra marker: {requirement!r}")
-            continue
-        extra = marker_match.group(2)
+        if name == "numba":
+            clauses = marker.replace("'", '"').strip().split(" and ")
+            if len(clauses) != 3 or frozenset(clauses) != MACOS_INTEL_NUMBA_MARKERS:
+                errors.append(f"{artifact} has a non-exact Intel macOS marker: {requirement!r}")
+                continue
+            extra = "cadquery"
+        else:
+            marker_match = _EXTRA_MARKER.fullmatch(marker.strip())
+            if marker_match is None:
+                errors.append(f"{artifact} has a non-exact extra marker: {requirement!r}")
+                continue
+            extra = marker_match.group(2)
         key = (name, extra)
         if key in observed:
             errors.append(f"{artifact} has a duplicate extra requirement: {requirement!r}")
@@ -597,6 +609,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
     if len(prefixes) != 1:
         errors.append(f"sdist must have exactly one archive root, got {sorted(prefixes)}")
     required = {
+        ".gitattributes",
         "Cargo.lock",
         "Cargo.toml",
         "LICENSE",

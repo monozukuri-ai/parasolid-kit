@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "parasolid-kit"
-version = "0.1.0.dev1"
+version = "0.1.0.dev2"
 description = "Schema-aware Python parser for Parasolid X_T and X_B data"
 readme = "README.md"
 license = "MIT"
@@ -35,6 +35,8 @@ occt = [
 ]
 cadquery = [
   "cadquery>=2.8,<2.9",
+  # Numba 0.63+ no longer ships Intel macOS wheels.
+  "numba>=0.62.1,<0.63; sys_platform == 'darwin' and platform_machine == 'x86_64'",
 ]
 
 [dependency-groups]
@@ -65,6 +67,7 @@ python-source = "src"
 module-name = "parasolid_kit._core"
 bindings = "pyo3"
 include = [
+  { path = ".gitattributes", format = "sdist" },
   "src/parasolid_kit/interop/preview/static/*.html",
   "src/parasolid_kit/interop/preview/static/*.js",
   "src/parasolid_kit/interop/preview/static/*.css",
