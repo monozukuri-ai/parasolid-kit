@@ -168,7 +168,13 @@ counts, field and string sizes, variable-length arrays, and retained
 diagnostics.
 
 Optional `[occt]` and `[cadquery]` installation profiles preserve the lazy,
-guarded runtime boundary. I7 adds exact ellipse, parabola, hyperbola, explicit
+guarded runtime boundary. The base parser and `[occt]` profile support Linux,
+macOS, and Windows. The `[cadquery]` profile supports Linux and macOS only;
+Windows CadQuery adapter calls fail with `interop.unsupported_platform` before
+native import because the tested runtime crashes during process shutdown.
+Windows users can use `[occt]` for conversion, STEP export, and preview.
+
+I7 adds exact ellipse, parabola, hyperbola, explicit
 trimmed curve, cone frustum, full sphere, full ring torus, non-rational 3D
 NURBS, and exact offset-surface paths to the I3 point/line/circle/plane/cylinder
 baseline. Direct vertex-trimmed circles and ellipses remain rejected because

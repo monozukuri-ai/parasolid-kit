@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import sys
 from importlib import metadata
 from types import ModuleType
 from typing import Final, Literal, TypeAlias
@@ -50,6 +51,30 @@ def require_cadquery() -> ModuleType:
 
     installed = installed_interop_distributions()
     _reject_conflicting_profiles(installed)
+    if sys.platform == "win32":
+        raise InteropDependencyError(
+            Diagnostic(
+                code="interop.unsupported_platform",
+                severity=DiagnosticSeverity.ERROR,
+                kind=DiagnosticKind.UNSUPPORTED,
+                message=(
+                    "the CadQuery profile is unavailable on Windows because its native "
+                    "runtime crashes during process shutdown; use the occt profile for "
+                    "conversion, STEP export, and preview"
+                ),
+                fatal=True,
+                details={
+                    "required_extra": "cadquery",
+                    "platform": "win32",
+                    "supported_platforms": "Linux, macOS",
+                    "alternative_extra": "occt",
+                    "recovery_command": (
+                        "python -m pip uninstall cadquery cadquery-ocp && "
+                        'python -m pip install "parasolid-kit[occt]"'
+                    ),
+                },
+            )
+        )
     missing = [name for name in ("cadquery", "cadquery-ocp") if name not in installed]
     if missing:
         raise _missing_dependency(

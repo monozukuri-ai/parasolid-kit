@@ -79,7 +79,7 @@ boundary:
 # Headless OCP runtime without CadQuery or VTK; Python 3.10+
 python -m pip install --pre "parasolid-kit[occt]"
 
-# CadQuery and its full OCP runtime; Python 3.11+
+# CadQuery and its full OCP runtime; Linux/macOS, Python 3.11+
 python -m pip install --pre "parasolid-kit[cadquery]"
 ```
 
@@ -87,6 +87,12 @@ Do not install both profiles in one environment. Their OCP distributions can
 provide the same Python import namespace; `parasolid-kit` detects that state
 before importing OCP and reports commands for returning to one profile. There
 is intentionally no `[all]` extra.
+
+The base parser and `[occt]` profile support Linux, macOS, and Windows.
+The `[cadquery]` profile supports Linux and macOS. On Windows, the tested
+CadQuery runtime crashes during process shutdown, so CadQuery adapter calls
+raise `interop.unsupported_platform` before importing the native runtime.
+Use `[occt]` on Windows for conversion, STEP export, and preview.
 
 On Intel macOS, the CadQuery extra uses Numba 0.62.x, the last release series
 with prebuilt wheels for that platform. Use Python 3.11–3.13 for this profile

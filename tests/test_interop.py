@@ -78,6 +78,7 @@ def test_missing_occt_profile_has_an_actionable_structured_error(
 def test_missing_cadquery_profile_reports_every_required_distribution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(
         dependency,
         "_distribution_version",
@@ -148,6 +149,7 @@ def test_valid_profile_imports_only_after_distribution_validation(
     expected_module: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(sys, "platform", "linux")
     module = ModuleType(expected_module)
     imported: list[str] = []
 
@@ -163,6 +165,35 @@ def test_valid_profile_imports_only_after_distribution_validation(
     assert loaded is module
     assert imported == [expected_module]
     assert dependency.installed_interop_distributions() == versions
+
+
+@pytest.mark.parametrize("installed", [{}, {"cadquery": "2.8.0", "cadquery-ocp": "7.9.3.1.1"}])
+def test_windows_cadquery_is_rejected_before_native_import(
+    installed: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    imported: list[str] = []
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(dependency, "_distribution_version", _versions(installed))
+    monkeypatch.setattr(dependency.importlib, "import_module", imported.append)
+
+    with pytest.raises(interop.InteropDependencyError) as captured:
+        interop.require_cadquery()
+
+    diagnostic = captured.value.diagnostic
+    assert diagnostic.code == "interop.unsupported_platform"
+    assert diagnostic.kind is DiagnosticKind.UNSUPPORTED
+    assert diagnostic.details["alternative_extra"] == "occt"
+    assert imported == []
+
+
+def test_windows_occt_profile_remains_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = ModuleType("OCP")
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(
+        dependency, "_distribution_version", _versions({"cadquery-ocp-novtk": "7.9.3.1.1"})
+    )
+    monkeypatch.setattr(dependency.importlib, "import_module", lambda name: module)
+    assert interop.require_occt() is module
 
 
 def test_broken_optional_import_becomes_a_structured_dependency_error(

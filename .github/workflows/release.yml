@@ -133,7 +133,6 @@ jobs:
           --python 3.10
 
       - name: Verify OCCT profile
-        # Launch native Windows DLLs without Git Bash's MSYS environment.
         shell: python
         run: |
           import glob
@@ -143,15 +142,19 @@ jobs:
               "--wheel", *glob.glob("dist/*.whl"), "--profile", "occt", "--python", "3.10",
           ], check=True)
 
-      - name: Verify CadQuery profile
+      - name: Verify CadQuery runtime or Windows rejection
         shell: python
         run: |
           import glob
           import subprocess
-          subprocess.run([
+          import sys
+          command = [
               "uv", "run", "--no-sync", "python", "scripts/verify_optional_install.py",
               "--wheel", *glob.glob("dist/*.whl"), "--profile", "cadquery", "--python", "3.11",
-          ], check=True)
+          ]
+          if sys.platform == "win32":
+              command.append("--expect-unsupported-platform")
+          subprocess.run(command, check=True)
 
       - name: Verify CadQuery rejects Python 3.10
         run: >-

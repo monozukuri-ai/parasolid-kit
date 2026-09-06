@@ -125,11 +125,15 @@ for guard, extra in (
     try:
         guard()
     except interop.InteropDependencyError as error:
-        assert error.diagnostic.code == "interop.missing_dependency"
         assert error.diagnostic.details["required_extra"] == extra
-        assert error.diagnostic.details["install_command"] == (
-            f'python -m pip install "parasolid-kit[{extra}]"'
-        )
+        if extra == "cadquery" and sys.platform == "win32":
+            assert error.diagnostic.code == "interop.unsupported_platform"
+            assert error.diagnostic.details["alternative_extra"] == "occt"
+        else:
+            assert error.diagnostic.code == "interop.missing_dependency"
+            assert error.diagnostic.details["install_command"] == (
+                f'python -m pip install "parasolid-kit[{extra}]"'
+            )
     else:
         raise AssertionError(f"base install unexpectedly provided {extra}")
 assert "OCP" not in sys.modules

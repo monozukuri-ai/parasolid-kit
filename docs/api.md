@@ -156,10 +156,16 @@ cadquery = interop.require_cadquery()
 
 Install exactly one profile:
 
-| Profile | Python | Installed runtime | Intended use |
-|---|---:|---|---|
-| `parasolid-kit[occt]` | 3.10+ | `cadquery-ocp-novtk` | Headless OCCT conversion and STEP export |
-| `parasolid-kit[cadquery]` | 3.11+ | CadQuery and full `cadquery-ocp` | CadQuery shapes plus OCCT conversion and STEP export |
+| Profile | Platforms | Python | Installed runtime | Intended use |
+|---|---|---:|---|---|
+| `parasolid-kit[occt]` | Linux, macOS, Windows | 3.10+ | `cadquery-ocp-novtk` | Headless OCCT conversion and STEP export |
+| `parasolid-kit[cadquery]` | Linux, macOS | 3.11+ (Intel macOS: 3.11–3.13) | CadQuery and full `cadquery-ocp` | CadQuery shapes plus OCCT conversion and STEP export |
+
+On Windows, `require_cadquery()` and the CadQuery adapters raise
+`InteropDependencyError` with code `interop.unsupported_platform` before
+importing CadQuery or OCP. This avoids a process-shutdown crash observed with
+the tested Windows CadQuery runtime. Use the `[occt]` profile for Windows
+conversion, STEP export, and preview.
 
 The profiles must not coexist because their distributions can provide the same
 `OCP` namespace. Before any optional import, both guards inspect installed

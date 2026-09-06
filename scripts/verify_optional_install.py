@@ -152,16 +152,45 @@ else:
     raise AssertionError("conflicting OCP distributions were accepted")
 """.strip()
 
+UNSUPPORTED_PLATFORM_SMOKE_CODE = r"""
+import json
+import sys
+
+import parasolid_kit
+from parasolid_kit import interop
+
+assert parasolid_kit.__version__ == "0.1.0.dev3"
+assert sys.platform == "win32"
+assert "OCP" not in sys.modules
+assert "cadquery" not in sys.modules
+try:
+    interop.require_cadquery()
+except interop.InteropDependencyError as error:
+    assert error.diagnostic.code == "interop.unsupported_platform"
+    assert error.diagnostic.details["alternative_extra"] == "occt"
+    assert "OCP" not in sys.modules
+    assert "cadquery" not in sys.modules
+    print(json.dumps(error.diagnostic.to_dict(), sort_keys=True))
+else:
+    raise AssertionError("the unsupported Windows CadQuery runtime was accepted")
+""".strip()
+
 
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wheel", type=Path, required=True)
     parser.add_argument("--profile", choices=("occt", "cadquery"), required=True)
     parser.add_argument("--python", default=sys.executable)
-    parser.add_argument(
+    expectation = parser.add_mutually_exclusive_group()
+    expectation.add_argument(
         "--expect-unsupported-python",
         action="store_true",
         help="require dependency resolution to reject this Python/profile pair",
+    )
+    expectation.add_argument(
+        "--expect-unsupported-platform",
+        action="store_true",
+        help="install the base wheel and require Windows CadQuery rejection before import",
     )
     return parser.parse_args()
 
@@ -188,9 +217,17 @@ def _run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> str:
     return completed.stdout.strip()
 
 
-def verify_profile(wheel: Path, profile: str, python: str) -> dict[str, object]:
+def verify_profile(
+    wheel: Path,
+    profile: str,
+    python: str,
+    *,
+    expect_unsupported_platform: bool = False,
+) -> dict[str, object]:
     """Install one extra into a fresh environment and run guarded runtime checks."""
 
+    if expect_unsupported_platform and profile != "cadquery":
+        raise ValueError("only the cadquery profile has an unsupported platform gate")
     wheel = wheel.resolve()
     if not wheel.is_file():
         raise FileNotFoundError(f"wheel does not exist: {wheel}")
@@ -216,7 +253,8 @@ def verify_profile(wheel: Path, profile: str, python: str) -> dict[str, object]:
             environment=environment,
         )
         environment_python = _environment_python(environment_path)
-        requirement = f"parasolid-kit[{profile}] @ {wheel.as_uri()}"
+        extra = "" if expect_unsupported_platform else f"[{profile}]"
+        requirement = f"parasolid-kit{extra} @ {wheel.as_uri()}"
         _run(
             [
                 "uv",
@@ -230,6 +268,21 @@ def verify_profile(wheel: Path, profile: str, python: str) -> dict[str, object]:
             cwd=work_dir,
             environment=environment,
         )
+        if expect_unsupported_platform:
+            diagnostic = json.loads(
+                _run(
+                    [str(environment_python), "-I", "-c", UNSUPPORTED_PLATFORM_SMOKE_CODE],
+                    cwd=work_dir,
+                    environment=environment,
+                )
+            )
+            return {
+                "status": "rejected_as_expected",
+                "profile": profile,
+                "python": python,
+                "wheel": str(wheel),
+                "diagnostic": diagnostic,
+            }
         runtime = json.loads(
             _run(
                 [
@@ -409,7 +462,12 @@ def main() -> int:
                 arguments.python,
             )
         else:
-            report = verify_profile(arguments.wheel, arguments.profile, arguments.python)
+            report = verify_profile(
+                arguments.wheel,
+                arguments.profile,
+                arguments.python,
+                expect_unsupported_platform=arguments.expect_unsupported_platform,
+            )
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
         report = {
             "status": "failed",
