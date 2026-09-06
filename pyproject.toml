@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "parasolid-kit"
-version = "0.1.0.dev0"
+version = "0.1.0.dev1"
 description = "Schema-aware Python parser for Parasolid X_T and X_B data"
 readme = "README.md"
 license = "MIT"

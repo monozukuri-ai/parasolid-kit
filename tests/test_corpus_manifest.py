@@ -17,7 +17,7 @@ def _valid_entry() -> dict[str, object]:
         "source_kind": "synthetic",
         "generator": {
             "product": "parasolid-kit test builder",
-            "product_version": "0.1.0.dev0",
+            "product_version": "0.1.0.dev1",
             "document_version": "fixture-v1",
             "export_settings": {"purpose": "unit-test"},
         },
