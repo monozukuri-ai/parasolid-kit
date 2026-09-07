@@ -59,6 +59,11 @@ jobs:
       - name: Verify public corpus provenance
         run: uv run python scripts/verify_corpus.py
 
+      - name: Verify distributable Rust core
+        run: |
+          cargo package -p parasolid-core --locked
+          cargo test --locked --manifest-path target/package/parasolid-core-*/Cargo.toml
+
   fuzz-smoke:
     needs: quality
     runs-on: ubuntu-latest

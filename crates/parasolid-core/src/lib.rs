@@ -1,5 +1,6 @@
 //! Python-independent parsing core for Parasolid transmit data.
 
+#![doc = include_str!("../README.md")]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod brep;

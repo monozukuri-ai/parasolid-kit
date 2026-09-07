@@ -23,6 +23,10 @@ Complete parsing selects by the internal stream key. Omitting `schema_provider`
 | `SCH_3000000_30000` | `onshape-sch30000-r2`, revision 2 |
 | `SCH_1300000_13006` | `onshape-sch13006-r6`, revision 6 |
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5`, revision 5 |
+| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1`, revision 1; partition only |
+
+The [SolidWorks profile](solidworks-partitions.md) does not apply delta streams
+or determine final configuration state. Unsupported delta records fail explicitly.
 
 Each has `verified_subset` coverage and requires zero user fields. The embedded
 profile supplies the reviewed 13006 base before applying stream edits. No runtime

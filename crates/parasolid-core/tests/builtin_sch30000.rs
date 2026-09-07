@@ -158,7 +158,7 @@ fn variable_example(node_type: u16, count: usize) -> Result<(Vec<u8>, Vec<u8>, V
 #[test]
 fn compiled_registry_preserves_the_verified_v30_exact_key() -> Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
-    assert_eq!(registry.len(), 3);
+    assert_eq!(registry.len(), 4);
     let key = SchemaKey::parse(KEY)?;
     let provider = registry
         .provider_for_key(&key)

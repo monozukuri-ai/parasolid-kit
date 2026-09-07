@@ -1,5 +1,9 @@
 # parasolid-kit
 
+The Python-independent Rust parser is also available as
+[`parasolid-core`](https://crates.io/crates/parasolid-core). See its
+[Rust API and input limitations](crates/parasolid-core/README.md).
+
 `parasolid-kit` is an experimental, schema-aware parser for Parasolid X_T and
 X_B transmit files. Parsing and geometry mapping run in a safe Rust core, while
 Python users work with immutable typed models.
@@ -46,7 +50,7 @@ The `--pre` option is required while only development releases are available.
 To install the current release by exact version instead:
 
 ```bash
-python -m pip install "parasolid-kit==0.1.0.dev4"
+python -m pip install "parasolid-kit==0.1.0.dev5"
 ```
 
 Stable releases, once available, can be installed without `--pre`:
@@ -58,7 +62,7 @@ python -m pip install parasolid-kit
 Alternatively, install a downloaded wheel directly:
 
 ```bash
-python -m pip install /path/to/parasolid_kit-0.1.0.dev4-cp310-abi3-PLATFORM.whl
+python -m pip install /path/to/parasolid_kit-0.1.0.dev5-cp310-abi3-PLATFORM.whl
 ```
 
 Header inspection works immediately after installation. Complete parsing and
@@ -219,6 +223,11 @@ selects one of these compiled profiles by the exact internal stream key:
 | `SCH_3000000_30000` | `onshape-sch30000-r2` | Onshape V30, 24 types / 202 field groups |
 | `SCH_1300000_13006` | `onshape-sch13006-r6` | Onshape V13, 40 types / 327 field groups |
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` | 13006 base plus trimmed curve (133): 30 types / 240 groups; embedded edits and full type 204 |
+| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` | SolidWorks 2026 partitions: 41 types / 338 groups; deltas unsupported |
+
+The [SolidWorks partition profile](docs/solidworks-partitions.md) reads a
+partition's B-Rep. Associated delta streams remain unsupported, so a complete
+partition is not a reconstructed final SolidWorks configuration.
 
 All have `verified_subset` coverage and require zero user fields. They need no
 catalog, network, or CAD installation at runtime.

@@ -1,5 +1,10 @@
 # Format support and limitations
 
+The exact SolidWorks 2026 key `SCH_3701229_37102_13006` has a
+[partition-only profile](solidworks-partitions.md). It reads raw records and
+maps partition B-Rep; deltas and final saved configuration reconstruction remain
+unsupported. SolidWorks container extraction belongs to the embedding application.
+
 `parasolid-kit` is a pre-alpha, read-focused Parasolid transmit-file parser.
 This page describes the supported public behavior; it is not a claim of
 compatibility with every Parasolid version, producer, or geometry type.
