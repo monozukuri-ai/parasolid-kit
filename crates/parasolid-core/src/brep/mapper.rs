@@ -40,7 +40,11 @@ pub fn map_xb_brep_with_diagnostic_limit(
         BrepSourceFormat::Binary,
         document.schema_key.raw(),
         &document.nodes,
-        RoleAccess::select(&document.schema_provider, document.schema_key.raw())?,
+        RoleAccess::select(
+            &document.schema_provider,
+            document.schema_key.raw(),
+            &document.schemas,
+        )?,
     )
     .with_max_diagnostics(max_diagnostics)
     .map()
@@ -71,7 +75,11 @@ pub fn map_xt_brep_with_diagnostic_limit(
         BrepSourceFormat::Text,
         document.schema_key.raw(),
         &document.nodes,
-        RoleAccess::select(&document.schema_provider, document.schema_key.raw())?,
+        RoleAccess::select(
+            &document.schema_provider,
+            document.schema_key.raw(),
+            &document.schemas,
+        )?,
     )
     .with_max_diagnostics(max_diagnostics)
     .map()
@@ -472,40 +480,9 @@ impl<'a> Mapper<'a> {
                 transverse_radius: self.positive_double(node, "transverse_radius")?,
                 conjugate_radius: self.positive_double(node, "conjugate_radius")?,
             },
-            "TRIMMED_CURVE" => CurveKind::Trimmed {
-                basis_curve: self.required_id(
-                    node,
-                    "basis_curve",
-                    "curve geometry",
-                    &self.ids.curves,
-                )?,
-                start_point: self.vector(node, "point_1")?,
-                end_point: self.vector(node, "point_2")?,
-                start_parameter: self.double(node, "parm_1")?,
-                end_parameter: self.double(node, "parm_2")?,
-            },
+            "TRIMMED_CURVE" => self.trimmed_curve(node)?,
             "B_CURVE" => CurveKind::Nurbs(self.nurbs_curve(node)?),
-            "SP_CURVE" => CurveKind::SurfaceParametric {
-                surface: self.required_id(
-                    node,
-                    "surface",
-                    "surface geometry",
-                    &self.ids.surfaces,
-                )?,
-                parameter_curve: self.required_id(
-                    node,
-                    "b_curve",
-                    "curve geometry",
-                    &self.ids.curves,
-                )?,
-                original_curve: self.optional_id(
-                    node,
-                    "original",
-                    "curve geometry",
-                    &self.ids.curves,
-                )?,
-                tolerance_to_original: self.optional_double(node, "tolerance_to_original")?,
-            },
+            "SP_CURVE" => self.surface_parametric_curve(node)?,
             "INTERSECTION" => self.intersection_curve(node)?,
             type_name => {
                 let source = self.source(node);
@@ -659,7 +636,70 @@ impl<'a> Mapper<'a> {
         })
     }
 
+    #[allow(clippy::float_cmp)] // Equal parameters are forbidden, however short a valid trim is.
+    fn trimmed_curve(&self, node: &RawNode) -> Result<CurveKind, ParseError> {
+        let basis_curve =
+            self.required_id(node, "basis_curve", "curve geometry", &self.ids.curves)?;
+        let basis_index = self.required_pointer(node, "basis_curve")?;
+        if basis_index == node.index {
+            return Err(self.invalid_geometry(
+                node,
+                "basis_curve",
+                "trimmed curve references itself",
+            ));
+        }
+        if self.sense(node, "sense")? != Sense::Positive {
+            return Err(self.invalid_geometry(
+                node,
+                "sense",
+                "trimmed curve sense must be positive",
+            ));
+        }
+        let start_parameter = self.double(node, "parm_1")?;
+        let end_parameter = self.double(node, "parm_2")?;
+        let basis_sense = self.sense(self.node(basis_index)?, "sense")?;
+        if start_parameter == end_parameter
+            || (basis_sense == Sense::Positive && end_parameter < start_parameter)
+            || (basis_sense == Sense::Negative && end_parameter > start_parameter)
+        {
+            return Err(self.invalid_geometry(
+                node,
+                "parm_2",
+                "trim parameters must be distinct and follow the basis curve sense",
+            ));
+        }
+        Ok(CurveKind::Trimmed {
+            basis_curve,
+            start_point: self.vector(node, "point_1")?,
+            end_point: self.vector(node, "point_2")?,
+            start_parameter,
+            end_parameter,
+        })
+    }
+
     fn intersection_curve(&self, node: &RawNode) -> Result<CurveKind, ParseError> {
+        let chart = self.required_typed_node(node, "chart", "CHART")?;
+        self.double(chart, "base_parameter")?;
+        self.double(chart, "base_scale")?;
+        self.optional_double(chart, "chordal_error")?;
+        self.optional_double(chart, "angular_error")?;
+        let count = self.nonnegative_integer(chart, "chart_count")?;
+        self.intersection_points(chart, usize::try_from(count).unwrap_or(usize::MAX))?;
+        for field in ["start", "end"] {
+            let limit = self.required_typed_node(node, field, "LIMIT")?;
+            let count = match self.character(limit, "type")? {
+                b'H' | b'L' => 1,
+                b'T' => 2,
+                _ => {
+                    return Err(self.invalid_geometry(
+                        limit,
+                        "type",
+                        "invalid intersection limit kind",
+                    ));
+                }
+            };
+            self.intersection_points(limit, count)?;
+        }
         let surface_indices = self.pointer_array(node, "surface")?;
         if surface_indices.len() != 2 {
             return Err(self.invalid_field(
@@ -684,12 +724,71 @@ impl<'a> Mapper<'a> {
                 &self.ids.surfaces,
             )?,
         ];
+        let intersection_data = self.optional_source_if_field(node, "intersection_data")?;
+        if intersection_data.is_some() {
+            self.required_typed_node(node, "intersection_data", "INTERSECTION_DATA")?;
+        }
         Ok(CurveKind::Intersection {
             surfaces,
             chart: self.required_source(node, "chart")?,
             start: self.required_source(node, "start")?,
             end: self.required_source(node, "end")?,
-            intersection_data: self.optional_source_if_field(node, "intersection_data")?,
+            intersection_data,
+        })
+    }
+
+    fn intersection_points(&self, node: &RawNode, count: usize) -> Result<(), ParseError> {
+        let values = &self.field(node, "hvec")?.values;
+        if count == 0 || values.len() != count {
+            return Err(self.invalid_geometry(node, "hvec", "intersection point count mismatch"));
+        }
+        for value in values {
+            match value {
+                FieldValue::IntersectionPoint([Some(x), Some(y), Some(z)])
+                    if x.is_finite() && y.is_finite() && z.is_finite() => {}
+                _ => {
+                    return Err(self.invalid_geometry(
+                        node,
+                        "hvec",
+                        "intersection point is null or non-finite",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn surface_parametric_curve(&self, node: &RawNode) -> Result<CurveKind, ParseError> {
+        let parameter_curve = self.required_typed_node(node, "b_curve", "B_CURVE")?;
+        let nurbs = self.required_typed_node(parameter_curve, "nurbs", "NURBS_CURVE")?;
+        let rational = self.logical(nurbs, "rational")?;
+        let dimension = self.positive_short(nurbs, "vertex_dim")?;
+        if dimension != if rational { 3 } else { 2 } {
+            return Err(self.invalid_geometry(
+                nurbs,
+                "vertex_dim",
+                "surface parameter curve must have two coordinates plus an optional weight",
+            ));
+        }
+        let tolerance_to_original = self.optional_double(node, "tolerance_to_original")?;
+        if tolerance_to_original.is_some_and(|value| value < 0.0) {
+            return Err(self.invalid_geometry(node, "tolerance_to_original", "negative tolerance"));
+        }
+        Ok(CurveKind::SurfaceParametric {
+            surface: self.required_id(node, "surface", "surface geometry", &self.ids.surfaces)?,
+            parameter_curve: self.required_id(
+                node,
+                "b_curve",
+                "curve geometry",
+                &self.ids.curves,
+            )?,
+            original_curve: self.optional_id(
+                node,
+                "original",
+                "curve geometry",
+                &self.ids.curves,
+            )?,
+            tolerance_to_original,
         })
     }
 
@@ -720,28 +819,42 @@ impl<'a> Mapper<'a> {
             flat_vertices.len(),
         )?;
         let degree = self.positive_short(nurbs, "degree")?;
-        let expected_expanded = u64::from(control_count) + u64::from(degree) + 1;
-        let actual_expanded = multiplicities
-            .iter()
-            .map(|value| u64::from(*value))
-            .sum::<u64>();
-        if actual_expanded != expected_expanded {
+        let rational = self.logical(nurbs, "rational")?;
+        let periodic = self.logical(nurbs, "periodic")?;
+        let closed = self.logical(nurbs, "closed")?;
+        if control_count <= u32::from(degree)
+            || !(if rational { 3..=4 } else { 2..=3 }).contains(&vertex_dimension)
+            || (periodic && !closed)
+        {
             return Err(self.invalid_geometry(
                 nurbs,
-                "knot_mult",
-                format!(
-                    "expanded knot count {actual_expanded} does not equal vertices + degree + 1 ({expected_expanded})"
-                ),
+                "n_vertices",
+                "invalid NURBS dimensions or closure",
             ));
         }
+        if rational
+            && flat_vertices
+                .chunks(usize::from(vertex_dimension))
+                .any(|vertex| vertex.last().is_none_or(|weight| *weight <= 0.0))
+        {
+            return Err(self.invalid_geometry(nurbs, "vertices", "NURBS weights must be positive"));
+        }
+        self.validate_nurbs_knots(
+            nurbs,
+            "knots",
+            &knots,
+            &multiplicities,
+            control_count,
+            degree,
+        )?;
         Ok(NurbsCurve {
             degree,
             control_vertex_count: control_count,
             vertex_dimension,
             knot_type: self.byte(nurbs, "knot_type")?,
-            periodic: self.logical(nurbs, "periodic")?,
-            closed: self.logical(nurbs, "closed")?,
-            rational: self.logical(nurbs, "rational")?,
+            periodic,
+            closed,
+            rational,
             curve_form: self.byte(nurbs, "curve_form")?,
             control_vertices: flat_vertices
                 .chunks(usize::from(vertex_dimension))
@@ -792,8 +905,46 @@ impl<'a> Mapper<'a> {
         )?;
         let u_degree = self.positive_short(nurbs, "u_degree")?;
         let v_degree = self.positive_short(nurbs, "v_degree")?;
-        self.validate_expanded_knots(nurbs, "u_knot_mult", &u_multiplicities, u_count, u_degree)?;
-        self.validate_expanded_knots(nurbs, "v_knot_mult", &v_multiplicities, v_count, v_degree)?;
+        self.validate_nurbs_knots(
+            nurbs,
+            "u_knots",
+            &u_knots,
+            &u_multiplicities,
+            u_count,
+            u_degree,
+        )?;
+        self.validate_nurbs_knots(
+            nurbs,
+            "v_knots",
+            &v_knots,
+            &v_multiplicities,
+            v_count,
+            v_degree,
+        )?;
+        let rational = self.logical(nurbs, "rational")?;
+        let u_periodic = self.logical(nurbs, "u_periodic")?;
+        let v_periodic = self.logical(nurbs, "v_periodic")?;
+        let u_closed = self.logical(nurbs, "u_closed")?;
+        let v_closed = self.logical(nurbs, "v_closed")?;
+        if u_count <= u32::from(u_degree)
+            || v_count <= u32::from(v_degree)
+            || vertex_dimension != if rational { 4 } else { 3 }
+            || (u_periodic && !u_closed)
+            || (v_periodic && !v_closed)
+        {
+            return Err(self.invalid_geometry(
+                nurbs,
+                "vertices",
+                "invalid NURBS surface dimensions or closure",
+            ));
+        }
+        if rational
+            && flat_vertices
+                .chunks(usize::from(vertex_dimension))
+                .any(|vertex| vertex.last().is_none_or(|weight| *weight <= 0.0))
+        {
+            return Err(self.invalid_geometry(nurbs, "vertices", "NURBS weights must be positive"));
+        }
         Ok(NurbsSurface {
             u_degree,
             v_degree,
@@ -802,11 +953,11 @@ impl<'a> Mapper<'a> {
             vertex_dimension,
             u_knot_type: self.byte(nurbs, "u_knot_type")?,
             v_knot_type: self.byte(nurbs, "v_knot_type")?,
-            u_periodic: self.logical(nurbs, "u_periodic")?,
-            v_periodic: self.logical(nurbs, "v_periodic")?,
-            u_closed: self.logical(nurbs, "u_closed")?,
-            v_closed: self.logical(nurbs, "v_closed")?,
-            rational: self.logical(nurbs, "rational")?,
+            u_periodic,
+            v_periodic,
+            u_closed,
+            v_closed,
+            rational,
             surface_form: self.byte(nurbs, "surface_form")?,
             control_vertices: flat_vertices
                 .chunks(usize::from(vertex_dimension))
@@ -827,24 +978,60 @@ impl<'a> Mapper<'a> {
         })
     }
 
-    fn validate_expanded_knots(
+    #[allow(clippy::too_many_arguments)]
+    fn validate_nurbs_knots(
         &self,
         node: &RawNode,
         field: &'static str,
+        knots: &[f64],
         multiplicities: &[u16],
-        vertex_count: u32,
+        control_count: u32,
         degree: u16,
     ) -> Result<(), ParseError> {
-        let expected = u64::from(vertex_count) + u64::from(degree) + 1;
-        let actual = multiplicities
-            .iter()
-            .map(|value| u64::from(*value))
-            .sum::<u64>();
-        if actual != expected {
+        if knots.len() < 2
+            || knots.windows(2).any(|pair| pair[0] >= pair[1])
+            || multiplicities.iter().any(|&count| count > degree + 1)
+            || multiplicities[1..multiplicities.len() - 1]
+                .iter()
+                .any(|&count| count > degree)
+        {
             return Err(self.invalid_geometry(
                 node,
                 field,
-                format!("expanded knot count {actual} does not equal {expected}"),
+                "invalid distinct knots or multiplicities",
+            ));
+        }
+        let expected_expanded = u64::from(control_count) + u64::from(degree) + 1;
+        let actual_expanded = multiplicities
+            .iter()
+            .map(|value| u64::from(*value))
+            .sum::<u64>();
+        if actual_expanded != expected_expanded {
+            return Err(self.invalid_geometry(
+                node,
+                field,
+                format!(
+                    "expanded knot count {actual_expanded} does not equal vertices + degree + 1 ({expected_expanded})"
+                ),
+            ));
+        }
+        // Only [t_degree, t_control_count] is fully defined. Find these knots
+        // without allocating the expanded vector, including imaginary knots.
+        let knot_at = |index: u64| {
+            let mut end = 0_u64;
+            knots
+                .iter()
+                .zip(multiplicities)
+                .find_map(|(&knot, &count)| {
+                    end += u64::from(count);
+                    (index < end).then_some(knot)
+                })
+        };
+        if knot_at(u64::from(degree)) >= knot_at(u64::from(control_count)) {
+            return Err(self.invalid_geometry(
+                node,
+                field,
+                "NURBS active parameter range must have positive length",
             ));
         }
         Ok(())

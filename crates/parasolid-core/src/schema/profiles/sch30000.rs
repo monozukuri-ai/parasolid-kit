@@ -5,8 +5,8 @@
 //! for types 12/19/70/74. No Siemens catalog is an input to this table.
 //! <https://ww3.cad.de/foren/ubb/uploads/schulze/XT_Format_April_2008_tcm73-62642.pdf>
 //!
-//! M8.1 verified 22 types / 179 fields on box, prism, cylinder and through-hole
-//! solids. Names are project-owned. Class 1040 is input-declared; its complete
+//! Revision 2 adds ellipse and sphere to the M8.1 baseline: 24 types / 202 fields.
+//! Names are project-owned. Class 1040 is input-declared; its complete
 //! membership is not claimed. Type 74's generic pointers have no class constraint.
 //! The Rust table is the maintained source; local M8.1 Python/JSON are snapshots.
 
@@ -16,7 +16,7 @@ use crate::{
 };
 
 // Checked against canonical compiled definitions by the development harness.
-const PROFILE_SHA256: &str = "e28a5e11a7713573a7134025bd8c3d83f194fc663662f079e839a95ea5981f80";
+const PROFILE_SHA256: &str = "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f";
 
 /// Construct the verified subset profile for `SCH_3000000_30000`.
 ///
@@ -29,8 +29,8 @@ const PROFILE_SHA256: &str = "e28a5e11a7713573a7134025bd8c3d83f194fc663662f079e8
 pub fn onshape_sch30000() -> Result<BuiltinSchemaProfile, ParseError> {
     BuiltinSchemaProfile::new(
         BuiltinProfileMetadata {
-            profile_id: "onshape-sch30000-r1".to_owned(),
-            revision: 1,
+            profile_id: "onshape-sch30000-r2".to_owned(),
+            revision: 2,
             provider_schema: "30000".to_owned(),
             producer_scope: "Onshape".to_owned(),
             coverage: BuiltinProfileCoverage::VerifiedSubset,
@@ -258,6 +258,26 @@ fn definitions() -> Vec<TypeDefinition> {
                 field("radius", F, 0, 0),
             ],
         ),
+        // Public reference pp. 34-35; V30 paired inputs put sense BEFORE centre,
+        // unlike the printed ELLIPSE struct. Producer geometry confirms this
+        // order independently, including negative sense and nonzero centres.
+        node(
+            32,
+            vec![
+                field("local_id", D, 0, 0),
+                field("annotations", P, 1019, 0),
+                field("owner_ref", P, 1010, 0),
+                field("next_curve", P, 1008, 0),
+                field("previous_curve", P, 1008, 0),
+                field("indirect_owner", P, 141, 0),
+                field("orientation", C, 0, 0),
+                field("center", V, 0, 0),
+                field("normal", V, 0, 0),
+                field("x_direction", V, 0, 0),
+                field("major_radius", F, 0, 0),
+                field("minor_radius", F, 0, 0),
+            ],
+        ),
         // Public reference pp. 54-55.
         node(
             50,
@@ -288,6 +308,23 @@ fn definitions() -> Vec<TypeDefinition> {
                 field("origin", V, 0, 0),
                 field("axis", V, 0, 0),
                 field("radius", F, 0, 0),
+                field("x_direction", V, 0, 0),
+            ],
+        ),
+        // Public reference pp. 59-60. Radius precedes the two axis vectors.
+        node(
+            53,
+            vec![
+                field("local_id", D, 0, 0),
+                field("annotations", P, 1019, 0),
+                field("owner_ref", P, 1007, 0),
+                field("next_surface", P, 1006, 0),
+                field("previous_surface", P, 1006, 0),
+                field("indirect_owner", P, 141, 0),
+                field("orientation", C, 0, 0),
+                field("center", V, 0, 0),
+                field("radius", F, 0, 0),
+                field("axis", V, 0, 0),
                 field("x_direction", V, 0, 0),
             ],
         ),

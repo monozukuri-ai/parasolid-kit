@@ -64,8 +64,8 @@ python -m pip install /path/to/parasolid_kit-0.1.0.dev3-cp310-abi3-PLATFORM.whl
 Header inspection works immediately after installation. Complete parsing and
 B-Rep checking also work without a schema file for the built-in
 `SCH_3000000_30000` profile (`verified_subset`): Onshape V30 text/neutral binary
-exports of single solid boxes, prisms, cylinders, and through-holes with zero
-user fields. Other keys and uncovered types require an explicit provider; see
+exports of single solid boxes, prisms, cylinders, through-holes, spheres, and
+verified solids with elliptical edges, with zero user fields. Other keys and uncovered types require an explicit provider; see
 [Schema catalogs](#schema-catalogs). STEP, CadQuery, and preview operations also
 require an optional runtime and geometry supported by that adapter.
 
@@ -211,14 +211,23 @@ python -m pip install .
 
 ## Schema catalogs
 
-The built-in `onshape-sch30000-r1` profile (revision 1, `verified_subset`) is
-selected when neither a provider nor a schema directory is supplied and the
-internal key is exactly `SCH_3000000_30000`. It needs no catalog, network, or
-CAD installation at runtime. [Profile provenance and coverage](docs/builtin-profiles.md)
-records its source, canonical hash, and validation scope.
+When neither a provider nor a schema directory is supplied, default parsing
+selects one of these compiled profiles by the exact internal stream key:
 
-Use an external catalog for other keys, including embedded-base keys, or for
-types outside the built-in subset. An explicit provider is authoritative: an
+| Internal schema key | Built-in profile | Reviewed base layout |
+|---|---|---|
+| `SCH_3000000_30000` | `onshape-sch30000-r2` | Onshape V30, 24 types / 202 field groups |
+| `SCH_1300000_13006` | `onshape-sch13006-r6` | Onshape V13, 40 types / 327 field groups |
+| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` | 13006 base plus trimmed curve (133): 30 types / 240 groups; embedded edits and full type 204 |
+
+All have `verified_subset` coverage and require zero user fields. They need no
+catalog, network, or CAD installation at runtime.
+[Profile provenance and coverage](docs/builtin-profiles.md) records their sources,
+canonical hashes, and validation limits. The iCAD profile accepts extracted
+Parasolid streams; `.icd` container parsing remains outside this package.
+
+Use an external catalog for other keys or types outside these subsets.
+An explicit provider is authoritative: an
 empty provider or missing exact catalog fails without switching to the built-in
 profile. `schema_provider=None` means default selection. Nearby versions and
 the human-readable X_T common-header `SCH` value are never used as substitutes.

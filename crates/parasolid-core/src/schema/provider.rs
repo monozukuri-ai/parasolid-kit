@@ -78,6 +78,19 @@ impl From<SchemaProviderProvenance<'_>> for SchemaProviderResolution {
     }
 }
 
+/// Knowledge of one node type in an exact standard/base schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaTypeLookup<'a> {
+    /// The type exists and its complete base definition is available.
+    Defined(&'a TypeDefinition),
+    /// The type exists, but its base definition has not been established.
+    PresentUnsupported,
+    /// The type is confirmed absent from this base schema.
+    Absent,
+    /// Whether the type exists in this base schema is not known.
+    Unknown,
+}
+
 /// Supplies exact standard/base definitions without prescribing storage.
 pub trait SchemaProvider {
     /// Return whether the named provider schema is loaded.
@@ -85,6 +98,20 @@ pub trait SchemaProvider {
 
     /// Return one type from a loaded schema, or `None` when that type is absent.
     fn type_definition(&self, schema: &str, node_type: u16) -> Option<&TypeDefinition>;
+
+    /// Distinguish unavailable definitions from confirmed base-type absence.
+    ///
+    /// The default preserves the complete-catalog contract of existing providers.
+    /// Partial providers must override this method: only `Absent` authorizes a
+    /// complete embedded definition; `Unknown` and `PresentUnsupported` cannot
+    /// be interpreted as an empty base.
+    fn lookup_type(&self, schema: &str, node_type: u16) -> SchemaTypeLookup<'_> {
+        match self.type_definition(schema, node_type) {
+            Some(definition) => SchemaTypeLookup::Defined(definition),
+            None if self.contains_schema(schema) => SchemaTypeLookup::Absent,
+            None => SchemaTypeLookup::Unknown,
+        }
+    }
 
     /// Return whether this provider may be used for the complete transmit schema key.
     ///
@@ -98,6 +125,36 @@ pub trait SchemaProvider {
     fn provenance(&self) -> SchemaProviderProvenance<'_> {
         SchemaProviderProvenance::CallerSupplied
     }
+}
+
+/// Resolve base membership before either embedded decoder consumes any bytes.
+pub(crate) fn embedded_base_definition<'a, P: SchemaProvider>(
+    provider: &'a P,
+    schema_key: &SchemaKey,
+    node_type: u16,
+    offset: usize,
+) -> Result<Option<&'a TypeDefinition>, ParseError> {
+    let (kind, message) = match provider.lookup_type(schema_key.provider_schema(), node_type) {
+        SchemaTypeLookup::Defined(definition) => return Ok(Some(definition)),
+        SchemaTypeLookup::Absent => return Ok(None),
+        SchemaTypeLookup::PresentUnsupported => (
+            ErrorKind::UnsupportedBaseSchemaType,
+            "embedded schema requires a known base type whose definition is unavailable",
+        ),
+        SchemaTypeLookup::Unknown => (
+            ErrorKind::UnknownBaseSchemaType,
+            "embedded schema cannot be decoded without confirmed base-type membership",
+        ),
+    };
+    Err(ParseError::new(
+        kind,
+        offset,
+        message,
+        ErrorDetails::SchemaLookup {
+            schema: schema_key.provider_schema().to_owned(),
+            node_type,
+        },
+    ))
 }
 
 /// Validate the current built-in scope even for streams with no data records.

@@ -28,7 +28,7 @@ pub use schema::{
     BuiltinSchemaProvider, EffectiveSchemaRegistry, FieldDefinition, FieldType,
     InMemorySchemaProvider, ParsedSchemaCatalog, SchemaCatalogLimits, SchemaCoverageReport,
     SchemaEdit, SchemaKey, SchemaLimits, SchemaProvider, SchemaProviderProvenance,
-    SchemaProviderResolution, SchemaResolution, SchemaSource, TypeDefinition,
+    SchemaProviderResolution, SchemaResolution, SchemaSource, SchemaTypeLookup, TypeDefinition,
     decode_embedded_schema, parse_schema_catalog,
 };
 pub use text_document::{XtDocument, XtHeader, XtTermination, inspect_xt, parse_xt};

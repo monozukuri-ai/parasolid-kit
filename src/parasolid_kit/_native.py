@@ -41,9 +41,17 @@ def parse_error_from_native(
                 details[key] = cast(JsonScalar, item)
     if code.startswith("limits."):
         kind = DiagnosticKind.LIMIT
-    elif code in ("schema.missing_base_schema", "schema.missing_type_definition"):
+    elif code in (
+        "schema.missing_base_schema",
+        "schema.missing_type_definition",
+        "schema.unknown_base_type",
+    ):
         kind = DiagnosticKind.INCOMPLETE
-    elif code in ("schema.unsupported_field_type", "node.unsupported_user_fields"):
+    elif code in (
+        "schema.unsupported_field_type",
+        "schema.unsupported_base_type",
+        "node.unsupported_user_fields",
+    ):
         kind = DiagnosticKind.UNSUPPORTED
     else:
         kind = DiagnosticKind.INVALID

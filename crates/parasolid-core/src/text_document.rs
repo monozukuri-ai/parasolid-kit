@@ -7,8 +7,8 @@ use crate::header::locate_payload_start;
 use crate::schema::{
     EffectiveSchemaRegistry, FieldDefinition, FieldType, SchemaCoverageReport, SchemaEdit,
     SchemaKey, SchemaLimits, SchemaProvider, SchemaProviderResolution, SchemaResolution,
-    SchemaSource, TypeDefinition, missing_type_definition_error, unavailable_schema_error,
-    validate_builtin_input,
+    SchemaSource, TypeDefinition, embedded_base_definition, missing_type_definition_error,
+    unavailable_schema_error, validate_builtin_input,
 };
 use crate::text_reader::TextReader;
 use crate::{DocumentLimits, ErrorDetails, ErrorKind, FieldValue, ParseError, RawField, RawNode};
@@ -446,7 +446,7 @@ fn resolve_node_definition<P: SchemaProvider>(
                 data,
                 reader,
                 node_type,
-                provider.type_definition(schema_key.provider_schema(), node_type),
+                embedded_base_definition(provider, schema_key, node_type, offset)?,
                 limits.schema(),
             )?
         } else {

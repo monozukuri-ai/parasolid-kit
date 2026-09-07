@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{ErrorDetails, ErrorKind, ParseError};
 
 use super::{
-    FieldType, SchemaKey, SchemaProvider, SchemaProviderProvenance, SchemaSource, TypeDefinition,
-    WireDecodeClass,
+    FieldType, SchemaKey, SchemaProvider, SchemaProviderProvenance, SchemaSource, SchemaTypeLookup,
+    TypeDefinition, WireDecodeClass,
 };
 
 const MAX_PROFILE_ID_BYTES: usize = 128;
@@ -55,6 +55,8 @@ pub struct BuiltinSchemaProfile {
     metadata: BuiltinProfileMetadata,
     accepted_schema_keys: Vec<SchemaKey>,
     definitions: BTreeMap<u16, TypeDefinition>,
+    unsupported_base_types: BTreeSet<u16>,
+    absent_base_types: BTreeSet<u16>,
 }
 
 impl BuiltinSchemaProfile {
@@ -74,12 +76,54 @@ impl BuiltinSchemaProfile {
         definitions: Vec<TypeDefinition>,
     ) -> Result<Self, ParseError> {
         validate_metadata(&metadata)?;
-        let accepted_schema_keys = validate_schema_keys(&metadata, accepted_schema_keys)?;
+        let accepted_schema_keys = validate_schema_keys(&metadata, accepted_schema_keys, false)?;
         let definitions = validate_definitions(definitions)?;
         Ok(Self {
             metadata,
             accepted_schema_keys,
             definitions,
+            unsupported_base_types: BTreeSet::new(),
+            absent_base_types: BTreeSet::new(),
+        })
+    }
+
+    /// Construct a partial base profile for explicitly allowlisted embedded keys.
+    ///
+    /// Missing definitions are unknown unless listed as present-but-unsupported
+    /// or confirmed absent. Only confirmed absence permits a full embedded
+    /// declaration. This constructor does not register the profile for default
+    /// parsing or establish B-Rep roles for its effective definitions.
+    ///
+    /// # Errors
+    ///
+    /// Rejects non-embedded keys, invalid definitions, duplicate declarations,
+    /// and contradictory base-type membership.
+    pub fn new_embedded(
+        metadata: BuiltinProfileMetadata,
+        accepted_schema_keys: Vec<String>,
+        definitions: Vec<TypeDefinition>,
+        unsupported_base_types: Vec<u16>,
+        absent_base_types: Vec<u16>,
+    ) -> Result<Self, ParseError> {
+        validate_metadata(&metadata)?;
+        let accepted_schema_keys = validate_schema_keys(&metadata, accepted_schema_keys, true)?;
+        let definitions = validate_definitions(definitions)?;
+        let mut declared: BTreeSet<_> = definitions.keys().copied().collect();
+        for node_type in unsupported_base_types.iter().chain(&absent_base_types) {
+            if *node_type <= 1 || !declared.insert(*node_type) {
+                return Err(invalid_profile(
+                    "base_type_membership",
+                    node_type.to_string(),
+                    "base membership must be unique, non-contradictory, and greater than one",
+                ));
+            }
+        }
+        Ok(Self {
+            metadata,
+            accepted_schema_keys,
+            definitions,
+            unsupported_base_types: unsupported_base_types.into_iter().collect(),
+            absent_base_types: absent_base_types.into_iter().collect(),
         })
     }
 
@@ -105,6 +149,18 @@ impl BuiltinSchemaProfile {
     #[must_use]
     pub fn definition(&self, node_type: u16) -> Option<&TypeDefinition> {
         self.definitions.get(&node_type)
+    }
+
+    /// Iterate over confirmed base types whose definitions remain unsupported.
+    #[must_use]
+    pub fn unsupported_base_types(&self) -> impl ExactSizeIterator<Item = u16> + '_ {
+        self.unsupported_base_types.iter().copied()
+    }
+
+    /// Iterate over node types confirmed absent from the selected base schema.
+    #[must_use]
+    pub fn absent_base_types(&self) -> impl ExactSizeIterator<Item = u16> + '_ {
+        self.absent_base_types.iter().copied()
     }
 
     /// Return whether the complete key is explicitly allowlisted.
@@ -137,7 +193,13 @@ impl BuiltinProfileRegistry {
         static REGISTRY: std::sync::OnceLock<Result<BuiltinProfileRegistry, ParseError>> =
             std::sync::OnceLock::new();
         REGISTRY
-            .get_or_init(|| Self::new(vec![super::profiles::onshape_sch30000()?]))
+            .get_or_init(|| {
+                Self::new(vec![
+                    super::profiles::onshape_sch30000()?,
+                    super::profiles::onshape_sch13006()?,
+                    super::profiles::icad_sch30000_13006()?,
+                ])
+            })
             .as_ref()
             .map_err(Clone::clone)
     }
@@ -272,6 +334,21 @@ impl SchemaProvider for BuiltinSchemaProvider<'_> {
             .flatten()
     }
 
+    fn lookup_type(&self, schema: &str, node_type: u16) -> SchemaTypeLookup<'_> {
+        if !self.contains_schema(schema) {
+            return SchemaTypeLookup::Unknown;
+        }
+        if let Some(definition) = self.profile.definition(node_type) {
+            SchemaTypeLookup::Defined(definition)
+        } else if self.profile.unsupported_base_types.contains(&node_type) {
+            SchemaTypeLookup::PresentUnsupported
+        } else if self.profile.absent_base_types.contains(&node_type) {
+            SchemaTypeLookup::Absent
+        } else {
+            SchemaTypeLookup::Unknown
+        }
+    }
+
     fn supports_schema_key(&self, schema_key: &SchemaKey) -> bool {
         schema_key.raw() == self.selected_schema_key
             && self.profile.accepts_schema_key(schema_key)
@@ -344,6 +421,7 @@ fn validate_metadata(metadata: &BuiltinProfileMetadata) -> Result<(), ParseError
 fn validate_schema_keys(
     metadata: &BuiltinProfileMetadata,
     accepted_schema_keys: Vec<String>,
+    embedded: bool,
 ) -> Result<Vec<SchemaKey>, ParseError> {
     if accepted_schema_keys.is_empty() {
         return Err(invalid_profile(
@@ -361,11 +439,11 @@ fn validate_schema_keys(
                 "built-in profile contains an invalid schema key",
             )
         })?;
-        if schema_key.base().is_some() {
+        if schema_key.base().is_some() != embedded {
             return Err(invalid_profile(
                 "schema_key",
                 &raw,
-                "initial built-in profiles may not claim embedded-base schema keys",
+                "schema key must match the constructor's standard or embedded mode",
             ));
         }
         if schema_key.provider_schema() != metadata.provider_schema {

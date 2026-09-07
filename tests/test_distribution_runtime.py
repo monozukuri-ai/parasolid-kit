@@ -12,7 +12,25 @@ from scripts.prepare_fuzz_corpus import build_seeds
 from scripts.verify_isolated_install import RUNTIME_GUARD_CODE
 
 
-@pytest.mark.parametrize("name", ["integers", "unicode", "body"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "integers",
+        "unicode",
+        "body",
+        "base-integers",
+        "embedded-unchanged",
+        "embedded-copy",
+        "base-cone",
+        "embedded-cone",
+        "base-intersection",
+        "embedded-intersection",
+        "embedded-full204",
+        "embedded-trimmed",
+        "base-trimmed",
+        "base-spcurve",
+    ],
+)
 def test_fuzz_seeds_reach_builtin_field_readers(name):
     seeds = build_seeds()
     text, binary = parse_xt(seeds[f"{name}-text"]), parse_xb(seeds[f"{name}-binary"])
@@ -23,6 +41,13 @@ def test_fuzz_seeds_reach_builtin_field_readers(name):
         assert [v.value for v in text.nodes[0].fields[0].values] == [7, None]
     if name == "unicode":
         assert [v.value for v in text.nodes[0].fields[0].values] == [0x6587, 0xD83D, 0xDE00]
+
+
+@pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])
+def test_unknown_embedded_fuzz_seed_stops_before_definition_decoding(encoding, parse):
+    with pytest.raises(ParseError) as captured:
+        parse(build_seeds()[f"embedded-unknown-{encoding}"])
+    assert captured.value.diagnostic.code == "schema.unknown_base_type"
 
 
 @pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])

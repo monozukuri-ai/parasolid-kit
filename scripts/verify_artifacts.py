@@ -102,6 +102,7 @@ SDIST_SCRIPT_FILES = frozenset(
     }
 )
 BUILTIN_SOURCE_FILES = (
+    "crates/parasolid-core/src/schema/profiles/sch13006.rs",
     "crates/parasolid-core/src/schema/profiles/sch30000.rs",
     "crates/parasolid-core/src/schema/profiles/mod.rs",
     "crates/parasolid-core/src/schema/profile.rs",

@@ -16,11 +16,18 @@ object. Inspection validates only the header and must not be treated as proof
 that the node stream or geometry is valid.
 
 Complete parsing selects by the internal stream key. Omitting `schema_provider`
-(or passing `None`) selects the compiled `onshape-sch30000-r1` revision 1 profile
-only for `SCH_3000000_30000`. This is a `verified_subset`, covering Onshape V30
-text/neutral binary exports with zero user fields and the documented single-solid
-box, prism, cylinder, and through-hole scope. No runtime catalog or network is
-needed. See [profile provenance](builtin-profiles.md).
+(or passing `None`) selects a compiled profile for exactly one of these keys:
+
+| Key | Profile |
+|---|---|
+| `SCH_3000000_30000` | `onshape-sch30000-r2`, revision 2 |
+| `SCH_1300000_13006` | `onshape-sch13006-r6`, revision 6 |
+| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5`, revision 5 |
+
+Each has `verified_subset` coverage and requires zero user fields. The embedded
+profile supplies the reviewed 13006 base before applying stream edits. No runtime
+catalog or network is needed. See [profile provenance](builtin-profiles.md) for
+the separate producer, geometry, and encoding validation scopes.
 
 ```python
 from parasolid_kit import compare_documents, parse_xb, parse_xt
@@ -56,10 +63,13 @@ The repository and package do not contain Siemens catalogs. See
 
 | Condition | Diagnostic / error |
 |---|---|
-| Default selection with an unsupported or embedded key | `schema.missing_base_schema`, with an explanation of built-in scope |
+| Default selection with an unsupported key | `schema.missing_base_schema`, with an explanation of built-in scope |
 | Explicit provider returns no catalog | `schema.missing_base_schema` |
 | Explicit catalog has no requested type | `schema.missing_type_definition` |
-| Built-in profile has no reviewed type | `schema.builtin_profile_uncovered_type`, including profile and node type |
+| Standard built-in profile has no reviewed type | `schema.builtin_profile_uncovered_type`, including profile and node type |
+| Embedded base-type membership is unknown | `schema.unknown_base_type`, before embedded definition decoding |
+| Embedded base type exists but its definition is unavailable | `schema.unsupported_base_type`, before embedded definition decoding |
+| Embedded edits replace or remove a required B-Rep role | Raw decoding may succeed; mapping raises `brep.invalid_field` |
 | Built-in input has nonzero user fields | `node.unsupported_user_fields`, before record payload decoding |
 
 ## Entry points
@@ -109,7 +119,7 @@ units; `unit_basis="source_transmit_units"` does not claim a physical unit.
 suffixes or known binary/text signatures. Use `source_format="x-b"` or
 `source_format="x-t"` for an ambiguous bytes-like source. `schema_provider` and
 `schema_dir` are mutually exclusive. Omitting both selects the supported exact
-built-in profile; embedded-base keys require an external provider.
+built-in profile; unregistered keys require an external provider.
 
 `ParasolidDocument.format` is `"binary"` or `"text"`. Its `nodes` remain in
 physical source order and retain node indices, effective definitions, decoded

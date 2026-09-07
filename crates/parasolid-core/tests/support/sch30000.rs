@@ -14,7 +14,7 @@ const NULL_REAL: f64 = -3.14158e13;
 
 /// The hash excludes descriptions, source paths and the hash itself.
 pub fn canonical_profile(profile: &BuiltinSchemaProfile) -> Value {
-    json!({
+    let mut canonical = json!({
         "profile_id": profile.metadata().profile_id,
         "revision": profile.metadata().revision,
         "schema_keys": profile.accepted_schema_keys().map(parasolid_core::SchemaKey::raw).collect::<Vec<_>>(),
@@ -27,7 +27,16 @@ pub fn canonical_profile(profile: &BuiltinSchemaProfile) -> Value {
                 field.element_count, field.transmitted,
             ])).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
-    })
+    });
+    if profile
+        .accepted_schema_keys()
+        .any(|key| key.base().is_some())
+    {
+        canonical["unsupported_base_types"] =
+            json!(profile.unsupported_base_types().collect::<Vec<_>>());
+        canonical["absent_base_types"] = json!(profile.absent_base_types().collect::<Vec<_>>());
+    }
+    canonical
 }
 
 pub fn profile_hash(profile: &BuiltinSchemaProfile) -> Result<String> {
@@ -132,12 +141,21 @@ pub fn pair(
 
 /// Encode only values of the supported profile, not `raw_bytes` or source ranges.
 pub fn encode_nodes(nodes: &[RawNode]) -> Result<Vec<u8>> {
-    let mut output = xb_header(KEY, 0)?;
+    encode_document_nodes(KEY, nodes)
+}
+
+/// Reencode decoded values, retaining embedded declarations separately.
+/// Schema blobs are replayed verbatim; no record payload or raw field range is reused.
+pub fn encode_document_nodes(key: &str, nodes: &[RawNode]) -> Result<Vec<u8>> {
+    let mut output = xb_header(key, 0)?;
     for node in nodes {
         if !node.user_fields.is_empty() {
             return Err("development encoder requires zero user fields".into());
         }
         output.extend_from_slice(&node.node_type.to_be_bytes());
+        if let Some(schema) = &node.first_schema {
+            output.extend_from_slice(&schema.raw_schema);
+        }
         if let Some(length) = node.variable_length {
             output.extend_from_slice(&i32::try_from(length)?.to_be_bytes());
         }
@@ -152,6 +170,9 @@ pub fn encode_nodes(nodes: &[RawNode]) -> Result<Vec<u8>> {
                     FieldValue::UnicodeCharacter(value) => {
                         output.extend_from_slice(&value.to_be_bytes());
                     }
+                    FieldValue::ShortInteger(value) => {
+                        output.extend_from_slice(&value.unwrap_or(-32_764).to_be_bytes());
+                    }
                     FieldValue::Integer(value) => {
                         output.extend_from_slice(&value.unwrap_or(-32_764).to_be_bytes());
                     }
@@ -159,7 +180,12 @@ pub fn encode_nodes(nodes: &[RawNode]) -> Result<Vec<u8>> {
                     FieldValue::Double(value) => {
                         output.extend_from_slice(&value.unwrap_or(NULL_REAL).to_be_bytes());
                     }
-                    FieldValue::Vector(values) => {
+                    FieldValue::Vector(values) | FieldValue::IntersectionPoint(values) => {
+                        for value in values {
+                            output.extend_from_slice(&value.unwrap_or(NULL_REAL).to_be_bytes());
+                        }
+                    }
+                    FieldValue::Interval(values) => {
                         for value in values {
                             output.extend_from_slice(&value.unwrap_or(NULL_REAL).to_be_bytes());
                         }

@@ -37,10 +37,22 @@ from parasolid_kit import (
     InMemorySchemaProvider, SchemaError, compare_documents, write_xb,
 )
 expected_profile = {
-    "kind": "builtin", "profile_id": "onshape-sch30000-r1", "profile_revision": 1,
+    "kind": "builtin", "profile_id": "onshape-sch30000-r2", "profile_revision": 2,
     "schema_key": "SCH_3000000_30000", "coverage": "verified_subset",
-    "profile_sha256": "e28a5e11a7713573a7134025bd8c3d83f194fc663662f079e839a95ea5981f80",
+    "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f",
 }
+expected_profiles = {expected_profile["schema_key"]: expected_profile}
+for key, profile_id, digest in (
+    ("SCH_1300000_13006", "onshape-sch13006-r6",
+     "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb"),
+    ("SCH_3000310_30000_13006", "icad-sch30000-13006-r5",
+     "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5"),
+):
+    expected_profiles[key] = {
+        "kind": "builtin", "profile_id": profile_id,
+        "profile_revision": 6 if key == "SCH_1300000_13006" else 5,
+        "schema_key": key, "coverage": "verified_subset", "profile_sha256": digest,
+    }
 """.strip()
 
 FIXTURE_CODE = """
@@ -50,13 +62,15 @@ import parasolid_kit
 from parasolid_kit import parse_xt, parse_xb, read_brep
 assert Path(parasolid_kit.__file__).resolve().is_relative_to(installed_environment)
 paths = [Path(p) for p in sys.argv[3:]]
-assert len(paths) == 2
-text, binary = parse_xt(paths[0]), parse_xb(paths[1])
-assert compare_documents(text, binary).equivalent
-assert write_xb(binary) == paths[1].read_bytes()
+assert len(paths) in (1, 2)
+documents = [(parse_xt if p.suffix == ".x_t" else parse_xb)(p) for p in paths]
+if len(paths) == 2:
+    assert compare_documents(*documents).equivalent
 reports = []
-for path, document in zip(paths, (text, binary)):
-    assert document.schema_resolution.to_dict() == expected_profile
+for path, document in zip(paths, documents):
+    if path.suffix == ".x_b":
+        assert write_xb(document) == path.read_bytes()
+    assert document.schema_resolution.to_dict() == expected_profiles[document.schema_key.raw]
     result = read_brep(path)
     assert result.brep.complete and result.brep.topology.valid
     assert not result.brep.diagnostics and not document.diagnostics
@@ -68,7 +82,8 @@ for path, document in zip(paths, (text, binary)):
         "summary": result.summary.to_dict(),
     })
 assert "OCP" not in sys.modules and "cadquery" not in sys.modules
-print(json.dumps({"equivalent": True, "complete": True, "streams": reports}))
+print(json.dumps({"equivalent": True if len(paths) == 2 else None,
+                  "complete": True, "streams": reports}))
 """.strip()
 
 CLI_CODE = """
@@ -191,6 +206,13 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--sdist", type=Path, required=True)
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument(
+        "--fixture",
+        type=Path,
+        action="append",
+        default=[],
+        help="separate local X_T or X_B fixture without a paired export (never bundled)",
+    )
+    parser.add_argument(
         "--fixture-pair",
         type=Path,
         nargs=2,
@@ -234,6 +256,7 @@ def verify_install(
     python: str,
     *,
     fixture_pairs: tuple[tuple[Path, Path], ...] = (),
+    fixtures: tuple[Path, ...] = (),
 ) -> dict[str, object]:
     """Install one artifact with uv and run from outside the checkout."""
 
@@ -296,10 +319,13 @@ def verify_install(
                 parsed["document"]["schema_resolution"] == json.loads(imported)["schema_resolution"]
             )
         assert runtime_cli("compare", "synthetic.x_t", "synthetic.x_b")["comparison"]["equivalent"]
-        for index, pair in enumerate(fixture_pairs):
+        groups = [*fixture_pairs, *((p,) for p in fixtures)]
+        for index, group in enumerate(groups):
             copied = []
-            for source, suffix in zip(pair, ("x_t", "x_b"), strict=True):
-                target = work_dir / f"fixture-{index}.{suffix}"
+            for source in group:
+                if source.suffix.lower() not in (".x_t", ".x_b"):
+                    raise ValueError("fixture must have an X_T or X_B extension")
+                target = work_dir / f"fixture-{index}{source.suffix.lower()}"
                 shutil.copyfile(source, target)
                 copied.append(str(target))
             checked = json.loads(
@@ -317,7 +343,8 @@ def verify_install(
             for path, stream in zip(copied, checked["streams"], strict=True):
                 assert runtime_cli("parse", path, "--brep")["brep"]["complete"]
                 assert runtime_cli("check", path, "--json")["summary"] == stream["summary"]
-            assert runtime_cli("compare", *copied)["comparison"]["equivalent"]
+            if len(copied) == 2:
+                assert runtime_cli("compare", *copied)["comparison"]["equivalent"]
             fixture_reports.append(checked)
         module_version = _run(
             [str(environment_python), "-I", "-m", "parasolid_kit", "--version"],
@@ -336,7 +363,8 @@ def verify_install(
         "module_cli": module_version,
         "console_cli": console_version,
         "runtime_python_guards": ["network", "checkout_reads", "catalog_reads"],
-        "real_fixture_pair_count": len(fixture_reports),
+        "real_fixture_pair_count": len(fixture_pairs),
+        "real_single_fixture_count": len(fixtures),
         "real_fixtures": fixture_reports,
     }
 
@@ -353,6 +381,7 @@ def main() -> int:
                     artifact,
                     arguments.python,
                     fixture_pairs=tuple(tuple(p) for p in arguments.fixture_pair),
+                    fixtures=tuple(arguments.fixture),
                 )
             )
     except (OSError, RuntimeError, AssertionError, json.JSONDecodeError) as error:

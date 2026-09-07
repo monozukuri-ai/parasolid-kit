@@ -123,6 +123,29 @@ fn document() -> Result<XbDocument> {
                 (10, vector(1.0, 0.0, 0.0)),
             ],
         )?,
+        node(
+            32,
+            15,
+            vec![
+                (6, C(b'-')),
+                (7, vector(-1.25, 2.5, -3.75)),
+                (8, vector(0.0, 1.0, 0.0)),
+                (9, vector(0.0, 0.0, -1.0)),
+                (10, D(Some(4.5))),
+                (11, D(Some(2.25))),
+            ],
+        )?,
+        node(
+            53,
+            16,
+            vec![
+                (6, C(b'-')),
+                (7, vector(-4.0, 5.0, -6.0)),
+                (8, D(Some(1.75))),
+                (9, vector(0.0, 1.0, 0.0)),
+                (10, vector(0.0, 0.0, -1.0)),
+            ],
+        )?,
     ];
     let registry = BuiltinProfileRegistry::new(vec![onshape_sch30000()?])?;
     let key = SchemaKey::parse(KEY)?;
@@ -166,6 +189,18 @@ fn maps_analytic_roles_and_preserves_source_provenance() -> Result<()> {
         && (radius-3.0).abs() < f64::EPSILON && x_axis.to_array() == [1.0,0.0,0.0])
     );
     assert_eq!(doc.nodes, before);
+    assert!(
+        matches!(model.curves[2].kind, CurveKind::Ellipse {center, normal, x_axis, major_radius, minor_radius}
+        if center.to_array() == [-1.25, 2.5, -3.75] && normal.to_array() == [0.0, 1.0, 0.0]
+        && x_axis.to_array() == [0.0, 0.0, -1.0] && major_radius == 4.5 && minor_radius == 2.25)
+    );
+    assert!(
+        matches!(model.surfaces[2].kind, SurfaceKind::Sphere {center, radius, axis, x_axis}
+        if center.to_array() == [-4.0, 5.0, -6.0] && radius == 1.75
+        && axis.to_array() == [0.0, 1.0, 0.0] && x_axis.to_array() == [0.0, 0.0, -1.0])
+    );
+    assert_eq!(model.curves[2].source.node_id, Some(1015));
+    assert_eq!(model.surfaces[2].source.node_id, Some(1016));
     Ok(())
 }
 
@@ -182,8 +217,8 @@ fn builtin_mapping_uses_ordinals_instead_of_names_or_classes() -> Result<()> {
     }
     let mapped = map_xb_brep(&doc)?;
     assert!(mapped.complete);
-    assert_eq!(mapped.curves.len(), 2);
-    assert_eq!(mapped.surfaces.len(), 2);
+    assert_eq!(mapped.curves.len(), 3);
+    assert_eq!(mapped.surfaces.len(), 3);
     assert_eq!(mapped.points[0].position.to_array(), [1.0, 2.0, 3.0]);
     assert_eq!(mapped.vertices[0].source.type_name, "unrelated");
     Ok(())
@@ -209,7 +244,7 @@ fn never_reuses_ordinals_for_caller_or_another_profile() -> Result<()> {
         {
             match change {
                 0 => *profile_id = "unreviewed".to_owned(),
-                1 => *profile_revision = 2,
+                1 => *profile_revision = 1,
                 2 => *schema_key = "SCH_3000001_30000".to_owned(),
                 3 => *profile_sha256 = "0".repeat(64),
                 _ => doc.schema_key = SchemaKey::parse("SCH_3000001_30000")?,
@@ -260,6 +295,36 @@ fn rejects_wrong_typed_references_broken_rings_and_negative_radii() -> Result<()
             14,
             9,
             FieldValue::Double(Some(-1.0)),
+            ErrorKind::InvalidGeometryParameter,
+        ),
+        (
+            15,
+            10,
+            FieldValue::Double(Some(-1.0)),
+            ErrorKind::InvalidGeometryParameter,
+        ),
+        (
+            15,
+            11,
+            FieldValue::Double(Some(0.0)),
+            ErrorKind::InvalidGeometryParameter,
+        ),
+        (
+            16,
+            8,
+            FieldValue::Double(Some(-1.0)),
+            ErrorKind::InvalidGeometryParameter,
+        ),
+        (
+            15,
+            7,
+            FieldValue::Vector([None; 3]),
+            ErrorKind::InvalidGeometryParameter,
+        ),
+        (
+            16,
+            9,
+            FieldValue::Vector([None; 3]),
             ErrorKind::InvalidGeometryParameter,
         ),
     ] {

@@ -88,8 +88,7 @@ class SchemaProviderResolution:
                 or not 1 <= self.profile_revision <= 0xFFFF_FFFF
             ):
                 raise ValueError("profile_revision must be a positive unsigned 32-bit integer")
-            if SchemaKey.parse(self.schema_key).base is not None:
-                raise ValueError("built-in provenance requires a standard exact schema key")
+            SchemaKey.parse(self.schema_key)
             if self.coverage != "verified_subset":
                 raise ValueError("built-in coverage must be verified_subset")
             digest = self.profile_sha256

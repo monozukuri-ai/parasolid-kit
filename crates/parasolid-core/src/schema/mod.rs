@@ -23,9 +23,11 @@ pub use profile::{
 };
 pub use provider::{
     InMemorySchemaProvider, SchemaProvider, SchemaProviderProvenance, SchemaProviderResolution,
+    SchemaTypeLookup,
 };
 pub(crate) use provider::{
-    missing_type_definition_error, unavailable_schema_error, validate_builtin_input,
+    embedded_base_definition, missing_type_definition_error, unavailable_schema_error,
+    validate_builtin_input,
 };
 pub use registry::EffectiveSchemaRegistry;
 pub(crate) use wire::WireDecodeClass;

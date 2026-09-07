@@ -46,6 +46,10 @@ pub enum ErrorKind {
     MissingBaseSchema,
     /// A standard schema did not contain the requested node type.
     MissingSchemaType,
+    /// An embedded type is known to exist in the base, but its definition is unavailable.
+    UnsupportedBaseSchemaType,
+    /// Membership of an embedded type in the base schema has not been established.
+    UnknownBaseSchemaType,
     /// A compiled built-in profile violated its declared structural invariants.
     InvalidBuiltinProfile,
     /// A built-in provider was used with a schema key outside its exact allowlist.
@@ -123,6 +127,8 @@ impl ErrorKind {
             Self::UnsupportedSchemaFieldType => "schema.unsupported_field_type",
             Self::MissingBaseSchema => "schema.missing_base_schema",
             Self::MissingSchemaType => "schema.missing_type_definition",
+            Self::UnsupportedBaseSchemaType => "schema.unsupported_base_type",
+            Self::UnknownBaseSchemaType => "schema.unknown_base_type",
             Self::InvalidBuiltinProfile => "schema.invalid_builtin_profile",
             Self::UnsupportedBuiltinSchemaKey => "schema.unsupported_builtin_key",
             Self::BuiltinProfileUncoveredType => "schema.builtin_profile_uncovered_type",

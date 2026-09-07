@@ -26,23 +26,75 @@ only; it does not prove that the remaining node stream or geometry is valid.
 
 ## Schema selection and built-in scope
 
-Default parsing uses `onshape-sch30000-r1` revision 1 only for the exact internal
+For V30, default parsing uses `onshape-sch30000-r2` revision 2 only for the exact internal
 key `SCH_3000000_30000`. Its coverage is `verified_subset`: Onshape V30 text and
 neutral binary exports, zero user fields, and single-solid boxes, prisms,
-cylinders, and through-holes. The same producer with a different modeller/key
+cylinders, through-holes, spheres, and verified solids with elliptical edges.
+The same producer with a different modeller/key
 component is not selected. See [profile provenance](builtin-profiles.md) for
 sources, canonical hash, covered types, and local evidence.
 
-The built-in raw decoder covers 22 node types / 179 field groups, including
-associated lists and attributes. The B-Rep role mapping covers 13 topology and
-point/line/circle/plane/cylinder types. Decoding an attribute record does not
+The V30 built-in raw decoder covers 24 node types / 202 field groups, including
+associated lists and attributes. The B-Rep role mapping covers 15 topology and
+point/line/circle/ellipse/plane/cylinder/sphere types. Decoding an attribute record does not
 mean the high-level model exposes its semantic meaning. A successful raw parse
 is separate from a complete B-Rep and from successful OCCT/STEP conversion.
 For the curved solid fixtures, core area/volume remain unavailable; the built-in
 profile does not extend the adapter's arc-trimming coverage. Planar box/prism
 exports are the validated built-in STEP/preview path.
 
-There is no general support claim for other producers/keys, embedded bases,
+Default parsing also accepts `SCH_1300000_13006` with `onshape-sch13006-r6`
+and `SCH_3000310_30000_13006` with `icad-sch30000-13006-r5`. They share the
+reviewed 13006 base subset of 30 types / 240 base field groups, including cone
+(52), intersection (38), chart (40), limit (41), trimmed curve (133) and shared
+geometry owner (141), and retain intersection chart/limit references.
+The V13 profile additionally covers SP_CURVE (137), B_CURVE (134), NURBS_CURVE
+(136), CURVE_DATA (135), BSPLINE_VERTICES (45), KNOT_MULT (127), and KNOT_SET
+(128), plus B_SURFACE (124), NURBS_SURF (126), and SURFACE_DATA (125):
+40 types / 327 field groups. It maps surface/parameter-curve references
+and preserves homogeneous control coefficients, distinct knots and multiplicities.
+CURVE_DATA and SURFACE_DATA remain raw metadata. Producer evidence includes
+open degree-1 nonrational UV curves on planes and cylinders, degree-2 open and
+periodic cylinder UV curves, and degree-3 rational periodic UV boundaries on
+nonrational bilinear B-surfaces (planar and nonplanar). Control coefficients,
+homogeneous weights, imaginary knots and periodic flags remain as stored.
+Malformed knot multiplicities and empty active parameter domains are rejected.
+Cylinder angles remain unwrapped: an open UV line spanning one turn can describe
+a closed 3D curve. The cylindrical campaign passes parsing and parameter checks,
+but one curve per model exceeds the imported STEP edge tolerance by about 1.03%.
+The later high-degree campaign stays within the STEP files' declared distance
+accuracy, but exceeds the imported per-edge tolerances; both results remain
+explicit. This does not establish general spline evaluation or STEP reconstruction.
+The separate Onshape V30 profile stays at revision 2.
+The `TrimmedCurve` model retains the basis curve, endpoints and parameters.
+V13 type 133 is verified using new producer text/binary pairs and independent
+STEP comparisons; its scope is still the exact V13 key.
+The embedded profile applies each transmitted definition/delta and retains its
+source, edits, and byte range. Unknown base membership stops before decoding
+the definition; an unimplemented type is never treated as absent. Revision 4
+of the embedded profile explicitly classifies type 204 as absent from 13006,
+so its full input-defined fields can be decoded. Its intersection-data pointer
+is exposed as a source reference; numeric UV semantics remain uninterpreted.
+B-Rep roles follow fields copied from the reviewed base, so insertions may
+shift wire positions without assigning semantics to inserted names. The
+optional `intersection_data` reference has a separate reviewed Append contract
+requiring a transmitted scalar pointer of class 204.
+
+V13 validation covers paired Onshape text/neutral binary exports of boxes,
+spheres, cones/frustums, solids with elliptical edges, and intersecting-cylinder
+booleans. Intersection curves remain source models: their point arrays identify
+the branch; numerical curve evaluation, core metrics, and optional OCCT export
+are not added. Embedded real-data validation uses
+neutral binary streams extracted locally from one iCAD file; embedded text
+has synthetic decoder and B-Rep tests, without a real paired producer export.
+This does not add `.icd` container support or an independent geometry oracle
+for its extracted streams. See [profile provenance](builtin-profiles.md).
+The existing 17 extracted iCAD V30 streams now all reach complete raw parsing
+and source B-Rep/topology. The 15 observed trims reference lines; their endpoints
+agree with evaluation of the stored basis and parameters. This consistency check
+does not establish general trimmed-curve evaluation or OCCT export support.
+
+There is no general support claim for other producers/keys or embedded bases,
 nonzero user fields, NURBS, assemblies, multiple bodies, or sheets through this
 profile. Structural checks control parsing; matching a key is not a guarantee
 that every shape emitted under that key has been verified.
@@ -57,7 +109,9 @@ not used for selection. [Schema catalogs](../README.md#schema-catalogs) describe
 the external-provider path.
 
 Unsupported default keys use `schema.missing_base_schema`; uncovered built-in
-types use `schema.builtin_profile_uncovered_type`; nonzero built-in user fields
+standard-schema types use `schema.builtin_profile_uncovered_type`. Embedded
+membership failures use `schema.unknown_base_type` or
+`schema.unsupported_base_type`; nonzero built-in user fields
 use `node.unsupported_user_fields`. None causes a guessed layout or a different
 profile to be selected. Siemens catalogs and native CAD fixtures are excluded
 from wheel/sdist; runtime code does not download them.

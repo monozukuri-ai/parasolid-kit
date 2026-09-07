@@ -32,11 +32,11 @@ from tests.support.parasolid_text import text_header
 KEY = "SCH_3000000_30000"
 PROVENANCE = {
     "kind": "builtin",
-    "profile_id": "onshape-sch30000-r1",
-    "profile_revision": 1,
+    "profile_id": "onshape-sch30000-r2",
+    "profile_revision": 2,
     "schema_key": KEY,
     "coverage": "verified_subset",
-    "profile_sha256": "e28a5e11a7713573a7134025bd8c3d83f194fc663662f079e839a95ea5981f80",
+    "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f",
 }
 
 

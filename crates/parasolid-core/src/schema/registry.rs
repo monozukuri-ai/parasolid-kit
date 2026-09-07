@@ -6,7 +6,8 @@ use crate::{ErrorDetails, ErrorKind, ParseError};
 
 use super::{
     SchemaCoverageReport, SchemaKey, SchemaLimits, SchemaProvider, SchemaResolution, SchemaSource,
-    decode_embedded_schema, missing_type_definition_error, unavailable_schema_error,
+    decode_embedded_schema, embedded_base_definition, missing_type_definition_error,
+    unavailable_schema_error,
 };
 
 /// Effective definitions resolved at the first occurrence of each node type.
@@ -109,7 +110,7 @@ impl EffectiveSchemaRegistry {
                 data,
                 offset,
                 node_type,
-                provider.type_definition(provider_schema, node_type),
+                embedded_base_definition(provider, schema_key, node_type, offset)?,
                 limits,
             )?
         } else {

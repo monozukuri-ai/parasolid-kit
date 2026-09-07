@@ -156,9 +156,9 @@ fn variable_example(node_type: u16, count: usize) -> Result<(Vec<u8>, Vec<u8>, V
 }
 
 #[test]
-fn compiled_registry_registers_only_the_verified_exact_key() -> Result<()> {
+fn compiled_registry_preserves_the_verified_v30_exact_key() -> Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
-    assert_eq!(registry.len(), 1);
+    assert_eq!(registry.len(), 3);
     let key = SchemaKey::parse(KEY)?;
     let provider = registry
         .provider_for_key(&key)
@@ -193,8 +193,8 @@ fn compiled_registry_registers_only_the_verified_exact_key() -> Result<()> {
 #[test]
 fn explicit_profile_has_exact_scope_and_stable_hash() -> Result<()> {
     let profile = onshape_sch30000()?;
-    assert_eq!(profile.metadata().profile_id, "onshape-sch30000-r1");
-    assert_eq!(profile.metadata().revision, 1);
+    assert_eq!(profile.metadata().profile_id, "onshape-sch30000-r2");
+    assert_eq!(profile.metadata().revision, 2);
     assert_eq!(
         profile.metadata().coverage,
         BuiltinProfileCoverage::VerifiedSubset
@@ -203,10 +203,10 @@ fn explicit_profile_has_exact_scope_and_stable_hash() -> Result<()> {
         profile.metadata().profile_sha256,
         support::profile_hash(&profile)?
     );
-    assert_eq!(profile.definitions().count(), 22);
+    assert_eq!(profile.definitions().count(), 24);
     assert_eq!(
         profile.definitions().map(|d| d.fields.len()).sum::<usize>(),
-        179
+        202
     );
     assert_eq!(
         profile
@@ -228,11 +228,70 @@ fn explicit_profile_has_exact_scope_and_stable_hash() -> Result<()> {
     assert!(matches!(
         doc.schema_provider,
         SchemaProviderResolution::Builtin {
-            profile_revision: 1,
+            profile_revision: 2,
             coverage: BuiltinProfileCoverage::VerifiedSubset,
             ..
         }
     ));
+    Ok(())
+}
+
+#[test]
+fn ellipse_and_sphere_preserve_wire_order_and_boundaries() -> Result<()> {
+    // Independent bytes: V30 ellipse sense precedes centre (the published
+    // April 2008 ELLIPSE struct lists these in the opposite order).
+    for (kind, text, reals, expected) in [
+        (
+            32,
+            "7 0 0 0 0 0 --1.25 2.5 -3.75 0 1 0 0 0 -1 4.5 2.25 ",
+            vec![
+                -1.25_f64, 2.5, -3.75, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0, 4.5, 2.25,
+            ],
+            vec![
+                json!([[-1.25, 2.5, -3.75]]),
+                json!([[0.0, 1.0, 0.0]]),
+                json!([[0.0, 0.0, -1.0]]),
+                json!([4.5]),
+                json!([2.25]),
+            ],
+        ),
+        (
+            53,
+            "7 0 0 0 0 0 --1.25 2.5 -3.75 4.5 0 1 0 0 0 -1 ",
+            vec![-1.25, 2.5, -3.75, 4.5, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0],
+            vec![
+                json!([[-1.25, 2.5, -3.75]]),
+                json!([4.5]),
+                json!([[0.0, 1.0, 0.0]]),
+                json!([[0.0, 0.0, -1.0]]),
+            ],
+        ),
+    ] {
+        let mut binary = 7_i32.to_be_bytes().to_vec();
+        binary.extend(pointer(0)?.repeat(5));
+        binary.push(b'-');
+        binary.extend(reals.iter().flat_map(|v| v.to_be_bytes()));
+        let nodes = parsed_pair(kind, None, text.as_bytes(), &binary)?;
+        for (encoding, nodes) in nodes.iter().enumerate() {
+            let node = &nodes[0];
+            assert_eq!(node.fields.len(), 7 + expected.len());
+            assert_eq!(values(node, 6), json!([b'-']));
+            for (ordinal, expected) in expected.iter().enumerate() {
+                assert_eq!(values(node, ordinal + 7), *expected);
+            }
+            if encoding == 1 {
+                let start = node.fields[0].byte_range.start;
+                assert_eq!(node.fields[6].byte_range, start + 14..start + 15);
+                assert_eq!(node.fields[7].byte_range, start + 15..start + 39);
+                assert_eq!(node.byte_range.end, start + binary.len());
+            }
+        }
+        // Every incomplete field must fail, even with a valid termination marker.
+        for end in 0..binary.len() {
+            let (xt, xb) = pair(kind, None, b"7 0 0 0 0 0 -", &binary[..end])?;
+            reject_pair(&xt, &xb, DocumentLimits::default(), None)?;
+        }
+    }
     Ok(())
 }
 
