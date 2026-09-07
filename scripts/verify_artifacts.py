@@ -109,7 +109,7 @@ PARTIAL_SOURCE_FILES = (
     "crates/parasolid-core/PARTIAL_READERS.md",
     "crates/parasolid-core/LICENSE-APACHE-2.0",
     *(
-        str(path.relative_to(ROOT))
+        path.relative_to(ROOT).as_posix()
         for path in sorted((ROOT / "crates/parasolid-core/src/partial").rglob("*.rs"))
     ),
 )
