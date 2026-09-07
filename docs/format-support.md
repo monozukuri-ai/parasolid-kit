@@ -56,7 +56,15 @@ and preserves homogeneous control coefficients, distinct knots and multiplicitie
 CURVE_DATA and SURFACE_DATA remain raw metadata. Producer evidence includes
 open degree-1 nonrational UV curves on planes and cylinders, degree-2 open and
 periodic cylinder UV curves, and degree-3 rational periodic UV boundaries on
-nonrational bilinear B-surfaces (planar and nonplanar). Control coefficients,
+nonrational bilinear B-surfaces (planar and nonplanar). A separate
+[surface campaign](nurbs-surface-evidence.md) verifies degree-3-by-2 open
+nonrational/rational patches and nonrational periodic sheets in each axis,
+including nonuniform knots and overlapping control rows or columns. A further
+[rational periodic campaign](rational-periodic-surface-evidence.md) verifies
+weighted periodic sheets in each axis, including seam positions and derivatives.
+A [doubly periodic campaign](doubly-periodic-surface-evidence.md) verifies
+degree-3-by-2 nonrational/rational sheets periodic in both axes, including their
+shared control-grid overlap and seam intersections. Control coefficients,
 homogeneous weights, imaginary knots and periodic flags remain as stored.
 Malformed knot multiplicities and empty active parameter domains are rejected.
 Cylinder angles remain unwrapped: an open UV line spanning one turn can describe
@@ -65,6 +73,9 @@ but one curve per model exceeds the imported STEP edge tolerance by about 1.03%.
 The later high-degree campaign stays within the STEP files' declared distance
 accuracy, but exceeds the imported per-edge tolerances; both results remain
 explicit. This does not establish general spline evaluation or STEP reconstruction.
+The [STEP accuracy audit](step-accuracy.md) attributes these saved discrepancies
+to existing tolerant FIN/EDGE geometry and STEP boundary approximation, and
+separately measures imported pcurve consistency and area integration.
 The separate Onshape V30 profile stays at revision 2.
 The `TrimmedCurve` model retains the basis curve, endpoints and parameters.
 V13 type 133 is verified using new producer text/binary pairs and independent
@@ -94,10 +105,13 @@ and source B-Rep/topology. The 15 observed trims reference lines; their endpoint
 agree with evaluation of the stored basis and parameters. This consistency check
 does not establish general trimmed-curve evaluation or OCCT export support.
 
-There is no general support claim for other producers/keys or embedded bases,
-nonzero user fields, NURBS, assemblies, multiple bodies, or sheets through this
-profile. Structural checks control parsing; matching a key is not a guarantee
-that every shape emitted under that key has been verified.
+The V13 NURBS and sheet evidence is limited to the degrees and motifs in the
+linked campaigns. It does not extend the V30 or iCAD profiles, establish arbitrary
+NURBS compatibility, or add a public evaluator or rational/periodic OCCT path.
+Other producers/keys or embedded bases, nonzero built-in user fields, assemblies
+and multiple bodies remain outside these verified subsets. Structural checks
+control parsing; matching a key is not a guarantee that every shape emitted
+under that key has been verified.
 
 An explicit `SchemaProvider` or `--schema-dir` selects the caller's catalog
 without fallback. For `SCH_<modeller>_<effective>` the required catalog is

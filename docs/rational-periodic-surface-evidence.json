@@ -1,0 +1,290 @@
+{
+  "status": "passed",
+  "profile_id": "onshape-sch13006-r6",
+  "profile_sha256": "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb",
+  "scope": "Exact V13 key; rational U-periodic degree 3x2 and rational V-periodic degree 2x3 sheets with two nonunit weights and single-weight prospective changes. Doubly periodic surfaces and general evaluation/adapter support remain outside this evidence.",
+  "summary": {
+    "pairs": 4,
+    "streams": 8,
+    "prospective_pairs": 2,
+    "surface_samples": 1512,
+    "native_samples": 252,
+    "seam_samples": 72,
+    "native_coefficient_max": 0.0,
+    "source_to_parsed_max_m": 3.0444273447339113e-17,
+    "parsed_to_occt_max_m": 2.881939084222627e-17,
+    "source_to_step_max_m": 3.7527806648313014e-17,
+    "native_point_max_m": 2.7755575615628914e-17,
+    "native_normal_max": 3.9339550913956904e-15,
+    "periodic_shift_max_m": 1.4304896245381992e-17,
+    "seam_position_max_m": 1.5899003276961254e-17,
+    "seam_derivative_max_m": 4.152480166520001e-17,
+    "source_derivative_to_occt_max_m": 8.835602482133882e-17
+  },
+  "freeze_created_at": "2026-09-07T10:07:47.025845+00:00",
+  "freeze_file_count": 176,
+  "freeze_files_unchanged": true,
+  "previous_campaign_file_count": 237,
+  "previous_campaign_files_unchanged": true,
+  "rows": [
+    {
+      "label": "D0",
+      "group": "development",
+      "version": "bf6a04e81cbbc09826f81125",
+      "degrees": [
+        3,
+        2
+      ],
+      "control_counts": [
+        9,
+        4
+      ],
+      "rational": true,
+      "periodic": [
+        true,
+        false
+      ],
+      "closed": [
+        true,
+        false
+      ],
+      "source_coefficient_max": 6.938893903907228e-18,
+      "native_coefficient_max": 0.0,
+      "source_to_parsed_max_m": 3.0444273447339113e-17,
+      "parsed_to_occt_max_m": 2.881939084222627e-17,
+      "source_to_step_max_m": 3.7527806648313014e-17,
+      "sample_count": 378,
+      "native_sample_count": 63,
+      "native_point_max_m": 2.2011173336169837e-17,
+      "native_normal_max": 3.9339550913956904e-15,
+      "periodic_shift_max_m": 8.845388854693243e-18,
+      "seam_sample_count": 18,
+      "seam_position_max_m": 1.5899003276961254e-17,
+      "seam_derivative_max_m": 3.941488721342147e-17,
+      "source_derivative_to_occt_max_m": 8.424132272962153e-17,
+      "axis_negative_control_m": 0.012605205780670738,
+      "weight_negative_control_m": 0.0003508334822793095,
+      "source_hashes": {
+        "body_details": "239e721cd98d9feb2cd46f8b675873b6479152336373b7c789ade8b57cdf7f7e",
+        "mass_properties": "b88dc5c7a852bb24b425783f9913da4db92c358b75b883f83be5f02166a07731",
+        "x_t": "0616c7c996867a35813c4a29070c703ae42884c23280bfd4162584f10bfcf5f7",
+        "x_b": "24198e6daee9537209a838a28ecf0ea370e83ae63d222748d725796ad8aae09f",
+        "step": "99a29a51faad8c87dc7c9c865a6c342464db43273768835e56ee0c4923b09e50",
+        "native_surface": "2153b36df767bb9b937808c3a2b983429565273609a56fc8f48be20d18dc620b"
+      },
+      "topology": {
+        "bodies": 1,
+        "edges": 2,
+        "faces": 1,
+        "vertices": 0
+      },
+      "profile_id": "onshape-sch13006-r6",
+      "profile_sha256": "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb",
+      "independent_rust_reencoding": true,
+      "version_created_at": "2026-09-07T10:04:34.055+00:00",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/bf6a04e81cbbc09826f81125/e/cb185289b04882cc429534f3",
+      "changed_parameter": null,
+      "source_featurescript_sha256": "93d8b3a1f33a2038703338619f262a16de2d1cf93ee9e072966f8991b27c7489"
+    },
+    {
+      "label": "D1",
+      "group": "development",
+      "version": "df1a6602d8f86d09eeabb3f4",
+      "degrees": [
+        2,
+        3
+      ],
+      "control_counts": [
+        4,
+        9
+      ],
+      "rational": true,
+      "periodic": [
+        false,
+        true
+      ],
+      "closed": [
+        false,
+        true
+      ],
+      "source_coefficient_max": 6.938893903907228e-18,
+      "native_coefficient_max": 0.0,
+      "source_to_parsed_max_m": 2.8185920280518337e-17,
+      "parsed_to_occt_max_m": 2.881939084222627e-17,
+      "source_to_step_max_m": 3.7527806648313014e-17,
+      "sample_count": 378,
+      "native_sample_count": 63,
+      "native_point_max_m": 2.3013707539344673e-17,
+      "native_normal_max": 3.451756242292582e-15,
+      "periodic_shift_max_m": 1.0408340855860843e-17,
+      "seam_sample_count": 18,
+      "seam_position_max_m": 1.5899003276961254e-17,
+      "seam_derivative_max_m": 3.941488721342147e-17,
+      "source_derivative_to_occt_max_m": 6.265037651078949e-17,
+      "axis_negative_control_m": 0.013655342511745069,
+      "weight_negative_control_m": 0.00017629156580829808,
+      "source_hashes": {
+        "body_details": "d038973968a2b31c9f657fd71637ca27feaaf93556ad50036c03882cb98350d3",
+        "mass_properties": "3a0c68735fe3353a401b45ab59812e546af2bf86ee04147706a810ba3f4e18df",
+        "x_t": "004081099895450986820f11258382adb38c0a454d809e30dd2f483ad70b0ade",
+        "x_b": "42d8c39fdde6437222f29f2aead3bc9a7506cc6871108aeae174471fc7b2baba",
+        "step": "b5f8aa28abd6752754c928afe4a5ac6161a6a54a97a88825554455cc421f36fe",
+        "native_surface": "786c0cd98eb2210a650b3f2cf20125fd8091045b824b398495a30b3014fb582d"
+      },
+      "topology": {
+        "bodies": 1,
+        "edges": 2,
+        "faces": 1,
+        "vertices": 0
+      },
+      "profile_id": "onshape-sch13006-r6",
+      "profile_sha256": "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb",
+      "independent_rust_reencoding": true,
+      "version_created_at": "2026-09-07T10:05:10.418+00:00",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/df1a6602d8f86d09eeabb3f4/e/829a042c036c64294aa16c72",
+      "changed_parameter": null,
+      "source_featurescript_sha256": "011889846079e64e58b34e7e1d2962f6573cb442641600a8730efd79e1a4cfb4"
+    },
+    {
+      "label": "H0",
+      "group": "heldout",
+      "version": "b4f45de10142c9ed327ff2a8",
+      "degrees": [
+        3,
+        2
+      ],
+      "control_counts": [
+        9,
+        4
+      ],
+      "rational": true,
+      "periodic": [
+        true,
+        false
+      ],
+      "closed": [
+        true,
+        false
+      ],
+      "source_coefficient_max": 6.938893903907228e-18,
+      "native_coefficient_max": 0.0,
+      "source_to_parsed_max_m": 2.3273757686693185e-17,
+      "parsed_to_occt_max_m": 2.881939084222627e-17,
+      "source_to_step_max_m": 3.7527806648313014e-17,
+      "sample_count": 378,
+      "native_sample_count": 63,
+      "native_point_max_m": 2.7755575615628914e-17,
+      "native_normal_max": 3.9339550913956904e-15,
+      "periodic_shift_max_m": 1.4304896245381992e-17,
+      "seam_sample_count": 18,
+      "seam_position_max_m": 1.5515838457795457e-17,
+      "seam_derivative_max_m": 4.152480166520001e-17,
+      "source_derivative_to_occt_max_m": 8.835602482133882e-17,
+      "axis_negative_control_m": 0.012631487250782007,
+      "weight_negative_control_m": 0.00045642272924161897,
+      "source_hashes": {
+        "body_details": "c186d0bb43759059e32defed8e55655800d889d3cb838b4fd4b818ebe5a13893",
+        "mass_properties": "82c4f7f0212bc6f26b765390bce43a6f847750591ce98ce1c76bcd4ed88bdf17",
+        "x_t": "491d036fc6f8b8d7e1b07efdd06bbfcf0f5986df496c6375cb73b6138832927b",
+        "x_b": "f29e0bf3ed0024fb091ce62e3492a6df5a44d06bfb409d2570334cfe45a2ddd2",
+        "step": "2afa102cb15ccd3fb09cc8ffb3052d57cdbfdee7b70fa1e4867eab6ffb96e379",
+        "native_surface": "d26476f47893ca3f8c04fecc3cb2d52329435f0ad4505e8f267b3422a3a6def0"
+      },
+      "topology": {
+        "bodies": 1,
+        "edges": 2,
+        "faces": 1,
+        "vertices": 0
+      },
+      "profile_id": "onshape-sch13006-r6",
+      "profile_sha256": "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb",
+      "independent_rust_reencoding": true,
+      "version_created_at": "2026-09-07T10:08:45.415+00:00",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/b4f45de10142c9ed327ff2a8/e/6f264bda68067633760661bf",
+      "changed_parameter": "weight[2][1] 0.707007 -> 0.619031",
+      "source_featurescript_sha256": "d14271cc22ab1ba7faf6d235379d43300fc1783a8a71c00fe1df704433368d85"
+    },
+    {
+      "label": "H1",
+      "group": "heldout",
+      "version": "70337d5fb2fb9c8caf75f497",
+      "degrees": [
+        2,
+        3
+      ],
+      "control_counts": [
+        4,
+        9
+      ],
+      "rational": true,
+      "periodic": [
+        false,
+        true
+      ],
+      "closed": [
+        false,
+        true
+      ],
+      "source_coefficient_max": 6.938893903907228e-18,
+      "native_coefficient_max": 0.0,
+      "source_to_parsed_max_m": 2.797157557069881e-17,
+      "parsed_to_occt_max_m": 2.881939084222627e-17,
+      "source_to_step_max_m": 3.7527806648313014e-17,
+      "sample_count": 378,
+      "native_sample_count": 63,
+      "native_point_max_m": 2.2215299868541707e-17,
+      "native_normal_max": 3.529715138433927e-15,
+      "periodic_shift_max_m": 1.0408340855860843e-17,
+      "seam_sample_count": 18,
+      "seam_position_max_m": 1.5515838457795457e-17,
+      "seam_derivative_max_m": 4.152480166520001e-17,
+      "source_derivative_to_occt_max_m": 7.08693458633374e-17,
+      "axis_negative_control_m": 0.013655342511745069,
+      "weight_negative_control_m": 0.00017629156580829808,
+      "source_hashes": {
+        "body_details": "5391d77d6365f40a74d6e3fcc10dd8181d1dc05c991b725651a47b0588ea38ae",
+        "mass_properties": "5ac282b30c0d28eac5709937cfc64d8c381ff1d858d2b0aa8423b5cfe2abb3ed",
+        "x_t": "fa7952ff87f3450099a07fda23baeea0462fab1ba6b2bc2b29ec72b80be84745",
+        "x_b": "12528ffc6a2e30bb74358273e6b14c7b5886235bed23b528ef2bb1f323482817",
+        "step": "d55e67c5d9dcb42fc959a3c6eaa5b9e9f216e6f1d60f3f713ceb7101b608a258",
+        "native_surface": "de9b3645112f5ccc77e158bd23bb9f6c1a2a317a43b004b73926efc4208b0521"
+      },
+      "topology": {
+        "bodies": 1,
+        "edges": 2,
+        "faces": 1,
+        "vertices": 0
+      },
+      "profile_id": "onshape-sch13006-r6",
+      "profile_sha256": "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb",
+      "independent_rust_reencoding": true,
+      "version_created_at": "2026-09-07T10:09:22.368+00:00",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/70337d5fb2fb9c8caf75f497/e/d30ba5f2620fa1e5c1dfdd36",
+      "changed_parameter": "weight[1][2] 0.707007 -> 0.619031",
+      "source_featurescript_sha256": "565b68398a339a4402cd20e501c31a6eb291981dad80a59956ec65c74375bd44"
+    }
+  ],
+  "environment": {
+    "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
+    "packages": {
+      "parasolid-kit": "0.1.0.dev3",
+      "cadquery-ocp-novtk": "7.9.3.1.1",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1"
+    }
+  },
+  "local_tests": {
+    "focused_passed": 131,
+    "ruff": "passed",
+    "runtime_or_profile_changes": false,
+    "full_suite": "Not rerun in this campaign; previous surface campaign recorded 525 passed / 56 skipped."
+  },
+  "runtime_catalog_reads": 0,
+  "offline_validation": true,
+  "report_hashes": {
+    "validation-development.json": "2dfb349cc90eca8edfae429e030ab697eb9beef91d3ee29dc95d8a6f5f50269c",
+    "validation-heldout.json": "84bc2022b645f0a16a79a2f446f3a90ae13c4a6b7b66e6158e6ec4cd308bf4d1",
+    "freeze.json": "55f7fe45288ef41a99d8124f58025527a20496b7c8460fe65b67b76c5a487b5f",
+    "pytest-focused.log": "fea3e23070d7fb46fd4fdf493c6bd93d46fa99d22647a17bb1dec725a243c8bd"
+  }
+}

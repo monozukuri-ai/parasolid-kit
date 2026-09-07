@@ -548,16 +548,60 @@ fail the separate fixed 1e-10 square-metre gate. These observations are retained
 neither edge tolerances nor area thresholds are widened to turn failures into
 passes. They do not establish exact STEP reconstruction.
 
+A subsequent [STEP accuracy audit](step-accuracy.md) reads the saved STEP
+coefficients independently and reproduces the distance and area differences.
+It separates export boundary approximation, existing tolerant FIN/EDGE geometry,
+and importer pcurves, and explains why imported edge tolerances cannot serve as
+cross-format parser-correctness thresholds. Historical results remain unchanged.
+
 The mapper now rejects internal knot multiplicity greater than degree and an
 empty active parameter domain. The same knot validation applies to curves and
 surface directions; surface dimensions, closure and positive homogeneous weights
 are checked before returning a B-Rep. Rational surface coefficients have synthetic
-coverage; producer surface evidence here is nonrational and bilinear. Higher
-surface degrees, periodic/rational surfaces, implicit extensions, arbitrary keys
-and general curve evaluation remain outside this producer evidence.
+coverage; producer surface evidence in that campaign is nonrational and bilinear.
+The subsequent [NURBS surface campaign](nurbs-surface-evidence.md) verifies
+higher-degree open nonrational/rational sheets and nonrational periodic sheets
+in each axis without changing the revision-6 layouts. The
+[rational periodic campaign](rational-periodic-surface-evidence.md) additionally
+validates weighted periodic sheets in each axis. The
+[doubly periodic campaign](doubly-periodic-surface-evidence.md) verifies
+degree-3-by-2 nonrational/rational sheets periodic in both axes. Implicit
+extensions, arbitrary keys and general curve evaluation remain outside this
+producer evidence.
 
 Local reproducibility artifacts are under `.internal/m8e-spcurve-higher/`:
 `campaign.json`, `collection.json`, `freeze.json`, `validation-development.json`,
 `validation-heldout.json`, and the preserved `round1/` records. The public models
 are project-owned synthetic inputs; iCAD inputs and local evidence archives are
 excluded from wheel/sdist artifacts.
+
+## Higher-degree NURBS surfaces with unchanged revision-6 layouts
+
+Eight new immutable V13 X_T/X_B pairs cover degree-3-by-2 open patches with
+nonuniform knots, an interior rational weight, and nonrational U-periodic and
+V-periodic sheets. Four prospective versions change one control-point height
+or weight after the implementation, test fixtures and evaluator freeze.
+
+The typed homogeneous coefficients match Onshape's direct `evSurfaceDefinition`
+output exactly. Independent source/tensor/OCCT evaluation, 504 native producer
+points and normals, paired parsing and independent Rust value reencoding pass.
+The [surface evidence report](nurbs-surface-evidence.md) records the observed
+residuals and scope. This extends producer evidence for `NurbsSurface`; it adds
+no schema types, public evaluator or optional-adapter coverage.
+
+A further four immutable pairs combine rational weights with U or V periodicity;
+two prospective versions change a single weight after a separate freeze.
+The native homogeneous coefficients match exactly, and position/derivative
+checks verify the periodic seam at 72 sampled cross-sections. The
+[rational periodic surface report](rational-periodic-surface-evidence.md) retains
+the separate source hashes, numerical evidence and scope without changing the
+profile layouts or earlier reports.
+
+Four additional immutable pairs verify nonrational and rational surfaces with
+simultaneous U/V periodicity, including two prospective versions after a new
+freeze. Their degree-3-by-2 surfaces transmit 9 × 7 control grids with overlap
+in both directions. Native coefficients match exactly, and 168 seam
+cross-sections pass position/derivative checks. The
+[doubly periodic surface report](doubly-periodic-surface-evidence.md) records
+the evidence and two added regression cases; the runtime and profile remain
+unchanged.

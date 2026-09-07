@@ -4,7 +4,7 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0-dev3"
+version = "0.1.0-dev4"
 edition = "2024"
 rust-version = "1.88"
 description = "Schema-aware parser core for Parasolid X_T and X_B data"

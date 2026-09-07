@@ -92,18 +92,18 @@ def spcurve(
             "llnndduuddlllunppppp",
             [
                 patch.get("u_periodic", False),
-                False,
+                patch.get("v_periodic", False),
                 patch.get("u_degree", 1),
-                1,
+                patch.get("v_degree", 1),
                 patch.get("u_count", 2),
-                2,
+                patch.get("v_count", 2),
                 1,
                 1,
                 patch.get("u_knot_count", 2),
-                2,
+                patch.get("v_knot_count", 2),
                 patch.get("rational", False),
                 patch.get("u_closed", False),
-                False,
+                patch.get("v_closed", False),
                 3,
                 patch.get("dimension", 3),
                 14,
@@ -123,11 +123,13 @@ def spcurve(
         pv = patch.get("vertices", (0, 0, 0, 0, 0.03, 0, 0.02, 0, 0, 0.02, 0.03, 0.002))
         pm = patch.get("u_mult", (2, 2))
         pk = patch.get("u_knots", (0, 1))
+        vm = patch.get("v_mult", (2, 2))
+        vk = patch.get("v_knots", (0, 1))
         record(45, 14, "f" * len(pv), pv, len(pv))
         record(127, 15, "n" * len(pm), pm, len(pm))
-        record(127, 16, "nn", [2, 2], 2)
+        record(127, 16, "n" * len(vm), vm, len(vm))
         record(128, 17, "f" * len(pk), pk, len(pk))
-        record(128, 18, "ff", [0, 1], 2)
+        record(128, 18, "f" * len(vk), vk, len(vk))
     elif cylinder:
         record(
             51,

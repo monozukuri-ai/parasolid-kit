@@ -565,7 +565,10 @@ mod tests {
             .map(|(i, field)| RawField {
                 definition: field.clone(),
                 values: vec![],
-                byte_range: i..i + 1,
+                byte_range: std::ops::Range {
+                    start: i,
+                    end: i + 1,
+                },
             })
             .collect();
         let node = RawNode {

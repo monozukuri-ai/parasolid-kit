@@ -1,0 +1,266 @@
+{
+  "audit_date": "2026-09-07",
+  "scope": "Local replay of saved project-owned synthetic Onshape V13 fixtures; no new holdout. Distances are sampled one-way distances, not certified continuous Hausdorff bounds.",
+  "higher": [
+    {
+      "label": "D2",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/8d5bea35045b08673c26fade/e/dd6211cc4352d3eec4b454f2",
+      "source_sha256": {
+        "body_details": "65cc24bfcf9a325f755d86894b25ab86684b31533f70eebc71f124b5d41720f1",
+        "mass_properties": "a0e643abbc4948603250bc81d231e9ce4811fbaf91db3f3af824ab88c0962113",
+        "x_t": "2416a506a3d22324326ad5598887d5ed3dc0bd95aee8a9d66a7c8abff6c1a1f4",
+        "x_b": "f6fa91c8cc6ce5da8758e69c27bb9537740a9c71bd995fbded45ca024aa1fe9a",
+        "step": "74a647689edfe78b781f1b9d2653069cfa827984e3100dbcf6251b3223466d02"
+      },
+      "curve_count": 3,
+      "curve_samples": 771,
+      "source_to_raw_step_sampled_max_m": 3.147792550836252e-06,
+      "raw_step_to_occt_sampled_max_m": 4.277421474636178e-17,
+      "area": {
+        "producer_m2": 0.00015862251546709636,
+        "source_m2": 0.00015862255471988296,
+        "raw_step_projected_m2": 0.00015860322979826727,
+        "occt_m2": 0.0001586032181031026,
+        "source_minus_producer_m2": 3.9252786595113734e-11,
+        "source_minus_raw_step_m2": 1.9324921615682892e-08,
+        "raw_step_minus_imported_m2": 1.1695164666347332e-11,
+        "producer_minus_imported_m2": 1.9297363993754126e-08
+      },
+      "import_settings": {
+        "read.precision.mode": 0,
+        "read.stdsameparameter.mode": 0,
+        "read.surfacecurve.mode": 0,
+        "read.maxprecision.mode": 0
+      }
+    },
+    {
+      "label": "D3",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/b1c5a9528bf5f349a2582e70/e/4bcfc2c17cbf3a2e9132b38c",
+      "source_sha256": {
+        "body_details": "35d3e533892623d16a96856b76e1041f06835ae77376abecd867eb0b90530bb6",
+        "mass_properties": "f19829acd26a8be092e4e68aabb613e75b32e8982ccbbdda53668f13c9b0d90e",
+        "x_t": "1a24741a6e67324ee8cba6a821c34852c2253b4679c44e712b092be892fcc9cd",
+        "x_b": "5344a8e3c8f2fe7f4ace4e78cffe86f827a128decd4a11a2e70aa54e8a19d453",
+        "step": "e3573e4a534458e61c9a7e34fd68bc868ab930447e30963c5ff4679c8b329967"
+      },
+      "curve_count": 1,
+      "curve_samples": 257,
+      "source_to_raw_step_sampled_max_m": 2.651924315603508e-06,
+      "raw_step_to_occt_sampled_max_m": 7.949501638480627e-18,
+      "area": {
+        "producer_m2": 0.00014239917758307233,
+        "source_m2": 0.00014239917381313912,
+        "raw_step_projected_m2": 0.0001423965462706807,
+        "occt_m2": 0.0001423965462706807,
+        "source_minus_producer_m2": -3.769933204587211e-12,
+        "source_minus_raw_step_m2": 2.627542458431961e-09,
+        "raw_step_minus_imported_m2": 0.0,
+        "producer_minus_imported_m2": 2.631312391636548e-09
+      },
+      "import_settings": {
+        "read.precision.mode": 0,
+        "read.stdsameparameter.mode": 0,
+        "read.surfacecurve.mode": 0,
+        "read.maxprecision.mode": 0
+      }
+    },
+    {
+      "label": "D4",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/5c1dd6ed9d6416bbe7887c07/e/e765dd6f20faae732f4b0346",
+      "source_sha256": {
+        "body_details": "bcae2aaac656bf24db1edab954ffd49625b26ffac6f2707fdaf1880bedc6967f",
+        "mass_properties": "a7ef9655e1d57cbd42aebe4901d7dde912fdb22834770e346e0be406a6a22a92",
+        "x_t": "656e6d46432bd216f265c91f8b77f65251158ffdeb55ab67715fe4f063492dc0",
+        "x_b": "b159ff6d1b61203fa735b81821dde81781e7a40b7f8c7a781d0d10f175536d47",
+        "step": "c1de86dcb0bbf064e883732955ded70280f91a692aed1a37cbafeb9e18427932"
+      },
+      "curve_count": 1,
+      "curve_samples": 257,
+      "source_to_raw_step_sampled_max_m": 2.6673532355012054e-06,
+      "raw_step_to_occt_sampled_max_m": 9.965227682168975e-18,
+      "area": {
+        "producer_m2": 0.000142776686514226,
+        "source_m2": 0.00014277668282031172,
+        "raw_step_projected_m2": 0.00014277405670850286,
+        "occt_m2": 0.00014277403330906465,
+        "source_minus_producer_m2": -3.693914287948227e-12,
+        "source_minus_raw_step_m2": 2.6261118088607115e-09,
+        "raw_step_minus_imported_m2": 2.3399438203036693e-11,
+        "producer_minus_imported_m2": 2.6532051613516964e-09
+      },
+      "import_settings": {
+        "read.precision.mode": 0,
+        "read.stdsameparameter.mode": 0,
+        "read.surfacecurve.mode": 0,
+        "read.maxprecision.mode": 0
+      }
+    },
+    {
+      "label": "H1",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/2402fdd940b7efb71d5e33e8/e/4e0738f422f799254906349b",
+      "source_sha256": {
+        "body_details": "d412420a5886bb507a3761bf1220fd77cda0c26d0ad63ca841753de8ed298145",
+        "mass_properties": "f263f0fbd703e72562871c4c3861b83c2b61655f0ddcd6f6211c1c9ec636735e",
+        "x_t": "c3a5acf28a87705f0a6c8d6049579c3618489602cb58d936e53dcf43a2756fb2",
+        "x_b": "b35cf5f628ccc8375e260cfd98351cbe867483bd20a3ae87a35c6c1463e5a9ea",
+        "step": "bc9bcf902d53df297d7987e689ee841de2d40506317da8e02dc62ff5a5523110"
+      },
+      "curve_count": 1,
+      "curve_samples": 257,
+      "source_to_raw_step_sampled_max_m": 6.868672572807327e-06,
+      "raw_step_to_occt_sampled_max_m": 1.1107649934270853e-17,
+      "area": {
+        "producer_m2": 0.0001461036114894765,
+        "source_m2": 0.0001461035535970493,
+        "raw_step_projected_m2": 0.0001461239974082046,
+        "occt_m2": 0.00014612387314652742,
+        "source_minus_producer_m2": -5.789242720735839e-11,
+        "source_minus_raw_step_m2": -2.044381115529634e-08,
+        "raw_step_minus_imported_m2": 1.242616771740708e-10,
+        "producer_minus_imported_m2": -2.0261657050914912e-08
+      },
+      "import_settings": {
+        "read.precision.mode": 0,
+        "read.stdsameparameter.mode": 0,
+        "read.surfacecurve.mode": 0,
+        "read.maxprecision.mode": 0
+      }
+    },
+    {
+      "label": "H2",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/5b6ff301f5385ccc09b9cce1/e/9c85f3f32ea878de79e0c524",
+      "source_sha256": {
+        "body_details": "616a999bf7aaf5a1aaa73eb3f338629c550fd41d79c1efaff0fcc51bfffa4777",
+        "mass_properties": "f0f65e3f196fcab0857ee2f3958f09f346b1247dda68bec70b877783ee4a5916",
+        "x_t": "1184011c4f09649e4c4031097a7cb3e8644d4f8ca4916a4d5d55ae3534c74a1c",
+        "x_b": "05760856703f97d7e4cbf82f1d4262a99795d9dbd68f95138c9dbab8fd23c603",
+        "step": "c690ff7289261a2e0de8992e358b92aabcf5a7d0b7e15520e22f0e66c36c41d0"
+      },
+      "curve_count": 3,
+      "curve_samples": 771,
+      "source_to_raw_step_sampled_max_m": 3.1076247974574924e-06,
+      "raw_step_to_occt_sampled_max_m": 4.305470440582207e-17,
+      "area": {
+        "producer_m2": 0.0001586225284767266,
+        "source_m2": 0.00015862255471988296,
+        "raw_step_projected_m2": 0.00015860358669611983,
+        "occt_m2": 0.00015860357508990067,
+        "source_minus_producer_m2": 2.624315635678734e-11,
+        "source_minus_raw_step_m2": 1.8968023763129985e-08,
+        "raw_step_minus_imported_m2": 1.160621915957151e-11,
+        "producer_minus_imported_m2": 1.895338682593277e-08
+      },
+      "import_settings": {
+        "read.precision.mode": 0,
+        "read.stdsameparameter.mode": 0,
+        "read.surfacecurve.mode": 0,
+        "read.maxprecision.mode": 0
+      }
+    },
+    {
+      "label": "H3",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/f639be46b5014240739507a7/e/7e866945812334f567870f30",
+      "source_sha256": {
+        "body_details": "2fdab7b54c29d7dfa30c706c63cb5b3150f58e950da858c48a506be057553623",
+        "mass_properties": "28880b819de156f1efb11ae705a080b0641e12209c4a7f482027d2e50d13ad0a",
+        "x_t": "516801fe1ebcbbd3df713e47233342f3d3202636b922928c999ad1ab9a0519a2",
+        "x_b": "acf1d5528a4612cbf21a40f96a92c8ed73fd3350a55429deb537b7abcb3affa6",
+        "step": "49a68f32e6e12cc3221b28154c25506a58c979614143a56d416390ee9d85ac2f"
+      },
+      "curve_count": 1,
+      "curve_samples": 257,
+      "source_to_raw_step_sampled_max_m": 3.4389402377206196e-06,
+      "raw_step_to_occt_sampled_max_m": 1.2509268882771003e-17,
+      "area": {
+        "producer_m2": 0.00014101639592040656,
+        "source_m2": 0.00014101639079044261,
+        "raw_step_projected_m2": 0.00014101261709780193,
+        "occt_m2": 0.00014101259834071797,
+        "source_minus_producer_m2": -5.129963944958127e-12,
+        "source_minus_raw_step_m2": 3.77369264068189e-09,
+        "raw_step_minus_imported_m2": 1.8757083966548446e-11,
+        "producer_minus_imported_m2": 3.7975796885933964e-09
+      },
+      "import_settings": {
+        "read.precision.mode": 0,
+        "read.stdsameparameter.mode": 0,
+        "read.surfacecurve.mode": 0,
+        "read.maxprecision.mode": 0
+      }
+    },
+    {
+      "label": "H4",
+      "public_version_url": "https://cad.onshape.com/documents/4fa2eadba0d38f1cf992d596/v/ac67f53eb4cfce4e7c6c4e5d/e/13771936b31f9e0155dde0b2",
+      "source_sha256": {
+        "body_details": "98da77f24f942827e669eeea622c09ec813e73d8a19bcfe220e927681b860d21",
+        "mass_properties": "e0cd7daf01f716f554eb91051cb72d904147a63c3089ad840bbef804e08bddca",
+        "x_t": "5c1cee8ede317103121f59447bf0533a21f797d84a6d7dfaa9d3477c2fb955db",
+        "x_b": "49ab43fe917c34a96b3f5a7402406e043e58eae88cdb1ff9123bc241e632c21b",
+        "step": "7ebb20b31f76bbeaaa21b6dd4ec6896000483643def02b5b3510e988c01f226d"
+      },
+      "curve_count": 3,
+      "curve_samples": 771,
+      "source_to_raw_step_sampled_max_m": 3.1236910956275907e-06,
+      "raw_step_to_occt_sampled_max_m": 4.347204570675246e-17,
+      "area": {
+        "producer_m2": 0.00015862252645891192,
+        "source_m2": 0.00015862255471988296,
+        "raw_step_projected_m2": 0.000158603444901384,
+        "occt_m2": 0.00015860343325266687,
+        "source_minus_producer_m2": 2.826097103732217e-11,
+        "source_minus_raw_step_m2": 1.910981849896783e-08,
+        "raw_step_minus_imported_m2": 1.1648717120017402e-11,
+        "producer_minus_imported_m2": 1.9093206245050526e-08
+      },
+      "import_settings": {
+        "read.precision.mode": 0,
+        "read.stdsameparameter.mode": 0,
+        "read.surfacecurve.mode": 0,
+        "read.maxprecision.mode": 0
+      }
+    }
+  ],
+  "summary": {
+    "higher_pairs": 7,
+    "higher_curves": 13,
+    "higher_source_samples": 3341,
+    "raw_step_to_occt_sampled_max_m": 4.347204570675246e-17,
+    "closest_distance_solver_delta_max_m": 3.694571690501404e-09,
+    "polynomial_vs_bounded_distance_delta_max_m": 9.95872940428868e-14,
+    "source_area_vs_body_details_max_abs_m2": 5.789242720735839e-11,
+    "pcurve_integral_vs_occt_area_max_abs_m2": 2.846030702774449e-19,
+    "internal_edge_tolerance_exceedances": 9,
+    "internal_edge_tolerance_max_ratio": 1.3316742958748553,
+    "seam_pairs": 4,
+    "seam_curves": 8,
+    "seam_source_samples": 2056,
+    "seam_source_fin_to_source_edge_sampled_max_m": 3.8442621909256715e-06,
+    "seam_source_edge_tolerance_m": 1e-05,
+    "seam_source_edge_to_raw_step_distance_delta_max_m": 7.757919228897728e-18
+  },
+  "verification": {
+    "status": "passed",
+    "previous_evidence_files_checked": 448,
+    "freeze_files_verified": 147,
+    "runtime_catalog_reads": 0,
+    "network": false,
+    "environment": {
+      "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
+      "packages": {
+        "parasolid-kit": "0.1.0.dev3",
+        "cadquery-ocp-novtk": "7.9.3.1.1",
+        "numpy": "2.5.3",
+        "scipy": "1.18.1",
+        "matplotlib": "3.11.1"
+      }
+    }
+  },
+  "local_replay": ".venv/bin/python .internal/m8e-step-accuracy/run.py",
+  "local_report_hashes": {
+    ".internal/m8e-step-accuracy/higher-audit.json": "072730b9a51b68324b2ffca78d2dcd13e009f8aee7b16c6623c5efc35fe23eda",
+    ".internal/m8e-step-accuracy/seam-audit.json": "2e379035cf909a89720368e6c4aaea77b9a63f7347dbc5ac76621c668d762ae7",
+    ".internal/m8e-step-accuracy/pcurve-area-audit.json": "0632db7dd1864d79bffbe6333bd3297f0a65c4e44e2d355d347450fb3269e296",
+    ".internal/m8e-step-accuracy/numerical-checks.json": "aa99e1f34197c731449e3a91a6b22aff3a83e5a664bbddfd4c680b4fd650ac86",
+    ".internal/m8e-step-accuracy/replay-verification.json": "92e9a288bcc8d33f96963e6bc2b0386f571a3942d171329a803679f7623e850e"
+  }
+}
