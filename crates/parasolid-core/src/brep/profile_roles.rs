@@ -58,9 +58,14 @@ impl RoleAccess {
                     || (profile_id == "icad-sch30000-13006-r5"
                         && *profile_revision == 5
                         && key == "SCH_3000310_30000_13006"
-                        && profile_sha256 == ROLE_EMBEDDED_SHA256)) =>
+                        && profile_sha256 == ROLE_EMBEDDED_SHA256)
+                    || (profile_id == "solidworks-sch37102-13006-r1"
+                        && *profile_revision == 1
+                        && key == "SCH_3701229_37102_13006"
+                        && profile_sha256
+                            == crate::schema::profiles::SOLIDWORKS_PROFILE_SHA256)) =>
             {
-                validate_base_roles(schemas, key == "SCH_1300000_13006")?;
+                validate_base_roles(schemas, key != "SCH_3000310_30000_13006")?;
                 Ok(Self::Sch13006)
             }
             SchemaProviderResolution::Builtin { .. } => Err(ParseError::new(

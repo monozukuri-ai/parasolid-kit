@@ -1,6 +1,9 @@
 # Built-in profile provenance
 
-Three profiles are registered for default parsing. The complete internal stream
+The [SolidWorks partition profile](solidworks-partitions.md) documents the
+additional exact V37 key, WORLD base layout, local validation and delta boundary.
+
+Four profiles are registered for default parsing. The complete internal stream
 key must match; a caller-selected provider always takes priority. The V30 profile
 retains its revision-2 identity:
 

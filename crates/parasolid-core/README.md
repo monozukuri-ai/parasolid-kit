@@ -1,13 +1,13 @@
 # parasolid-core
 
-Python-independent Rust parser for Parasolid X_B and X_T transmit data, with
+Python-independent Rust parser for Parasolid `X_B` and `X_T` transmit data, with
 exact schema selection, bounded raw-node decoding, source byte ranges, and a
 Parasolid-native B-Rep model. This crate is part of
 [parasolid-kit](https://github.com/monozukuri-ai/parasolid-kit).
 
 ```toml
 [dependencies]
-parasolid-core = "=0.1.0-dev4"
+parasolid-core = "=0.1.0-dev5"
 ```
 
 Inspect a header without claiming that the geometry is supported:
@@ -43,11 +43,13 @@ println!("{} bodies; complete={}", brep.bodies.len(), brep.complete);
 ```
 
 The compiled profiles are verified subsets for `SCH_3000000_30000`,
-`SCH_1300000_13006`, and `SCH_3000310_30000_13006`. A supported header, schema key,
+`SCH_1300000_13006`, `SCH_3000310_30000_13006`, and `SolidWorks` partition key
+`SCH_3701229_37102_13006`. A supported header, schema key,
 or raw record does not imply complete geometric support. An explicit
 `SchemaProvider` can supply an exact external catalog; no nearby-version
-fallback is performed. SolidWorks containers and configuration selection belong
-to the caller. `SCH_3701229_37102_13006` is not a compiled profile in this release.
+fallback is performed. `SolidWorks` containers and configuration selection belong
+to the caller. `SolidWorks` deltas are unsupported even when their header uses
+the same supported partition key; no final saved configuration is reconstructed.
 
 Lengths and identifiers retain their Parasolid source meaning. Byte ranges are
 relative to the complete byte slice supplied to the parser. Embedding applications
@@ -63,3 +65,12 @@ for the verified boundaries.
 
 Licensed under MIT. Real CAD fixtures and external schema catalogs are not
 included in this crate.
+
+## Releasing
+
+The Rust crate is published independently of Python artifacts. After updating
+the workspace version and verifying the package, maintainers can run
+`cargo publish -p parasolid-core --locked --dry-run`, followed by the same command
+without `--dry-run`. The manual **Rust core release** workflow runs these gates;
+its default is a dry run and upload requires `CARGO_REGISTRY_TOKEN` in repository
+secrets. Python release events do not republish an existing Rust version.
