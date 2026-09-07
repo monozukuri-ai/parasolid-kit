@@ -43,6 +43,22 @@ fn provider(schema_key: &str) -> Option<InMemorySchemaProvider> {
 }
 
 fuzz_target!(|data: &[u8]| {
+    if data.len() <= 64 * 1024 {
+        use parasolid_core::partial;
+        let mut tables = partial::topology::scan(data);
+        let _ = partial::native_hierarchy::scan(data, "SCH_3701229_37102_13006", &tables);
+        partial::native_fin::normalize_or_withhold(&mut tables);
+        let _ = partial::analytic::parse_carrier(data, 0);
+        let _ = partial::analytic::parse_carrier(data, usize::MAX);
+        let _ = partial::spline::scan_curve_carriers(data);
+        let _ = partial::spline::scan_surface_carriers(data);
+        let _ = partial::intersection::scan_intersection_carriers(data);
+        let _ = partial::blend::scan(data);
+        let _ = partial::offset::scan(data);
+        let _ = partial::sweep::scan_sweep_carriers(data);
+        let _ = partial::subset::scan(data);
+    }
+
     if let Ok(header) = inspect_xb(data, INSPECTION_LIMITS)
         && let Ok(key) = SchemaKey::parse(&header.schema_key)
     {

@@ -35,3 +35,6 @@ pub use schema::{
 pub use text_document::{XtDocument, XtHeader, XtTermination, inspect_xt, parse_xt};
 #[doc(hidden)]
 pub use text_document::{XtNodeTypeCounts, scan_xt_node_types};
+
+/// Bounded readers for partial embedded transmit fragments.
+pub mod partial;

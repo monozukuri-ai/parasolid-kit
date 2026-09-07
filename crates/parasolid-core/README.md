@@ -7,7 +7,7 @@ Parasolid-native B-Rep model. This crate is part of
 
 ```toml
 [dependencies]
-parasolid-core = "=0.1.0-dev5"
+parasolid-core = "=0.1.0-dev6"
 ```
 
 Inspect a header without claiming that the geometry is supported:
@@ -63,8 +63,8 @@ are separate optional Python functionality in parasolid-kit. See the repository'
 and [profile provenance](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/builtin-profiles.md)
 for the verified boundaries.
 
-Licensed under MIT. Real CAD fixtures and external schema catalogs are not
-included in this crate.
+Real CAD fixtures and external schema catalogs are not included in this crate.
+See the license and partial-reader provenance below.
 
 ## Releasing
 
@@ -74,3 +74,12 @@ the workspace version and verifying the package, maintainers can run
 without `--dry-run`. The manual **Rust core release** workflow runs these gates;
 its default is a dry run and upload requires `CARGO_REGISTRY_TOKEN` in repository
 secrets. Python release events do not republish an existing Rust version.
+
+For existing embedded fragment integrations, `parasolid_core::partial` provides
+bounded topology, analytic/NURBS, and procedural-carrier readers in source units.
+It does not replace schema-aware parsing or establish complete delta semantics.
+See [the API boundary, provenance and licenses](PARTIAL_READERS.md).
+
+The original implementation is MIT licensed; adopted partial readers are
+Apache-2.0 licensed. This crate declares `MIT AND Apache-2.0` and distributes both
+license texts.

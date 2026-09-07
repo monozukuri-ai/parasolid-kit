@@ -13,7 +13,9 @@ import pytest
 
 from scripts.verify_artifacts import (
     BUILTIN_SOURCE_FILES,
+    EXPECTED_APACHE_LICENSE_BYTES,
     EXPECTED_LICENSE_BYTES,
+    PARTIAL_SOURCE_FILES,
     VIEWER_ASSET_LICENSE,
     VIEWER_ASSET_SHA256,
     VIEWER_ASSET_VERSION,
@@ -21,7 +23,7 @@ from scripts.verify_artifacts import (
     verify_wheel,
 )
 
-DIST_INFO = "parasolid_kit-0.1.0.dev5.dist-info"
+DIST_INFO = "parasolid_kit-0.1.0.dev6.dist-info"
 RUST_SBOM = f"{DIST_INFO}/sboms/parasolid-python.cyclonedx.json"
 ROOT = Path(__file__).resolve().parents[1]
 VIEWER_ASSETS = {name: (ROOT / "src" / name).read_bytes() for name in VIEWER_ASSET_SHA256}
@@ -29,7 +31,7 @@ VIEWER_ASSETS = {name: (ROOT / "src" / name).read_bytes() for name in VIEWER_ASS
 
 def _metadata(
     *,
-    license_expression: str = "MIT",
+    license_expression: str = "MIT AND Apache-2.0",
     occt_requirement: str = ("cadquery-ocp-novtk<7.10,>=7.9.3.1; extra == 'occt'"),
     cadquery_requirement: str = "cadquery<2.9,>=2.8; extra == 'cadquery'",
     numba_requirement: str = (
@@ -41,10 +43,11 @@ def _metadata(
     lines = [
         "Metadata-Version: 2.4",
         "Name: parasolid-kit",
-        "Version: 0.1.0.dev5",
+        "Version: 0.1.0.dev6",
         "Requires-Python: >=3.10",
         f"License-Expression: {license_expression}",
         "License-File: LICENSE",
+        "License-File: LICENSES/Apache-2.0.txt",
         "Provides-Extra: cadquery",
         "Provides-Extra: occt",
         f"Requires-Dist: {cadquery_requirement}",
@@ -69,7 +72,7 @@ def _record(files: dict[str, bytes]) -> bytes:
 
 def _wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files = {
-        "parasolid_kit/__init__.py": b'__version__ = "0.1.0.dev5"\n',
+        "parasolid_kit/__init__.py": b'__version__ = "0.1.0.dev6"\n',
         "parasolid_kit/_core.abi3.so": b"native-placeholder",
         f"{DIST_INFO}/METADATA": _metadata(),
         f"{DIST_INFO}/WHEEL": b"Wheel-Version: 1.0\nRoot-Is-Purelib: false\n",
@@ -77,6 +80,7 @@ def _wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
             b"[console_scripts]\nparasolid-kit = parasolid_kit.cli:main\n"
         ),
         f"{DIST_INFO}/licenses/LICENSE": EXPECTED_LICENSE_BYTES,
+        f"{DIST_INFO}/licenses/LICENSES/Apache-2.0.txt": EXPECTED_APACHE_LICENSE_BYTES,
         **VIEWER_ASSETS,
     }
     files.update(extra or {})
@@ -147,13 +151,19 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     }
     files = {name: b"placeholder" for name in required}
     files["LICENSE"] = EXPECTED_LICENSE_BYTES
+    files["LICENSES/Apache-2.0.txt"] = EXPECTED_APACHE_LICENSE_BYTES
     files["PKG-INFO"] = _metadata()
     files.update({f"src/{name}": payload for name, payload in VIEWER_ASSETS.items()})
-    files.update({name: (ROOT / name).read_bytes() for name in BUILTIN_SOURCE_FILES})
+    files.update(
+        {
+            name: (ROOT / name).read_bytes()
+            for name in (*BUILTIN_SOURCE_FILES, *PARTIAL_SOURCE_FILES)
+        }
+    )
     files.update(extra or {})
     with tarfile.open(path, "w:gz") as archive:
         for relative, payload in files.items():
-            name = f"parasolid_kit-0.1.0.dev5/{relative}"
+            name = f"parasolid_kit-0.1.0.dev6/{relative}"
             info = tarfile.TarInfo(name)
             info.size = len(payload)
             archive.addfile(info, io.BytesIO(payload))
@@ -166,7 +176,7 @@ def test_wheel_gate_accepts_expected_files_and_license(tmp_path: Path) -> None:
     report = verify_wheel(wheel, require_license=True)
 
     assert report["status"] == "passed"
-    assert report["license_expression"] == "MIT"
+    assert report["license_expression"] == "MIT AND Apache-2.0"
     assert report["metadata_license_file"] is True
     assert report["license_file"] is True
     assert report["provides_extra"] == ["cadquery", "occt"]
@@ -195,8 +205,8 @@ def test_wheel_gate_accepts_maturin_rust_sbom(tmp_path: Path) -> None:
         "metadata": {
             "component": {
                 "name": "parasolid-python",
-                "version": "0.1.0-dev5",
-                "licenses": [{"expression": "MIT"}],
+                "version": "0.1.0-dev6",
+                "licenses": [{"expression": "MIT AND Apache-2.0"}],
             }
         },
         "components": [],
@@ -227,7 +237,7 @@ def test_sdist_gate_accepts_the_declared_source_layout(tmp_path: Path) -> None:
     report = verify_sdist(sdist, require_license=True)
 
     assert report["status"] == "passed"
-    assert report["license_expression"] == "MIT"
+    assert report["license_expression"] == "MIT AND Apache-2.0"
     assert report["metadata_license_file"] is True
     assert report["license_file"] is True
     assert report["provides_extra"] == ["cadquery", "occt"]
@@ -447,3 +457,17 @@ def test_archives_reject_catalogs_and_internal_evidence(tmp_path: Path) -> None:
         _sdist(sdist, extra={f"crates/{name}": b"forbidden"})
         assert verify_wheel(wheel)["status"] == "failed"
         assert verify_sdist(sdist)["status"] == "failed"
+
+
+@pytest.mark.parametrize("kind", ["wheel", "sdist"])
+def test_artifact_rejects_replaced_apache_license(tmp_path: Path, kind: str) -> None:
+    if kind == "wheel":
+        path = tmp_path / "package.whl"
+        _wheel(path, extra={f"{DIST_INFO}/licenses/LICENSES/Apache-2.0.txt": b"wrong"})
+        report = verify_wheel(path, require_license=True)
+    else:
+        path = tmp_path / "package.tar.gz"
+        _sdist(path, extra={"LICENSES/Apache-2.0.txt": b"wrong"})
+        report = verify_sdist(path, require_license=True)
+    assert report["status"] == "failed"
+    assert any("Apache-2.0 license" in error for error in report["errors"])

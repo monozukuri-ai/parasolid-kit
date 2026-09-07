@@ -4,11 +4,11 @@ build-backend = "maturin"
 
 [project]
 name = "parasolid-kit"
-version = "0.1.0.dev5"
+version = "0.1.0.dev6"
 description = "Schema-aware Python parser for Parasolid X_T and X_B data"
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "MIT AND Apache-2.0"
+license-files = ["LICENSE", "LICENSES/*.txt"]
 requires-python = ">=3.10"
 dependencies = []
 classifiers = [

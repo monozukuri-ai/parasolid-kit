@@ -21,10 +21,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "parasolid-kit"
 IMPORT_NAME = "parasolid_kit"
-VERSION = "0.1.0.dev5"
-LICENSE_EXPRESSION = "MIT"
+VERSION = "0.1.0.dev6"
+LICENSE_EXPRESSION = "MIT AND Apache-2.0"
 RUST_PACKAGE_NAME = "parasolid-python"
-RUST_PACKAGE_VERSION = "0.1.0-dev5"
+RUST_PACKAGE_VERSION = "0.1.0-dev6"
 RUST_SBOM_FILENAME = f"{RUST_PACKAGE_NAME}.cyclonedx.json"
 APPROVED_EXTRAS = frozenset({"cadquery", "occt"})
 APPROVED_EXTRA_REQUIREMENTS = {
@@ -37,6 +37,9 @@ MACOS_INTEL_NUMBA_MARKERS = frozenset(
 )
 EXPECTED_LICENSE_BYTES = (ROOT / "LICENSE").read_bytes()
 EXPECTED_LICENSE_SHA256 = hashlib.sha256(EXPECTED_LICENSE_BYTES).hexdigest()
+APACHE_LICENSE_PATH = "LICENSES/Apache-2.0.txt"
+EXPECTED_APACHE_LICENSE_BYTES = (ROOT / APACHE_LICENSE_PATH).read_bytes()
+EXPECTED_APACHE_LICENSE_SHA256 = hashlib.sha256(EXPECTED_APACHE_LICENSE_BYTES).hexdigest()
 VIEWER_ASSET_VERSION = "1.0.0"
 VIEWER_ASSET_LICENSE = "MIT"
 VIEWER_ASSET_MARKER = b'content="1.0.0; license=MIT"'
@@ -80,6 +83,7 @@ SDIST_ROOT_FILES = {
     "uv.lock",
 }
 SDIST_ROOT_DIRECTORIES = {
+    "LICENSES",
     "corpus",
     "crates",
     "docs",
@@ -100,6 +104,14 @@ SDIST_SCRIPT_FILES = frozenset(
         "scripts/verify_optional_interop_i6.py",
         "scripts/verify_optional_interop_i7.py",
     }
+)
+PARTIAL_SOURCE_FILES = (
+    "crates/parasolid-core/PARTIAL_READERS.md",
+    "crates/parasolid-core/LICENSE-APACHE-2.0",
+    *(
+        str(path.relative_to(ROOT))
+        for path in sorted((ROOT / "crates/parasolid-core/src/partial").rglob("*.rs"))
+    ),
 )
 BUILTIN_SOURCE_FILES = (
     "crates/parasolid-core/src/schema/profiles/sch13006.rs",
@@ -124,7 +136,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument(
         "--require-license",
         action="store_true",
-        help="require MIT metadata and the matching installed/source license file",
+        help="require declared license metadata and the matching installed/source license file",
     )
     return parser.parse_args()
 
@@ -325,6 +337,8 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
     metadata_license_file = False
     license_file = False
     license_file_sha256: str | None = None
+    apache_license_sha256: str | None = None
+    metadata_apache_license = False
     rust_sbom = False
     provides_extra: list[str] = []
     requires_dist: list[str] = []
@@ -362,6 +376,8 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
                         errors.append(f"unexpected package file in wheel: {name}")
                 elif top.startswith(f"{IMPORT_NAME}-") and top.endswith(".dist-info"):
                     dist_info_relative = pure_path.parts[1:]
+                    if dist_info_relative == ("licenses", "LICENSES", "Apache-2.0.txt"):
+                        apache_license_sha256 = hashlib.sha256(archive.read(name)).hexdigest()
                     if dist_info_relative == ("licenses", "LICENSE"):
                         license_file = True
                         license_file_sha256 = hashlib.sha256(archive.read(name)).hexdigest()
@@ -415,6 +431,9 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
                 )
                 license_expression = _license_expression(metadata)
                 metadata_license_file = "LICENSE" in metadata.get_all("License-File", [])
+                metadata_apache_license = APACHE_LICENSE_PATH in metadata.get_all(
+                    "License-File", []
+                )
 
             entry_point_names = [
                 name for name in names if name.endswith(".dist-info/entry_points.txt")
@@ -447,6 +466,10 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
         errors.append(f"cannot read wheel: {error}")
 
     if require_license:
+        if not metadata_apache_license:
+            errors.append("wheel metadata does not declare License-File: " + APACHE_LICENSE_PATH)
+        if apache_license_sha256 != EXPECTED_APACHE_LICENSE_SHA256:
+            errors.append("wheel Apache-2.0 license is missing or differs from the repository")
         if license_expression != LICENSE_EXPRESSION:
             errors.append(
                 f"wheel License-Expression must be {LICENSE_EXPRESSION}, got {license_expression!r}"
@@ -464,6 +487,7 @@ def verify_wheel(path: Path, *, require_license: bool = False) -> dict[str, obje
         "metadata_license_file": metadata_license_file,
         "license_file": license_file,
         "license_file_sha256": license_file_sha256,
+        "apache_license_sha256": apache_license_sha256,
         "rust_sbom": rust_sbom,
         "provides_extra": provides_extra,
         "requires_dist": requires_dist,
@@ -533,6 +557,8 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
     metadata_license_file = False
     license_file = False
     license_file_sha256: str | None = None
+    apache_license_sha256: str | None = None
+    metadata_apache_license = False
     provides_extra: list[str] = []
     requires_dist: list[str] = []
     viewer_assets: set[str] = set()
@@ -668,6 +694,8 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "tests/test_preview.py",
         "tests/test_step_export.py",
     }
+    required.update(PARTIAL_SOURCE_FILES)
+    required.add(APACHE_LICENSE_PATH)
     for missing in sorted(required - file_names):
         errors.append(f"required sdist file is missing: {missing}")
     for missing in sorted(set(VIEWER_ASSET_SHA256) - viewer_assets):
@@ -679,11 +707,15 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
             metadata = BytesParser().parsebytes(pkg_info)
             license_expression = _license_expression(metadata)
             metadata_license_file = "LICENSE" in metadata.get_all("License-File", [])
+            metadata_apache_license = APACHE_LICENSE_PATH in metadata.get_all("License-File", [])
             provides_extra, requires_dist = _verify_dependency_metadata(
                 metadata,
                 artifact="sdist",
                 errors=errors,
             )
+        apache_bytes = _read_sdist_file(path, APACHE_LICENSE_PATH)
+        if apache_bytes is not None:
+            apache_license_sha256 = hashlib.sha256(apache_bytes).hexdigest()
         license_bytes = _read_sdist_file(path, "LICENSE")
         if license_bytes is not None:
             license_file_sha256 = hashlib.sha256(license_bytes).hexdigest()
@@ -693,7 +725,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
     # Wire hash correctness is tested in Rust. This checks that the reviewed
     # definition/selection/role sources and provenance doc actually ship intact.
     builtin_sources = {}
-    for relative in BUILTIN_SOURCE_FILES:
+    for relative in (*BUILTIN_SOURCE_FILES, *PARTIAL_SOURCE_FILES):
         payload = _read_sdist_file(path, relative) if relative in file_names else None
         if payload is not None:
             builtin_sources[relative] = hashlib.sha256(payload).hexdigest()
@@ -703,6 +735,10 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
                 )
 
     if require_license:
+        if not metadata_apache_license:
+            errors.append("sdist metadata does not declare License-File: " + APACHE_LICENSE_PATH)
+        if apache_license_sha256 != EXPECTED_APACHE_LICENSE_SHA256:
+            errors.append("sdist Apache-2.0 license is missing or differs from the repository")
         if license_expression != LICENSE_EXPRESSION:
             errors.append(
                 f"sdist License-Expression must be {LICENSE_EXPRESSION}, got {license_expression!r}"
@@ -721,6 +757,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "metadata_license_file": metadata_license_file,
         "license_file": license_file,
         "license_file_sha256": license_file_sha256,
+        "apache_license_sha256": apache_license_sha256,
         "provides_extra": provides_extra,
         "requires_dist": requires_dist,
         "viewer_asset_version": VIEWER_ASSET_VERSION,

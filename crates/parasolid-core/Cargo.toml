@@ -10,7 +10,7 @@ readme = "README.md"
 documentation = "https://docs.rs/parasolid-core"
 keywords = ["cad", "parasolid", "parser", "brep", "geometry"]
 categories = ["parser-implementations", "graphics"]
-include = ["Cargo.toml", "LICENSE", "README.md", "src/**", "tests/**"]
+include = ["Cargo.toml", "LICENSE", "LICENSE-APACHE-2.0", "PARTIAL_READERS.md", "README.md", "src/**", "tests/**"]
 
 [lib]
 name = "parasolid_core"

@@ -50,7 +50,7 @@ The `--pre` option is required while only development releases are available.
 To install the current release by exact version instead:
 
 ```bash
-python -m pip install "parasolid-kit==0.1.0.dev5"
+python -m pip install "parasolid-kit==0.1.0.dev6"
 ```
 
 Stable releases, once available, can be installed without `--pre`:
@@ -62,7 +62,7 @@ python -m pip install parasolid-kit
 Alternatively, install a downloaded wheel directly:
 
 ```bash
-python -m pip install /path/to/parasolid_kit-0.1.0.dev5-cp310-abi3-PLATFORM.whl
+python -m pip install /path/to/parasolid_kit-0.1.0.dev6-cp310-abi3-PLATFORM.whl
 ```
 
 Header inspection works immediately after installation. Complete parsing and
@@ -397,4 +397,7 @@ not bundle Siemens schema data or proprietary CAD files.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+The original implementation is under the [MIT License](LICENSE). Partial transmit
+readers adopted from cadmpeg/sldkit are under [Apache-2.0](LICENSES/Apache-2.0.txt);
+the combined distribution declares `MIT AND Apache-2.0`. See the
+[reader provenance](crates/parasolid-core/PARTIAL_READERS.md).
