@@ -6,7 +6,11 @@ rust-version.workspace = true
 description.workspace = true
 license.workspace = true
 repository.workspace = true
-publish = false
+readme = "README.md"
+documentation = "https://docs.rs/parasolid-core"
+keywords = ["cad", "parasolid", "parser", "brep", "geometry"]
+categories = ["parser-implementations", "graphics"]
+include = ["Cargo.toml", "LICENSE", "README.md", "src/**", "tests/**"]
 
 [lib]
 name = "parasolid_core"

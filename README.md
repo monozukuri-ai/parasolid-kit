@@ -1,5 +1,9 @@
 # parasolid-kit
 
+The Python-independent Rust parser is also available as
+[`parasolid-core`](https://crates.io/crates/parasolid-core). See its
+[Rust API and input limitations](crates/parasolid-core/README.md).
+
 `parasolid-kit` is an experimental, schema-aware parser for Parasolid X_T and
 X_B transmit files. Parsing and geometry mapping run in a safe Rust core, while
 Python users work with immutable typed models.
