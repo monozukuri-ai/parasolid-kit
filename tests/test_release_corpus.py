@@ -88,7 +88,7 @@ def rust_reply(corpus: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
 
     def run(command, timeout):
         if command[0] == str(probe):
-            result = replies[str(Path(command[1]).relative_to(corpus))]
+            result = replies[Path(command[1]).relative_to(corpus).as_posix()]
             return (0 if result["status"] == "parsed" else 1), copy.deepcopy(result)
         return original(command, timeout)
 

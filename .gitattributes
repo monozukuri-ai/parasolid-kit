@@ -2,3 +2,8 @@
 /src/parasolid_kit/interop/preview/static/*.html text eol=lf
 /src/parasolid_kit/interop/preview/static/*.css text eol=lf
 /src/parasolid_kit/interop/preview/static/*.js text eol=lf
+
+# Release baselines and synthetic wire bytes are hash-pinned on every platform.
+/corpus/expected/**/*.json text eol=lf
+/corpus/generated/synthetic/**/*.x_t -text
+/corpus/generated/synthetic/**/*.x_b -text

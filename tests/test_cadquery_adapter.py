@@ -47,9 +47,15 @@ def test_missing_cadquery_profile_is_reported_before_occt_conversion(
     with pytest.raises(InteropDependencyError) as captured:
         to_cadquery(make_box_model(), source_unit="mm")
 
-    assert captured.value.diagnostic.code == "interop.missing_dependency"
+    expected_code = (
+        "interop.unsupported_platform" if sys.platform == "win32" else "interop.missing_dependency"
+    )
+    assert captured.value.diagnostic.code == expected_code
     assert captured.value.diagnostic.details["required_extra"] == "cadquery"
-    assert captured.value.diagnostic.details["minimum_python"] == "3.11"
+    if sys.platform == "win32":
+        assert captured.value.diagnostic.details["alternative_extra"] == "occt"
+    else:
+        assert captured.value.diagnostic.details["minimum_python"] == "3.11"
     imported_after = {
         name
         for name in sys.modules
