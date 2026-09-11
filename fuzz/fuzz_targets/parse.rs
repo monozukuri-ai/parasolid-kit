@@ -3,7 +3,9 @@
 use libfuzzer_sys::fuzz_target;
 use parasolid_core::{
     BuiltinProfileRegistry, DocumentLimits, InMemorySchemaProvider, InspectionLimits, SchemaKey,
-    SchemaSource, TypeDefinition, inspect_xb, inspect_xt, parse_xb, parse_xt,
+    SchemaSource, TypeDefinition,
+    brep::{map_xb_brep_with_diagnostic_limit, map_xt_brep_with_diagnostic_limit},
+    inspect_xb, inspect_xt, parse_xb, parse_xt,
 };
 
 const INSPECTION_LIMITS: InspectionLimits = InspectionLimits {
@@ -65,7 +67,9 @@ fuzz_target!(|data: &[u8]| {
         if let Ok(registry) = BuiltinProfileRegistry::compiled()
             && let Some(builtin) = registry.provider_for_key(&key)
         {
-            let _ = parse_xb(data, &builtin, DOCUMENT_LIMITS);
+            if let Ok(document) = parse_xb(data, &builtin, DOCUMENT_LIMITS) {
+                let _ = map_xb_brep_with_diagnostic_limit(&document, 256);
+            }
         } else if let Some(provider) = provider(&header.schema_key) {
             let _ = parse_xb(data, &provider, DOCUMENT_LIMITS);
         }
@@ -76,7 +80,9 @@ fuzz_target!(|data: &[u8]| {
         if let Ok(registry) = BuiltinProfileRegistry::compiled()
             && let Some(builtin) = registry.provider_for_key(&key)
         {
-            let _ = parse_xt(data, &builtin, DOCUMENT_LIMITS);
+            if let Ok(document) = parse_xt(data, &builtin, DOCUMENT_LIMITS) {
+                let _ = map_xt_brep_with_diagnostic_limit(&document, 256);
+            }
         } else if let Some(provider) = provider(&header.schema_key) {
             let _ = parse_xt(data, &provider, DOCUMENT_LIMITS);
         }

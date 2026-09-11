@@ -1346,7 +1346,7 @@ wheels = [
 
 [[package]]
 name = "parasolid-kit"
-version = "0.1.0.dev6"
+version = "0.1.0rc1"
 source = { editable = "." }
 
 [package.optional-dependencies]

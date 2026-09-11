@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "synthetic-values-x_t",
+      "bytes": 110,
+      "usage": "regression",
+      "stream_role": "synthetic",
+      "saved_state": "deterministic fixture-v1, no CAD producer state",
+      "stage": "raw",
+      "profile": {
+        "kind": "builtin",
+        "profile_id": "onshape-sch30000-r2",
+        "profile_revision": 2,
+        "schema_key": "SCH_3000000_30000",
+        "coverage": "verified_subset",
+        "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f"
+      },
+      "baseline": {
+        "path": "expected/release-v1/values.x_t.json",
+        "sha256": "da99d5fd0a15ffddfbcb6a7f17f8ca5b70a5aa14c29020655808c6f0ff5719c3",
+        "bytes": 5344
+      },
+      "diagnostic": null,
+      "oracle": null,
+      "pair_id": "synthetic-values-x_b"
+    },
+    {
+      "id": "synthetic-values-x_b",
+      "bytes": 114,
+      "usage": "regression",
+      "stream_role": "synthetic",
+      "saved_state": "deterministic fixture-v1, no CAD producer state",
+      "stage": "raw",
+      "profile": {
+        "kind": "builtin",
+        "profile_id": "onshape-sch30000-r2",
+        "profile_revision": 2,
+        "schema_key": "SCH_3000000_30000",
+        "coverage": "verified_subset",
+        "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f"
+      },
+      "baseline": {
+        "path": "expected/release-v1/values.x_b.json",
+        "sha256": "ef54bda00592fa1483da90d50e6a07a8b7674870a9019acadc18f59eec5820d8",
+        "bytes": 5381
+      },
+      "diagnostic": null,
+      "oracle": null,
+      "pair_id": "synthetic-values-x_t"
+    },
+    {
+      "id": "synthetic-unknown-x_b",
+      "bytes": 94,
+      "usage": "regression",
+      "stream_role": "synthetic",
+      "saved_state": "deterministic fixture-v1, no CAD producer state",
+      "stage": "diagnostic",
+      "profile": null,
+      "baseline": null,
+      "diagnostic": {
+        "code": "schema.missing_base_schema",
+        "offset": 84
+      },
+      "oracle": null
+    }
+  ]
+}

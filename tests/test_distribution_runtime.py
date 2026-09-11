@@ -7,7 +7,15 @@ import sys
 
 import pytest
 
-from parasolid_kit import ParseError, ParseLimits, compare_documents, parse_xb, parse_xt
+from parasolid_kit import (
+    LimitExceededError,
+    ParseError,
+    ParseLimits,
+    compare_documents,
+    map_brep,
+    parse_xb,
+    parse_xt,
+)
 from scripts.prepare_fuzz_corpus import build_seeds
 from scripts.verify_isolated_install import RUNTIME_GUARD_CODE
 
@@ -21,6 +29,9 @@ from scripts.verify_isolated_install import RUNTIME_GUARD_CODE
         "base-integers",
         "embedded-unchanged",
         "embedded-copy",
+        "embedded-insert-delete-append",
+        "solidworks-world",
+        "solidworks-cone",
         "base-cone",
         "embedded-cone",
         "base-intersection",
@@ -41,6 +52,79 @@ def test_fuzz_seeds_reach_builtin_field_readers(name):
         assert [v.value for v in text.nodes[0].fields[0].values] == [7, None]
     if name == "unicode":
         assert [v.value for v in text.nodes[0].fields[0].values] == [0x6587, 0xD83D, 0xDE00]
+    if name == "embedded-insert-delete-append":
+        assert [field.definition.name for field in text.nodes[0].fields] == ["flag", "value"]
+        assert [field.values[0].value for field in text.nodes[0].fields] == [7, 0.125]
+
+
+@pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])
+@pytest.mark.parametrize("profile", ["v30", "v13", "icad", "solidworks"])
+def test_fuzz_seeds_reach_brep_topology_for_every_compiled_profile(encoding, parse, profile):
+    document = parse(build_seeds()[f"brep-{profile}-{encoding}"])
+    model = map_brep(document, limits=ParseLimits(max_diagnostics=256))
+    assert model.complete
+    assert (len(model.bodies), len(model.regions), len(model.shells)) == (1, 1, 1)
+
+
+@pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])
+@pytest.mark.parametrize("name", ["base-cone", "embedded-cone", "solidworks-cone", "base-trimmed"])
+def test_fuzz_seeds_reach_brep_geometry_readers(encoding, parse, name):
+    model = map_brep(parse(build_seeds()[f"brep-{name}-{encoding}"]))
+    assert model.complete
+    assert len(model.curves) == (2 if name == "base-trimmed" else 0)
+    assert len(model.surfaces) == (0 if name == "base-trimmed" else 1)
+
+
+@pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])
+def test_fuzz_reference_cycle_reaches_semantic_rejection(encoding, parse):
+    document = parse(build_seeds()[f"reference-cycle-{encoding}"])
+    with pytest.raises(ParseError) as captured:
+        map_brep(document)
+    assert captured.value.diagnostic.code == "topology.invalid_relationship"
+    assert "cycle" in str(captured.value)
+
+
+@pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])
+@pytest.mark.parametrize("node_type", [3, 4])
+def test_fuzz_solidworks_delta_membership_fails_closed(encoding, parse, node_type):
+    with pytest.raises(ParseError) as captured:
+        parse(build_seeds()[f"solidworks-unknown-{node_type}-{encoding}"])
+    assert captured.value.diagnostic.code == "schema.unknown_base_type"
+
+
+@pytest.mark.parametrize("name", [name for name in build_seeds() if name.startswith("truncated-")])
+def test_fuzz_invalid_wire_seeds_are_rejected(name):
+    parse = parse_xt if name.endswith("text") else parse_xb
+    with pytest.raises(ParseError):
+        parse(build_seeds()[name])
+
+
+@pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])
+@pytest.mark.parametrize("name", ["nan", "infinity"])
+def test_fuzz_nonfinite_values_reach_semantic_rejection(encoding, parse, name):
+    document = parse(build_seeds()[f"{name}-{encoding}"])
+    with pytest.raises(ParseError) as captured:
+        map_brep(document)
+    assert captured.value.diagnostic.code == "geometry.invalid_parameter"
+
+
+@pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])
+@pytest.mark.parametrize(
+    "field,limit,resource",
+    [
+        ("max_schema_types", 1, "schema_types"),
+        ("max_string_bytes", 8, "string_bytes"),
+        ("max_file_size", 1, "file_size"),
+    ],
+)
+def test_fuzz_inputs_respect_schema_string_and_file_limits(encoding, parse, field, limit, resource):
+    with pytest.raises((ParseError, LimitExceededError)) as captured:
+        parse(build_seeds()[f"brep-v30-{encoding}"], limits=ParseLimits(**{field: limit}))
+    assert captured.value.diagnostic.code == "limits.exceeded"
+    expected_resource = (
+        "modeller_version" if field == "max_string_bytes" and encoding == "text" else resource
+    )
+    assert captured.value.diagnostic.details["resource"] == expected_resource
 
 
 @pytest.mark.parametrize("encoding,parse", [("text", parse_xt), ("binary", parse_xb)])

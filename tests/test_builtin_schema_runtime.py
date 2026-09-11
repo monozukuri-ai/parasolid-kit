@@ -247,6 +247,8 @@ def test_profile_provenance_documentation_matches_runtime():
     document = (root / "docs/builtin-profiles.md").read_text()
     metadata = json.loads(re.search(r"```json\n(.*?)\n```", document, re.DOTALL).group(1))
     assert parse_xt(payload("x_t")).schema_resolution.to_dict() == metadata
-    for name in ("README.md", "docs/api.md", "docs/format-support.md"):
+    support = (root / "docs/format-support.md").read_text()
+    assert KEY in support and "verified_subset" in support
+    for name in ("README.md", "docs/api.md"):
         text = (root / name).read_text()
-        assert KEY in text and "verified_subset" in text
+        assert "format-support.md#supported-profiles" in text and "verified_subset" in text

@@ -7,7 +7,7 @@ Parasolid-native B-Rep model. This crate is part of
 
 ```toml
 [dependencies]
-parasolid-core = "=0.1.0-dev6"
+parasolid-core = "=0.1.0-rc.1"
 ```
 
 Inspect a header without claiming that the geometry is supported:
@@ -42,14 +42,19 @@ println!("{} bodies; complete={}", brep.bodies.len(), brep.complete);
 # }
 ```
 
-The compiled profiles are verified subsets for `SCH_3000000_30000`,
-`SCH_1300000_13006`, `SCH_3000310_30000_13006`, and `SolidWorks` partition key
-`SCH_3701229_37102_13006`. A supported header, schema key,
-or raw record does not imply complete geometric support. An explicit
+The four compiled profiles are listed in the
+[shared support matrix](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/format-support.md#supported-profiles),
+with exact keys, revisions, hashes, and separate raw/B-Rep/geometry evidence.
+A supported header, schema key, or raw record does not imply complete
+geometric support. An explicit
 `SchemaProvider` can supply an exact external catalog; no nearby-version
 fallback is performed. `SolidWorks` containers and configuration selection belong
 to the caller. `SolidWorks` deltas are unsupported even when their header uses
 the same supported partition key; no final saved configuration is reconstructed.
+`BrepModel.complete` describes source mapping for that document. It does not
+certify interpreted attributes, numerical geometry evaluation, available curved
+metrics, or optional conversion. The planned iCAD container adapter has not
+been created; its current evidence consists of extracted stream inputs.
 
 Lengths and identifiers retain their Parasolid source meaning. Byte ranges are
 relative to the complete byte slice supplied to the parser. Embedding applications
@@ -57,7 +62,11 @@ must track container/decompression offsets and any unit or public-ID conversion.
 `write_xb` returns the retained original bytes, not an encoder for edited values.
 
 The parser requires Rust 1.88 or newer and has no runtime dependencies, Python,
-CAD installation, or network requirement. OCCT, STEP export, and preview adapters
+CAD installation, or network requirement. Built-in runtime, build and installation
+require no external catalog. Development-only catalog comparisons and type-204
+membership evidence remain described in the profile provenance; no catalog
+field layouts are generated into the built-in definitions by those comparisons.
+OCCT, STEP export, and preview adapters
 are separate optional Python functionality in parasolid-kit. See the repository's
 [format support](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/format-support.md)
 and [profile provenance](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/builtin-profiles.md)
@@ -65,6 +74,27 @@ for the verified boundaries.
 
 Real CAD fixtures and external schema catalogs are not included in this crate.
 See the license and partial-reader provenance below.
+
+Maintainer sanitizer and measurement procedures, including the distinction
+between parser and caller resource bounds, are documented in
+[resource validation](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/resource-validation.md).
+
+## Rust API compatibility
+
+Starting with the first stable `0.1.0` release, patch releases in the `0.1.x`
+series will preserve source compatibility for documented public Rust APIs,
+including the public document/B-Rep models and `partial` reader types. Breaking
+changes require a new minor series. Prereleases such as `0.1.0-dev6` remain
+development releases; this policy does not retroactively make them stable.
+
+Compatibility includes source units, IDs, byte-range origins and the distinction
+between strict document parsing and bounded partial recovery described above and
+in [PARTIAL_READERS.md](PARTIAL_READERS.md). Fixing acceptance of invalid input or
+incorrectly interpreted values is allowed; such changes must be documented and
+covered by regression tests. New profiles or recovered carriers may change
+results, diagnostics and coverage, so callers must inspect the reported support
+and completeness rather than assume a fixed count or treat partial recovery as
+full decoding. Human-readable diagnostic text is not a stable matching key.
 
 ## Releasing
 

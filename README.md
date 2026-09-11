@@ -8,7 +8,7 @@ The Python-independent Rust parser is also available as
 X_B transmit files. Parsing and geometry mapping run in a safe Rust core, while
 Python users work with immutable typed models.
 
-The project is read-focused and currently pre-alpha. It is intended for file
+The project is read-focused and preparing its first stable release. It is intended for file
 inspection, validation, research, and conversion pipelines where preserving
 the transmitted structure matters more than silently approximating unsupported
 data.
@@ -16,8 +16,9 @@ data.
 ## Features
 
 - Inspect X_T and X_B headers without a schema catalog.
-- Parse the verified Onshape V30 subset without an external schema file.
-- Use an explicit schema provider for inputs outside the built-in profile.
+- Parse the verified Onshape V30/V13, extracted iCAD, and SolidWorks partition
+  subsets without an external schema file.
+- Use an explicit schema provider for inputs outside the built-in profiles.
 - Reconstruct an unmodified parsed X_B document byte-for-byte.
 - Compare X_T and X_B documents after pointer-index remapping.
 - Map supported topology, analytic geometry, and NURBS records to a typed B-Rep
@@ -35,7 +36,7 @@ data.
   deterministic JSON output where required.
 
 See [format support and limitations](docs/format-support.md) before relying on
-the parser for production data.
+the parser for production data. Maintainers use the [release gates](docs/releasing.md).
 
 ## Installation
 
@@ -46,11 +47,11 @@ Python 3.10 or newer is required. Install the current development release from
 python -m pip install --pre parasolid-kit
 ```
 
-The `--pre` option is required while only development releases are available.
+The `--pre` option includes development releases and release candidates.
 To install the current release by exact version instead:
 
 ```bash
-python -m pip install "parasolid-kit==0.1.0.dev6"
+python -m pip install "parasolid-kit==0.1.0rc1"
 ```
 
 Stable releases, once available, can be installed without `--pre`:
@@ -62,16 +63,17 @@ python -m pip install parasolid-kit
 Alternatively, install a downloaded wheel directly:
 
 ```bash
-python -m pip install /path/to/parasolid_kit-0.1.0.dev6-cp310-abi3-PLATFORM.whl
+python -m pip install /path/to/parasolid_kit-0.1.0rc1-cp310-abi3-PLATFORM.whl
 ```
 
-Header inspection works immediately after installation. Complete parsing and
-B-Rep checking also work without a schema file for the built-in
-`SCH_3000000_30000` profile (`verified_subset`): Onshape V30 text/neutral binary
-exports of single solid boxes, prisms, cylinders, through-holes, spheres, and
-verified solids with elliptical edges, with zero user fields. Other keys and uncovered types require an explicit provider; see
-[Schema catalogs](#schema-catalogs). STEP, CadQuery, and preview operations also
-require an optional runtime and geometry supported by that adapter.
+Header inspection works immediately after installation. Parsing and source
+B-Rep checking also work without a schema file for the four exact-key
+[supported profiles](docs/format-support.md#supported-profiles). Each covers a
+verified subset with zero user fields; the table distinguishes producer,
+encoding, geometry, and saved-state evidence. Native CAD containers are handled
+by their own adapters. Other keys and uncovered types require an explicit
+provider; see [Schema catalogs](#schema-catalogs). STEP, CadQuery, and preview
+operations require an optional runtime and geometry supported by that adapter.
 
 ### Optional interoperability profiles
 
@@ -216,21 +218,20 @@ python -m pip install .
 ## Schema catalogs
 
 When neither a provider nor a schema directory is supplied, default parsing
-selects one of these compiled profiles by the exact internal stream key:
-
-| Internal schema key | Built-in profile | Reviewed base layout |
-|---|---|---|
-| `SCH_3000000_30000` | `onshape-sch30000-r2` | Onshape V30, 24 types / 202 field groups |
-| `SCH_1300000_13006` | `onshape-sch13006-r6` | Onshape V13, 40 types / 327 field groups |
-| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` | 13006 base plus trimmed curve (133): 30 types / 240 groups; embedded edits and full type 204 |
-| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` | SolidWorks 2026 partitions: 41 types / 338 groups; deltas unsupported |
+selects a compiled profile by the exact internal stream key. The
+[shared support matrix](docs/format-support.md#supported-profiles) lists all
+four keys, profile revisions, definition hashes, and stage-specific evidence.
 
 The [SolidWorks partition profile](docs/solidworks-partitions.md) reads a
 partition's B-Rep. Associated delta streams remain unsupported, so a complete
 partition is not a reconstructed final SolidWorks configuration.
 
-All have `verified_subset` coverage and require zero user fields. They need no
-catalog, network, or CAD installation at runtime.
+All have `verified_subset` coverage and require zero user fields. Runtime,
+build, and installation need no external catalog or CAD installation; the
+parser does not access the network. Normal package/build dependencies are
+separate. Development catalog comparisons and the type-204 membership audit
+are documented in the
+[profile provenance](docs/builtin-profiles.md#sources-and-method).
 [Profile provenance and coverage](docs/builtin-profiles.md) records their sources,
 canonical hashes, and validation limits. The iCAD profile accepts extracted
 Parasolid streams; `.icd` container parsing remains outside this package.
@@ -330,7 +331,10 @@ APIs remain available when each stage must be controlled independently.
 `map_brep()` can return a valid but incomplete model when a well-formed geometry
 record has no typed mapping yet. Inspect `parsed.complete` and
 `parsed.brep.diagnostics` instead of assuming that every parsed record has been
-interpreted.
+interpreted. `complete` describes this stream's source B-Rep mapping, including
+for a SolidWorks partition. It does not certify geometry evaluation, adapter
+conversion, or a CAD container's saved configuration. See
+[result stages](docs/format-support.md#result-stages-and-caller-responsibilities).
 
 ## Command line
 
@@ -371,9 +375,13 @@ the artifacts without a server, `--overwrite` replaces an existing output,
 and non-loopback `--host` values require the separate `--allow-external`
 acknowledgement. Partial display is opt-in with `--allow-partial` and always
 shows a warning plus the missing-entity list. Exit
-status is `0` for a complete/exported result or equivalent documents, `1` for
-an incomplete B-Rep mapping or a valid comparison that found differences, and
+status is `0` when the requested stage succeeds (`inspect` validates a header
+and raw `parse` validates a node stream), `1` for
+an incomplete `check` result or a valid comparison that found differences, and
 `2` for input, schema, parse, conversion, or export errors.
+`parse --brep` can return `0` with `brep.complete=false`; use `check` when
+completeness must affect the exit code. An allowed partial preview also returns
+`0` if generation succeeds.
 `python -m parasolid_kit` provides the same interface.
 
 ## Documentation
@@ -389,6 +397,9 @@ an incomplete B-Rep mapping or a valid comparison that found differences, and
 assembly structures, occurrence transforms, visibility, or appearance. A
 format-specific adapter can extract a bounded X_T/X_B payload and pass it to
 this package without making the parser depend on that CAD product.
+The iCAD container adapter has not been created; current evidence uses
+locally extracted streams. sldkit already uses the shared Rust partial readers
+for SolidWorks, with configuration and incomplete-state handling in its adapter.
 
 The base package has no runtime dependency on a CAD product, geometry kernel,
 or OpenCascade binding. Optional profiles add an explicitly selected OCP or

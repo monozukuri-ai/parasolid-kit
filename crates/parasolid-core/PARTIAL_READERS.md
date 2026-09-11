@@ -8,6 +8,11 @@ This API recognizes known compact records; it is not a complete X_B parser.
 `parse_xb` and `brep::map_xb_brep` remain the schema-aware document path. Unknown
 base types 3/4 in the observed deltas are still unsupported there. Calling the
 partial API never upgrades that status or establishes final saved state.
+The document parser's exact-key profiles and processing stages are summarized
+in the [shared support matrix](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/format-support.md#supported-profiles).
+Embedded schema edits change field layouts; their implementation does not
+establish model-state delta application. sldkit supplies the native container,
+configuration selection and unit conversion around these shared readers.
 
 ## Contracts
 
@@ -22,6 +27,8 @@ partial API never upgrades that status or establishes final saved state.
   Length conversion belongs to the caller; knots, angles, directions, weights,
   and surface UV coordinates are not length-scaled. The neutral partial types
   describe standalone carriers, not the complete native B-Rep graph.
+  The strict document B-Rep instead retains source homogeneous NURBS
+  coefficients; adapters must account for this representation difference.
 - Sweep/spin, blend, offset, and subset readers expose known raw payloads.
   Intersection chart polylines are derived degree-one caches, not exact
   intersection definitions. Callers retain that distinction and may filter

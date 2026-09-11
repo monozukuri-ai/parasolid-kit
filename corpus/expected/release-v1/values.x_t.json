@@ -1,0 +1,219 @@
+{
+  "brep": null,
+  "document": {
+    "diagnostics": [],
+    "format": "text",
+    "header": {
+      "common_header_range": null,
+      "file_size": 110,
+      "flag": "T",
+      "header_range": {
+        "end": 77,
+        "length": 77,
+        "start": 0
+      },
+      "modeller_version": ": TRANSMIT FILE created by modeller version 3000000",
+      "schema_key": "SCH_3000000_30000",
+      "schema_max_type": null,
+      "text_stream_header_range": {
+        "end": 77,
+        "length": 77,
+        "start": 0
+      },
+      "user_field_size": 0
+    },
+    "nodes": [
+      {
+        "byte_range": {
+          "end": 98,
+          "length": 21,
+          "start": 77
+        },
+        "definition": {
+          "description": "Onshape V30 verified raw subset",
+          "fields": [
+            {
+              "element_count": 1,
+              "field_type": "d",
+              "name": "integers",
+              "pointer_class": 0,
+              "transmitted": true
+            }
+          ],
+          "name": "onshape_type_82",
+          "node_type": 82,
+          "source": "base",
+          "variable": true
+        },
+        "fields": [
+          {
+            "byte_range": {
+              "end": 98,
+              "length": 14,
+              "start": 84
+            },
+            "definition": {
+              "element_count": 1,
+              "field_type": "d",
+              "name": "integers",
+              "pointer_class": 0,
+              "transmitted": true
+            },
+            "values": [
+              {
+                "field_type": "d",
+                "value": 0
+              },
+              {
+                "field_type": "d",
+                "value": null
+              },
+              {
+                "field_type": "d",
+                "value": 2147483647
+              }
+            ]
+          }
+        ],
+        "first_schema": {
+          "byte_range": {
+            "end": 80,
+            "length": 0,
+            "start": 80
+          },
+          "definition": {
+            "description": "Onshape V30 verified raw subset",
+            "fields": [
+              {
+                "element_count": 1,
+                "field_type": "d",
+                "name": "integers",
+                "pointer_class": 0,
+                "transmitted": true
+              }
+            ],
+            "name": "onshape_type_82",
+            "node_type": 82,
+            "source": "base",
+            "variable": true
+          },
+          "edits": [],
+          "raw_schema_hex": ""
+        },
+        "index": 1,
+        "node_type": 82,
+        "type_name": "onshape_type_82",
+        "user_fields": [],
+        "variable_length": 3
+      },
+      {
+        "byte_range": {
+          "end": 106,
+          "length": 8,
+          "start": 98
+        },
+        "definition": {
+          "description": "Onshape V30 verified raw subset",
+          "fields": [
+            {
+              "element_count": 1,
+              "field_type": "d",
+              "name": "integers",
+              "pointer_class": 0,
+              "transmitted": true
+            }
+          ],
+          "name": "onshape_type_82",
+          "node_type": 82,
+          "source": "base",
+          "variable": true
+        },
+        "fields": [
+          {
+            "byte_range": {
+              "end": 106,
+              "length": 0,
+              "start": 106
+            },
+            "definition": {
+              "element_count": 1,
+              "field_type": "d",
+              "name": "integers",
+              "pointer_class": 0,
+              "transmitted": true
+            },
+            "values": []
+          }
+        ],
+        "first_schema": null,
+        "index": 91,
+        "node_type": 82,
+        "type_name": "onshape_type_82",
+        "user_fields": [],
+        "variable_length": 0
+      }
+    ],
+    "raw_byte_count": 110,
+    "schema_coverage": {
+      "base_count": 1,
+      "delta_count": 0,
+      "field_count": 1,
+      "full_count": 0,
+      "node_types": [
+        82
+      ],
+      "resolved_type_count": 1,
+      "unchanged_count": 0
+    },
+    "schema_key": {
+      "base": null,
+      "effective": "30000",
+      "modeller": "3000000",
+      "provider_schema": "30000",
+      "raw": "SCH_3000000_30000"
+    },
+    "schema_resolution": {
+      "coverage": "verified_subset",
+      "kind": "builtin",
+      "profile_id": "onshape-sch30000-r2",
+      "profile_revision": 2,
+      "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f",
+      "schema_key": "SCH_3000000_30000"
+    },
+    "schemas": [
+      {
+        "byte_range": {
+          "end": 80,
+          "length": 0,
+          "start": 80
+        },
+        "definition": {
+          "description": "Onshape V30 verified raw subset",
+          "fields": [
+            {
+              "element_count": 1,
+              "field_type": "d",
+              "name": "integers",
+              "pointer_class": 0,
+              "transmitted": true
+            }
+          ],
+          "name": "onshape_type_82",
+          "node_type": 82,
+          "source": "base",
+          "variable": true
+        },
+        "edits": [],
+        "raw_schema_hex": ""
+      }
+    ],
+    "terminator": {
+      "byte_range": {
+        "end": 110,
+        "length": 4,
+        "start": 106
+      },
+      "index": 0
+    }
+  }
+}

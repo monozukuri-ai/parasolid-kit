@@ -1,14 +1,18 @@
 name: release
 
 on:
+  push:
+    branches: ["release/**"]
+  workflow_dispatch:
   release:
     types: [published]
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  group: release-${{ github.event.release.tag_name }}
+  group: release-${{ github.event.release.tag_name || github.ref }}
   cancel-in-progress: false
 
 env:
@@ -20,39 +24,40 @@ defaults:
 
 jobs:
   prepare:
-    name: Verify release metadata
+    name: Verify candidate source and release receipt
     runs-on: ubuntu-24.04
+    outputs:
+      candidate_run_id: ${{ steps.verify.outputs.candidate_run_id }}
     steps:
-      - name: Check out release tag
+      - name: Check out exact candidate commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Verify tag matches package version
+      - name: Verify versions and the private verification receipt
+        id: verify
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          python - <<'PY'
-          import os
-          import pathlib
-          import tomllib
+          if [[ -n "$RELEASE_TAG" ]]; then
+            gh release download "$RELEASE_TAG" --pattern release-verification.json --dir receipt
+            python scripts/verify_release.py --tag "$RELEASE_TAG" \
+              --receipt receipt/release-verification.json --github-output "$GITHUB_OUTPUT"
+          else
+            python scripts/verify_release.py --github-output "$GITHUB_OUTPUT"
+          fi
 
-          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))
-          version = project["project"]["version"]
-          expected_tag = f"v{version}"
-          actual_tag = os.environ["RELEASE_TAG"]
-          if actual_tag != expected_tag:
-              raise SystemExit(
-                  f"release tag {actual_tag!r} does not match project version; "
-                  f"expected {expected_tag!r}"
-              )
-          print(f"release tag {actual_tag!r} matches project version {version!r}")
-          PY
+  quality:
+    if: github.event_name != 'release'
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
 
   build:
     name: Build ${{ matrix.platform }}
-    needs: prepare
+    if: github.event_name != 'release'
+    needs: [prepare, quality]
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +91,7 @@ jobs:
       - name: Check out release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Install uv
@@ -174,25 +179,67 @@ jobs:
           name: ${{ matrix.artifact }}
           path: dist/*
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
+
+  core:
+    name: Package Rust core
+    if: github.event_name != 'release'
+    needs: [prepare, quality]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: 1.88.0
+      - name: Build and test distributable core
+        run: |
+          cargo package -p parasolid-core --locked
+          cargo test --locked --manifest-path target/package/parasolid-core-*/Cargo.toml
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-core
+          path: target/package/*.crate
+          if-no-files-found: error
+          retention-days: 30
 
   publish:
-    name: Publish to PyPI
-    needs: build
+    name: Publish privately verified candidate to PyPI
+    if: github.event_name == 'release'
+    needs: prepare
     runs-on: ubuntu-24.04
     environment:
       name: pypi
       url: https://pypi.org/p/parasolid-kit
     permissions:
+      contents: read
+      actions: read
       id-token: write
     steps:
-      - name: Download verified artifacts
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download exact candidate artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          run-id: ${{ needs.prepare.outputs.candidate_run_id }}
+          github-token: ${{ github.token }}
           pattern: release-*
-          path: dist
+          path: candidate
           merge-multiple: true
-
+      - name: Recheck private receipt, artifact hashes and published core
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release download "$RELEASE_TAG" --pattern release-verification.json --dir receipt
+          python scripts/verify_release.py --tag "$RELEASE_TAG" \
+            --receipt receipt/release-verification.json --artifacts candidate --require-core-published
+          mkdir dist
+          cp candidate/*.whl candidate/*.tar.gz dist/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:

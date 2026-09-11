@@ -11,11 +11,11 @@ from parasolid_kit import (
     Diagnostic,
     DiagnosticKind,
     DiagnosticSeverity,
-    ParasolidError,
     ParseLimits,
     interop,
 )
 from parasolid_kit.interop import dependency
+from tests.support.import_contract import assert_dependency_free_imports
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,16 +39,20 @@ def test_i2_optional_profiles_are_exact_and_mutually_exclusive() -> None:
 
 
 def test_interop_import_is_dependency_free_and_exports_the_i2_contract() -> None:
-    assert "OCP" not in sys.modules
-    assert "cadquery" not in sys.modules
-    assert callable(interop.require_occt)
-    assert callable(interop.require_cadquery)
-    assert issubclass(interop.InteropDependencyError, interop.InteropError)
-    assert issubclass(interop.InteropError, ParasolidError)
-    assert issubclass(interop.OcctConversionError, interop.InteropError)
-    assert issubclass(interop.CadQueryConversionError, interop.InteropError)
-    assert issubclass(interop.StepExportError, interop.InteropError)
-    assert issubclass(interop.PreviewError, interop.InteropError)
+    assert_dependency_free_imports(
+        """
+        from parasolid_kit import ParasolidError, interop
+
+        assert callable(interop.require_occt)
+        assert callable(interop.require_cadquery)
+        assert issubclass(interop.InteropDependencyError, interop.InteropError)
+        assert issubclass(interop.InteropError, ParasolidError)
+        assert issubclass(interop.OcctConversionError, interop.InteropError)
+        assert issubclass(interop.CadQueryConversionError, interop.InteropError)
+        assert issubclass(interop.StepExportError, interop.InteropError)
+        assert issubclass(interop.PreviewError, interop.InteropError)
+        """
+    )
 
 
 def test_missing_occt_profile_has_an_actionable_structured_error(
