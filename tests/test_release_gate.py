@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("tomllib", reason="maintainer release tooling requires Python 3.11+")
+
 from scripts.verify_release import (
     GATES,
     REPOSITORY,

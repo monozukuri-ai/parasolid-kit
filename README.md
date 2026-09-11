@@ -48,7 +48,7 @@ python -m pip install --pre parasolid-kit
 ```
 
 The `--pre` option includes development releases and release candidates.
-To install the current release by exact version instead:
+To install this release candidate by exact version after it is published:
 
 ```bash
 python -m pip install "parasolid-kit==0.1.0rc1"
