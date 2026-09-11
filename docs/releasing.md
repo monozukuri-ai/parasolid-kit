@@ -11,7 +11,8 @@ versions. A stable version requires a fresh candidate run and fresh evidence.
 1. Push a `release/*` branch. The `release` workflow runs the reusable CI at that
    commit: tests, lint, MSRV, public corpus, packaged core, sanitizer smoke and
    installation profiles. It then builds four wheels (Linux x86-64, Windows
-   x86-64, macOS Intel and Apple Silicon), an sdist and a core crate. Manual
+   x86-64, macOS Intel and Apple Silicon), an sdist and a core crate, and compares
+   all archives and license bytes together on one host. Manual
    dispatch on the same branch also builds candidates without publishing.
 2. Wait for the whole candidate workflow to succeed. Download its five
    `release-*` artifacts into one flat directory. Keep the run ID, attempt and

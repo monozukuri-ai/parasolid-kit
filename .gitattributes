@@ -7,3 +7,8 @@
 /corpus/expected/**/*.json text eol=lf
 /corpus/generated/synthetic/**/*.x_t -text
 /corpus/generated/synthetic/**/*.x_b -text
+
+# Compare distributed licenses byte-for-byte across all wheel platforms.
+/LICENSE text eol=lf
+/LICENSES/*.txt text eol=lf
+/crates/parasolid-core/LICENSE* text eol=lf
