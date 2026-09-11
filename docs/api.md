@@ -4,9 +4,10 @@
 private implementation module and must not be imported by applications. Public
 functions validate their arguments and return immutable typed values.
 
-The package is currently pre-alpha. The documented names and behaviors are the
-intended public boundary, but backward compatibility is not yet guaranteed
-between development releases.
+Starting with `0.1.0`, patch releases in the `0.1.x` series preserve the
+documented public Python API. Incompatible API changes require a new minor
+series. This guarantee does not apply retroactively to development releases.
+Use structured diagnostic codes for matching; human-readable messages may change.
 
 ## Inputs and schema selection
 

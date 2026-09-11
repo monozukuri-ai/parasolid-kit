@@ -98,12 +98,13 @@ full decoding. Human-readable diagnostic text is not a stable matching key.
 
 ## Releasing
 
-The Rust crate is published independently of Python artifacts. After updating
-the workspace version and verifying the package, maintainers can run
-`cargo publish -p parasolid-core --locked --dry-run`, followed by the same command
-without `--dry-run`. The manual **Rust core release** workflow runs these gates;
-its default is a dry run and upload requires `CARGO_REGISTRY_TOKEN` in repository
-secrets. Python release events do not republish an existing Rust version.
+The Rust crate is published independently of Python artifacts, using the same
+verified candidate commit. Follow the
+[release verification procedure](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/releasing.md).
+The manual **Rust core release** workflow requires a private verification receipt
+and checks the candidate artifact hashes. Its default is a dry run; uploading
+requires `CARGO_REGISTRY_TOKEN` in repository secrets. Python publication checks
+the published Rust checksum and reuses the verified Python artifacts.
 
 For existing embedded fragment integrations, `parasolid_core::partial` provides
 bounded topology, analytic/NURBS, and procedural-carrier readers in source units.
