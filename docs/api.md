@@ -4,9 +4,10 @@
 private implementation module and must not be imported by applications. Public
 functions validate their arguments and return immutable typed values.
 
-The package is currently pre-alpha. The documented names and behaviors are the
-intended public boundary, but backward compatibility is not yet guaranteed
-between development releases.
+Starting with `0.1.0`, patch releases in the `0.1.x` series preserve the
+documented public Python API. Incompatible API changes require a new minor
+series. This guarantee does not apply retroactively to development releases.
+Use structured diagnostic codes for matching; human-readable messages may change.
 
 ## Inputs and schema selection
 
@@ -16,21 +17,18 @@ object. Inspection validates only the header and must not be treated as proof
 that the node stream or geometry is valid.
 
 Complete parsing selects by the internal stream key. Omitting `schema_provider`
-(or passing `None`) selects a compiled profile for exactly one of these keys:
-
-| Key | Profile |
-|---|---|
-| `SCH_3000000_30000` | `onshape-sch30000-r2`, revision 2 |
-| `SCH_1300000_13006` | `onshape-sch13006-r6`, revision 6 |
-| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5`, revision 5 |
-| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1`, revision 1; partition only |
+(or passing `None`) selects a compiled profile from the
+[shared support matrix](format-support.md#supported-profiles). That table is
+the source for exact keys, revisions, hashes, and stage-specific evidence.
 
 The [SolidWorks profile](solidworks-partitions.md) does not apply delta streams
 or determine final configuration state. Unsupported delta records fail explicitly.
 
 Each has `verified_subset` coverage and requires zero user fields. The embedded
-profile supplies the reviewed 13006 base before applying stream edits. No runtime
-catalog or network is needed. See [profile provenance](builtin-profiles.md) for
+profiles supply the reviewed 13006 base before applying stream edits. Runtime,
+build, and installation require no external catalog; the parser does not use
+the network. Development-only catalog comparisons and membership evidence
+remain documented. See [profile provenance](builtin-profiles.md) for
 the separate producer, geometry, and encoding validation scopes.
 
 ```python
@@ -118,6 +116,14 @@ resolved-schema counts, B-Rep completeness, topology/geometry counts, body,
 curve and surface kinds, kernel-free metrics, and document/B-Rep diagnostics as
 separate lists. Bounding boxes, areas, and volumes remain in source transmit
 units; `unit_basis="source_transmit_units"` does not claim a physical unit.
+
+`ParsedBrep.complete`, `BrepSummary.complete`, and `BrepModel.complete` describe
+the same source-mapping stage. A complete model may still have unavailable
+curved metrics or unsupported OCCT conversion. It does not certify all
+attribute semantics, numerical curve/surface evaluation, applied SolidWorks
+deltas, or the final saved configuration. The
+[result-stage contract](format-support.md#result-stages-and-caller-responsibilities)
+also applies to raw parsing, comparisons, byte replay, and CLI success.
 
 `source_format="auto"` accepts only known `.x_b`/`.xb` and `.x_t`/`.xt`
 suffixes or known binary/text signatures. Use `source_format="x-b"` or
@@ -464,10 +470,13 @@ parasolid-kit view MODEL.x_t \
 
 `check` writes a compact human-readable report by default and uses human-readable
 errors; `--json` selects JSON stdout/stderr. Existing `inspect`, `parse`,
-`compare`, `export-step`, and `view` output remains JSON. Exit status is `0` for a
-complete/exported result or equivalent documents, `1` for an incomplete B-Rep
-mapping or a valid comparison that is different, and `2` for input, schema,
+`compare`, `export-step`, and `view` output remains JSON. Exit status is `0` when
+the requested stage succeeds, `1` for an incomplete `check` result or a valid
+comparison that is different, and `2` for input, schema,
 parse, mapping, conversion, or export errors.
+`parse --brep` returns `0` even for an explicitly incomplete mapped model;
+inspect `brep.complete` in its JSON or use `check` for a completeness exit code.
+`view --allow-partial` can also generate its requested partial output with `0`.
 Auto-detection accepts only known suffixes or signatures; ambiguous files
 require `--format x-b` or `--format x-t`. The schema directory is optional for
 the built-in subset. An explicit

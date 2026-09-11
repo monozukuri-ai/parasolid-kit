@@ -88,7 +88,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "parasolid-core"
-version = "0.1.0-dev6"
+version = "0.1.0"
 dependencies = [
  "serde_json",
  "sha2",
@@ -96,7 +96,7 @@ dependencies = [
 
 [[package]]
 name = "parasolid-python"
-version = "0.1.0-dev6"
+version = "0.1.0"
 dependencies = [
  "parasolid-core",
  "pyo3",

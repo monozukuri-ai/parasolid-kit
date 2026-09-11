@@ -30,7 +30,9 @@ profile = sys.argv[1]
 import parasolid_kit
 import parasolid_kit.interop as interop
 
-assert parasolid_kit.__version__ == "0.1.0.dev6"
+assert parasolid_kit.__version__ == "0.1.0"
+from parasolid_kit import _core
+assert _core.CORE_VERSION == "0.1.0"
 assert "OCP" not in sys.modules
 assert "cadquery" not in sys.modules
 before = interop.installed_interop_distributions()
@@ -159,7 +161,9 @@ import sys
 import parasolid_kit
 from parasolid_kit import interop
 
-assert parasolid_kit.__version__ == "0.1.0.dev6"
+assert parasolid_kit.__version__ == "0.1.0"
+from parasolid_kit import _core
+assert _core.CORE_VERSION == "0.1.0"
 assert sys.platform == "win32"
 assert "OCP" not in sys.modules
 assert "cadquery" not in sys.modules
@@ -344,6 +348,25 @@ def verify_profile(
             )
             if i5_adapter["status"] != "passed":
                 raise RuntimeError("the cold I5 CadQuery adapter gate did not pass")
+        _run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(environment_python),
+                "--no-cache",
+                "pytest>=8.3,<9",
+                "jsonschema>=4.23,<5",
+            ],
+            cwd=work_dir,
+            environment=environment,
+        )
+        test_suite = _run(
+            [str(environment_python), "-I", "-m", "pytest", "-q", str(ROOT / "tests")],
+            cwd=work_dir,
+            environment=environment,
+        )
         conflict: dict[str, object] | None = None
         if profile == "cadquery":
             _run(
@@ -376,6 +399,7 @@ def verify_profile(
         "i5_adapter": i5_adapter,
         "i6_preview": i6_preview,
         "i7_geometry": i7_geometry,
+        "test_suite": test_suite,
         "conflict": conflict,
     }
 

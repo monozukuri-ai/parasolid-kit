@@ -4,7 +4,11 @@ The [SolidWorks partition profile](solidworks-partitions.md) documents the
 additional exact V37 key, WORLD base layout, local validation and delta boundary.
 
 Four profiles are registered for default parsing. The complete internal stream
-key must match; a caller-selected provider always takes priority. The V30 profile
+key must match; a caller-selected provider always takes priority. The
+[shared support matrix](format-support.md#supported-profiles) records their
+current identities and separate raw, B-Rep, independent-geometry, conversion,
+and saved-state evidence. The campaign results below retain their original
+scope and failures. The V30 profile
 retains its revision-2 identity:
 
 ```json
@@ -23,7 +27,8 @@ The maintained definitions are in
 The source model's field roles are in
 [`profile_roles.rs`](../crates/parasolid-core/src/brep/profile_roles.rs).
 The profile is project-owned code, not an embedded Siemens schema catalog.
-Build and runtime use neither local evidence files nor a CAD installation.
+Build, installation, and runtime use neither external catalogs, local evidence
+files, nor a CAD installation. Normal build/package dependencies remain separate.
 
 ## Sources and method
 
@@ -45,6 +50,12 @@ independent comparison of complete record boundaries and field values. Those
 catalogs were not parser input on the built-in path. Producer body details,
 mass properties, simultaneous STEP exports, and isolated STEP reimports supplied
 geometry evidence independent of the raw decoder.
+
+For the embedded iCAD profile, a one-time developer audit of catalog-header
+metadata established that type 204 is absent from base 13006. It supplied no
+field layouts. This historical use is distinct from catalog-free runtime,
+build, and installation; see the
+[type-204 evidence](#embedded-intersection-data-revision-4).
 
 ## Verified scope
 
@@ -105,7 +116,7 @@ STEP metrics still lie within the producer's reported bounds. These pairs
 establish decoding and geometry coverage, not a passed strict mass-property
 comparison or curved core area/volume support.
 
-The complete local regression inventory now contains 100 streams: 96 yield
+The revision-2 local regression inventory contained 100 streams: 96 yielded
 complete B-Rep models and all 48 X_T/X_B pairs compare equal. The remaining
 four streams use unsupported V26/V37 keys. These counts include earlier
 development inputs and must not be interpreted as 48 fresh holdouts.
@@ -126,10 +137,8 @@ shape to broaden the claim. See [format support](format-support.md).
 The additional profiles are implemented in
 [`sch13006.rs`](../crates/parasolid-core/src/schema/profiles/sch13006.rs):
 
-| Exact key | Profile / revision | Canonical SHA-256 |
-|---|---|---|
-| `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
-| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` / 5 | `1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5` |
+Their current exact keys, revisions and canonical hashes are in the
+[shared support matrix](format-support.md#supported-profiles).
 
 Both have `verified_subset` coverage and require zero user fields. They share
 30 reviewed types: the 24 listed above plus cone (52), intersection (38),

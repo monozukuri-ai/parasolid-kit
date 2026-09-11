@@ -1,11 +1,7 @@
 # Format support and limitations
 
-The exact SolidWorks 2026 key `SCH_3701229_37102_13006` has a
-[partition-only profile](solidworks-partitions.md). It reads raw records and
-maps partition B-Rep; deltas and final saved configuration reconstruction remain
-unsupported. SolidWorks container extraction belongs to the embedding application.
-
-`parasolid-kit` is a pre-alpha, read-focused Parasolid transmit-file parser.
+`parasolid-kit` is a read-focused Parasolid transmit-file parser with the bounded
+support described below.
 This page describes the supported public behavior; it is not a claim of
 compatibility with every Parasolid version, producer, or geometry type.
 
@@ -30,6 +26,45 @@ values. File-like objects are not accepted. Inspection validates the header
 only; it does not prove that the remaining node stream or geometry is valid.
 
 ## Schema selection and built-in scope
+
+### Supported profiles
+
+This is the shared support matrix for the Python, Rust, and CLI entry points.
+Default parsing selects one compiled profile by the complete internal stream
+key. Every profile has `verified_subset` coverage and requires zero user fields.
+The type and field counts describe compiled base definitions; embedded input
+definitions can change the effective layout. Profile hashes identify the
+reviewed definitions, not the bytes or geometric correctness of an input.
+
+| Exact internal key | Profile / revision | Base types / field groups | Canonical SHA-256 |
+|---|---|---|---|
+| `SCH_3000000_30000` | `onshape-sch30000-r2` / 2 | 24 / 202 | `adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f` |
+| `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | 40 / 327 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
+| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` / 5 | 30 / 240 | `1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5` |
+| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` / 1 | 41 / 338 | `5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480` |
+
+The following cells summarize recorded local validation, not a new CAD capture
+or a guarantee for every input with the same key. Real fixtures are outside
+public CI. The detailed evidence and its retained failures are in
+[profile provenance](builtin-profiles.md) and
+[SolidWorks partitions](solidworks-partitions.md).
+
+| Profile scope | Raw decoding | Source B-Rep | Independent geometry evidence | OCCT / STEP / preview | Native saved state |
+|---|---|---|---|---|---|
+| Onshape V30 | Paired X_T / neutral X_B for the documented basic solids, spheres and elliptical edges | Topology and supported analytic definitions | Producer / STEP comparisons; oblique-cut strict mass-property failures remain recorded | Planar box/prism path validated; other inputs must satisfy the adapter constraints | CAD container/configuration reconstruction is outside the parser |
+| Onshape V13 | Paired X_T / neutral X_B, including the documented NURBS / SP_CURVE campaigns | Topology, analytic and bounded NURBS / wrapper definitions | Producer / STEP and sampled surface evidence; recorded curve-tolerance failures remain | Existing adapter subset only; rational/periodic NURBS, SP_CURVE and intersection evaluation are outside the public adapter | CAD container/configuration reconstruction is outside the parser |
+| iCAD embedded V30 | 17 neutral X_B streams from one container; embedded X_T tests are synthetic | All 17 reach complete source B-Rep/topology | No independent CAD/STEP oracle; line-trim endpoint checks are internal consistency evidence | No real iCAD conversion validation; source B-Rep success does not establish conversion | `.icd` extraction and saved-state selection are caller responsibilities; not established by these streams |
+| SolidWorks 2026 partitions | Four neutral X_B partitions; associated deltas stop at unknown base type 3 | Four complete partition B-Reps, including one three-body partition | Existing sldkit point/FIN/NURBS parity; no independent CAD/STEP evaluation repeated for this profile | No real partition conversion validation | Delta application and final saved configuration reconstruction remain unsupported |
+
+Runtime, build, and installation of the built-in parser require no external
+schema catalog or CAD installation. Normal build/package dependencies are
+separate from parser runtime inputs. The implementation does not download
+catalogs. Development provenance includes optional catalog comparisons and a
+one-time catalog-header audit for type 204's absence from base 13006; see
+[that evidence boundary](builtin-profiles.md#embedded-intersection-data-revision-4).
+No catalog field layouts are generated into the profiles by those comparisons.
+
+### Detailed verified scope
 
 For V30, default parsing uses `onshape-sch30000-r2` revision 2 only for the exact internal
 key `SCH_3000000_30000`. Its coverage is `verified_subset`: Onshape V30 text and
@@ -113,8 +148,11 @@ does not establish general trimmed-curve evaluation or OCCT export support.
 The V13 NURBS and sheet evidence is limited to the degrees and motifs in the
 linked campaigns. It does not extend the V30 or iCAD profiles, establish arbitrary
 NURBS compatibility, or add a public evaluator or rational/periodic OCCT path.
-Other producers/keys or embedded bases, nonzero built-in user fields, assemblies
-and multiple bodies remain outside these verified subsets. Structural checks
+Other producers/keys or embedded bases, nonzero built-in user fields, and
+assembly semantics remain outside these verified subsets. Onshape/iCAD evidence
+does not establish general multiple-body support. The four SolidWorks partitions
+include a three-body example, without establishing arbitrary multi-body or
+configuration compatibility. Structural checks
 control parsing; matching a key is not a guarantee that every shape emitted
 under that key has been verified.
 
@@ -134,6 +172,48 @@ membership failures use `schema.unknown_base_type` or
 use `node.unsupported_user_fields`. None causes a guessed layout or a different
 profile to be selected. Siemens catalogs and native CAD fixtures are excluded
 from wheel/sdist; runtime code does not download them.
+
+## Result stages and caller responsibilities
+
+Success applies to the requested stage and the supplied stream. In particular,
+`ParsedBrep.complete`, `BrepSummary.complete`, and `BrepModel.complete` describe
+source B-Rep mapping. They do not certify interpreted attributes, a public
+geometry evaluator, successful conversion, or the final saved state of a CAD
+container. `complete=True` can coexist with unavailable curved metrics or
+unsupported OCCT conversion.
+
+| Entry point / stage | Meaning of success | Failure or remaining boundary |
+|---|---|---|
+| `inspect_xb` / `inspect_xt`; CLI `inspect` | Header validated | Node stream and geometry remain unvalidated |
+| `parse_xb` / `parse_xt`; CLI `parse` | Complete raw stream decoded to its terminator using an exact provider | Unsupported layouts and malformed input fail; raw success does not require a complete B-Rep |
+| `map_brep` / Rust `map_xb_brep` / `map_xt_brep`; `read_brep`; CLI `check` / `parse --brep` | Source topology checked and supported geometry mapped | Well-formed unmapped geometry is explicit with `complete=False`; invalid references/topology raise parse errors |
+| `compare_documents`; CLI `compare` | Decoded structure and values agree after remapping within the selected tolerances | Equivalent documents are not an independent geometric oracle |
+| `write_xb` | Original bytes retained for an unmodified binary document | Does not encode edited values; replay equality alone does not validate decoding |
+| OCCT / STEP / preview / CadQuery | The requested adapter's separate completeness, validity and constraints pass | Conversion and preview coverage do not broaden the input profile |
+| Rust `partial` | Known fragment records and available read spans recovered | No document-wide framing or full delta state; the caller retains unrecognized bytes and incomplete status |
+
+CLI status `0` means success for that command's stage. `parse --brep` also
+returns `0` when mapping returns an explicitly incomplete model; inspect its
+JSON `brep.complete`, or use `check` to enforce completeness by exit status.
+Status `1` reports an incomplete `check` result or non-equivalent `compare`
+result, and `2` reports input/schema/parse/conversion errors. An explicitly
+allowed partial preview can likewise be generated with status `0`.
+See the [API diagnostics](api.md#inputs-and-schema-selection) for exact codes.
+
+CAD adapters extract and bound the stream, select configurations, pair
+partitions and deltas, and retain container/decompression provenance. The strict
+parser's ranges start at the supplied complete stream; `partial` ranges start
+at its supplied body slice. IDs are local to their document/stream. Physical
+units must come from caller evidence. The caller converts model-space lengths
+once and preserves knots, angles, directions, weights and surface UV values.
+Strict NURBS models retain source homogeneous coefficients; partial readers
+return Euclidean poles. See the
+[partial-reader contract](../crates/parasolid-core/PARTIAL_READERS.md).
+
+An iCAD container adapter is planned but has not been created. Existing iCAD
+evidence concerns extracted Parasolid bytes only. SolidWorks container and
+configuration handling belongs to sldkit; its shared partial readers do not
+establish complete saved-state reconstruction.
 
 ## B-Rep topology
 
@@ -252,9 +332,10 @@ trimmed curve, cone frustum, full sphere, full ring torus, non-rational 3D
 NURBS, and exact offset-surface paths to the I3 point/line/circle/plane/cylinder
 baseline. Direct vertex-trimmed circles and ellipses remain rejected because
 their two possible arcs are ambiguous without source parameters. Rational
-NURBS remain conditional-coverage failures until the homogeneous control-vertex
-storage contract is established. Closed or periodic NURBS also remain explicit
-conditional-coverage failures until their source pole/knot relation is established.
+NURBS remain conditional-coverage failures in the public adapter. Closed or
+periodic NURBS likewise remain outside its verified conversion path. The V13
+source-storage campaigns establish bounded homogeneous-coefficient and
+pole/knot evidence for parsing; they do not implement those adapter paths.
 The adapter validates source references,
 basis-reference cycles, OCCT topology, bounding box, area, and volume and
 performs no implicit healing or approximation.
@@ -298,11 +379,12 @@ GLB is likewise a derived inspection artifact, not the canonical parse result.
 
 ## Current interoperability evidence
 
-Controlled X_T/X_B pairs produced from the same model state have been parsed
-and compared for Parasolid V26 and V30. The current shape coverage includes a
-rectangular solid and a cylindrical through-hole. V37 header inspection is
-covered, but complete parsing remains dependent on a caller-provided Schema
-36001 catalog.
+The [supported profiles](#supported-profiles) distinguish current built-in
+evidence by exact key and processing stage. Earlier controlled V26/V30 pairs
+were also parsed using explicit catalogs; those results do not establish
+built-in support for their other keys. In particular, the earlier
+`SCH_3700000_36001` path needs its exact caller catalog, while
+`SCH_3701229_37102_13006` has the separate partition-only built-in profile.
 
 These cases test the implemented paths but do not guarantee compatibility with
 all exporters or modeling features. The public package deliberately contains

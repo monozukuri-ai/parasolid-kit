@@ -21,10 +21,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "parasolid-kit"
 IMPORT_NAME = "parasolid_kit"
-VERSION = "0.1.0.dev6"
+VERSION = "0.1.0"
 LICENSE_EXPRESSION = "MIT AND Apache-2.0"
 RUST_PACKAGE_NAME = "parasolid-python"
-RUST_PACKAGE_VERSION = "0.1.0-dev6"
+RUST_PACKAGE_VERSION = "0.1.0"
 RUST_SBOM_FILENAME = f"{RUST_PACKAGE_NAME}.cyclonedx.json"
 APPROVED_EXTRAS = frozenset({"cadquery", "occt"})
 APPROVED_EXTRA_REQUIREMENTS = {
@@ -94,10 +94,16 @@ SDIST_ROOT_DIRECTORIES = {
 }
 SDIST_SCRIPT_FILES = frozenset(
     {
+        "scripts/benchmark_parser.py",
+        "scripts/verify_release.py",
+        "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_artifacts.py",
         "scripts/verify_corpus.py",
         "scripts/verify_isolated_install.py",
+        "scripts/verify_release_corpus.py",
+        "scripts/release_corpus_runtime.py",
+        "scripts/release_corpus_oracle.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
         "scripts/verify_optional_interop_i5.py",
@@ -601,6 +607,10 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
             "corpus/README.md",
             "corpus/manifest.jsonl",
             "corpus/manifest.schema.json",
+            "corpus/release-checks.schema.json",
+            "corpus/release-checks.json",
+            "corpus/expected/release-v1/values.x_t.json",
+            "corpus/expected/release-v1/values.x_b.json",
         }:
             errors.append(f"unexpected public corpus file in sdist: {relative.as_posix()}")
         if (
@@ -644,6 +654,10 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "README.md",
         "corpus/README.md",
         "corpus/manifest.schema.json",
+        "corpus/release-checks.schema.json",
+        "corpus/release-checks.json",
+        "corpus/expected/release-v1/values.x_t.json",
+        "corpus/expected/release-v1/values.x_b.json",
         "crates/parasolid-core/Cargo.toml",
         "crates/parasolid-python/Cargo.toml",
         "docs/api.md",
@@ -655,8 +669,14 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "fuzz/fuzz_targets/parse.rs",
         "fuzz/fuzz_targets/schema_catalog.rs",
         "pyproject.toml",
+        "scripts/benchmark_parser.py",
+        "scripts/verify_release.py",
+        "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_isolated_install.py",
+        "scripts/verify_release_corpus.py",
+        "scripts/release_corpus_runtime.py",
+        "scripts/release_corpus_oracle.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
         "scripts/verify_optional_interop_i5.py",

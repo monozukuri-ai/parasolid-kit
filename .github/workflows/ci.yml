@@ -1,9 +1,18 @@
 name: ci
 
 on:
+  workflow_call:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: Seconds per sanitizer target
+        type: choice
+        options: ["600", "1800", "3600"]
+        default: "600"
+  schedule:
+    - cron: "15 3 * * 1"
 
 permissions:
   contents: read
@@ -59,6 +68,13 @@ jobs:
       - name: Verify public corpus provenance
         run: uv run python scripts/verify_corpus.py
 
+      - name: Verify required public release cases with Rust and Python
+        run: |
+          cargo build -p parasolid-core --example release_corpus --locked
+          uv run python scripts/verify_release_corpus.py \
+            --manifest corpus/manifest.jsonl --checks corpus/release-checks.json \
+            --root corpus --rust-probe target/debug/examples/release_corpus
+
       - name: Verify distributable Rust core
         run: |
           cargo package -p parasolid-core --locked
@@ -83,11 +99,54 @@ jobs:
         run: python3 scripts/prepare_fuzz_corpus.py
 
       - name: Run bounded sanitizer smoke
-        working-directory: fuzz
         run: |
-          cargo +nightly fuzz run inspect -- -runs=100 -max_len=65536
-          cargo +nightly fuzz run parse -- -runs=100 -max_len=65536
-          cargo +nightly fuzz run schema_catalog -- -runs=100 -max_len=65536
+          for target in inspect parse schema_catalog; do
+            python3 scripts/run_fuzz.py "$target" --runs 100 --seconds 60 \
+              --output "fuzz/runs/smoke-$target"
+          done
+
+      - name: Retain sanitizer logs and reproducer inputs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-smoke
+          path: fuzz/runs/
+
+  fuzz-long:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [inspect, parse, schema_catalog]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install nightly Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+
+      - name: Run bounded sanitizer campaign
+        env:
+          FUZZ_SECONDS: ${{ inputs.fuzz_seconds || '600' }}
+          FUZZ_TARGET: ${{ matrix.target }}
+        run: |
+          python3 scripts/run_fuzz.py "$FUZZ_TARGET" --seconds "$FUZZ_SECONDS" \
+            --output "fuzz/runs/$FUZZ_TARGET"
+
+      - name: Retain sanitizer logs, corpus and reproducer inputs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-long-${{ matrix.target }}
+          path: fuzz/runs/
 
   distribution:
     needs: quality

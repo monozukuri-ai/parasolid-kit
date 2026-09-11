@@ -20,6 +20,29 @@ def _headers(key: str = KEY) -> tuple[bytes, bytes]:
     return text, binary
 
 
+def _body(key: str, index: int = 100, region: int = 0) -> tuple[bytes, bytes]:
+    """Synthetic general BODY using the two reviewed layouts, not a solid oracle."""
+    values = [0] * 33
+    values[9], values[10], values[16], values[24] = 1e-6, 1e-8, 6, region
+    ordinals = list(range(33)) if key == KEY else [*range(6), *range(8, 22), 24, 25, 26]
+    embedded = key.count("_") == 3
+    text = f"12 {'255 ' if embedded else ''}{index} ".encode()
+    binary = struct.pack(">h", 12) + (b"\xff" if embedded else b"")
+    binary += struct.pack(">h", index + 1)
+    for ordinal in ordinals:
+        value = values[ordinal]
+        text += f"{value} ".encode()
+        if ordinal in (0, 27, 32):
+            binary += struct.pack(">i", value)
+        elif ordinal in (9, 10):
+            binary += struct.pack(">d", value)
+        elif ordinal in (14, 16, 17):
+            binary += bytes([value])
+        else:
+            binary += struct.pack(">h", value + 1)
+    return text, binary
+
+
 def build_seeds() -> dict[str, bytes]:
     """Return valid arrays/BODY and payloads that exceed documented fuzz limits."""
 
@@ -75,6 +98,15 @@ def build_seeds() -> dict[str, bytes]:
         "embedded-copy",
         b"82 1 CZ2 1 7 ?",
         struct.pack(">h", 82) + b"\x01CZ" + struct.pack(">ihii", 2, 2, 7, -32764),
+    )
+    # Replace the base array with scalar fields: Insert, Delete, Append, End.
+    # Copy is exercised separately above. These edit the schema, not model state.
+    pair(
+        "embedded-insert-delete-append",
+        b"82 2 I4 flag0 0 1 uDA5 value0 0 1 fZ1 7 0.125 ",
+        struct.pack(">h", 82)
+        + b"\x02I\x04flag\x00\x00\x00\x01\x01uDA\x05value\x00\x00\x00\x01\x01fZ"
+        + struct.pack(">hBd", 2, 7, 0.125),
     )
     pair("embedded-unknown", b"110 0 1 ", struct.pack(">hBh", 110, 0, 2))
     # Complete unchanged trimmed-curve declaration and a forward line basis.
@@ -149,6 +181,82 @@ def build_seeds() -> dict[str, bytes]:
         text += b"141 " + marker + b"4 1 4 4 0 "
         binary += struct.pack(">H", 141) + binary_marker + struct.pack(">5h", 5, 2, 5, 5, 1)
         pair(prefix + "-intersection", text, binary)
+    text_header, binary_header = _headers("SCH_3701229_37102_13006")
+    pair(
+        "solidworks-world",
+        b"101 255 1 0 0 23 0 0 0 0 T41 123456 789 ",
+        struct.pack(">HB8hBhii", 101, 255, 2, 1, 1, 24, 1, 1, 1, 1, 1, 42, 123456, 789),
+    )
+    pair("solidworks-cone", b"52 255 " + cone_text, struct.pack(">hB", 52, 255) + cone_binary)
+    for node_type in (3, 4):
+        pair(
+            f"solidworks-unknown-{node_type}",
+            f"{node_type} 255 1 ".encode(),
+            struct.pack(">HBh", node_type, 255, 2),
+        )
+    for profile, key in (
+        ("v30", KEY),
+        ("v13", "SCH_1300000_13006"),
+        ("icad", "SCH_3000310_30000_13006"),
+        ("solidworks", "SCH_3701229_37102_13006"),
+    ):
+        text_header, binary_header = _headers(key)
+        text, binary = _body(key, region=101)
+        marker = b"255 " if key.count("_") == 3 else b""
+        binary_marker = b"\xff" if marker else b""
+        text += b"19 " + marker + b"101 0 0 100 0 0 102 V" + (b"0 " if key == KEY else b"")
+        binary += (
+            struct.pack(">h", 19)
+            + binary_marker
+            + struct.pack(">hi5h", 102, 0, 1, 101, 1, 1, 103)
+            + b"V"
+        )
+        if key == KEY:
+            binary += struct.pack(">h", 1)
+        text += b"13 " + marker + b"102 0 0 0 0 0 0 0 101 0 "
+        binary += (
+            struct.pack(">h", 13)
+            + binary_marker
+            + struct.pack(">hi8h", 103, 0, 1, 1, 1, 1, 1, 1, 102, 1)
+        )
+        pair(f"brep-{profile}", text, binary)
+        if profile == "v30":
+            # REGION.next references itself through BODY.region; semantic cycle error.
+            cycle_text = text.replace(b"101 0 0 100 0 0 102 V", b"101 0 0 100 101 0 102 V")
+            cycle_binary = binary.replace(
+                struct.pack(">hi5h", 102, 0, 1, 101, 1, 1, 103),
+                struct.pack(">hi5h", 102, 0, 1, 101, 102, 1, 103),
+                1,
+            )
+            pair("reference-cycle", cycle_text, cycle_binary)
+    # Add a BODY to geometry seeds so mapping traverses geometry, not missing_body.
+    for name, key in (
+        ("base-cone", "SCH_1300000_13006"),
+        ("embedded-cone", "SCH_3000310_30000_13006"),
+        ("solidworks-cone", "SCH_3701229_37102_13006"),
+        ("base-trimmed", "SCH_1300000_13006"),
+        ("base-spcurve", "SCH_1300000_13006"),
+        ("embedded-intersection", "SCH_3000310_30000_13006"),
+    ):
+        for encoding, header, body in zip(
+            ("text", "binary"), _headers(key), _body(key), strict=True
+        ):
+            seeds[f"brep-{name}-{encoding}"] = (
+                header + body + seeds[f"{name}-{encoding}"][len(header) :]
+            )
+    for name in ("body-binary", "base-spcurve-binary", "embedded-full204-binary"):
+        data = seeds[name]
+        seeds[f"truncated-{name}"] = data[:-1]
+        seeds[f"truncated-half-{name}"] = data[: len(data) // 2]
+    # Non-finite wire doubles, not nullable sentinels.
+    for name, value in (("nan", float("nan")), ("infinity", float("inf"))):
+        seeds[f"{name}-binary"] = seeds["brep-base-cone-binary"].replace(
+            struct.pack(">d", 0.007013), struct.pack(">d", value), 1
+        )
+        seeds[f"{name}-text"] = seeds["brep-base-cone-text"].replace(b"0.007013", name.encode(), 1)
+    seeds["wrong-exact-key-binary"] = seeds["solidworks-world-binary"].replace(
+        b"SCH_3701229_37102_13006", b"SCH_3701230_37102_13006"
+    )
     return seeds
 
 

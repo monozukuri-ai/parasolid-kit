@@ -113,7 +113,9 @@ from parasolid_kit import (
     read_brep,
 )
 assert Path(parasolid_kit.__file__).resolve().is_relative_to(installed_environment)
-assert parasolid_kit.__version__ == "0.1.0.dev6"
+assert parasolid_kit.__version__ == "0.1.0"
+from parasolid_kit import _core
+assert _core.CORE_VERSION == "0.1.0"
 assert callable(read_brep)
 assert BrepSummary.__module__ == "parasolid_kit.summary"
 assert ParsedBrep.__module__ == "parasolid_kit.summary"

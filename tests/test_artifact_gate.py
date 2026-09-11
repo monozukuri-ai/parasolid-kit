@@ -23,7 +23,7 @@ from scripts.verify_artifacts import (
     verify_wheel,
 )
 
-DIST_INFO = "parasolid_kit-0.1.0.dev6.dist-info"
+DIST_INFO = "parasolid_kit-0.1.0.dist-info"
 RUST_SBOM = f"{DIST_INFO}/sboms/parasolid-python.cyclonedx.json"
 ROOT = Path(__file__).resolve().parents[1]
 VIEWER_ASSETS = {name: (ROOT / "src" / name).read_bytes() for name in VIEWER_ASSET_SHA256}
@@ -43,7 +43,7 @@ def _metadata(
     lines = [
         "Metadata-Version: 2.4",
         "Name: parasolid-kit",
-        "Version: 0.1.0.dev6",
+        "Version: 0.1.0",
         "Requires-Python: >=3.10",
         f"License-Expression: {license_expression}",
         "License-File: LICENSE",
@@ -72,7 +72,7 @@ def _record(files: dict[str, bytes]) -> bytes:
 
 def _wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files = {
-        "parasolid_kit/__init__.py": b'__version__ = "0.1.0.dev6"\n',
+        "parasolid_kit/__init__.py": b'__version__ = "0.1.0"\n',
         "parasolid_kit/_core.abi3.so": b"native-placeholder",
         f"{DIST_INFO}/METADATA": _metadata(),
         f"{DIST_INFO}/WHEEL": b"Wheel-Version: 1.0\nRoot-Is-Purelib: false\n",
@@ -100,6 +100,10 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         "README.md",
         "corpus/README.md",
         "corpus/manifest.schema.json",
+        "corpus/release-checks.schema.json",
+        "corpus/release-checks.json",
+        "corpus/expected/release-v1/values.x_t.json",
+        "corpus/expected/release-v1/values.x_b.json",
         "crates/parasolid-core/Cargo.toml",
         "crates/parasolid-python/Cargo.toml",
         "docs/api.md",
@@ -110,8 +114,14 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         "fuzz/fuzz_targets/parse.rs",
         "fuzz/fuzz_targets/schema_catalog.rs",
         "pyproject.toml",
+        "scripts/benchmark_parser.py",
+        "scripts/verify_release.py",
+        "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_isolated_install.py",
+        "scripts/verify_release_corpus.py",
+        "scripts/release_corpus_runtime.py",
+        "scripts/release_corpus_oracle.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
         "scripts/verify_optional_interop_i5.py",
@@ -163,7 +173,7 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files.update(extra or {})
     with tarfile.open(path, "w:gz") as archive:
         for relative, payload in files.items():
-            name = f"parasolid_kit-0.1.0.dev6/{relative}"
+            name = f"parasolid_kit-0.1.0/{relative}"
             info = tarfile.TarInfo(name)
             info.size = len(payload)
             archive.addfile(info, io.BytesIO(payload))
@@ -205,7 +215,7 @@ def test_wheel_gate_accepts_maturin_rust_sbom(tmp_path: Path) -> None:
         "metadata": {
             "component": {
                 "name": "parasolid-python",
-                "version": "0.1.0-dev6",
+                "version": "0.1.0",
                 "licenses": [{"expression": "MIT AND Apache-2.0"}],
             }
         },

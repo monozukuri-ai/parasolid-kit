@@ -1,8 +1,9 @@
 # SolidWorks partition profile
 
 `solidworks-sch37102-13006-r1` accepts the exact key
-`SCH_3701229_37102_13006` with zero user fields. Its canonical SHA-256 is
-`5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480`.
+`SCH_3701229_37102_13006` with zero user fields. Its revision, canonical hash
+and stage-specific support are listed in the
+[shared support matrix](format-support.md#supported-profiles).
 
 The profile shares the 40 reviewed 13006 base definitions, including NURBS,
 with the V13 profile and adds WORLD (101). Its eleven base fields are described
@@ -19,6 +20,8 @@ partition B-Rep models. The raw record counts were 173, 406, 224 and 109 (912
 total). An independent value encoder reproduced every node-stream byte without
 using the original field ranges. Embedded schema blobs were replayed, so this
 does not independently validate schema serialization.
+The partition body counts were 1, 3, 1 and 1. The three-body example is evidence
+for that saved partition, not arbitrary multi-body/configuration compatibility.
 
 For the M5 pair, comparison against sldkit's existing patched decoder confirmed
 exact equality of all 28 point positions, the traversal/edge/loop/sense relations
@@ -48,3 +51,12 @@ profile does not replace a SolidWorks document's configuration-aware geometry
 decoder, nor establish support for other V37 keys, arbitrary bodies, assembly
 semantics, or numeric source trim intervals. Parsing and interpreting additional
 delta framing/state rules is required before that migration can finish.
+
+Embedded schema Copy/Delete/Insert/Append edits change field definitions;
+they are separate from delta streams that change model state. The shared
+`parasolid_core::partial` readers used by sldkit preserve its bounded recovery
+and merge behavior, including explicit incomplete status. That integration
+does not change the strict partition/delta boundary described here. Native
+containers, configuration selection, stream pairing and length-unit conversion
+remain in sldkit's adapter; see the
+[caller contract](format-support.md#result-stages-and-caller-responsibilities).

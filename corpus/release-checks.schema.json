@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Required release corpus checks (separate from redistribution provenance)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "bytes",
+        "usage",
+        "stream_role",
+        "saved_state",
+        "stage",
+        "profile",
+        "baseline",
+        "diagnostic",
+        "oracle"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "usage": {
+          "enum": [
+            "development",
+            "regression",
+            "holdout"
+          ]
+        },
+        "stream_role": {
+          "enum": [
+            "export",
+            "embedded_payload",
+            "parasolid_partition",
+            "parasolid_deltas",
+            "synthetic"
+          ]
+        },
+        "saved_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "container": {
+          "$ref": "#/$defs/artifact"
+        },
+        "container_mapping": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "enum": [
+            "raw",
+            "brep",
+            "diagnostic"
+          ]
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "profile_id",
+                "profile_revision",
+                "schema_key",
+                "profile_sha256",
+                "coverage"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "builtin"
+                },
+                "profile_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "profile_revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "schema_key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "profile_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "coverage": {
+                  "const": "verified_subset"
+                }
+              }
+            }
+          ]
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/artifact"
+            }
+          ]
+        },
+        "diagnostic": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "offset"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "offset": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "pair_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oracle": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/oracle"
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/artifact"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "diagnostic"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "baseline": {
+                "type": "null"
+              },
+              "diagnostic": {
+                "type": "object"
+              },
+              "oracle": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "baseline": {
+                "type": "object"
+              },
+              "diagnostic": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream_role": {
+                "enum": [
+                  "embedded_payload",
+                  "parasolid_partition",
+                  "parasolid_deltas"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "container",
+              "container_mapping"
+            ]
+          }
+        }
+      ]
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "body_details",
+        "mass_properties",
+        "step",
+        "microversion",
+        "unit",
+        "linear_tolerance",
+        "direction_tolerance",
+        "area_tolerance",
+        "volume_tolerance",
+        "relative_tolerance",
+        "core_metrics"
+      ],
+      "properties": {
+        "kind": {
+          "const": "onshape_analytic"
+        },
+        "body_details": {
+          "$ref": "#/$defs/artifact"
+        },
+        "mass_properties": {
+          "$ref": "#/$defs/artifact"
+        },
+        "step": {
+          "$ref": "#/$defs/artifact"
+        },
+        "microversion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unit": {
+          "const": "m"
+        },
+        "linear_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "direction_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "area_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "volume_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "relative_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "core_metrics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "surface_area",
+              "volume"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
