@@ -61,8 +61,10 @@ python scripts/verify_release.py --tag v0.1.0rc1 \
 
 1. Create the version tag at the verified commit and a **draft** GitHub Release.
    Attach only the sanitized `release-verification.json`. Mark RCs as prereleases.
-2. Dispatch `rust-release.yml` at the version tag with `release_tag` set to that
-   draft and `dry_run=true`. It checks the successful candidate run, private
+2. Dispatch `rust-release.yml` from `main` with `release_tag` set to that
+   draft and `dry_run=true`. The workflow checks out that tag, independently of
+   the workflow revision, so publication fixes do not change candidate artifacts.
+   Its manual job needs `contents: write` to read draft releases. It checks the successful candidate run, private
    receipt and all hashes, and requires its repackaged crate to be byte-identical
    before allowing upload. A real upload (`dry_run=false`) additionally requires
    the repository's `CARGO_REGISTRY_TOKEN` secret.
