@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "parasolid-kit"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "Schema-aware Python parser for Parasolid X_T and X_B data"
 readme = "README.md"
 license = "MIT AND Apache-2.0"
@@ -12,7 +12,7 @@ license-files = ["LICENSE", "LICENSES/*.txt"]
 requires-python = ">=3.10"
 dependencies = []
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",

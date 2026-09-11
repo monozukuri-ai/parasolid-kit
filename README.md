@@ -4,11 +4,11 @@ The Python-independent Rust parser is also available as
 [`parasolid-core`](https://crates.io/crates/parasolid-core). See its
 [Rust API and input limitations](crates/parasolid-core/README.md).
 
-`parasolid-kit` is an experimental, schema-aware parser for Parasolid X_T and
+`parasolid-kit` is a schema-aware parser for Parasolid X_T and
 X_B transmit files. Parsing and geometry mapping run in a safe Rust core, while
 Python users work with immutable typed models.
 
-The project is read-focused and preparing its first stable release. It is intended for file
+The project is read-focused. It is intended for file
 inspection, validation, research, and conversion pipelines where preserving
 the transmitted structure matters more than silently approximating unsupported
 data.
@@ -40,30 +40,23 @@ the parser for production data. Maintainers use the [release gates](docs/releasi
 
 ## Installation
 
-Python 3.10 or newer is required. Install the current development release from
+Python 3.10 or newer is required. Install the current release from
 [PyPI](https://pypi.org/project/parasolid-kit/):
-
-```bash
-python -m pip install --pre parasolid-kit
-```
-
-The `--pre` option includes development releases and release candidates.
-To install this release candidate by exact version after it is published:
-
-```bash
-python -m pip install "parasolid-kit==0.1.0rc1"
-```
-
-Stable releases, once available, can be installed without `--pre`:
 
 ```bash
 python -m pip install parasolid-kit
 ```
 
+To install the stable release by exact version:
+
+```bash
+python -m pip install "parasolid-kit==0.1.0"
+```
+
 Alternatively, install a downloaded wheel directly:
 
 ```bash
-python -m pip install /path/to/parasolid_kit-0.1.0rc1-cp310-abi3-PLATFORM.whl
+python -m pip install /path/to/parasolid_kit-0.1.0-cp310-abi3-PLATFORM.whl
 ```
 
 Header inspection works immediately after installation. Parsing and source
@@ -83,10 +76,10 @@ boundary:
 
 ```bash
 # Headless OCP runtime without CadQuery or VTK; Python 3.10+
-python -m pip install --pre "parasolid-kit[occt]"
+python -m pip install "parasolid-kit[occt]"
 
 # CadQuery and its full OCP runtime; Linux/macOS, Python 3.11+
-python -m pip install --pre "parasolid-kit[cadquery]"
+python -m pip install "parasolid-kit[cadquery]"
 ```
 
 Do not install both profiles in one environment. Their OCP distributions can

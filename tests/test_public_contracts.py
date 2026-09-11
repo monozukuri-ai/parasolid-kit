@@ -12,7 +12,7 @@ def test_public_contracts_import_without_optional_cad_dependencies() -> None:
 
         limits = parasolid_kit.ParseLimits(max_nodes=100)
 
-        assert parasolid_kit.__version__ == "0.1.0rc1"
+        assert parasolid_kit.__version__ == "0.1.0"
         assert limits.max_nodes == 100
         assert parasolid_kit.DEFAULT_PARSE_LIMITS.max_file_size > 0
         assert callable(parasolid_kit.inspect_xb)
@@ -48,7 +48,7 @@ def test_public_contracts_import_without_optional_cad_dependencies() -> None:
         assert callable(occt.to_occt)
         assert callable(occt.write_step)
         assert occt.OcctConversionOptions(source_unit="m").applied_scale == 1000.0
-        assert _core.CORE_VERSION == "0.1.0-rc.1"
+        assert _core.CORE_VERSION == "0.1.0"
         assert "_core" not in parasolid_kit.__all__
         """
     )

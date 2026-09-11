@@ -7,7 +7,7 @@ Parasolid-native B-Rep model. This crate is part of
 
 ```toml
 [dependencies]
-parasolid-core = "=0.1.0-rc.1"
+parasolid-core = "=0.1.0"
 ```
 
 Inspect a header without claiming that the geometry is supported:

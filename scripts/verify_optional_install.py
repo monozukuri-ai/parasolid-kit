@@ -30,9 +30,9 @@ profile = sys.argv[1]
 import parasolid_kit
 import parasolid_kit.interop as interop
 
-assert parasolid_kit.__version__ == "0.1.0rc1"
+assert parasolid_kit.__version__ == "0.1.0"
 from parasolid_kit import _core
-assert _core.CORE_VERSION == "0.1.0-rc.1"
+assert _core.CORE_VERSION == "0.1.0"
 assert "OCP" not in sys.modules
 assert "cadquery" not in sys.modules
 before = interop.installed_interop_distributions()
@@ -161,9 +161,9 @@ import sys
 import parasolid_kit
 from parasolid_kit import interop
 
-assert parasolid_kit.__version__ == "0.1.0rc1"
+assert parasolid_kit.__version__ == "0.1.0"
 from parasolid_kit import _core
-assert _core.CORE_VERSION == "0.1.0-rc.1"
+assert _core.CORE_VERSION == "0.1.0"
 assert sys.platform == "win32"
 assert "OCP" not in sys.modules
 assert "cadquery" not in sys.modules
