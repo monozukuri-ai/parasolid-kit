@@ -1,6 +1,7 @@
 # Format support and limitations
 
-`parasolid-kit` is a pre-alpha, read-focused Parasolid transmit-file parser.
+`parasolid-kit` is a read-focused Parasolid transmit-file parser with the bounded
+support described below.
 This page describes the supported public behavior; it is not a claim of
 compatibility with every Parasolid version, producer, or geometry type.
 
