@@ -139,7 +139,7 @@ def test_i7_supported_geometry_reaches_the_guarded_optional_runtime(
     assert captured.value.diagnostic.code == "interop.missing_dependency"
 
 
-def test_i7_keeps_pcurve_intersection_and_rational_nurbs_explicitly_unsupported() -> None:
+def test_incomplete_pcurve_intersection_and_rational_nurbs_remain_unsupported() -> None:
     model = make_analytic_curve_sheet_model(CurveKind.NURBS)
     primary = model.curves[0]
     pcurve = replace(

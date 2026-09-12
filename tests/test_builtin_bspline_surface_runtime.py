@@ -145,7 +145,7 @@ def test_invalid_surface_dependencies_remain_raw(encoding, parser, patch):
         read_brep(data)
 
 
-@pytest.mark.parametrize("key", [EMBEDDED, "SCH_3000000_30000"])
+@pytest.mark.parametrize("key", [EMBEDDED])
 @pytest.mark.parametrize("kind", [124, 125, 126])
 def test_bspline_surface_layouts_do_not_leak_to_other_profiles(key, kind):
     for data, parser in [

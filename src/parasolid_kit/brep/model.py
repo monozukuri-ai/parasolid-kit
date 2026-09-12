@@ -35,7 +35,7 @@ class TopologyValidation:
 
 @dataclass(frozen=True, slots=True)
 class BrepMetrics:
-    """Kernel-free metrics; unavailable values remain ``None``."""
+    """Vertex bounding box and planar polygon metrics; unavailable values are ``None``."""
 
     bounding_box: BoundingBox | None
     surface_area: float | None

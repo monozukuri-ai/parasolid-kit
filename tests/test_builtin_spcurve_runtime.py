@@ -355,7 +355,7 @@ def test_nonfinite_spcurve_tolerance(value):
 
 
 def test_spcurve_scope_truncation_and_array_limits():
-    for key in (EMBEDDED, "SCH_3000000_30000"):
+    for key in (EMBEDDED,):
         for data, parser in [
             (header(key) + b"137 1 ", parse_xt),
             (builder(key).build()[:-4] + struct.pack(">H", 137), parse_xb),

@@ -37,7 +37,7 @@ fn metadata(id: &str, revision: u32, producer: &str, digest: &str) -> BuiltinPro
 /// # Errors
 /// Returns a profile error if the compiled definitions are inconsistent.
 pub fn onshape_sch13006() -> Result<BuiltinSchemaProfile, ParseError> {
-    let mut definitions = definitions()?;
+    let mut definitions = definitions();
     definitions.extend(sp_curve_definitions());
     definitions.extend(bspline_surface_definitions());
     BuiltinSchemaProfile::new(
@@ -48,7 +48,7 @@ pub fn onshape_sch13006() -> Result<BuiltinSchemaProfile, ParseError> {
 }
 
 /// Public XT reference pp. 39-43, 52-53, 116-118, checked with V13 producer pairs.
-/// These additional layouts have no embedded iCAD evidence and remain V13-only.
+/// Embedded iCAD membership is not inferred; V30 reviews its use separately.
 pub(crate) fn sp_curve_definitions() -> Vec<TypeDefinition> {
     use FieldType::{
         Character as C, Double as F, Integer as D, Logical as L, PointerIndex as P,
@@ -142,7 +142,7 @@ pub fn icad_sch30000_13006() -> Result<BuiltinSchemaProfile, ParseError> {
             EMBEDDED_SHA256,
         ),
         vec!["SCH_3000310_30000_13006".to_owned()],
-        definitions()?,
+        definitions(),
         vec![],
         // Membership-only audit: the complete 13006 catalog header declares
         // a type-table upper bound of 184. No catalog field layouts are copied.
@@ -187,7 +187,7 @@ fn trimmed_curve() -> TypeDefinition {
 }
 
 #[allow(clippy::too_many_lines)] // Auditable wire order of the reviewed base subset.
-pub(crate) fn definitions() -> Result<Vec<TypeDefinition>, ParseError> {
+pub(crate) fn definitions() -> Vec<TypeDefinition> {
     use FieldType::{
         Character as C, Double as F, Integer as D, IntersectionPoint as H, Logical as L,
         PointerIndex as P, UnsignedByte as U, Vector as V,
@@ -209,10 +209,9 @@ pub(crate) fn definitions() -> Result<Vec<TypeDefinition>, ParseError> {
         12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 50, 51, 53, 70, 74, 79, 80, 81, 82, 83, 84,
         98,
     ];
-    let mut definitions: Vec<_> = super::onshape_sch30000()?
-        .definitions()
+    let mut definitions: Vec<_> = super::sch30000::base_definitions()
+        .into_iter()
         .filter(|d| types.contains(&d.node_type))
-        .cloned()
         .collect();
     for definition in &mut definitions {
         definition.name = format!("sch13006_type_{}", definition.node_type);
@@ -356,7 +355,7 @@ pub(crate) fn definitions() -> Result<Vec<TypeDefinition>, ParseError> {
         ),
     ]);
     definitions.push(trimmed_curve());
-    Ok(definitions)
+    definitions
 }
 
 /// Public XT reference pp. 67-72 and V13 sheet-boundary producer pairs.

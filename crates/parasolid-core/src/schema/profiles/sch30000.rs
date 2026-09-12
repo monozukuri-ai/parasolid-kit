@@ -2,10 +2,12 @@
 //!
 //! Evidence: Siemens XT Format Reference (April 2008), printed pp. 5-19, 31-34,
 //! 54-57, 77-78, 87-119; paired Onshape fixtures; self-describing V30 model edits
-//! for types 12/19/70/74. No Siemens catalog is an input to this table.
+//! for types 12/19/70/74. Revision 3 adds explicitly maintained V30 geometry
+//! definitions, audited against a local exact-key catalog (no runtime dependency).
 //! <https://ww3.cad.de/foren/ubb/uploads/schulze/XT_Format_April_2008_tcm73-62642.pdf>
 //!
-//! Revision 2 adds ellipse and sphere to the M8.1 baseline: 24 types / 202 fields.
+//! Revision 2 adds ellipse and sphere: 24 types / 202 fields. Revision 3 adds
+//! 20 complex-geometry/dependency types: 44 types / 356 fields.
 //! Names are project-owned. Class 1040 is input-declared; its complete
 //! membership is not claimed. Type 74's generic pointers have no class constraint.
 //! The Rust table is the maintained source; local M8.1 Python/JSON are snapshots.
@@ -16,7 +18,7 @@ use crate::{
 };
 
 // Checked against canonical compiled definitions by the development harness.
-const PROFILE_SHA256: &str = "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f";
+const PROFILE_SHA256: &str = "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4";
 
 /// Construct the verified subset profile for `SCH_3000000_30000`.
 ///
@@ -29,8 +31,8 @@ const PROFILE_SHA256: &str = "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac7
 pub fn onshape_sch30000() -> Result<BuiltinSchemaProfile, ParseError> {
     BuiltinSchemaProfile::new(
         BuiltinProfileMetadata {
-            profile_id: "onshape-sch30000-r2".to_owned(),
-            revision: 2,
+            profile_id: "onshape-sch30000-r3".to_owned(),
+            revision: 3,
             provider_schema: "30000".to_owned(),
             producer_scope: "Onshape".to_owned(),
             coverage: BuiltinProfileCoverage::VerifiedSubset,
@@ -63,7 +65,7 @@ fn node(node_type: u16, fields: Vec<FieldDefinition>) -> TypeDefinition {
 }
 
 #[allow(clippy::too_many_lines)] // The complete reviewed table stays in transmit order.
-fn definitions() -> Vec<TypeDefinition> {
+pub(crate) fn base_definitions() -> Vec<TypeDefinition> {
     use FieldType::{
         Character as C, Double as F, Integer as D, Logical as L, PointerIndex as P,
         UnicodeCharacter as W, UnsignedByte as U, Vector as V,
@@ -393,4 +395,70 @@ fn definitions() -> Vec<TypeDefinition> {
         // Public reference pp. 111.
         node(98, vec![field("utf16_units", W, 0, 1)]),
     ]
+}
+
+// V30 complex geometry: public XT reference pp. 39-53, 57-62, 67-72,
+// 112, 116-118; V30 records independently compared with the caller catalog.
+// Keep the base table separate: V13 reuses only that explicitly bounded list.
+fn definitions() -> Vec<TypeDefinition> {
+    use FieldType::{
+        Character as C, Double as F, Integer as D, PointerIndex as P, UnsignedByte as U,
+        Vector as V,
+    };
+    let mut result = base_definitions();
+    let additional = [38, 40, 41, 52, 133, 141];
+    let mut geometry: Vec<_> = super::sch13006::definitions()
+        .into_iter()
+        .filter(|d| additional.contains(&d.node_type))
+        .collect();
+    geometry.extend(super::sch13006::sp_curve_definitions());
+    geometry.extend(super::sch13006::bspline_surface_definitions());
+    for mut definition in geometry {
+        definition.name = format!("onshape_type_{}", definition.node_type);
+        "V30 complex geometry dependency".clone_into(&mut definition.description);
+        match definition.node_type {
+            // V30 adds the retained UV-data reference to the V13 intersection.
+            38 => definition
+                .fields
+                .push(field("intersection_data", P, 204, 0)),
+            41 => definition.fields.insert(1, field("limit_state", C, 0, 0)),
+            // V30 widens the old individual analytic form into a pointer class.
+            135 => definition.fields[1].pointer_class = 1036,
+            125 => {
+                for (i, class) in [1030, 1031, 1032, 1033].into_iter().enumerate() {
+                    definition.fields[17 + i].pointer_class = class;
+                }
+            }
+            _ => {}
+        }
+        result.push(definition);
+    }
+    // Torus shares the reviewed surface prefix, followed by its exact frame/radii.
+    let mut torus = vec![
+        field("local_id", D, 0, 0),
+        field("annotations", P, 1019, 0),
+        field("owner_ref", P, 1007, 0),
+        field("next_surface", P, 1006, 0),
+        field("previous_surface", P, 1006, 0),
+        field("indirect_owner", P, 141, 0),
+        field("orientation", C, 0, 0),
+    ];
+    torus.extend([
+        field("center", V, 0, 0),
+        field("axis", V, 0, 0),
+        field("major_radius", F, 0, 0),
+        field("minor_radius", F, 0, 0),
+        field("x_direction", V, 0, 0),
+    ]);
+    result.push(node(54, torus));
+    for kind in [87, 89] {
+        result.push(node(kind, vec![field("values", V, 0, 1)]));
+    }
+    // This two-field layout is also independently present in embedded V30 data
+    // (tests/test_builtin_intersection_data_runtime.py); no UV semantics invented.
+    result.push(node(
+        204,
+        vec![field("uv_kind", U, 0, 0), field("values", F, 0, 1)],
+    ));
+    result
 }

@@ -165,31 +165,13 @@ def _tessellate(
     limits: InteropLimits,
 ) -> TessellationResult:
     from OCP.BRep import BRep_Tool
-    from OCP.BRepMesh import BRepMesh_IncrementalMesh
     from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_REVERSED
     from OCP.TopExp import TopExp
     from OCP.TopLoc import TopLoc_Location
     from OCP.TopoDS import TopoDS
     from OCP.TopTools import TopTools_IndexedDataMapOfShapeListOfShape
 
-    mesher = BRepMesh_IncrementalMesh(
-        converted.shape,
-        options.linear_deflection,
-        False,
-        options.angular_deflection,
-        False,
-    )
-    if hasattr(mesher, "Perform"):
-        mesher.Perform()
-    if not mesher.IsDone():
-        raise PreviewError(
-            _diagnostic(
-                brep,
-                code="preview.tessellation_failed",
-                kind=DiagnosticKind.INVALID,
-                message="OCCT incremental meshing did not complete",
-            )
-        )
+    meshing = _mesh_faces(converted, brep, options)
 
     edge_faces = TopTools_IndexedDataMapOfShapeListOfShape()
     TopExp.MapShapesAndAncestors_s(
@@ -398,6 +380,7 @@ def _tessellate(
         vertex_count,
         curve_sample_count,
     )
+    manifest["tessellation"] = meshing
     return TessellationResult(
         glb=glb_payload,
         manifest=manifest,
@@ -409,6 +392,65 @@ def _tessellate(
         missing_face_count=len(missing_faces),
         missing_edge_count=len(missing_edges),
     )
+
+
+def _mesh_faces(converted, brep, options):
+    """Respect the requested maximum deflection across differently sized faces.
+
+    OCCT's default minimum triangle size is 0.1 times the global deflection.
+    Local adjustment prevents that global minimum from erasing small features.
+    Only faces without triangles are retried, at most three times; missing
+    geometry still goes through the ordinary strict completeness gate.
+    """
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRep import BRep_Tool
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.IMeshTools import IMeshTools_Parameters
+    from OCP.Precision import Precision
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS
+
+    def mesh(shape, deflection):
+        parameters = IMeshTools_Parameters()
+        parameters.Deflection = deflection
+        parameters.Angle = options.angular_deflection
+        parameters.AdjustMinSize = True
+        operation = BRepMesh_IncrementalMesh(shape, parameters)
+        return operation.IsDone()
+
+    if not mesh(converted.shape, options.linear_deflection):
+        raise PreviewError(
+            _diagnostic(
+                brep,
+                code="preview.tessellation_failed",
+                kind=DiagnosticKind.INVALID,
+                message="OCCT incremental meshing did not complete",
+            )
+        )
+    retries = []
+    for item in converted.subshapes:
+        if item.kind is not OcctShapeKind.FACE:
+            continue
+        face = TopoDS.Face_s(item.shape)
+        deflection = options.linear_deflection
+        for _ in range(3):
+            triangles = BRep_Tool.Triangulation_s(face, TopLoc_Location())
+            if triangles is not None and triangles.NbTriangles() > 0:
+                break
+            bounds = Bnd_Box()
+            BRepBndLib.AddOptimal_s(face, bounds, False, False)
+            if bounds.IsVoid():
+                break
+            refined = max(
+                Precision.Confusion_s(), min(deflection / 10, sqrt(bounds.SquareExtent()) / 100)
+            )
+            if refined >= deflection:
+                break
+            deflection = refined
+            mesh(face, deflection)
+            retries.append({"target_key": item.key, "linear_deflection": deflection})
+    return {"adjust_min_size": True, "face_retries": retries}
 
 
 class _SourceIndex:
@@ -622,8 +664,10 @@ def _manifest(
         "conversion": {
             "complete": report.conversion_complete,
             "occt_valid": report.occt_valid,
+            "source_unit": report.options.source_unit,
             "target_unit": report.options.target_unit,
             "applied_scale": report.options.applied_scale,
+            "topology_operations": list(report.topology_operations),
         },
         "preview": {
             "partial": not brep.complete or bool(missing),

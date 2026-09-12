@@ -14,7 +14,7 @@ pub(crate) const PROFILE_SHA256: &str =
 /// # Errors
 /// Returns a profile error for inconsistent compiled definitions.
 pub fn solidworks_sch37102_13006() -> Result<BuiltinSchemaProfile, ParseError> {
-    let mut definitions = super::sch13006_definitions()?;
+    let mut definitions = super::sch13006_definitions();
     definitions.extend(super::sch13006_sp_curve_definitions());
     definitions.extend(super::sch13006_bspline_surface_definitions());
     definitions.push(world());

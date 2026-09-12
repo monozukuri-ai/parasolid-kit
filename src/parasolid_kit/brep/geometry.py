@@ -136,6 +136,9 @@ class IntersectionCurve:
     start: SourceNodeRef
     end: SourceNodeRef
     intersection_data: SourceNodeRef | None
+    chart_points: tuple[Vector3, ...] = ()
+    start_points: tuple[Vector3, ...] = ()
+    end_points: tuple[Vector3, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

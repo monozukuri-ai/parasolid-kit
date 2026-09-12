@@ -1,6 +1,8 @@
 //! Kernel-free metrics for fully mapped planar topology.
 
-use super::model::{BodyKind, BoundingBox, BrepMetrics, BrepModel, SurfaceKind, Vector3};
+use super::model::{
+    BodyKind, BoundingBox, BrepMetrics, BrepModel, CurveKind, SurfaceKind, Vector3,
+};
 
 pub(super) fn derive_metrics(model: &BrepModel) -> BrepMetrics {
     let bounding_box = bounding_box(model);
@@ -41,6 +43,14 @@ fn bounding_box(model: &BrepModel) -> Option<BoundingBox> {
 fn planar_metrics(model: &BrepModel) -> Option<(Option<f64>, Option<f64>)> {
     if model.faces.is_empty() {
         return Some((Some(0.0), None));
+    }
+    // A planar support with curved trim edges is not a vertex polygon.
+    if model
+        .curves
+        .iter()
+        .any(|curve| !matches!(curve.kind, CurveKind::Line { .. }))
+    {
+        return None;
     }
     let mut area = 0.0;
     let mut signed_volume = 0.0;

@@ -76,13 +76,14 @@ def _coverage_gate() -> dict[str, object]:
         raise RuntimeError("coverage import eagerly loaded an optional runtime")
     unsupported = {(item.category, item.kind) for item in rows if item.occt == "unsupported"}
     required_unsupported = {
-        ("curve", "surface_parametric"),
-        ("curve", "intersection"),
         ("surface", "blended_edge"),
         ("surface", "blend_boundary"),
     }
     if not required_unsupported <= unsupported:
-        raise RuntimeError("I7 coverage inferred pcurve, intersection, or blend support")
+        raise RuntimeError("geometry coverage inferred unsupported blend construction")
+    conditional = {(item.category, item.kind) for item in rows if item.occt == "conditional"}
+    if not {("curve", "surface_parametric"), ("curve", "intersection")} <= conditional:
+        raise RuntimeError("parametric geometry must retain its conditional conversion gates")
     return {
         "status": "passed",
         "row_count": len(rows),

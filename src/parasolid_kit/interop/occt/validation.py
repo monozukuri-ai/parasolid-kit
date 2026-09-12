@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import isclose
 
+from ...brep.geometry import LineCurve, PlaneSurface
 from ...brep.model import BrepModel
 from ...diagnostics import Diagnostic, DiagnosticKind, DiagnosticSeverity
 from .model import NamedCounts, OcctMetrics, OcctShapeKind, OcctSubshape
@@ -148,6 +149,11 @@ def metric_diagnostics(
     scale = options.applied_scale
     diagnostics: list[Diagnostic] = []
     source_bounds = model.metrics.bounding_box
+    # Core bounds enclose source vertices, not extrema in the interior of curves
+    # or surfaces. Equality is meaningful only for a polygonal planar model.
+    polygonal = all(isinstance(c.definition, LineCurve) for c in model.curves) and all(
+        isinstance(s.definition, PlaneSurface) for s in model.surfaces
+    )
     if source_bounds is not None and metrics.bounding_box is not None:
         expected_bounds = tuple(
             value * scale
@@ -160,7 +166,17 @@ def metric_diagnostics(
             zip(expected_bounds, metrics.bounding_box, strict=True)
         ):
             tolerance = options.validation.linear_threshold(expected)
-            if not isclose(actual, expected, rel_tol=0.0, abs_tol=tolerance):
+            if polygonal:
+                mismatch = not isclose(actual, expected, rel_tol=0.0, abs_tol=tolerance)
+            else:
+                tolerance = max(
+                    tolerance,
+                    max(((v.tolerance or 0) * scale for v in model.vertices), default=0.0),
+                )
+                mismatch = (
+                    actual > expected + tolerance if index < 3 else actual < expected - tolerance
+                )
+            if mismatch:
                 diagnostics.append(
                     _metric_diagnostic(
                         metric=f"bounding_box[{index}]",

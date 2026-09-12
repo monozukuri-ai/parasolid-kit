@@ -21,6 +21,7 @@ from ...brep.geometry import (
 )
 from ...brep.model import BrepModel
 from ...brep.topology import BodyKind, Face, HalfEdge, Sense, SourceNodeRef, Vector3
+from ...diagnostics import Diagnostic
 from .geometry import GeometryFactory
 from .model import ShapeRelationKind, SourceEntityKind, SourceEntityRef
 
@@ -38,6 +39,7 @@ class BuiltTopology:
     shape: object
     relations: tuple[PendingRelation, ...]
     operations: tuple[str, ...]
+    diagnostics: tuple[Diagnostic, ...] = ()
 
 
 class TopologyBuilder:

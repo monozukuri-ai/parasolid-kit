@@ -8,17 +8,16 @@ key must match; a caller-selected provider always takes priority. The
 [shared support matrix](format-support.md#supported-profiles) records their
 current identities and separate raw, B-Rep, independent-geometry, conversion,
 and saved-state evidence. The campaign results below retain their original
-scope and failures. The V30 profile
-retains its revision-2 identity:
+scope and failures. The current V30 profile has revision-3 identity:
 
 ```json
 {
   "kind": "builtin",
-  "profile_id": "onshape-sch30000-r2",
-  "profile_revision": 2,
+  "profile_id": "onshape-sch30000-r3",
+  "profile_revision": 3,
   "schema_key": "SCH_3000000_30000",
   "coverage": "verified_subset",
-  "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f"
+  "profile_sha256": "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4"
 }
 ```
 
@@ -38,12 +37,13 @@ particularly printed pages 5–19 (wire format), 31–35, 54–60, 77–78
 (analytic geometry), and 87–119 (records and classes). Per-type source comments
 remain alongside the code. The PDF is not redistributed in the package.
 
-Version-specific definitions were checked against paired Onshape V30 X_T/X_B
+For revisions 1 and 2, version-specific definitions were checked against paired
+Onshape V30 X_T/X_B
 exports and self-describing V30 model edits for types 12, 19, 70, and 74.
 Project-owned names identify fields; the raw codec and semantic role tables
 remain separate. Class 1040 is declared by observed inputs, without claiming
 its complete membership. Type 74 retains generic pointers without inventing a
-class constraint. No Siemens catalog was used to generate the table.
+class constraint. No Siemens catalog was used to generate those revision-1/2 definitions.
 
 Optional catalog comparisons were performed after candidate parsing, as an
 independent comparison of complete record boundaries and field values. Those
@@ -132,6 +132,37 @@ sheets, and NURBS are outside this verification claim. Runtime checks use exact
 keys, reviewed types, and structural invariants; they do not classify a file's
 shape to broaden the claim. See [format support](format-support.md).
 
+## V30 revision 3: complex trimmed topology
+
+Revision 3 adds 20 reviewed types, reaching **44 types / 356 field groups**:
+
+```text
+38 40 41 45 52 54 87 89 124 125 126 127 128 133 134 135 136 137 141 204
+```
+
+The shared geometry layouts follow the public XT reference (printed pages
+44–52, 57–60, 64–72, 112, 116–118). V30-specific details are maintained
+explicitly: type 38 has the additional intersection-data pointer; type 41
+has a second character before its limit-point array; types 125 and 135 have
+version-specific pointer classes. Vector-array types 87/89 and variable type
+204 are retained as typed raw fields. A developer audit compared the candidate
+with a local exact-key catalog. The catalog is neither bundled nor required
+at build, installation or runtime. The earlier no-catalog layout provenance
+above describes revisions 1 and 2; it does not describe this revision's audit.
+
+One user-supplied V30 stream now parses all 161,585 nodes with complete, valid
+B-Rep topology. Every raw field value and byte range, and the normalized B-Rep,
+agree with caller-catalog parsing. Synthetic text/binary tests cover the new
+roles and truncation boundaries. This is development evidence from one reused
+input, not new producer-generated X_T/X_B holdouts or an independent CAD geometry
+oracle. Earlier producer campaigns and their failures remain unchanged.
+
+The [V30 parametric viewer report](v30-parametric-viewer.md) describes the
+bounded OCCT conversion and local display checks. Intersection CHART/LIMIT
+positions are retained in the source model separately from any reconstructed
+curve. Raw support does not imply arbitrary schema, rational/periodic adapter,
+STEP mass-property, or assembly reconstruction support.
+
 ## 13006 base and embedded profiles
 
 The additional profiles are implemented in
@@ -147,8 +178,8 @@ with 240 base field groups. The iCAD revision 5 first added the trim layout;
 Onshape revision 4 validated it with V13 producer pairs. Onshape revision 5
 adds seven SP_CURVE dependency types, reaching 37 types / 277 field groups.
 Onshape revision 6 adds B_SURFACE (124), SURFACE_DATA (125), and NURBS_SURF
-(126), reaching 40 types / 327 field groups. These ten additional layouts remain
-V13-only; no iCAD embedded membership is inferred.
+(126), reaching 40 types / 327 field groups. These ten additional layouts are also reviewed independently by V30 revision 3;
+no iCAD embedded membership is inferred.
 Their canonical hashes are independent; the iCAD revision-5 identity is unchanged.
 Revision 1 covered 24 types / 191 groups; revision 2 covered 25 types /
 204 groups. Their validation results below remain historical evidence. Public

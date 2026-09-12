@@ -193,8 +193,8 @@ fn compiled_registry_preserves_the_verified_v30_exact_key() -> Result<()> {
 #[test]
 fn explicit_profile_has_exact_scope_and_stable_hash() -> Result<()> {
     let profile = onshape_sch30000()?;
-    assert_eq!(profile.metadata().profile_id, "onshape-sch30000-r2");
-    assert_eq!(profile.metadata().revision, 2);
+    assert_eq!(profile.metadata().profile_id, "onshape-sch30000-r3");
+    assert_eq!(profile.metadata().revision, 3);
     assert_eq!(
         profile.metadata().coverage,
         BuiltinProfileCoverage::VerifiedSubset
@@ -203,10 +203,10 @@ fn explicit_profile_has_exact_scope_and_stable_hash() -> Result<()> {
         profile.metadata().profile_sha256,
         support::profile_hash(&profile)?
     );
-    assert_eq!(profile.definitions().count(), 24);
+    assert_eq!(profile.definitions().count(), 44);
     assert_eq!(
         profile.definitions().map(|d| d.fields.len()).sum::<usize>(),
-        202
+        356
     );
     assert_eq!(
         profile
@@ -228,7 +228,7 @@ fn explicit_profile_has_exact_scope_and_stable_hash() -> Result<()> {
     assert!(matches!(
         doc.schema_provider,
         SchemaProviderResolution::Builtin {
-            profile_revision: 2,
+            profile_revision: 3,
             coverage: BuiltinProfileCoverage::VerifiedSubset,
             ..
         }

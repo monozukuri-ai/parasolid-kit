@@ -10,15 +10,15 @@
       "stage": "raw",
       "profile": {
         "kind": "builtin",
-        "profile_id": "onshape-sch30000-r2",
-        "profile_revision": 2,
+        "profile_id": "onshape-sch30000-r3",
+        "profile_revision": 3,
         "schema_key": "SCH_3000000_30000",
         "coverage": "verified_subset",
-        "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f"
+        "profile_sha256": "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4"
       },
       "baseline": {
         "path": "expected/release-v1/values.x_t.json",
-        "sha256": "da99d5fd0a15ffddfbcb6a7f17f8ca5b70a5aa14c29020655808c6f0ff5719c3",
+        "sha256": "6b19589b3e5a22d2cba529a982c386f1a4140463f841a7bcdfa660f4b3820b90",
         "bytes": 5344
       },
       "diagnostic": null,
@@ -34,15 +34,15 @@
       "stage": "raw",
       "profile": {
         "kind": "builtin",
-        "profile_id": "onshape-sch30000-r2",
-        "profile_revision": 2,
+        "profile_id": "onshape-sch30000-r3",
+        "profile_revision": 3,
         "schema_key": "SCH_3000000_30000",
         "coverage": "verified_subset",
-        "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f"
+        "profile_sha256": "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4"
       },
       "baseline": {
         "path": "expected/release-v1/values.x_b.json",
-        "sha256": "ef54bda00592fa1483da90d50e6a07a8b7674870a9019acadc18f59eec5820d8",
+        "sha256": "d911620ba86c41a1a55f7aec11bddea5cdd094eb46da24aa0e9480a18c02008a",
         "bytes": 5381
       },
       "diagnostic": null,

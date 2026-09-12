@@ -38,7 +38,7 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 
 | Exact internal key | Profile / revision | Base types / field groups | Canonical SHA-256 |
 |---|---|---|---|
-| `SCH_3000000_30000` | `onshape-sch30000-r2` / 2 | 24 / 202 | `adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f` |
+| `SCH_3000000_30000` | `onshape-sch30000-r3` / 3 | 44 / 356 | `67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4` |
 | `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | 40 / 327 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` / 5 | 30 / 240 | `1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5` |
 | `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` / 1 | 41 / 338 | `5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480` |
@@ -52,7 +52,7 @@ public CI. The detailed evidence and its retained failures are in
 | Profile scope | Raw decoding | Source B-Rep | Independent geometry evidence | OCCT / STEP / preview | Native saved state |
 |---|---|---|---|---|---|
 | Onshape V30 | Paired X_T / neutral X_B for the documented basic solids, spheres and elliptical edges | Topology and supported analytic definitions | Producer / STEP comparisons; oblique-cut strict mass-property failures remain recorded | Planar box/prism path validated; other inputs must satisfy the adapter constraints | CAD container/configuration reconstruction is outside the parser |
-| Onshape V13 | Paired X_T / neutral X_B, including the documented NURBS / SP_CURVE campaigns | Topology, analytic and bounded NURBS / wrapper definitions | Producer / STEP and sampled surface evidence; recorded curve-tolerance failures remain | Existing adapter subset only; rational/periodic NURBS, SP_CURVE and intersection evaluation are outside the public adapter | CAD container/configuration reconstruction is outside the parser |
+| Onshape V13 | Paired X_T / neutral X_B, including the documented NURBS / SP_CURVE campaigns | Topology, analytic and bounded NURBS / wrapper definitions | Producer / STEP and sampled surface evidence; recorded curve-tolerance failures remain | Bounded open nonrational UV and intersection conversion; rational/periodic NURBS remain unsupported | CAD container/configuration reconstruction is outside the parser |
 | iCAD embedded V30 | 17 neutral X_B streams from one container; embedded X_T tests are synthetic | All 17 reach complete source B-Rep/topology | No independent CAD/STEP oracle; line-trim endpoint checks are internal consistency evidence | No real iCAD conversion validation; source B-Rep success does not establish conversion | `.icd` extraction and saved-state selection are caller responsibilities; not established by these streams |
 | SolidWorks 2026 partitions | Four neutral X_B partitions; associated deltas stop at unknown base type 3 | Four complete partition B-Reps, including one three-body partition | Existing sldkit point/FIN/NURBS parity; no independent CAD/STEP evaluation repeated for this profile | No real partition conversion validation | Delta application and final saved configuration reconstruction remain unsupported |
 
@@ -62,11 +62,12 @@ separate from parser runtime inputs. The implementation does not download
 catalogs. Development provenance includes optional catalog comparisons and a
 one-time catalog-header audit for type 204's absence from base 13006; see
 [that evidence boundary](builtin-profiles.md#embedded-intersection-data-revision-4).
-No catalog field layouts are generated into the profiles by those comparisons.
+Historical catalog comparisons did not generate the profiles. The V30 revision-3
+developer audit and its version-specific definitions are documented separately.
 
 ### Detailed verified scope
 
-For V30, default parsing uses `onshape-sch30000-r2` revision 2 only for the exact internal
+For V30, default parsing uses `onshape-sch30000-r3` revision 3 only for the exact internal
 key `SCH_3000000_30000`. Its coverage is `verified_subset`: Onshape V30 text and
 neutral binary exports, zero user fields, and single-solid boxes, prisms,
 cylinders, through-holes, spheres, and verified solids with elliptical edges.
@@ -74,14 +75,13 @@ The same producer with a different modeller/key
 component is not selected. See [profile provenance](builtin-profiles.md) for
 sources, canonical hash, covered types, and local evidence.
 
-The V30 built-in raw decoder covers 24 node types / 202 field groups, including
-associated lists and attributes. The B-Rep role mapping covers 15 topology and
-point/line/circle/ellipse/plane/cylinder/sphere types. Decoding an attribute record does not
-mean the high-level model exposes its semantic meaning. A successful raw parse
-is separate from a complete B-Rep and from successful OCCT/STEP conversion.
-For the curved solid fixtures, core area/volume remain unavailable; the built-in
-profile does not extend the adapter's arc-trimming coverage. Planar box/prism
-exports are the validated built-in STEP/preview path.
+The V30 built-in raw decoder covers 44 types / 356 field groups. Revision 3
+adds cone/torus, trimmed and intersection curves, SP_CURVE and NURBS dependencies.
+A local complex model passes full raw/B-Rep comparison with an exact caller
+catalog. See the [parametric viewer report](v30-parametric-viewer.md) for
+conversion and display evidence, approximation limits and source-unit handling.
+The B-Rep bounding box encloses source vertices; it is not a curved-shape bounds
+oracle. Core area/volume are available only for planar polygonal topology.
 
 Default parsing also accepts `SCH_1300000_13006` with `onshape-sch13006-r6`
 and `SCH_3000310_30000_13006` with `icad-sch30000-13006-r5`. They share the
@@ -116,7 +116,8 @@ explicit. This does not establish general spline evaluation or STEP reconstructi
 The [STEP accuracy audit](step-accuracy.md) attributes these saved discrepancies
 to existing tolerant FIN/EDGE geometry and STEP boundary approximation, and
 separately measures imported pcurve consistency and area integration.
-The separate Onshape V30 profile stays at revision 2.
+V30 revision 3 separately audits these geometry dependencies; historical V13
+producer evidence does not become new V30 producer evidence.
 The `TrimmedCurve` model retains the basis curve, endpoints and parameters.
 V13 type 133 is verified using new producer text/binary pairs and independent
 STEP comparisons; its scope is still the exact V13 key.
@@ -250,9 +251,10 @@ being converted to an empty shape.
 This adapter table assumes an already mapped `BrepModel`; it does not imply
 built-in raw support for every listed type. This table is rendered from
 `parasolid_kit.interop.occt.GEOMETRY_COVERAGE`; a test requires the embedded
-text to match that machine-readable contract exactly. `conditional` means the
-listed constraints are checked before OCCT is imported. It does not mean that
-unsupported variants are approximated.
+text to match that machine-readable contract exactly. `conditional` means the listed data and construction constraints must pass.
+Structural checks precede the OCCT import; kernel validity and sampled geometry
+checks follow construction. UV/intersection approximations are explicitly
+recorded, while unsupported variants remain rejected.
 
 <!-- BEGIN GENERATED I7 GEOMETRY COVERAGE -->
 | Category | Geometry kind | Parser | OCCT | STEP | Exact constraints |
@@ -263,16 +265,16 @@ unsupported variants are approximated.
 | curve | `parabola` | exact | exact | exact | two vertices on one exact branch |
 | curve | `hyperbola` | exact | exact | exact | two vertices on one exact branch |
 | curve | `trimmed` | exact | exact | exact | explicit basis, parameters, endpoint positions, and two vertices |
-| curve | `nurbs` | exact | conditional | conditional | non-rational open non-periodic 3D control vertices; exact knots and multiplicities |
-| curve | `surface_parametric` | exact | unsupported | unsupported | 2D pcurve coordinate/parameter contract not yet established |
-| curve | `intersection` | exact | unsupported | unsupported | retained construction records do not define a reconstructible exact curve |
+| curve | `nurbs` | exact | conditional | conditional | open nonrational nonperiodic 3D curves, or 2D curves used only by SP_CURVE |
+| curve | `surface_parametric` | exact | conditional | conditional | open nonrational 2D NURBS on a supported surface; bounded 3D approximation and source FIN checks |
+| curve | `intersection` | exact | conditional | conditional | open source-identified CHART/LIMIT branch on two supports; bounded numerical fitting |
 | curve | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
 | surface | `plane` | exact | exact | exact | explicit trim loops |
 | surface | `cylinder` | exact | exact | exact | two vertex-free circular boundary loops |
 | surface | `cone` | exact | exact | exact | frustum with two positive-radius circular boundary loops |
 | surface | `sphere` | exact | exact | exact | untrimmed closed face; OCCT seam topology is generated |
-| surface | `torus` | exact | exact | exact | untrimmed closed ring torus; OCCT seam topology is generated |
-| surface | `nurbs` | exact | conditional | conditional | non-rational open non-periodic 3D row-major control grid; zero or one trim loop |
+| surface | `torus` | exact | exact | exact | closed ring torus, or explicitly trimmed lemon torus in parametric topology |
+| surface | `nurbs` | exact | conditional | conditional | open nonrational nonperiodic 3D row-major grid; multiple loops in parametric topology |
 | surface | `offset` | exact | conditional | conditional | supported exact basis surface; I7 verifies a non-periodic NURBS basis |
 | surface | `blended_edge` | exact | unsupported | unsupported | blend construction records are retained but not reverse engineered |
 | surface | `blend_boundary` | exact | unsupported | unsupported | depends on unsupported blend reconstruction |
@@ -330,15 +332,18 @@ Windows users can use `[occt]` for conversion, STEP export, and preview.
 I7 adds exact ellipse, parabola, hyperbola, explicit
 trimmed curve, cone frustum, full sphere, full ring torus, non-rational 3D
 NURBS, and exact offset-surface paths to the I3 point/line/circle/plane/cylinder
-baseline. Direct vertex-trimmed circles and ellipses remain rejected because
-their two possible arcs are ambiguous without source parameters. Rational
+baseline. The parametric path additionally resolves bounded conics using
+source orientation and endpoints; the original analytic path still requires
+explicit trim records for arcs. Rational
 NURBS remain conditional-coverage failures in the public adapter. Closed or
 periodic NURBS likewise remain outside its verified conversion path. The V13
 source-storage campaigns establish bounded homogeneous-coefficient and
 pole/knot evidence for parsing; they do not implement those adapter paths.
 The adapter validates source references,
 basis-reference cycles, OCCT topology, bounding box, area, and volume and
-performs no implicit healing or approximation.
+performs no source-geometry healing. The [parametric extension](v30-parametric-viewer.md)
+records bounded UV/intersection approximation, seam construction and associated
+source mappings in its reports.
 
 I4 can export any complete, valid documented OCCT result directly as geometry/topology-only
 AP242. Output is staged, bounded, accompanied by a schema-version-1 conversion

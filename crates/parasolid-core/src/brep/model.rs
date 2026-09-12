@@ -440,8 +440,14 @@ pub enum CurveKind {
     Intersection {
         surfaces: [BrepId; 2],
         chart: SourceNodeRef,
+        /// Ordered source points used to identify the intersection branch, not a fitted curve.
+        chart_points: Vec<Vector3>,
         start: SourceNodeRef,
+        /// Source limit points: one ordinary point, or singularity then branch point.
+        start_points: Vec<Vector3>,
         end: SourceNodeRef,
+        /// Source limit points in the same format as `start_points`.
+        end_points: Vec<Vector3>,
         intersection_data: Option<SourceNodeRef>,
     },
     /// Geometry type retained without claiming semantic support.

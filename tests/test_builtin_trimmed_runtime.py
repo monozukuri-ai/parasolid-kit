@@ -171,9 +171,9 @@ def test_trim_scope_and_binary_truncation():
     from tests.test_builtin_embedded_runtime import builder, header
 
     for data, parser in [
-        (header("SCH_3000000_30000") + b"133 1 0 ", parse_xt),
+        (header("SCH_3000001_30000") + b"133 1 0 ", parse_xt),
         (
-            builder("SCH_3000000_30000").build()[:-4]
+            builder("SCH_3000001_30000").build()[:-4]
             + struct.pack(">H", 133)
             + positive_integer(1),
             parse_xb,
@@ -181,7 +181,7 @@ def test_trim_scope_and_binary_truncation():
     ]:
         with pytest.raises(ParseError) as error:
             parser(data)
-        assert error.value.diagnostic.code == "schema.builtin_profile_uncovered_type"
+        assert error.value.diagnostic.code == "schema.missing_base_schema"
     data = trimmed("x_b")
     for end in range(parse_xb(data).nodes[1].byte_range.start + 2, len(data)):
         with pytest.raises(ParseError):

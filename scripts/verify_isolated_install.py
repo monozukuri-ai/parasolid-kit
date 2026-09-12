@@ -37,9 +37,9 @@ from parasolid_kit import (
     InMemorySchemaProvider, SchemaError, compare_documents, write_xb,
 )
 expected_profile = {
-    "kind": "builtin", "profile_id": "onshape-sch30000-r2", "profile_revision": 2,
+    "kind": "builtin", "profile_id": "onshape-sch30000-r3", "profile_revision": 3,
     "schema_key": "SCH_3000000_30000", "coverage": "verified_subset",
-    "profile_sha256": "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f",
+    "profile_sha256": "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4",
 }
 expected_profiles = {expected_profile["schema_key"]: expected_profile}
 for key, profile_id, digest in (

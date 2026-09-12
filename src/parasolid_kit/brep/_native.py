@@ -289,6 +289,13 @@ def _curve_definition(kind: CurveKind, value: Mapping[str, Any]) -> CurveDefinit
         return IntersectionCurve(
             surfaces=(surfaces[0], surfaces[1]),
             chart=_source(value.get("chart")),
+            chart_points=tuple(
+                _vector({"point": point}, "point") for point in value["chart_points"]
+            ),
+            start_points=tuple(
+                _vector({"point": point}, "point") for point in value["start_points"]
+            ),
+            end_points=tuple(_vector({"point": point}, "point") for point in value["end_points"]),
             start=_source(value.get("start")),
             end=_source(value.get("end")),
             intersection_data=(

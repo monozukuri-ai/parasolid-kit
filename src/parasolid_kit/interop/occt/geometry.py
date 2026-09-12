@@ -412,6 +412,50 @@ class GeometryFactory:
             curve.periodic,
         )
 
+    def parameter_curve(self, curve: NurbsCurve, surface: SurfaceDefinition) -> object:
+        """Embed open nonrational 2D poles using the support's parameter units."""
+        from OCP.Geom2d import Geom2d_BSplineCurve
+        from OCP.gp import gp_Pnt2d
+        from OCP.TColgp import TColgp_Array1OfPnt2d
+
+        if curve.vertex_dimension != 2 or curve.rational or curve.periodic or curve.closed:
+            raise ValueError("parameter curves require open nonrational 2D NURBS")
+        if isinstance(surface, PlaneSurface):
+            u_scale, v_scale = self.scale, self.scale
+        elif isinstance(surface, (CylinderSurface, ConeSurface)):
+            u_scale, v_scale = 1.0, self.scale
+        elif isinstance(surface, (SphereSurface, TorusSurface, NurbsSurface)):
+            u_scale, v_scale = 1.0, 1.0
+        else:
+            raise ValueError("unsupported parameter-curve support surface")
+        poles = TColgp_Array1OfPnt2d(1, len(curve.control_vertices))
+        for index, (u, v) in enumerate(curve.control_vertices, 1):
+            poles.SetValue(index, gp_Pnt2d(u * u_scale, v * v_scale))
+        return Geom2d_BSplineCurve(
+            poles,
+            _real_array(curve.knots),
+            _integer_array(curve.knot_multiplicities),
+            curve.degree,
+            False,
+        )
+
+    def lemon_torus(self, surface: TorusSurface) -> object:
+        """Exact XT torus parameterization for a negative major radius (p. 60)."""
+        from OCP.Geom import Geom_Circle, Geom_SurfaceOfRevolution
+        from OCP.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Vec
+
+        major, minor = surface.major_radius * self.scale, surface.minor_radius * self.scale
+        if not all(isfinite(v) for v in (major, minor)) or not (-minor < major < 0):
+            raise ValueError("lemon torus requires -minor_radius < major_radius < 0")
+        self._validate_frame(surface.axis, surface.x_axis, role="torus")
+        center = self.point(surface.center)
+        x, z = gp_Vec(*surface.x_axis), gp_Vec(*surface.axis)
+        circle = Geom_Circle(
+            gp_Ax2(center.Translated(x.Multiplied(major)), gp_Dir(x.Crossed(z)), gp_Dir(x)),
+            minor,
+        )
+        return Geom_SurfaceOfRevolution(circle, gp_Ax1(center, gp_Dir(z)))
+
     def surface3d(
         self,
         definition: SurfaceDefinition,
@@ -438,6 +482,8 @@ class GeometryFactory:
         if isinstance(definition, SphereSurface):
             return Geom_SphericalSurface(self.sphere(definition))
         if isinstance(definition, TorusSurface):
+            if definition.major_radius < 0:
+                return self.lemon_torus(definition)
             return Geom_ToroidalSurface(self.torus(definition))
         if isinstance(definition, NurbsSurface):
             return self.nurbs_surface(definition)

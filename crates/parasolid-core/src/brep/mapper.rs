@@ -684,8 +684,9 @@ impl<'a> Mapper<'a> {
         self.optional_double(chart, "chordal_error")?;
         self.optional_double(chart, "angular_error")?;
         let count = self.nonnegative_integer(chart, "chart_count")?;
-        self.intersection_points(chart, usize::try_from(count).unwrap_or(usize::MAX))?;
-        for field in ["start", "end"] {
+        let chart_points =
+            self.intersection_points(chart, usize::try_from(count).unwrap_or(usize::MAX))?;
+        let [start_points, end_points] = ["start", "end"].map(|field| {
             let limit = self.required_typed_node(node, field, "LIMIT")?;
             let count = match self.character(limit, "type")? {
                 b'H' | b'L' => 1,
@@ -698,8 +699,8 @@ impl<'a> Mapper<'a> {
                     ));
                 }
             };
-            self.intersection_points(limit, count)?;
-        }
+            self.intersection_points(limit, count)
+        });
         let surface_indices = self.pointer_array(node, "surface")?;
         if surface_indices.len() != 2 {
             return Err(self.invalid_field(
@@ -731,31 +732,43 @@ impl<'a> Mapper<'a> {
         Ok(CurveKind::Intersection {
             surfaces,
             chart: self.required_source(node, "chart")?,
+            chart_points,
             start: self.required_source(node, "start")?,
+            start_points: start_points?,
             end: self.required_source(node, "end")?,
+            end_points: end_points?,
             intersection_data,
         })
     }
 
-    fn intersection_points(&self, node: &RawNode, count: usize) -> Result<(), ParseError> {
+    fn intersection_points(
+        &self,
+        node: &RawNode,
+        count: usize,
+    ) -> Result<Vec<Vector3>, ParseError> {
         let values = &self.field(node, "hvec")?.values;
         if count == 0 || values.len() != count {
             return Err(self.invalid_geometry(node, "hvec", "intersection point count mismatch"));
         }
-        for value in values {
-            match value {
+        values
+            .iter()
+            .map(|value| match value {
                 FieldValue::IntersectionPoint([Some(x), Some(y), Some(z)])
-                    if x.is_finite() && y.is_finite() && z.is_finite() => {}
-                _ => {
-                    return Err(self.invalid_geometry(
-                        node,
-                        "hvec",
-                        "intersection point is null or non-finite",
-                    ));
+                    if x.is_finite() && y.is_finite() && z.is_finite() =>
+                {
+                    Ok(Vector3 {
+                        x: *x,
+                        y: *y,
+                        z: *z,
+                    })
                 }
-            }
-        }
-        Ok(())
+                _ => Err(self.invalid_geometry(
+                    node,
+                    "hvec",
+                    "intersection point is null or non-finite",
+                )),
+            })
+            .collect()
     }
 
     fn surface_parametric_curve(&self, node: &RawNode) -> Result<CurveKind, ParseError> {

@@ -376,12 +376,28 @@ fn curve_kind_to_python<'py>(py: Python<'py>, kind: &CurveKind) -> PyResult<Boun
         CurveKind::Intersection {
             surfaces,
             chart,
+            chart_points,
             start,
+            start_points,
             end,
+            end_points,
             intersection_data,
         } => {
             value.set_item("surfaces", (surfaces[0], surfaces[1]))?;
             value.set_item("chart", source_to_python(py, chart)?)?;
+            for (name, points) in [
+                ("chart_points", chart_points),
+                ("start_points", start_points),
+                ("end_points", end_points),
+            ] {
+                value.set_item(
+                    name,
+                    points
+                        .iter()
+                        .map(|point| vector_tuple(*point))
+                        .collect::<Vec<_>>(),
+                )?;
+            }
             value.set_item("start", source_to_python(py, start)?)?;
             value.set_item("end", source_to_python(py, end)?)?;
             value.set_item(

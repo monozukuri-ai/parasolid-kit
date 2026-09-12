@@ -8,7 +8,7 @@ use crate::{
 
 // Independently pin the definition revision reviewed with these semantic roles.
 const ROLE_PROFILE_SHA256: &str =
-    "adce41a88ebc4179212519144a5a627dba8d0b6572e3d77ac709f0b16840657f";
+    "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4";
 const ROLE_BASE_SHA256: &str = "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb";
 const ROLE_EMBEDDED_SHA256: &str =
     "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5";
@@ -34,8 +34,8 @@ impl RoleAccess {
                 schema_key,
                 coverage,
                 profile_sha256,
-            } if profile_id == "onshape-sch30000-r2"
-                && *profile_revision == 2
+            } if profile_id == "onshape-sch30000-r3"
+                && *profile_revision == 3
                 && schema_key == "SCH_3000000_30000"
                 && key == schema_key
                 && *coverage == BuiltinProfileCoverage::VerifiedSubset
@@ -96,23 +96,24 @@ impl RoleAccess {
                 30 => "LINE",
                 31 => "CIRCLE",
                 32 => "ELLIPSE",
-                38 if matches!(self, Self::Sch13006) => "INTERSECTION",
-                40 if matches!(self, Self::Sch13006) => "CHART",
-                41 if matches!(self, Self::Sch13006) => "LIMIT",
-                45 if matches!(self, Self::Sch13006) => "BSPLINE_VERTICES",
-                124 if matches!(self, Self::Sch13006) => "B_SURFACE",
-                126 if matches!(self, Self::Sch13006) => "NURBS_SURF",
-                127 if matches!(self, Self::Sch13006) => "KNOT_MULT",
-                128 if matches!(self, Self::Sch13006) => "KNOT_SET",
-                134 if matches!(self, Self::Sch13006) => "B_CURVE",
-                136 if matches!(self, Self::Sch13006) => "NURBS_CURVE",
-                137 if matches!(self, Self::Sch13006) => "SP_CURVE",
+                38 => "INTERSECTION",
+                40 => "CHART",
+                41 => "LIMIT",
+                45 => "BSPLINE_VERTICES",
+                124 => "B_SURFACE",
+                126 => "NURBS_SURF",
+                127 => "KNOT_MULT",
+                128 => "KNOT_SET",
+                134 => "B_CURVE",
+                136 => "NURBS_CURVE",
+                137 => "SP_CURVE",
                 50 => "PLANE",
                 51 => "CYLINDER",
-                52 if matches!(self, Self::Sch13006) => "CONE",
+                52 => "CONE",
                 53 => "SPHERE",
-                133 if matches!(self, Self::Sch13006) => "TRIMMED_CURVE",
-                204 if matches!(self, Self::Sch13006) => "INTERSECTION_DATA",
+                54 if matches!(self, Self::OnshapeSch30000) => "TORUS",
+                133 => "TRIMMED_CURVE",
+                204 => "INTERSECTION_DATA",
                 _ => "", // List/attribute types cannot acquire roles from their names.
             },
         }
@@ -121,6 +122,10 @@ impl RoleAccess {
     pub(super) fn field<'a>(self, node: &'a RawNode, role: &str) -> Option<&'a RawField> {
         match self {
             Self::Named => node.fields.iter().find(|f| f.definition.name == role),
+            Self::OnshapeSch30000 if node.node_type == 38 && role == "intersection_data" => {
+                node.fields.get(11)
+            }
+            Self::OnshapeSch30000 if node.node_type == 41 && role == "hvec" => node.fields.get(2),
             Self::OnshapeSch30000 => field_roles(node.node_type)
                 .iter()
                 .find(|(name, _, _, _)| *name == role)
@@ -143,7 +148,7 @@ impl RoleAccess {
 
     pub(super) fn is_curve(self, node: &RawNode) -> bool {
         match self {
-            Self::OnshapeSch30000 => matches!(node.node_type, 30..=32),
+            Self::OnshapeSch30000 => matches!(node.node_type, 30..=32 | 38 | 133 | 134 | 137),
             Self::Sch13006 => matches!(node.node_type, 30..=32 | 38 | 133 | 134 | 137),
             Self::Named => {
                 self.has_common_geometry(node)
@@ -156,7 +161,7 @@ impl RoleAccess {
 
     pub(super) fn is_surface(self, node: &RawNode) -> bool {
         match self {
-            Self::OnshapeSch30000 => matches!(node.node_type, 50 | 51 | 53),
+            Self::OnshapeSch30000 => matches!(node.node_type, 50..=54 | 124),
             Self::Sch13006 => matches!(node.node_type, 50..=53 | 124),
             Self::Named => {
                 self.has_common_geometry(node)
@@ -178,7 +183,7 @@ impl RoleAccess {
 /// of reviewed base fields. A matching scalar codec or inserted name is not
 /// sufficient to assign meaning to an input-defined field.
 fn validate_base_roles(schemas: &[SchemaResolution], standard_v13: bool) -> Result<(), ParseError> {
-    let mut base = crate::schema::profiles::sch13006_definitions()?;
+    let mut base = crate::schema::profiles::sch13006_definitions();
     if standard_v13 {
         base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
         base.extend(crate::schema::profiles::sch13006_bspline_surface_definitions());
@@ -492,6 +497,16 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
             ("cos_half_angle", 11, "cos_half_angle", "f"),
             ("x_axis", 12, "x_direction", "v"),
         ],
+        54 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("owner", 2, "owner_ref", "p"),
+            ("sense", 6, "orientation", "c"),
+            ("centre", 7, "center", "v"),
+            ("axis", 8, "axis", "v"),
+            ("major_radius", 9, "major_radius", "f"),
+            ("minor_radius", 10, "minor_radius", "f"),
+            ("x_axis", 11, "x_direction", "v"),
+        ],
         53 => &[
             ("node_id", 0, "local_id", "d"),
             ("owner", 2, "owner_ref", "p"),
@@ -672,14 +687,28 @@ mod tests {
             let mut unique = std::collections::BTreeSet::new();
             for (role, ordinal, name, code) in roles {
                 assert!(unique.insert(role));
-                let field = &definition.fields[*ordinal];
+                let ordinal = if definition.node_type == 41 && *role == "hvec" {
+                    2 // V30 inserts a limit-state character before its points.
+                } else {
+                    *ordinal
+                };
+                let field = &definition.fields[ordinal];
                 assert_eq!(field.name, *name, "type {} / {role}", definition.node_type);
                 assert_eq!(field.field_type.code(), *code);
-                assert_eq!(field.element_count, 0);
+                let count = match (definition.node_type, *role) {
+                    (38, "surface") => 2,
+                    (40 | 41, "hvec") | (45 | 127 | 128, _) | (204, "values") => 1,
+                    _ => 0,
+                };
+                assert_eq!(
+                    field.element_count, count,
+                    "type {} / {role}",
+                    definition.node_type
+                );
                 assert!(field.transmitted);
             }
         }
-        assert_eq!(mapped_types, 15);
+        assert_eq!(mapped_types, 29);
         Ok(())
     }
 }

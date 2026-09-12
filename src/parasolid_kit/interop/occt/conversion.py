@@ -15,6 +15,7 @@ from ...brep.geometry import (
     CylinderSurface,
     EllipseCurve,
     HyperbolaCurve,
+    IntersectionCurve,
     LineCurve,
     NurbsCurve,
     NurbsSurface,
@@ -73,7 +74,7 @@ def to_occt(
     limits: InteropLimits = DEFAULT_INTEROP_LIMITS,
     source_identity: str | None = None,
 ) -> OcctConversionResult:
-    """Convert the exact documented subset without inference, approximation, or healing."""
+    """Convert the documented subset, reporting bounded UV/intersection approximations."""
 
     if not isinstance(brep, BrepModel):
         raise TypeError("brep must be BrepModel")
@@ -96,7 +97,28 @@ def to_occt(
     context.ocp_version = _optional_text(getattr(runtime, "__version__", None))
     context.ocp_distribution = _ocp_distribution()
     try:
-        built = TopologyBuilder(brep, GeometryFactory(options)).build()
+        builder_type = TopologyBuilder
+        if _uses_parametric_topology(brep):
+            from .parametric import ParametricTopologyBuilder
+
+            builder_type = ParametricTopologyBuilder
+        built = builder_type(brep, GeometryFactory(options)).build()
+        context.diagnostics.extend(built.diagnostics)
+        if len(context.diagnostics) > limits.max_diagnostics:
+            _raise_conversion(
+                context,
+                _diagnostic(
+                    context,
+                    code="occt.limit_exceeded",
+                    kind=DiagnosticKind.LIMIT,
+                    message="construction diagnostics exceed the configured interop limit",
+                    details={
+                        "resource": "max_diagnostics",
+                        "observed": len(context.diagnostics),
+                        "limit": limits.max_diagnostics,
+                    },
+                ),
+            )
         registry = collect_shape_registry(built.shape)
         context.registry = registry
         context.operations = built.operations
@@ -409,8 +431,16 @@ def _preflight_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
     return result
 
 
+def _uses_parametric_topology(model: BrepModel) -> bool:
+    return any(
+        isinstance(curve.definition, (SurfaceParametricCurve, IntersectionCurve))
+        for curve in model.curves
+    )
+
+
 def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
     model = context.brep
+    parametric = _uses_parametric_topology(model)
     result: list[Diagnostic] = []
     for body in model.bodies:
         if body.kind not in {BodyKind.SOLID, BodyKind.SHEET}:
@@ -427,8 +457,20 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
                     details={"entity_kind": "body", "entity_id": body.id},
                 )
             )
+    curve_definitions = {curve.id: curve.definition for curve in model.curves}
     for curve in model.curves:
-        supported = _supported_curve_definition(curve.kind, curve.definition)
+        definition = curve.definition
+        supported = _supported_curve_definition(curve.kind, definition)
+        if isinstance(definition, SurfaceParametricCurve):
+            parameter = curve_definitions.get(definition.parameter_curve)
+            supported = isinstance(parameter, NurbsCurve) and parameter.vertex_dimension == 2
+        elif isinstance(definition, IntersectionCurve):
+            supported = (
+                len(definition.chart_points) >= 2
+                and bool(definition.start_points)
+                and bool(definition.end_points)
+                and len(set(definition.surfaces)) == 2
+            )
         if not supported:
             result.append(
                 _diagnostic(
@@ -477,12 +519,14 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
         if curve.sense is Sense.UNKNOWN:
             result.append(_unknown_sense(context, "curve", curve.id, curve.source))
     curves = {curve.id: curve for curve in model.curves}
+    half_edges = {item.id: item for item in model.half_edges}
+    surfaces = {item.id: item for item in model.surfaces}
     for edge in model.edges:
         curve_ids = {edge.curve} if edge.curve is not None else set()
         curve_ids.update(
-            half_edge.curve
-            for half_edge in model.half_edges
-            if half_edge.id in edge.half_edges and half_edge.curve is not None
+            half_edges[hid].curve
+            for hid in edge.half_edges
+            if hid in half_edges and half_edges[hid].curve is not None
         )
         if len(curve_ids) == 1:
             curve = curves.get(next(iter(curve_ids)))
@@ -490,7 +534,11 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
                 continue
             has_start = edge.start_vertex is not None
             has_end = edge.end_vertex is not None
-            if curve.kind in {CurveKind.CIRCLE, CurveKind.ELLIPSE} and (has_start or has_end):
+            if (
+                not parametric
+                and curve.kind in {CurveKind.CIRCLE, CurveKind.ELLIPSE}
+                and (has_start or has_end)
+            ):
                 result.append(
                     _diagnostic(
                         context,
@@ -565,10 +613,14 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
     for face in model.faces:
         if face.surface is None:
             continue
-        surface = next((item for item in model.surfaces if item.id == face.surface), None)
+        surface = surfaces.get(face.surface)
         if surface is None:
             continue
-        if surface.kind in {SurfaceKind.SPHERE, SurfaceKind.TORUS} and face.loops:
+        if (
+            not parametric
+            and surface.kind in {SurfaceKind.SPHERE, SurfaceKind.TORUS}
+            and face.loops
+        ):
             result.append(
                 _diagnostic(
                     context,
@@ -585,7 +637,11 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
                     },
                 )
             )
-        if surface.kind in {SurfaceKind.NURBS, SurfaceKind.OFFSET} and len(face.loops) > 1:
+        if (
+            not parametric
+            and surface.kind in {SurfaceKind.NURBS, SurfaceKind.OFFSET}
+            and len(face.loops) > 1
+        ):
             result.append(
                 _diagnostic(
                     context,
@@ -630,6 +686,8 @@ def _supported_curve_definition(kind: CurveKind, definition: object) -> bool:
                 (CurveKind.HYPERBOLA, HyperbolaCurve),
                 (CurveKind.TRIMMED, TrimmedCurve),
                 (CurveKind.NURBS, NurbsCurve),
+                (CurveKind.SURFACE_PARAMETRIC, SurfaceParametricCurve),
+                (CurveKind.INTERSECTION, IntersectionCurve),
             )
         )
     )
@@ -654,10 +712,16 @@ def _supported_surface_definition(kind: SurfaceKind, definition: object) -> bool
 
 def _conditional_geometry_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
     result: list[Diagnostic] = []
+    parameter_ids = {
+        curve.definition.parameter_curve
+        for curve in context.brep.curves
+        if isinstance(curve.definition, SurfaceParametricCurve)
+    }
     for curve in context.brep.curves:
         definition = curve.definition
         if isinstance(definition, NurbsCurve) and (
-            definition.rational or definition.vertex_dimension != 3
+            definition.rational
+            or definition.vertex_dimension != (2 if curve.id in parameter_ids else 3)
         ):
             result.append(
                 _diagnostic(
@@ -812,8 +876,8 @@ def _nurbs_curve_issue(definition: NurbsCurve) -> str | None:
         return "control vertex count does not match its payload"
     if definition.degree < 1 or definition.degree >= definition.control_vertex_count:
         return "degree is outside its valid control-point range"
-    if any(len(values) != 3 for values in definition.control_vertices):
-        return "control vertices must contain exactly three coordinates"
+    if any(len(values) != definition.vertex_dimension for values in definition.control_vertices):
+        return "control vertices must match the declared dimension"
     if any(not isfinite(value) for values in definition.control_vertices for value in values):
         return "control vertices must be finite"
     return _nurbs_knot_issue(
@@ -1057,6 +1121,9 @@ def _reference_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
                 curve.source,
                 optional=True,
             )
+        elif isinstance(definition, IntersectionCurve):
+            for surface_id in definition.surfaces:
+                check("curve", curve.id, "surface", surface_id, curve.source)
     for surface in model.surfaces:
         definition = surface.definition
         if isinstance(definition, OffsetSurface):
