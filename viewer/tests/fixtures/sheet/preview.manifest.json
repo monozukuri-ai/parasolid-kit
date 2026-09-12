@@ -1,0 +1,265 @@
+{
+  "bodies": [
+    {
+      "id": 1,
+      "kind": "sheet"
+    }
+  ],
+  "conversion": {
+    "applied_scale": 1.0,
+    "complete": true,
+    "occt_valid": true,
+    "target_unit": "mm"
+  },
+  "diagnostics": [],
+  "limits": {
+    "max_curve_samples": 1000000,
+    "max_diagnostics": 10000,
+    "max_entities": 1000000,
+    "max_occt_subshapes": 2000000,
+    "max_output_bytes": 536870912,
+    "max_triangles": 5000000,
+    "max_vertices": 10000000
+  },
+  "missing_entities": [],
+  "preview": {
+    "bounds": [
+      0.0,
+      0.0,
+      0.0,
+      10.0,
+      10.0,
+      0.0
+    ],
+    "counts": {
+      "curve_samples": 8,
+      "edge_primitives": 4,
+      "face_primitives": 1,
+      "missing_edges": 0,
+      "missing_faces": 0,
+      "triangles": 2,
+      "vertices": 12
+    },
+    "options": {
+      "allow_partial": false,
+      "angular_deflection": 0.5,
+      "include_edges": true,
+      "linear_deflection": 0.1
+    },
+    "partial": false
+  },
+  "primitives": [
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 1,
+      "primitive_index": 0,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 49,
+            "length": 9,
+            "start": 40
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 4,
+          "node_index": 4,
+          "node_type": 14,
+          "relation": "split",
+          "relation_note": "natural surface bounds generate OCCT topology",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 59,
+            "length": 9,
+            "start": 50
+          },
+          "entity_id": 1,
+          "key": "parasolid:surface:000001",
+          "kind": "surface",
+          "node_id": 5,
+          "node_index": 5,
+          "node_type": 15,
+          "relation": "direct",
+          "type_name": "b_surface"
+        }
+      ],
+      "surface_kinds": [
+        "nurbs"
+      ],
+      "target_key": "occt:face:000001",
+      "triangle_count": 2,
+      "vertex_count": 4
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "curve_sample_count": 2,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 2,
+      "primitive_index": 1,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 49,
+            "length": 9,
+            "start": 40
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 4,
+          "node_index": 4,
+          "node_type": 14,
+          "relation": "generated",
+          "relation_note": "OCCT natural surface boundary topology",
+          "type_name": "face"
+        }
+      ],
+      "surface_kinds": [
+        "nurbs"
+      ],
+      "target_key": "occt:edge:000001",
+      "vertex_count": 2
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "curve_sample_count": 2,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 3,
+      "primitive_index": 2,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 49,
+            "length": 9,
+            "start": 40
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 4,
+          "node_index": 4,
+          "node_type": 14,
+          "relation": "generated",
+          "relation_note": "OCCT natural surface boundary topology",
+          "type_name": "face"
+        }
+      ],
+      "surface_kinds": [
+        "nurbs"
+      ],
+      "target_key": "occt:edge:000002",
+      "vertex_count": 2
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "curve_sample_count": 2,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 4,
+      "primitive_index": 3,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 49,
+            "length": 9,
+            "start": 40
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 4,
+          "node_index": 4,
+          "node_type": 14,
+          "relation": "generated",
+          "relation_note": "OCCT natural surface boundary topology",
+          "type_name": "face"
+        }
+      ],
+      "surface_kinds": [
+        "nurbs"
+      ],
+      "target_key": "occt:edge:000003",
+      "vertex_count": 2
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "curve_sample_count": 2,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 5,
+      "primitive_index": 4,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 49,
+            "length": 9,
+            "start": 40
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 4,
+          "node_index": 4,
+          "node_type": 14,
+          "relation": "generated",
+          "relation_note": "OCCT natural surface boundary topology",
+          "type_name": "face"
+        }
+      ],
+      "surface_kinds": [
+        "nurbs"
+      ],
+      "target_key": "occt:edge:000004",
+      "vertex_count": 2
+    }
+  ],
+  "producer": "parasolid-kit.interop.preview",
+  "schema_version": 1,
+  "source": {
+    "complete": true,
+    "format": "text",
+    "schema_key": "synthetic-nurbs-surface"
+  }
+}

@@ -19,6 +19,7 @@ from scripts.verify_artifacts import (
     VIEWER_ASSET_LICENSE,
     VIEWER_ASSET_SHA256,
     VIEWER_ASSET_VERSION,
+    VIEWER_SOURCE_FILES,
     verify_sdist,
     verify_wheel,
 )
@@ -90,7 +91,12 @@ def _wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
             archive.writestr(name, payload)
 
 
-def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
+def _sdist(
+    path: Path,
+    *,
+    extra: dict[str, bytes] | None = None,
+    omit: tuple[str, ...] = (),
+) -> None:
     required = {
         ".gitattributes",
         "Cargo.lock",
@@ -119,6 +125,7 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_isolated_install.py",
+        "scripts/verify_viewer_install.py",
         "scripts/verify_release_corpus.py",
         "scripts/release_corpus_runtime.py",
         "scripts/release_corpus_oracle.py",
@@ -167,10 +174,12 @@ def _sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files.update(
         {
             name: (ROOT / name).read_bytes()
-            for name in (*BUILTIN_SOURCE_FILES, *PARTIAL_SOURCE_FILES)
+            for name in (*BUILTIN_SOURCE_FILES, *PARTIAL_SOURCE_FILES, *VIEWER_SOURCE_FILES)
         }
     )
     files.update(extra or {})
+    for name in omit:
+        del files[name]
     with tarfile.open(path, "w:gz") as archive:
         for relative, payload in files.items():
             name = f"parasolid_kit-0.1.0/{relative}"
@@ -289,6 +298,54 @@ def test_sdist_gate_rejects_an_unapproved_maintainer_script(tmp_path: Path) -> N
 
     assert report["status"] == "failed"
     assert any("unexpected maintainer script" in error for error in report["errors"])
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "viewer/node_modules/three/index.js",
+        "viewer/test-results/browser.json",
+        "viewer/dist/viewer.js",
+        "viewer/src/app.ts.map",
+        "viewer/tests/fixtures/private.glb",
+        "viewer/chromium/chrome",
+    ],
+)
+def test_sdist_gate_rejects_frontend_runtime_and_unreviewed_fixtures(
+    tmp_path: Path,
+    name: str,
+) -> None:
+    sdist = tmp_path / "package.tar.gz"
+    _sdist(sdist, extra={name: b"unapproved"})
+    report = verify_sdist(sdist)
+    assert report["status"] == "failed"
+    assert any("unapproved frontend source" in error for error in report["errors"])
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "viewer/package-lock.json",
+        "viewer/src/app.ts",
+        "viewer/third-party/n8ao-1.10.1.txt",
+        "viewer/tests/fixtures/box/preview.glb",
+    ],
+)
+def test_sdist_gate_rejects_changed_frontend_sources(tmp_path: Path, name: str) -> None:
+    sdist = tmp_path / "package.tar.gz"
+    _sdist(sdist, extra={name: b"modified"})
+    report = verify_sdist(sdist)
+    assert report["status"] == "failed"
+    assert any("frontend source differs" in error for error in report["errors"])
+
+
+@pytest.mark.parametrize("name", ["viewer/package-lock.json", "viewer/src/adapter.ts"])
+def test_sdist_gate_requires_frontend_build_inputs(tmp_path: Path, name: str) -> None:
+    sdist = tmp_path / "package.tar.gz"
+    _sdist(sdist, omit=(name,))
+    report = verify_sdist(sdist)
+    assert report["status"] == "failed"
+    assert f"required sdist file is missing: {name}" in report["errors"]
 
 
 def test_wheel_license_gate_rejects_a_different_expression(tmp_path: Path) -> None:

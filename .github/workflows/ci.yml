@@ -151,6 +151,7 @@ jobs:
   distribution:
     needs: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -166,29 +167,66 @@ jobs:
         with:
           toolchain: 1.88.0
 
-      - name: Install build dependencies and cold Python
+      - name: Install pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.18.0"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+
+      - name: Install build dependencies, OCCT tests and cold Python
         run: |
           uv python install 3.10 3.11
-          uv sync --locked --python 3.11
+          uv sync --locked --extra occt --python 3.11
+
+      - name: Build and test the frontend
+        working-directory: viewer
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+          npx playwright install --with-deps chromium
+          npm run test:browser
+
+      - name: Verify generated previews, browser controls and both CLI names
+        run: |
+          mkdir -p viewer/test-results/i6
+          uv run --no-sync python scripts/verify_optional_interop_i6.py > viewer/test-results/i6-report.json
+          npm --prefix viewer run test:production
 
       - name: Build wheel and sdist
         run: |
-          uv run maturin build --release --out dist --compatibility pypi
-          uv run maturin sdist --out dist
+          uv run --no-sync maturin build --release --out dist --compatibility pypi
+          uv run --no-sync maturin sdist --out dist
 
       - name: Verify archive members and metadata
         run: >-
-          uv run python scripts/verify_artifacts.py
+          uv run --no-sync python scripts/verify_artifacts.py
           --wheel dist/*.whl
           --sdist dist/*.tar.gz
           --require-license
 
       - name: Verify isolated wheel and sdist installs
         run: >-
-          uv run python scripts/verify_isolated_install.py
+          uv run --no-sync python scripts/verify_isolated_install.py
           --wheel dist/*.whl
           --sdist dist/*.tar.gz
           --python 3.10
+
+      - name: Verify cold viewer wheel and sdist generation and rendering
+        run: >-
+          uv run --no-sync python scripts/verify_viewer_install.py
+          --wheel dist/*.whl --sdist dist/*.tar.gz --python 3.10
+          --output viewer/test-results/distribution
+
+      - name: Retain viewer reports, screenshots and install logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: viewer-validation-linux
+          path: viewer/test-results/
+          if-no-files-found: error
 
   optional-profiles:
     name: Optional ${{ matrix.profile }} / Python ${{ matrix.python }} / ${{ matrix.runner }}

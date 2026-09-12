@@ -1,0 +1,674 @@
+{
+  "bodies": [
+    {
+      "id": 1,
+      "kind": "solid"
+    }
+  ],
+  "conversion": {
+    "applied_scale": 1.0,
+    "complete": true,
+    "occt_valid": true,
+    "target_unit": "mm"
+  },
+  "diagnostics": [],
+  "limits": {
+    "max_curve_samples": 1000000,
+    "max_diagnostics": 10000,
+    "max_entities": 1000000,
+    "max_occt_subshapes": 2000000,
+    "max_output_bytes": 536870912,
+    "max_triangles": 5000000,
+    "max_vertices": 10000000
+  },
+  "missing_entities": [],
+  "preview": {
+    "bounds": [
+      -10.0,
+      -10.0,
+      0.0,
+      10.0,
+      10.0,
+      30.0
+    ],
+    "counts": {
+      "curve_samples": 124,
+      "edge_primitives": 6,
+      "face_primitives": 4,
+      "missing_edges": 0,
+      "missing_faces": 0,
+      "triangles": 232,
+      "vertices": 360
+    },
+    "options": {
+      "allow_partial": false,
+      "angular_deflection": 0.5,
+      "include_edges": true,
+      "linear_deflection": 0.1
+    },
+    "partial": false
+  },
+  "primitives": [
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 1,
+      "primitive_index": 0,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 129,
+            "length": 9,
+            "start": 120
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 12,
+          "node_index": 12,
+          "node_type": 22,
+          "relation": "split",
+          "relation_note": "periodic source face is represented with generated seam topology",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 169,
+            "length": 9,
+            "start": 160
+          },
+          "entity_id": 1,
+          "key": "parasolid:surface:000001",
+          "kind": "surface",
+          "node_id": 16,
+          "node_index": 16,
+          "node_type": 26,
+          "relation": "direct",
+          "type_name": "surface"
+        }
+      ],
+      "surface_kinds": [
+        "cylinder"
+      ],
+      "target_key": "occt:face:000001",
+      "triangle_count": 64,
+      "vertex_count": 66
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        2
+      ],
+      "pick_id": 2,
+      "primitive_index": 1,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 139,
+            "length": 9,
+            "start": 130
+          },
+          "entity_id": 2,
+          "key": "parasolid:face:000002",
+          "kind": "face",
+          "node_id": 13,
+          "node_index": 13,
+          "node_type": 23,
+          "relation": "split",
+          "relation_note": "periodic source face is represented with generated seam topology",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 179,
+            "length": 9,
+            "start": 170
+          },
+          "entity_id": 2,
+          "key": "parasolid:surface:000002",
+          "kind": "surface",
+          "node_id": 17,
+          "node_index": 17,
+          "node_type": 27,
+          "relation": "direct",
+          "type_name": "surface"
+        }
+      ],
+      "surface_kinds": [
+        "cylinder"
+      ],
+      "target_key": "occt:face:000002",
+      "triangle_count": 52,
+      "vertex_count": 54
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        3
+      ],
+      "pick_id": 3,
+      "primitive_index": 2,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 149,
+            "length": 9,
+            "start": 140
+          },
+          "entity_id": 3,
+          "key": "parasolid:face:000003",
+          "kind": "face",
+          "node_id": 14,
+          "node_index": 14,
+          "node_type": 24,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 189,
+            "length": 9,
+            "start": 180
+          },
+          "entity_id": 3,
+          "key": "parasolid:surface:000003",
+          "kind": "surface",
+          "node_id": 18,
+          "node_index": 18,
+          "node_type": 28,
+          "relation": "direct",
+          "type_name": "surface"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000003",
+      "triangle_count": 58,
+      "vertex_count": 58
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        4
+      ],
+      "pick_id": 4,
+      "primitive_index": 3,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 159,
+            "length": 9,
+            "start": 150
+          },
+          "entity_id": 4,
+          "key": "parasolid:face:000004",
+          "kind": "face",
+          "node_id": 15,
+          "node_index": 15,
+          "node_type": 25,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 199,
+            "length": 9,
+            "start": 190
+          },
+          "entity_id": 4,
+          "key": "parasolid:surface:000004",
+          "kind": "surface",
+          "node_id": 19,
+          "node_index": 19,
+          "node_type": 29,
+          "relation": "direct",
+          "type_name": "surface"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000004",
+      "triangle_count": 58,
+      "vertex_count": 58
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "curve_sample_count": 2,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 5,
+      "primitive_index": 4,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 129,
+            "length": 9,
+            "start": 120
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 12,
+          "node_index": 12,
+          "node_type": 22,
+          "relation": "generated",
+          "relation_note": "OCCT periodic seam edge",
+          "type_name": "face"
+        }
+      ],
+      "surface_kinds": [
+        "cylinder"
+      ],
+      "target_key": "occt:edge:000001",
+      "vertex_count": 2
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [
+        "circle"
+      ],
+      "curve_sample_count": 33,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [
+        1
+      ],
+      "parasolid_face_ids": [],
+      "pick_id": 6,
+      "primitive_index": 5,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 49,
+            "length": 9,
+            "start": 40
+          },
+          "entity_id": 1,
+          "key": "parasolid:curve:000001",
+          "kind": "curve",
+          "node_id": 4,
+          "node_index": 4,
+          "node_type": 14,
+          "relation": "direct",
+          "type_name": "circle"
+        },
+        {
+          "byte_range": {
+            "end": 89,
+            "length": 9,
+            "start": 80
+          },
+          "entity_id": 1,
+          "key": "parasolid:edge:000001",
+          "kind": "edge",
+          "node_id": 8,
+          "node_index": 8,
+          "node_type": 18,
+          "relation": "direct",
+          "type_name": "edge"
+        },
+        {
+          "byte_range": {
+            "end": 289,
+            "length": 9,
+            "start": 280
+          },
+          "entity_id": 1,
+          "key": "parasolid:half_edge:000001",
+          "kind": "half_edge",
+          "node_id": 28,
+          "node_index": 28,
+          "node_type": 38,
+          "relation": "direct",
+          "type_name": "fin"
+        },
+        {
+          "byte_range": {
+            "end": 349,
+            "length": 9,
+            "start": 340
+          },
+          "entity_id": 7,
+          "key": "parasolid:half_edge:000007",
+          "kind": "half_edge",
+          "node_id": 34,
+          "node_index": 34,
+          "node_type": 44,
+          "relation": "direct",
+          "type_name": "fin"
+        }
+      ],
+      "surface_kinds": [],
+      "target_key": "occt:edge:000002",
+      "vertex_count": 33
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [
+        "circle"
+      ],
+      "curve_sample_count": 33,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [
+        2
+      ],
+      "parasolid_face_ids": [],
+      "pick_id": 7,
+      "primitive_index": 6,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 59,
+            "length": 9,
+            "start": 50
+          },
+          "entity_id": 2,
+          "key": "parasolid:curve:000002",
+          "kind": "curve",
+          "node_id": 5,
+          "node_index": 5,
+          "node_type": 15,
+          "relation": "direct",
+          "type_name": "circle"
+        },
+        {
+          "byte_range": {
+            "end": 99,
+            "length": 9,
+            "start": 90
+          },
+          "entity_id": 2,
+          "key": "parasolid:edge:000002",
+          "kind": "edge",
+          "node_id": 9,
+          "node_index": 9,
+          "node_type": 19,
+          "relation": "direct",
+          "type_name": "edge"
+        },
+        {
+          "byte_range": {
+            "end": 299,
+            "length": 9,
+            "start": 290
+          },
+          "entity_id": 2,
+          "key": "parasolid:half_edge:000002",
+          "kind": "half_edge",
+          "node_id": 29,
+          "node_index": 29,
+          "node_type": 39,
+          "relation": "direct",
+          "type_name": "fin"
+        },
+        {
+          "byte_range": {
+            "end": 329,
+            "length": 9,
+            "start": 320
+          },
+          "entity_id": 5,
+          "key": "parasolid:half_edge:000005",
+          "kind": "half_edge",
+          "node_id": 32,
+          "node_index": 32,
+          "node_type": 42,
+          "relation": "direct",
+          "type_name": "fin"
+        }
+      ],
+      "surface_kinds": [],
+      "target_key": "occt:edge:000003",
+      "vertex_count": 33
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "curve_sample_count": 2,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        2
+      ],
+      "pick_id": 8,
+      "primitive_index": 7,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 139,
+            "length": 9,
+            "start": 130
+          },
+          "entity_id": 2,
+          "key": "parasolid:face:000002",
+          "kind": "face",
+          "node_id": 13,
+          "node_index": 13,
+          "node_type": 23,
+          "relation": "generated",
+          "relation_note": "OCCT periodic seam edge",
+          "type_name": "face"
+        }
+      ],
+      "surface_kinds": [
+        "cylinder"
+      ],
+      "target_key": "occt:edge:000004",
+      "vertex_count": 2
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [
+        "circle"
+      ],
+      "curve_sample_count": 27,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [
+        3
+      ],
+      "parasolid_face_ids": [],
+      "pick_id": 9,
+      "primitive_index": 8,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 69,
+            "length": 9,
+            "start": 60
+          },
+          "entity_id": 3,
+          "key": "parasolid:curve:000003",
+          "kind": "curve",
+          "node_id": 6,
+          "node_index": 6,
+          "node_type": 16,
+          "relation": "direct",
+          "type_name": "circle"
+        },
+        {
+          "byte_range": {
+            "end": 109,
+            "length": 9,
+            "start": 100
+          },
+          "entity_id": 3,
+          "key": "parasolid:edge:000003",
+          "kind": "edge",
+          "node_id": 10,
+          "node_index": 10,
+          "node_type": 20,
+          "relation": "direct",
+          "type_name": "edge"
+        },
+        {
+          "byte_range": {
+            "end": 309,
+            "length": 9,
+            "start": 300
+          },
+          "entity_id": 3,
+          "key": "parasolid:half_edge:000003",
+          "kind": "half_edge",
+          "node_id": 30,
+          "node_index": 30,
+          "node_type": 40,
+          "relation": "direct",
+          "type_name": "fin"
+        },
+        {
+          "byte_range": {
+            "end": 359,
+            "length": 9,
+            "start": 350
+          },
+          "entity_id": 8,
+          "key": "parasolid:half_edge:000008",
+          "kind": "half_edge",
+          "node_id": 35,
+          "node_index": 35,
+          "node_type": 45,
+          "relation": "direct",
+          "type_name": "fin"
+        }
+      ],
+      "surface_kinds": [],
+      "target_key": "occt:edge:000005",
+      "vertex_count": 27
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [
+        "circle"
+      ],
+      "curve_sample_count": 27,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [
+        4
+      ],
+      "parasolid_face_ids": [],
+      "pick_id": 10,
+      "primitive_index": 9,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 79,
+            "length": 9,
+            "start": 70
+          },
+          "entity_id": 4,
+          "key": "parasolid:curve:000004",
+          "kind": "curve",
+          "node_id": 7,
+          "node_index": 7,
+          "node_type": 17,
+          "relation": "direct",
+          "type_name": "circle"
+        },
+        {
+          "byte_range": {
+            "end": 119,
+            "length": 9,
+            "start": 110
+          },
+          "entity_id": 4,
+          "key": "parasolid:edge:000004",
+          "kind": "edge",
+          "node_id": 11,
+          "node_index": 11,
+          "node_type": 21,
+          "relation": "direct",
+          "type_name": "edge"
+        },
+        {
+          "byte_range": {
+            "end": 319,
+            "length": 9,
+            "start": 310
+          },
+          "entity_id": 4,
+          "key": "parasolid:half_edge:000004",
+          "kind": "half_edge",
+          "node_id": 31,
+          "node_index": 31,
+          "node_type": 41,
+          "relation": "direct",
+          "type_name": "fin"
+        },
+        {
+          "byte_range": {
+            "end": 339,
+            "length": 9,
+            "start": 330
+          },
+          "entity_id": 6,
+          "key": "parasolid:half_edge:000006",
+          "kind": "half_edge",
+          "node_id": 33,
+          "node_index": 33,
+          "node_type": 43,
+          "relation": "direct",
+          "type_name": "fin"
+        }
+      ],
+      "surface_kinds": [],
+      "target_key": "occt:edge:000006",
+      "vertex_count": 27
+    }
+  ],
+  "producer": "parasolid-kit.interop.preview",
+  "schema_version": 1,
+  "source": {
+    "complete": true,
+    "format": "binary",
+    "schema_key": "synthetic-cylinder-hole"
+  }
+}

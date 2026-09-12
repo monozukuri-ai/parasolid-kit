@@ -367,8 +367,9 @@ limits fail with `preview.limit_exceeded` and never trigger hidden
 simplification. Missing mappings fail by default, while explicit partial mode
 shows a visual warning and missing-entity list.
 
-The viewer is a fixed-hash, package-owned MIT HTML/CSS/JavaScript bundle. It
-uses WebGL without VTK, CDN, or a Node.js runtime. Its server binds an ephemeral
+The viewer is a fixed-hash HTML/CSS/JavaScript bundle using three-cad-viewer 5.0.6,
+with original third-party notices embedded in JS/CSS (see the [preview API](api.md)).
+It uses WebGL without VTK, CDN, or a Node.js runtime. Its server binds an ephemeral
 `127.0.0.1` port by default, serves only the five generated/reviewed files, and
 requires explicit permission for a non-loopback bind. The browser receives no
 source path or raw Parasolid bytes.
@@ -376,6 +377,39 @@ source path or raw Parasolid bytes.
 This optional conversion/export/preview does not expand the parser's source-format
 coverage and does not make OCCT, CadQuery, or STEP the canonical parse result.
 GLB is likewise a derived inspection artifact, not the canonical parse result.
+
+### Viewer display boundary
+
+`parasolid-kit viewer` (alias `view`) displays the documented OCCT conversion
+subset above. Local browser checks cover solid boxes, a cylinder with a hole,
+multiple bodies, and an open non-rational NURBS sheet, generated from public
+synthetic B-Reps. They do not establish viewer compatibility with arbitrary
+X_T/X_B exporters. The browser accepts this package's paired GLB/manifest format;
+it is not a general GLB loader. Unsupported conversion geometry remains an error.
+
+- Face/edge selection resolves to the original conversion's source IDs, nodes,
+  byte ranges and diagnostics. Body groups show membership, including shared
+  and unknown membership; they do not infer an assembly or feature history.
+- Source completeness, conversion completeness and OCCT validity are separate
+  statuses. `--allow-partial` permits incomplete source or missing mappings and
+  displays a warning. Conversion must still be complete and OCCT-valid; invalid
+  topology, unsupported geometry and exceeded limits remain errors. A partial
+  preview can exit successfully while still omitting source geometry or mappings.
+- The caller declares the actual source unit. OCCT applies the source-to-target
+  scale once, and the browser retains target coordinates (default `mm`). Linear
+  deflection and section position use target units; the mesh is not rescaled to
+  glTF meters on loading. Colors are illustrative, not recovered CAD materials.
+- Sections clip the display mesh, with caps only for complete known solid leaves.
+  They do not calculate or export exact B-Rep sections. Filtering, body visibility
+  and section changes clear selection; camera movement retains it.
+
+Measurement, CAD vertex/whole-solid picking, material editing, animation and
+assembly inference are outside this implementation. Source mapping describes the
+original conversion and does not promise correspondence after downstream editing.
+See the [viewer usage and controls](api.md#bounded-local-preview),
+[development steps](../viewer/README.md), and
+[local validation record](viewer-validation.md) for reproducible checks and their
+platform/input boundaries.
 
 ## Current interoperability evidence
 

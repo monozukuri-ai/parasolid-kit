@@ -117,9 +117,11 @@ def _parser() -> argparse.ArgumentParser:
     _add_format_argument(export_step_command)
 
     view_command = commands.add_parser(
-        "view",
+        "viewer",
+        aliases=["view"],
         help="write a bounded GLB preview and serve its bundled UI on localhost",
     )
+    view_command.set_defaults(command="viewer")
     view_command.add_argument("path", type=Path)
     view_command.add_argument(
         "--schema-dir",
@@ -523,7 +525,7 @@ def _run(arguments: argparse.Namespace) -> int:
             }
         )
         return 0
-    if arguments.command == "view":
+    if arguments.command == "viewer":
         from .interop.occt import to_occt
         from .interop.preview import (
             PreviewOptions,

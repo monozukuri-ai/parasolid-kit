@@ -1,0 +1,24 @@
+{
+  "name": "parasolid-kit-viewer",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18.0" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:browser": "node tests/browser.mjs",
+    "test:production": "node tests/production.mjs",
+    "build": "node build.mjs",
+    "build:update": "node build.mjs --update",
+    "build:sync": "node build.mjs --sync"
+  },
+  "dependencies": { "three-cad-viewer": "5.0.6" },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "@types/three": "0.184.0",
+    "esbuild": "0.25.12",
+    "playwright": "1.56.1",
+    "typescript": "5.9.3"
+  }
+}

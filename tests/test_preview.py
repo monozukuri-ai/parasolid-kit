@@ -13,6 +13,8 @@ import pytest
 from parasolid_kit.interop import InteropLimits, PreviewError
 from parasolid_kit.interop.occt import SourceEntityKind, SourceShapeMap, to_occt
 from parasolid_kit.interop.preview import (
+    ASSET_BUNDLE_VERSION,
+    ASSET_LICENSE,
     STATIC_ASSET_NAMES,
     STATIC_ASSET_SHA256,
     GlbBuilder,
@@ -21,7 +23,12 @@ from parasolid_kit.interop.preview import (
     validate_glb_bytes,
     write_preview,
 )
-from tests._occt_fixtures import make_box_model, make_cylinder_hole_model
+from tests._occt_fixtures import (
+    make_box_model,
+    make_cylinder_hole_model,
+    make_nurbs_surface_model,
+    make_two_box_model,
+)
 
 HAS_OCP = importlib.util.find_spec("OCP") is not None
 STATIC = Path(__file__).resolve().parents[1] / "src/parasolid_kit/interop/preview/static"
@@ -75,11 +82,21 @@ def test_bundled_assets_match_the_reviewed_exact_hash_allowlist() -> None:
             hashlib.sha256((STATIC / name).read_bytes()).hexdigest() == (STATIC_ASSET_SHA256[name])
         )
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    javascript = (STATIC / "viewer.js").read_text(encoding="utf-8")
-    assert 'content="1.0.0; license=MIT"' in html
-    assert "https://" not in html
-    assert "https://" not in javascript
-    assert "innerHTML" not in javascript
+    assert f'content="{ASSET_BUNDLE_VERSION}; license={ASSET_LICENSE}"' in html
+    assert '<script type="module" src="viewer.js"></script>' in html
+    assert '<link rel="stylesheet" href="viewer.css">' in html
+    # Upstream templates/SVG namespaces and license URLs are allowed in reviewed bytes.
+    # The build checks our source boundary; browser tests check injection and requests.
+    for name in ("viewer.js", "viewer.css"):
+        text = (STATIC / name).read_text(encoding="utf-8")
+        for dependency in (
+            "three-cad-viewer@5.0.6",
+            "three@0.184.0",
+            "n8ao@1.10.1",
+            "postprocessing@6.39.0",
+            "Declared: ISC; license text: CC0-1.0",
+        ):
+            assert dependency in text
 
 
 def test_preview_server_rejects_external_binding_without_explicit_permission(
@@ -110,19 +127,42 @@ def test_preview_server_only_serves_reviewed_routes_and_security_headers(
         assert body == (STATIC / "index.html").read_bytes()
         assert response.getheader("X-Content-Type-Options") == "nosniff"
         assert response.getheader("X-Frame-Options") == "DENY"
-        assert "default-src 'self'" in (response.getheader("Content-Security-Policy") or "")
+        csp = response.getheader("Content-Security-Policy")
+        assert csp == (
+            "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
+            "object-src 'none'; script-src 'self'; style-src 'self'; "
+            "style-src-attr 'unsafe-inline'; "
+            "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        )
+        meta_csp = csp.removesuffix("; frame-ancestors 'none'")
+        assert f'content="{meta_csp}"' in body.decode("utf-8")
         assert "Python" not in (response.getheader("Server") or "")
 
-        connection.request("GET", "/../secret.txt")
+        for route in (
+            "/../secret.txt",
+            "/secret.txt",
+            "/%2e%2e/secret.txt",
+            "/viewer.js/../secret.txt",
+            "/viewer.js.map",
+            "/asset-manifest.json",
+        ):
+            connection.request("GET", route)
+            rejected = connection.getresponse()
+            rejected.read()
+            assert rejected.status == 404
+            assert rejected.getheader("X-Content-Type-Options") == "nosniff"
+        for name in (*STATIC_ASSET_NAMES, "preview.glb", "preview.manifest.json"):
+            for method in ("GET", "HEAD"):
+                connection.request(method, f"/{name}?cache=1")
+                accepted = connection.getresponse()
+                payload = accepted.read()
+                assert accepted.status == 200
+                assert int(accepted.getheader("Content-Length")) == (tmp_path / name).stat().st_size
+                assert payload == (b"" if method == "HEAD" else (tmp_path / name).read_bytes())
+        connection.request("POST", "/")
         rejected = connection.getresponse()
         rejected.read()
-        assert rejected.status == 404
-        assert rejected.getheader("X-Content-Type-Options") == "nosniff"
-
-        connection.request("GET", "/secret.txt")
-        rejected = connection.getresponse()
-        rejected.read()
-        assert rejected.status == 404
+        assert rejected.status == 405
         connection.close()
 
         hostile = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
@@ -134,7 +174,10 @@ def test_preview_server_only_serves_reviewed_routes_and_security_headers(
 
 
 @pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")
-@pytest.mark.parametrize("factory", [make_box_model, make_cylinder_hole_model])
+@pytest.mark.parametrize(
+    "factory",
+    [make_box_model, make_cylinder_hole_model, make_two_box_model, make_nurbs_surface_model],
+)
 def test_preview_writes_valid_glb_and_source_reverse_mapping(
     factory: object,
     tmp_path: Path,
@@ -153,6 +196,10 @@ def test_preview_writes_valid_glb_and_source_reverse_mapping(
     face_source = next(item for item in face["source_entities"] if item["kind"] == "face")
 
     assert result.report.status == "complete"
+    assert result.report.asset_bundle_version == ASSET_BUNDLE_VERSION
+    assert result.report.asset_license == ASSET_LICENSE
+    assert manifest["asset_bundle"]["version"] == ASSET_BUNDLE_VERSION
+    assert manifest["asset_bundle"]["license"] == ASSET_LICENSE
     assert result.report.glb_validation.valid is True
     assert result.report.face_primitive_count == len(model.faces)
     assert result.report.edge_primitive_count >= len(model.edges)
@@ -161,6 +208,13 @@ def test_preview_writes_valid_glb_and_source_reverse_mapping(
     assert face_source["byte_range"]["end"] > face_source["byte_range"]["start"]
     assert edge["target_key"].startswith("occt:edge:")
     assert manifest["source"]["sha256"] == "a" * 64
+    assert manifest["schema_version"] == 1
+    assert manifest["bodies"] == [
+        {"id": body.id, "kind": body.kind.value}
+        for body in sorted(model.bodies, key=lambda body: body.id)
+    ]
+    body_ids = {body["id"] for body in manifest["bodies"]}
+    assert all(set(p["body_ids"]) <= body_ids for p in manifest["primitives"])
     assert "path" not in json.dumps(manifest).lower()
 
 

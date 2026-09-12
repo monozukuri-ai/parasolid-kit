@@ -1,0 +1,315 @@
+{
+  "recorded_on": "2026-09-12",
+  "scope": "V4 local runtime qualification and V5 documentation screenshot; not a release or remote CI result",
+  "package_version": "0.1.0",
+  "runtime_bundle": {
+    "version": "2.0.0",
+    "threeCadViewer": "5.0.6",
+    "protocol": 3,
+    "lockSha256": "91e35a4f0673e02207c21cdc13d110db7477ccdad606be44345771a642785103",
+    "licensesSha256": "9b026e94966520885579386f6147d0388014bd7c77e47e8543b7459ffb734501",
+    "assets": {
+      "viewer.js": {
+        "bytes": 1459750,
+        "sha256": "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d"
+      },
+      "viewer.css": {
+        "bytes": 130463,
+        "sha256": "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791"
+      },
+      "index.html": {
+        "bytes": 4704,
+        "sha256": "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e"
+      }
+    }
+  },
+  "v4_artifacts": {
+    "parasolid_kit-0.1.0-cp310-abi3-manylinux_2_34_x86_64.whl": {
+      "bytes": 1315471,
+      "sha256": "94f17d69e3f5b349c20397ba374c0e2e9babb8337ad42e72d4e60c4dd8d03b35"
+    },
+    "parasolid_kit-0.1.0.tar.gz": {
+      "bytes": 1018368,
+      "sha256": "44a84114e656968becea824bd171efea56d61a9c4b7ce5bcad82e853e994d748"
+    }
+  },
+  "v4_reports": {
+    "v4-cold-viewer/report.json": {
+      "bytes": 184706,
+      "sha256": "f8c336f43c7b202a8f41aba5ca74154646005367affa53beb4f41c21c070b4e4"
+    },
+    "v4-artifact-report.json": {
+      "bytes": 9709,
+      "sha256": "3939e3e3fcd1426b69fc87bf798f0b8812387d65c6bd4c4394ea3b6f8de8236e"
+    },
+    "v4-base-install-report.json": {
+      "bytes": 2328,
+      "sha256": "3a01515ebe1fc028c2432cf14808a5e065d3763e3ec6d83f64692547d9b1d721"
+    },
+    "v4-occt-install-report.json": {
+      "bytes": 28599,
+      "sha256": "687a0d52e9803172fa0b1f9dde42c26f016d57db18d7d8257762d213dc8907b5"
+    }
+  },
+  "v4_cold_viewer": {
+    "wheel": {
+      "status": "passed",
+      "python": "3.10.12 (main, Jul 26 2023, 13:20:36) [Clang 16.0.3 ]",
+      "runtime_guard": true,
+      "runtime_path": "",
+      "browser": "141.0.7390.37",
+      "node": "v22.18.0",
+      "platform": "linux",
+      "architecture": "x64",
+      "cases": {
+        "box": 7,
+        "cylinder-hole": 3,
+        "two-boxes": 7,
+        "sheet": 1,
+        "box-cm-no-edges": 1,
+        "box-unknown-edges": 1,
+        "box-partial": 1,
+        "box-diagnostics": 4
+      },
+      "additional_cases": {
+        "bad-glb": {
+          "status": "passed",
+          "message": "Preview failed: Truncated GLB header"
+        },
+        "bad-manifest": {
+          "status": "passed",
+          "message": "Preview failed: GLB/manifest source mapping mismatch"
+        },
+        "bad-json": {
+          "status": "passed",
+          "message": "Preview failed: preview.manifest.json is not valid UTF-8 JSON"
+        },
+        "missing": {
+          "status": "passed",
+          "message": "Preview failed: preview.glb: HTTP 404"
+        },
+        "incomplete": {
+          "status": "passed",
+          "message": "Source is incomplete; additional source geometry may be absent."
+        },
+        "webglUnavailable": {
+          "status": "passed",
+          "method": "Chrome --disable-webgl"
+        },
+        "webglContextLost": {
+          "status": "passed",
+          "method": "WEBGL_lose_context"
+        }
+      },
+      "normal_case_errors": {
+        "consoleErrors": 0,
+        "pageErrors": 0,
+        "badResponses": 0,
+        "externalRequests": 0,
+        "cspViolations": 0
+      }
+    },
+    "sdist": {
+      "status": "passed",
+      "python": "3.10.12 (main, Jul 26 2023, 13:20:36) [Clang 16.0.3 ]",
+      "runtime_guard": true,
+      "runtime_path": "",
+      "browser": "141.0.7390.37",
+      "node": "v22.18.0",
+      "platform": "linux",
+      "architecture": "x64",
+      "cases": {
+        "box": 7,
+        "cylinder-hole": 3,
+        "two-boxes": 7,
+        "sheet": 1,
+        "box-cm-no-edges": 1,
+        "box-unknown-edges": 1,
+        "box-partial": 1,
+        "box-diagnostics": 4
+      },
+      "additional_cases": {
+        "bad-glb": {
+          "status": "passed",
+          "message": "Preview failed: Truncated GLB header"
+        },
+        "bad-manifest": {
+          "status": "passed",
+          "message": "Preview failed: GLB/manifest source mapping mismatch"
+        },
+        "bad-json": {
+          "status": "passed",
+          "message": "Preview failed: preview.manifest.json is not valid UTF-8 JSON"
+        },
+        "missing": {
+          "status": "passed",
+          "message": "Preview failed: preview.glb: HTTP 404"
+        },
+        "incomplete": {
+          "status": "passed",
+          "message": "Source is incomplete; additional source geometry may be absent."
+        },
+        "webglUnavailable": {
+          "status": "passed",
+          "method": "Chrome --disable-webgl"
+        },
+        "webglContextLost": {
+          "status": "passed",
+          "method": "WEBGL_lose_context"
+        }
+      },
+      "normal_case_errors": {
+        "consoleErrors": 0,
+        "pageErrors": 0,
+        "badResponses": 0,
+        "externalRequests": 0,
+        "cspViolations": 0
+      }
+    }
+  },
+  "reviewed_inputs": {
+    "tests/_occt_fixtures.py": {
+      "bytes": 34630,
+      "sha256": "d667e3aec2d7ccd8c0903ecfcc74e3c8399ff0ddb04c15694ca79d1fe19b6932"
+    },
+    "viewer/tests/generate_fixtures.py": {
+      "bytes": 3196,
+      "sha256": "2ee26e51094b2d05da9135350b96c1e3a8f95ab2ddec65f9f1630b8c66e37258"
+    },
+    "viewer/tests/fixtures/box/preview.glb": {
+      "bytes": 10588,
+      "sha256": "ddea1b2fbb405edb0619fb322489f9601c9c820ad280bd7da8c55d82092b8918"
+    },
+    "viewer/tests/fixtures/box/preview.manifest.json": {
+      "bytes": 31520,
+      "sha256": "6f1e84b56b22dfcfaa818478542f91ca49d3ac4673b2ac358b2e4b7e15ee27a8"
+    },
+    "viewer/tests/fixtures/box-cm-no-edges/preview.glb": {
+      "bytes": 4760,
+      "sha256": "bc3468199e9a3ac23282f524cd21356a9b5073447d2bcd6bf33a81cd60f5ba8c"
+    },
+    "viewer/tests/fixtures/box-cm-no-edges/preview.manifest.json": {
+      "bytes": 8231,
+      "sha256": "61dff5ad05c6e5cf160cd9897f8714c6a52017be0940adc0f1ec67afce5e4f3d"
+    },
+    "viewer/tests/fixtures/box-partial/preview.glb": {
+      "bytes": 10588,
+      "sha256": "ddea1b2fbb405edb0619fb322489f9601c9c820ad280bd7da8c55d82092b8918"
+    },
+    "viewer/tests/fixtures/box-partial/preview.manifest.json": {
+      "bytes": 31608,
+      "sha256": "c43583430dc6c864cdf4128cc9b6e7e16b7c61c76193206fcfb0b82da8fa5de2"
+    },
+    "viewer/tests/fixtures/cylinder-hole/preview.glb": {
+      "bytes": 16208,
+      "sha256": "789f0385faf17a10e7cb1c6b1ebed85ed314c180997e6c952a23f70a0a6811e1"
+    },
+    "viewer/tests/fixtures/cylinder-hole/preview.manifest.json": {
+      "bytes": 15586,
+      "sha256": "ea78961e0480fbf4926dcbb17b250368837a4f58360e8563f0faba24385b69dc"
+    },
+    "viewer/tests/fixtures/oracle.json": {
+      "bytes": 161666,
+      "sha256": "66559277c65852e5c5acd76a434b161a77b1c9d62432be647df6656fca12e4af"
+    },
+    "viewer/tests/fixtures/sheet/preview.glb": {
+      "bytes": 3164,
+      "sha256": "a309a7c311d38786d3b5328f620b1221356b4574ad32c9ba1a33a6ab873d91b8"
+    },
+    "viewer/tests/fixtures/sheet/preview.manifest.json": {
+      "bytes": 5911,
+      "sha256": "ae53c46e21edc03d1a17c8564a89035599a377569c0e4860b92916ab067d0e97"
+    },
+    "viewer/tests/fixtures/two-boxes/preview.glb": {
+      "bytes": 20720,
+      "sha256": "ba303dc0527026a6072970a91d953e132301a0e7c7f7c412459d286a1cf71405"
+    },
+    "viewer/tests/fixtures/two-boxes/preview.manifest.json": {
+      "bytes": 62737,
+      "sha256": "014e7bf14031bf1534d2f22d9493ffca55798cb12eac903ff1e10df7246ef5fd"
+    }
+  },
+  "v5_screenshot": {
+    "status": "passed",
+    "platform": "linux",
+    "architecture": "x64",
+    "node": "v22.18.0",
+    "input": "public synthetic two-box BrepModel; real CLI/OCCT/writer/server, parser replaced",
+    "assets": {
+      "version": "2.0.0",
+      "threeCadViewer": "5.0.6",
+      "protocol": 3,
+      "lockSha256": "91e35a4f0673e02207c21cdc13d110db7477ccdad606be44345771a642785103",
+      "licensesSha256": "9b026e94966520885579386f6147d0388014bd7c77e47e8543b7459ffb734501",
+      "assets": {
+        "viewer.js": {
+          "bytes": 1459750,
+          "sha256": "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d"
+        },
+        "viewer.css": {
+          "bytes": 130463,
+          "sha256": "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791"
+        },
+        "index.html": {
+          "bytes": 4704,
+          "sha256": "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e"
+        }
+      }
+    },
+    "requests": [
+      "/",
+      "/viewer.css",
+      "/viewer.js",
+      "/preview.glb",
+      "/preview.manifest.json",
+      "/viewer.js",
+      "/viewer.css",
+      "/index.html"
+    ],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "badResponses": [],
+    "failedRequests": [],
+    "externalRequests": [],
+    "browser": "141.0.7390.37",
+    "csp": "default-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "servedHashes": {
+      "viewer.js": "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d",
+      "viewer.css": "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791",
+      "index.html": "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e"
+    },
+    "selection": {
+      "source": {
+        "key": "parasolid:face:000102",
+        "kind": "face",
+        "entity_id": 102,
+        "node_index": 1075,
+        "node_type": 1085,
+        "type_name": "face",
+        "node_id": 1075,
+        "byte_range": {
+          "start": 10750,
+          "end": 10759,
+          "length": 9
+        },
+        "relation": "direct"
+      },
+      "backendId": "/model/body_101/faces/faces_1",
+      "realPointerClick": true
+    },
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "image": {
+      "sha256": "da2127a0a2d19ecc6f8aaeae89ba8b6496a14c1f3d33f66413f1ecc83c90fcd6",
+      "bytes": 96192,
+      "width": 1440,
+      "height": 1000
+    },
+    "cspViolations": []
+  },
+  "unrun": [
+    "remote CI",
+    "Windows/macOS viewer campaign",
+    "physical GPU",
+    "real X_T/X_B parsing through viewer"
+  ]
+}

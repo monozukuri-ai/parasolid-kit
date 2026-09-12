@@ -1,0 +1,6600 @@
+{
+  "box": {
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "solid"
+      }
+    ],
+    "inputs": {
+      "preview.glb": "ddea1b2fbb405edb0619fb322489f9601c9c820ad280bd7da8c55d82092b8918",
+      "preview.manifest.json": "6f1e84b56b22dfcfaa818478542f91ca49d3ac4673b2ac358b2e4b7e15ee27a8"
+    },
+    "sources": {
+      "parasolid:body:000001": {
+        "byte_range": {
+          "end": 19,
+          "length": 9,
+          "start": 10
+        },
+        "entity_id": 1,
+        "key": "parasolid:body:000001",
+        "kind": "body",
+        "node_id": 1,
+        "node_index": 1,
+        "node_type": 11,
+        "type_name": "body"
+      },
+      "parasolid:curve:000001": {
+        "byte_range": {
+          "end": 209,
+          "length": 9,
+          "start": 200
+        },
+        "entity_id": 1,
+        "key": "parasolid:curve:000001",
+        "kind": "curve",
+        "node_id": 20,
+        "node_index": 20,
+        "node_type": 30,
+        "type_name": "line"
+      },
+      "parasolid:curve:000002": {
+        "byte_range": {
+          "end": 219,
+          "length": 9,
+          "start": 210
+        },
+        "entity_id": 2,
+        "key": "parasolid:curve:000002",
+        "kind": "curve",
+        "node_id": 21,
+        "node_index": 21,
+        "node_type": 31,
+        "type_name": "line"
+      },
+      "parasolid:curve:000003": {
+        "byte_range": {
+          "end": 229,
+          "length": 9,
+          "start": 220
+        },
+        "entity_id": 3,
+        "key": "parasolid:curve:000003",
+        "kind": "curve",
+        "node_id": 22,
+        "node_index": 22,
+        "node_type": 32,
+        "type_name": "line"
+      },
+      "parasolid:curve:000004": {
+        "byte_range": {
+          "end": 239,
+          "length": 9,
+          "start": 230
+        },
+        "entity_id": 4,
+        "key": "parasolid:curve:000004",
+        "kind": "curve",
+        "node_id": 23,
+        "node_index": 23,
+        "node_type": 33,
+        "type_name": "line"
+      },
+      "parasolid:curve:000005": {
+        "byte_range": {
+          "end": 249,
+          "length": 9,
+          "start": 240
+        },
+        "entity_id": 5,
+        "key": "parasolid:curve:000005",
+        "kind": "curve",
+        "node_id": 24,
+        "node_index": 24,
+        "node_type": 34,
+        "type_name": "line"
+      },
+      "parasolid:curve:000006": {
+        "byte_range": {
+          "end": 259,
+          "length": 9,
+          "start": 250
+        },
+        "entity_id": 6,
+        "key": "parasolid:curve:000006",
+        "kind": "curve",
+        "node_id": 25,
+        "node_index": 25,
+        "node_type": 35,
+        "type_name": "line"
+      },
+      "parasolid:curve:000007": {
+        "byte_range": {
+          "end": 269,
+          "length": 9,
+          "start": 260
+        },
+        "entity_id": 7,
+        "key": "parasolid:curve:000007",
+        "kind": "curve",
+        "node_id": 26,
+        "node_index": 26,
+        "node_type": 36,
+        "type_name": "line"
+      },
+      "parasolid:curve:000008": {
+        "byte_range": {
+          "end": 279,
+          "length": 9,
+          "start": 270
+        },
+        "entity_id": 8,
+        "key": "parasolid:curve:000008",
+        "kind": "curve",
+        "node_id": 27,
+        "node_index": 27,
+        "node_type": 37,
+        "type_name": "line"
+      },
+      "parasolid:curve:000009": {
+        "byte_range": {
+          "end": 289,
+          "length": 9,
+          "start": 280
+        },
+        "entity_id": 9,
+        "key": "parasolid:curve:000009",
+        "kind": "curve",
+        "node_id": 28,
+        "node_index": 28,
+        "node_type": 38,
+        "type_name": "line"
+      },
+      "parasolid:curve:000010": {
+        "byte_range": {
+          "end": 299,
+          "length": 9,
+          "start": 290
+        },
+        "entity_id": 10,
+        "key": "parasolid:curve:000010",
+        "kind": "curve",
+        "node_id": 29,
+        "node_index": 29,
+        "node_type": 39,
+        "type_name": "line"
+      },
+      "parasolid:curve:000011": {
+        "byte_range": {
+          "end": 309,
+          "length": 9,
+          "start": 300
+        },
+        "entity_id": 11,
+        "key": "parasolid:curve:000011",
+        "kind": "curve",
+        "node_id": 30,
+        "node_index": 30,
+        "node_type": 40,
+        "type_name": "line"
+      },
+      "parasolid:curve:000012": {
+        "byte_range": {
+          "end": 319,
+          "length": 9,
+          "start": 310
+        },
+        "entity_id": 12,
+        "key": "parasolid:curve:000012",
+        "kind": "curve",
+        "node_id": 31,
+        "node_index": 31,
+        "node_type": 41,
+        "type_name": "line"
+      },
+      "parasolid:edge:000001": {
+        "byte_range": {
+          "end": 329,
+          "length": 9,
+          "start": 320
+        },
+        "entity_id": 1,
+        "key": "parasolid:edge:000001",
+        "kind": "edge",
+        "node_id": 32,
+        "node_index": 32,
+        "node_type": 42,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000002": {
+        "byte_range": {
+          "end": 339,
+          "length": 9,
+          "start": 330
+        },
+        "entity_id": 2,
+        "key": "parasolid:edge:000002",
+        "kind": "edge",
+        "node_id": 33,
+        "node_index": 33,
+        "node_type": 43,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000003": {
+        "byte_range": {
+          "end": 349,
+          "length": 9,
+          "start": 340
+        },
+        "entity_id": 3,
+        "key": "parasolid:edge:000003",
+        "kind": "edge",
+        "node_id": 34,
+        "node_index": 34,
+        "node_type": 44,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000004": {
+        "byte_range": {
+          "end": 359,
+          "length": 9,
+          "start": 350
+        },
+        "entity_id": 4,
+        "key": "parasolid:edge:000004",
+        "kind": "edge",
+        "node_id": 35,
+        "node_index": 35,
+        "node_type": 45,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000005": {
+        "byte_range": {
+          "end": 369,
+          "length": 9,
+          "start": 360
+        },
+        "entity_id": 5,
+        "key": "parasolid:edge:000005",
+        "kind": "edge",
+        "node_id": 36,
+        "node_index": 36,
+        "node_type": 46,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000006": {
+        "byte_range": {
+          "end": 379,
+          "length": 9,
+          "start": 370
+        },
+        "entity_id": 6,
+        "key": "parasolid:edge:000006",
+        "kind": "edge",
+        "node_id": 37,
+        "node_index": 37,
+        "node_type": 47,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000007": {
+        "byte_range": {
+          "end": 389,
+          "length": 9,
+          "start": 380
+        },
+        "entity_id": 7,
+        "key": "parasolid:edge:000007",
+        "kind": "edge",
+        "node_id": 38,
+        "node_index": 38,
+        "node_type": 48,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000008": {
+        "byte_range": {
+          "end": 399,
+          "length": 9,
+          "start": 390
+        },
+        "entity_id": 8,
+        "key": "parasolid:edge:000008",
+        "kind": "edge",
+        "node_id": 39,
+        "node_index": 39,
+        "node_type": 49,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000009": {
+        "byte_range": {
+          "end": 409,
+          "length": 9,
+          "start": 400
+        },
+        "entity_id": 9,
+        "key": "parasolid:edge:000009",
+        "kind": "edge",
+        "node_id": 40,
+        "node_index": 40,
+        "node_type": 50,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000010": {
+        "byte_range": {
+          "end": 419,
+          "length": 9,
+          "start": 410
+        },
+        "entity_id": 10,
+        "key": "parasolid:edge:000010",
+        "kind": "edge",
+        "node_id": 41,
+        "node_index": 41,
+        "node_type": 51,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000011": {
+        "byte_range": {
+          "end": 429,
+          "length": 9,
+          "start": 420
+        },
+        "entity_id": 11,
+        "key": "parasolid:edge:000011",
+        "kind": "edge",
+        "node_id": 42,
+        "node_index": 42,
+        "node_type": 52,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000012": {
+        "byte_range": {
+          "end": 439,
+          "length": 9,
+          "start": 430
+        },
+        "entity_id": 12,
+        "key": "parasolid:edge:000012",
+        "kind": "edge",
+        "node_id": 43,
+        "node_index": 43,
+        "node_type": 53,
+        "type_name": "edge"
+      },
+      "parasolid:face:000001": {
+        "byte_range": {
+          "end": 749,
+          "length": 9,
+          "start": 740
+        },
+        "entity_id": 1,
+        "key": "parasolid:face:000001",
+        "kind": "face",
+        "node_id": 74,
+        "node_index": 74,
+        "node_type": 84,
+        "type_name": "face"
+      },
+      "parasolid:face:000002": {
+        "byte_range": {
+          "end": 759,
+          "length": 9,
+          "start": 750
+        },
+        "entity_id": 2,
+        "key": "parasolid:face:000002",
+        "kind": "face",
+        "node_id": 75,
+        "node_index": 75,
+        "node_type": 85,
+        "type_name": "face"
+      },
+      "parasolid:face:000003": {
+        "byte_range": {
+          "end": 769,
+          "length": 9,
+          "start": 760
+        },
+        "entity_id": 3,
+        "key": "parasolid:face:000003",
+        "kind": "face",
+        "node_id": 76,
+        "node_index": 76,
+        "node_type": 86,
+        "type_name": "face"
+      },
+      "parasolid:face:000004": {
+        "byte_range": {
+          "end": 779,
+          "length": 9,
+          "start": 770
+        },
+        "entity_id": 4,
+        "key": "parasolid:face:000004",
+        "kind": "face",
+        "node_id": 77,
+        "node_index": 77,
+        "node_type": 87,
+        "type_name": "face"
+      },
+      "parasolid:face:000005": {
+        "byte_range": {
+          "end": 789,
+          "length": 9,
+          "start": 780
+        },
+        "entity_id": 5,
+        "key": "parasolid:face:000005",
+        "kind": "face",
+        "node_id": 78,
+        "node_index": 78,
+        "node_type": 88,
+        "type_name": "face"
+      },
+      "parasolid:face:000006": {
+        "byte_range": {
+          "end": 799,
+          "length": 9,
+          "start": 790
+        },
+        "entity_id": 6,
+        "key": "parasolid:face:000006",
+        "kind": "face",
+        "node_id": 79,
+        "node_index": 79,
+        "node_type": 89,
+        "type_name": "face"
+      },
+      "parasolid:half_edge:000001": {
+        "byte_range": {
+          "end": 449,
+          "length": 9,
+          "start": 440
+        },
+        "entity_id": 1,
+        "key": "parasolid:half_edge:000001",
+        "kind": "half_edge",
+        "node_id": 44,
+        "node_index": 44,
+        "node_type": 54,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000002": {
+        "byte_range": {
+          "end": 459,
+          "length": 9,
+          "start": 450
+        },
+        "entity_id": 2,
+        "key": "parasolid:half_edge:000002",
+        "kind": "half_edge",
+        "node_id": 45,
+        "node_index": 45,
+        "node_type": 55,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000003": {
+        "byte_range": {
+          "end": 469,
+          "length": 9,
+          "start": 460
+        },
+        "entity_id": 3,
+        "key": "parasolid:half_edge:000003",
+        "kind": "half_edge",
+        "node_id": 46,
+        "node_index": 46,
+        "node_type": 56,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000004": {
+        "byte_range": {
+          "end": 479,
+          "length": 9,
+          "start": 470
+        },
+        "entity_id": 4,
+        "key": "parasolid:half_edge:000004",
+        "kind": "half_edge",
+        "node_id": 47,
+        "node_index": 47,
+        "node_type": 57,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000005": {
+        "byte_range": {
+          "end": 489,
+          "length": 9,
+          "start": 480
+        },
+        "entity_id": 5,
+        "key": "parasolid:half_edge:000005",
+        "kind": "half_edge",
+        "node_id": 48,
+        "node_index": 48,
+        "node_type": 58,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000006": {
+        "byte_range": {
+          "end": 499,
+          "length": 9,
+          "start": 490
+        },
+        "entity_id": 6,
+        "key": "parasolid:half_edge:000006",
+        "kind": "half_edge",
+        "node_id": 49,
+        "node_index": 49,
+        "node_type": 59,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000007": {
+        "byte_range": {
+          "end": 509,
+          "length": 9,
+          "start": 500
+        },
+        "entity_id": 7,
+        "key": "parasolid:half_edge:000007",
+        "kind": "half_edge",
+        "node_id": 50,
+        "node_index": 50,
+        "node_type": 60,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000008": {
+        "byte_range": {
+          "end": 519,
+          "length": 9,
+          "start": 510
+        },
+        "entity_id": 8,
+        "key": "parasolid:half_edge:000008",
+        "kind": "half_edge",
+        "node_id": 51,
+        "node_index": 51,
+        "node_type": 61,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000009": {
+        "byte_range": {
+          "end": 529,
+          "length": 9,
+          "start": 520
+        },
+        "entity_id": 9,
+        "key": "parasolid:half_edge:000009",
+        "kind": "half_edge",
+        "node_id": 52,
+        "node_index": 52,
+        "node_type": 62,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000010": {
+        "byte_range": {
+          "end": 539,
+          "length": 9,
+          "start": 530
+        },
+        "entity_id": 10,
+        "key": "parasolid:half_edge:000010",
+        "kind": "half_edge",
+        "node_id": 53,
+        "node_index": 53,
+        "node_type": 63,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000011": {
+        "byte_range": {
+          "end": 549,
+          "length": 9,
+          "start": 540
+        },
+        "entity_id": 11,
+        "key": "parasolid:half_edge:000011",
+        "kind": "half_edge",
+        "node_id": 54,
+        "node_index": 54,
+        "node_type": 64,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000012": {
+        "byte_range": {
+          "end": 559,
+          "length": 9,
+          "start": 550
+        },
+        "entity_id": 12,
+        "key": "parasolid:half_edge:000012",
+        "kind": "half_edge",
+        "node_id": 55,
+        "node_index": 55,
+        "node_type": 65,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000013": {
+        "byte_range": {
+          "end": 569,
+          "length": 9,
+          "start": 560
+        },
+        "entity_id": 13,
+        "key": "parasolid:half_edge:000013",
+        "kind": "half_edge",
+        "node_id": 56,
+        "node_index": 56,
+        "node_type": 66,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000014": {
+        "byte_range": {
+          "end": 579,
+          "length": 9,
+          "start": 570
+        },
+        "entity_id": 14,
+        "key": "parasolid:half_edge:000014",
+        "kind": "half_edge",
+        "node_id": 57,
+        "node_index": 57,
+        "node_type": 67,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000015": {
+        "byte_range": {
+          "end": 589,
+          "length": 9,
+          "start": 580
+        },
+        "entity_id": 15,
+        "key": "parasolid:half_edge:000015",
+        "kind": "half_edge",
+        "node_id": 58,
+        "node_index": 58,
+        "node_type": 68,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000016": {
+        "byte_range": {
+          "end": 599,
+          "length": 9,
+          "start": 590
+        },
+        "entity_id": 16,
+        "key": "parasolid:half_edge:000016",
+        "kind": "half_edge",
+        "node_id": 59,
+        "node_index": 59,
+        "node_type": 69,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000017": {
+        "byte_range": {
+          "end": 609,
+          "length": 9,
+          "start": 600
+        },
+        "entity_id": 17,
+        "key": "parasolid:half_edge:000017",
+        "kind": "half_edge",
+        "node_id": 60,
+        "node_index": 60,
+        "node_type": 70,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000018": {
+        "byte_range": {
+          "end": 619,
+          "length": 9,
+          "start": 610
+        },
+        "entity_id": 18,
+        "key": "parasolid:half_edge:000018",
+        "kind": "half_edge",
+        "node_id": 61,
+        "node_index": 61,
+        "node_type": 71,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000019": {
+        "byte_range": {
+          "end": 629,
+          "length": 9,
+          "start": 620
+        },
+        "entity_id": 19,
+        "key": "parasolid:half_edge:000019",
+        "kind": "half_edge",
+        "node_id": 62,
+        "node_index": 62,
+        "node_type": 72,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000020": {
+        "byte_range": {
+          "end": 639,
+          "length": 9,
+          "start": 630
+        },
+        "entity_id": 20,
+        "key": "parasolid:half_edge:000020",
+        "kind": "half_edge",
+        "node_id": 63,
+        "node_index": 63,
+        "node_type": 73,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000021": {
+        "byte_range": {
+          "end": 649,
+          "length": 9,
+          "start": 640
+        },
+        "entity_id": 21,
+        "key": "parasolid:half_edge:000021",
+        "kind": "half_edge",
+        "node_id": 64,
+        "node_index": 64,
+        "node_type": 74,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000022": {
+        "byte_range": {
+          "end": 659,
+          "length": 9,
+          "start": 650
+        },
+        "entity_id": 22,
+        "key": "parasolid:half_edge:000022",
+        "kind": "half_edge",
+        "node_id": 65,
+        "node_index": 65,
+        "node_type": 75,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000023": {
+        "byte_range": {
+          "end": 669,
+          "length": 9,
+          "start": 660
+        },
+        "entity_id": 23,
+        "key": "parasolid:half_edge:000023",
+        "kind": "half_edge",
+        "node_id": 66,
+        "node_index": 66,
+        "node_type": 76,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000024": {
+        "byte_range": {
+          "end": 679,
+          "length": 9,
+          "start": 670
+        },
+        "entity_id": 24,
+        "key": "parasolid:half_edge:000024",
+        "kind": "half_edge",
+        "node_id": 67,
+        "node_index": 67,
+        "node_type": 77,
+        "type_name": "fin"
+      },
+      "parasolid:loop:000001": {
+        "byte_range": {
+          "end": 689,
+          "length": 9,
+          "start": 680
+        },
+        "entity_id": 1,
+        "key": "parasolid:loop:000001",
+        "kind": "loop",
+        "node_id": 68,
+        "node_index": 68,
+        "node_type": 78,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000002": {
+        "byte_range": {
+          "end": 699,
+          "length": 9,
+          "start": 690
+        },
+        "entity_id": 2,
+        "key": "parasolid:loop:000002",
+        "kind": "loop",
+        "node_id": 69,
+        "node_index": 69,
+        "node_type": 79,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000003": {
+        "byte_range": {
+          "end": 709,
+          "length": 9,
+          "start": 700
+        },
+        "entity_id": 3,
+        "key": "parasolid:loop:000003",
+        "kind": "loop",
+        "node_id": 70,
+        "node_index": 70,
+        "node_type": 80,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000004": {
+        "byte_range": {
+          "end": 719,
+          "length": 9,
+          "start": 710
+        },
+        "entity_id": 4,
+        "key": "parasolid:loop:000004",
+        "kind": "loop",
+        "node_id": 71,
+        "node_index": 71,
+        "node_type": 81,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000005": {
+        "byte_range": {
+          "end": 729,
+          "length": 9,
+          "start": 720
+        },
+        "entity_id": 5,
+        "key": "parasolid:loop:000005",
+        "kind": "loop",
+        "node_id": 72,
+        "node_index": 72,
+        "node_type": 82,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000006": {
+        "byte_range": {
+          "end": 739,
+          "length": 9,
+          "start": 730
+        },
+        "entity_id": 6,
+        "key": "parasolid:loop:000006",
+        "kind": "loop",
+        "node_id": 73,
+        "node_index": 73,
+        "node_type": 83,
+        "type_name": "loop"
+      },
+      "parasolid:point:000001": {
+        "byte_range": {
+          "end": 49,
+          "length": 9,
+          "start": 40
+        },
+        "entity_id": 1,
+        "key": "parasolid:point:000001",
+        "kind": "point",
+        "node_id": 4,
+        "node_index": 4,
+        "node_type": 14,
+        "type_name": "point"
+      },
+      "parasolid:point:000002": {
+        "byte_range": {
+          "end": 59,
+          "length": 9,
+          "start": 50
+        },
+        "entity_id": 2,
+        "key": "parasolid:point:000002",
+        "kind": "point",
+        "node_id": 5,
+        "node_index": 5,
+        "node_type": 15,
+        "type_name": "point"
+      },
+      "parasolid:point:000003": {
+        "byte_range": {
+          "end": 69,
+          "length": 9,
+          "start": 60
+        },
+        "entity_id": 3,
+        "key": "parasolid:point:000003",
+        "kind": "point",
+        "node_id": 6,
+        "node_index": 6,
+        "node_type": 16,
+        "type_name": "point"
+      },
+      "parasolid:point:000004": {
+        "byte_range": {
+          "end": 79,
+          "length": 9,
+          "start": 70
+        },
+        "entity_id": 4,
+        "key": "parasolid:point:000004",
+        "kind": "point",
+        "node_id": 7,
+        "node_index": 7,
+        "node_type": 17,
+        "type_name": "point"
+      },
+      "parasolid:point:000005": {
+        "byte_range": {
+          "end": 89,
+          "length": 9,
+          "start": 80
+        },
+        "entity_id": 5,
+        "key": "parasolid:point:000005",
+        "kind": "point",
+        "node_id": 8,
+        "node_index": 8,
+        "node_type": 18,
+        "type_name": "point"
+      },
+      "parasolid:point:000006": {
+        "byte_range": {
+          "end": 99,
+          "length": 9,
+          "start": 90
+        },
+        "entity_id": 6,
+        "key": "parasolid:point:000006",
+        "kind": "point",
+        "node_id": 9,
+        "node_index": 9,
+        "node_type": 19,
+        "type_name": "point"
+      },
+      "parasolid:point:000007": {
+        "byte_range": {
+          "end": 109,
+          "length": 9,
+          "start": 100
+        },
+        "entity_id": 7,
+        "key": "parasolid:point:000007",
+        "kind": "point",
+        "node_id": 10,
+        "node_index": 10,
+        "node_type": 20,
+        "type_name": "point"
+      },
+      "parasolid:point:000008": {
+        "byte_range": {
+          "end": 119,
+          "length": 9,
+          "start": 110
+        },
+        "entity_id": 8,
+        "key": "parasolid:point:000008",
+        "kind": "point",
+        "node_id": 11,
+        "node_index": 11,
+        "node_type": 21,
+        "type_name": "point"
+      },
+      "parasolid:region:000001": {
+        "byte_range": {
+          "end": 29,
+          "length": 9,
+          "start": 20
+        },
+        "entity_id": 1,
+        "key": "parasolid:region:000001",
+        "kind": "region",
+        "node_id": 2,
+        "node_index": 2,
+        "node_type": 12,
+        "type_name": "region"
+      },
+      "parasolid:shell:000001": {
+        "byte_range": {
+          "end": 39,
+          "length": 9,
+          "start": 30
+        },
+        "entity_id": 1,
+        "key": "parasolid:shell:000001",
+        "kind": "shell",
+        "node_id": 3,
+        "node_index": 3,
+        "node_type": 13,
+        "type_name": "shell"
+      },
+      "parasolid:surface:000001": {
+        "byte_range": {
+          "end": 809,
+          "length": 9,
+          "start": 800
+        },
+        "entity_id": 1,
+        "key": "parasolid:surface:000001",
+        "kind": "surface",
+        "node_id": 80,
+        "node_index": 80,
+        "node_type": 90,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000002": {
+        "byte_range": {
+          "end": 819,
+          "length": 9,
+          "start": 810
+        },
+        "entity_id": 2,
+        "key": "parasolid:surface:000002",
+        "kind": "surface",
+        "node_id": 81,
+        "node_index": 81,
+        "node_type": 91,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000003": {
+        "byte_range": {
+          "end": 829,
+          "length": 9,
+          "start": 820
+        },
+        "entity_id": 3,
+        "key": "parasolid:surface:000003",
+        "kind": "surface",
+        "node_id": 82,
+        "node_index": 82,
+        "node_type": 92,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000004": {
+        "byte_range": {
+          "end": 839,
+          "length": 9,
+          "start": 830
+        },
+        "entity_id": 4,
+        "key": "parasolid:surface:000004",
+        "kind": "surface",
+        "node_id": 83,
+        "node_index": 83,
+        "node_type": 93,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000005": {
+        "byte_range": {
+          "end": 849,
+          "length": 9,
+          "start": 840
+        },
+        "entity_id": 5,
+        "key": "parasolid:surface:000005",
+        "kind": "surface",
+        "node_id": 84,
+        "node_index": 84,
+        "node_type": 94,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000006": {
+        "byte_range": {
+          "end": 859,
+          "length": 9,
+          "start": 850
+        },
+        "entity_id": 6,
+        "key": "parasolid:surface:000006",
+        "kind": "surface",
+        "node_id": 85,
+        "node_index": 85,
+        "node_type": 95,
+        "type_name": "plane"
+      },
+      "parasolid:vertex:000001": {
+        "byte_range": {
+          "end": 129,
+          "length": 9,
+          "start": 120
+        },
+        "entity_id": 1,
+        "key": "parasolid:vertex:000001",
+        "kind": "vertex",
+        "node_id": 12,
+        "node_index": 12,
+        "node_type": 22,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000002": {
+        "byte_range": {
+          "end": 139,
+          "length": 9,
+          "start": 130
+        },
+        "entity_id": 2,
+        "key": "parasolid:vertex:000002",
+        "kind": "vertex",
+        "node_id": 13,
+        "node_index": 13,
+        "node_type": 23,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000003": {
+        "byte_range": {
+          "end": 149,
+          "length": 9,
+          "start": 140
+        },
+        "entity_id": 3,
+        "key": "parasolid:vertex:000003",
+        "kind": "vertex",
+        "node_id": 14,
+        "node_index": 14,
+        "node_type": 24,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000004": {
+        "byte_range": {
+          "end": 159,
+          "length": 9,
+          "start": 150
+        },
+        "entity_id": 4,
+        "key": "parasolid:vertex:000004",
+        "kind": "vertex",
+        "node_id": 15,
+        "node_index": 15,
+        "node_type": 25,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000005": {
+        "byte_range": {
+          "end": 169,
+          "length": 9,
+          "start": 160
+        },
+        "entity_id": 5,
+        "key": "parasolid:vertex:000005",
+        "kind": "vertex",
+        "node_id": 16,
+        "node_index": 16,
+        "node_type": 26,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000006": {
+        "byte_range": {
+          "end": 179,
+          "length": 9,
+          "start": 170
+        },
+        "entity_id": 6,
+        "key": "parasolid:vertex:000006",
+        "kind": "vertex",
+        "node_id": 17,
+        "node_index": 17,
+        "node_type": 27,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000007": {
+        "byte_range": {
+          "end": 189,
+          "length": 9,
+          "start": 180
+        },
+        "entity_id": 7,
+        "key": "parasolid:vertex:000007",
+        "kind": "vertex",
+        "node_id": 18,
+        "node_index": 18,
+        "node_type": 28,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000008": {
+        "byte_range": {
+          "end": 199,
+          "length": 9,
+          "start": 190
+        },
+        "entity_id": 8,
+        "key": "parasolid:vertex:000008",
+        "kind": "vertex",
+        "node_id": 19,
+        "node_index": 19,
+        "node_type": 29,
+        "type_name": "vertex"
+      }
+    }
+  },
+  "box-cm-no-edges": {
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "solid"
+      }
+    ],
+    "inputs": {
+      "preview.glb": "bc3468199e9a3ac23282f524cd21356a9b5073447d2bcd6bf33a81cd60f5ba8c",
+      "preview.manifest.json": "61dff5ad05c6e5cf160cd9897f8714c6a52017be0940adc0f1ec67afce5e4f3d"
+    },
+    "sources": {
+      "parasolid:body:000001": {
+        "byte_range": {
+          "end": 19,
+          "length": 9,
+          "start": 10
+        },
+        "entity_id": 1,
+        "key": "parasolid:body:000001",
+        "kind": "body",
+        "node_id": 1,
+        "node_index": 1,
+        "node_type": 11,
+        "type_name": "body"
+      },
+      "parasolid:curve:000001": {
+        "byte_range": {
+          "end": 209,
+          "length": 9,
+          "start": 200
+        },
+        "entity_id": 1,
+        "key": "parasolid:curve:000001",
+        "kind": "curve",
+        "node_id": 20,
+        "node_index": 20,
+        "node_type": 30,
+        "type_name": "line"
+      },
+      "parasolid:curve:000002": {
+        "byte_range": {
+          "end": 219,
+          "length": 9,
+          "start": 210
+        },
+        "entity_id": 2,
+        "key": "parasolid:curve:000002",
+        "kind": "curve",
+        "node_id": 21,
+        "node_index": 21,
+        "node_type": 31,
+        "type_name": "line"
+      },
+      "parasolid:curve:000003": {
+        "byte_range": {
+          "end": 229,
+          "length": 9,
+          "start": 220
+        },
+        "entity_id": 3,
+        "key": "parasolid:curve:000003",
+        "kind": "curve",
+        "node_id": 22,
+        "node_index": 22,
+        "node_type": 32,
+        "type_name": "line"
+      },
+      "parasolid:curve:000004": {
+        "byte_range": {
+          "end": 239,
+          "length": 9,
+          "start": 230
+        },
+        "entity_id": 4,
+        "key": "parasolid:curve:000004",
+        "kind": "curve",
+        "node_id": 23,
+        "node_index": 23,
+        "node_type": 33,
+        "type_name": "line"
+      },
+      "parasolid:curve:000005": {
+        "byte_range": {
+          "end": 249,
+          "length": 9,
+          "start": 240
+        },
+        "entity_id": 5,
+        "key": "parasolid:curve:000005",
+        "kind": "curve",
+        "node_id": 24,
+        "node_index": 24,
+        "node_type": 34,
+        "type_name": "line"
+      },
+      "parasolid:curve:000006": {
+        "byte_range": {
+          "end": 259,
+          "length": 9,
+          "start": 250
+        },
+        "entity_id": 6,
+        "key": "parasolid:curve:000006",
+        "kind": "curve",
+        "node_id": 25,
+        "node_index": 25,
+        "node_type": 35,
+        "type_name": "line"
+      },
+      "parasolid:curve:000007": {
+        "byte_range": {
+          "end": 269,
+          "length": 9,
+          "start": 260
+        },
+        "entity_id": 7,
+        "key": "parasolid:curve:000007",
+        "kind": "curve",
+        "node_id": 26,
+        "node_index": 26,
+        "node_type": 36,
+        "type_name": "line"
+      },
+      "parasolid:curve:000008": {
+        "byte_range": {
+          "end": 279,
+          "length": 9,
+          "start": 270
+        },
+        "entity_id": 8,
+        "key": "parasolid:curve:000008",
+        "kind": "curve",
+        "node_id": 27,
+        "node_index": 27,
+        "node_type": 37,
+        "type_name": "line"
+      },
+      "parasolid:curve:000009": {
+        "byte_range": {
+          "end": 289,
+          "length": 9,
+          "start": 280
+        },
+        "entity_id": 9,
+        "key": "parasolid:curve:000009",
+        "kind": "curve",
+        "node_id": 28,
+        "node_index": 28,
+        "node_type": 38,
+        "type_name": "line"
+      },
+      "parasolid:curve:000010": {
+        "byte_range": {
+          "end": 299,
+          "length": 9,
+          "start": 290
+        },
+        "entity_id": 10,
+        "key": "parasolid:curve:000010",
+        "kind": "curve",
+        "node_id": 29,
+        "node_index": 29,
+        "node_type": 39,
+        "type_name": "line"
+      },
+      "parasolid:curve:000011": {
+        "byte_range": {
+          "end": 309,
+          "length": 9,
+          "start": 300
+        },
+        "entity_id": 11,
+        "key": "parasolid:curve:000011",
+        "kind": "curve",
+        "node_id": 30,
+        "node_index": 30,
+        "node_type": 40,
+        "type_name": "line"
+      },
+      "parasolid:curve:000012": {
+        "byte_range": {
+          "end": 319,
+          "length": 9,
+          "start": 310
+        },
+        "entity_id": 12,
+        "key": "parasolid:curve:000012",
+        "kind": "curve",
+        "node_id": 31,
+        "node_index": 31,
+        "node_type": 41,
+        "type_name": "line"
+      },
+      "parasolid:edge:000001": {
+        "byte_range": {
+          "end": 329,
+          "length": 9,
+          "start": 320
+        },
+        "entity_id": 1,
+        "key": "parasolid:edge:000001",
+        "kind": "edge",
+        "node_id": 32,
+        "node_index": 32,
+        "node_type": 42,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000002": {
+        "byte_range": {
+          "end": 339,
+          "length": 9,
+          "start": 330
+        },
+        "entity_id": 2,
+        "key": "parasolid:edge:000002",
+        "kind": "edge",
+        "node_id": 33,
+        "node_index": 33,
+        "node_type": 43,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000003": {
+        "byte_range": {
+          "end": 349,
+          "length": 9,
+          "start": 340
+        },
+        "entity_id": 3,
+        "key": "parasolid:edge:000003",
+        "kind": "edge",
+        "node_id": 34,
+        "node_index": 34,
+        "node_type": 44,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000004": {
+        "byte_range": {
+          "end": 359,
+          "length": 9,
+          "start": 350
+        },
+        "entity_id": 4,
+        "key": "parasolid:edge:000004",
+        "kind": "edge",
+        "node_id": 35,
+        "node_index": 35,
+        "node_type": 45,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000005": {
+        "byte_range": {
+          "end": 369,
+          "length": 9,
+          "start": 360
+        },
+        "entity_id": 5,
+        "key": "parasolid:edge:000005",
+        "kind": "edge",
+        "node_id": 36,
+        "node_index": 36,
+        "node_type": 46,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000006": {
+        "byte_range": {
+          "end": 379,
+          "length": 9,
+          "start": 370
+        },
+        "entity_id": 6,
+        "key": "parasolid:edge:000006",
+        "kind": "edge",
+        "node_id": 37,
+        "node_index": 37,
+        "node_type": 47,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000007": {
+        "byte_range": {
+          "end": 389,
+          "length": 9,
+          "start": 380
+        },
+        "entity_id": 7,
+        "key": "parasolid:edge:000007",
+        "kind": "edge",
+        "node_id": 38,
+        "node_index": 38,
+        "node_type": 48,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000008": {
+        "byte_range": {
+          "end": 399,
+          "length": 9,
+          "start": 390
+        },
+        "entity_id": 8,
+        "key": "parasolid:edge:000008",
+        "kind": "edge",
+        "node_id": 39,
+        "node_index": 39,
+        "node_type": 49,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000009": {
+        "byte_range": {
+          "end": 409,
+          "length": 9,
+          "start": 400
+        },
+        "entity_id": 9,
+        "key": "parasolid:edge:000009",
+        "kind": "edge",
+        "node_id": 40,
+        "node_index": 40,
+        "node_type": 50,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000010": {
+        "byte_range": {
+          "end": 419,
+          "length": 9,
+          "start": 410
+        },
+        "entity_id": 10,
+        "key": "parasolid:edge:000010",
+        "kind": "edge",
+        "node_id": 41,
+        "node_index": 41,
+        "node_type": 51,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000011": {
+        "byte_range": {
+          "end": 429,
+          "length": 9,
+          "start": 420
+        },
+        "entity_id": 11,
+        "key": "parasolid:edge:000011",
+        "kind": "edge",
+        "node_id": 42,
+        "node_index": 42,
+        "node_type": 52,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000012": {
+        "byte_range": {
+          "end": 439,
+          "length": 9,
+          "start": 430
+        },
+        "entity_id": 12,
+        "key": "parasolid:edge:000012",
+        "kind": "edge",
+        "node_id": 43,
+        "node_index": 43,
+        "node_type": 53,
+        "type_name": "edge"
+      },
+      "parasolid:face:000001": {
+        "byte_range": {
+          "end": 749,
+          "length": 9,
+          "start": 740
+        },
+        "entity_id": 1,
+        "key": "parasolid:face:000001",
+        "kind": "face",
+        "node_id": 74,
+        "node_index": 74,
+        "node_type": 84,
+        "type_name": "face"
+      },
+      "parasolid:face:000002": {
+        "byte_range": {
+          "end": 759,
+          "length": 9,
+          "start": 750
+        },
+        "entity_id": 2,
+        "key": "parasolid:face:000002",
+        "kind": "face",
+        "node_id": 75,
+        "node_index": 75,
+        "node_type": 85,
+        "type_name": "face"
+      },
+      "parasolid:face:000003": {
+        "byte_range": {
+          "end": 769,
+          "length": 9,
+          "start": 760
+        },
+        "entity_id": 3,
+        "key": "parasolid:face:000003",
+        "kind": "face",
+        "node_id": 76,
+        "node_index": 76,
+        "node_type": 86,
+        "type_name": "face"
+      },
+      "parasolid:face:000004": {
+        "byte_range": {
+          "end": 779,
+          "length": 9,
+          "start": 770
+        },
+        "entity_id": 4,
+        "key": "parasolid:face:000004",
+        "kind": "face",
+        "node_id": 77,
+        "node_index": 77,
+        "node_type": 87,
+        "type_name": "face"
+      },
+      "parasolid:face:000005": {
+        "byte_range": {
+          "end": 789,
+          "length": 9,
+          "start": 780
+        },
+        "entity_id": 5,
+        "key": "parasolid:face:000005",
+        "kind": "face",
+        "node_id": 78,
+        "node_index": 78,
+        "node_type": 88,
+        "type_name": "face"
+      },
+      "parasolid:face:000006": {
+        "byte_range": {
+          "end": 799,
+          "length": 9,
+          "start": 790
+        },
+        "entity_id": 6,
+        "key": "parasolid:face:000006",
+        "kind": "face",
+        "node_id": 79,
+        "node_index": 79,
+        "node_type": 89,
+        "type_name": "face"
+      },
+      "parasolid:half_edge:000001": {
+        "byte_range": {
+          "end": 449,
+          "length": 9,
+          "start": 440
+        },
+        "entity_id": 1,
+        "key": "parasolid:half_edge:000001",
+        "kind": "half_edge",
+        "node_id": 44,
+        "node_index": 44,
+        "node_type": 54,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000002": {
+        "byte_range": {
+          "end": 459,
+          "length": 9,
+          "start": 450
+        },
+        "entity_id": 2,
+        "key": "parasolid:half_edge:000002",
+        "kind": "half_edge",
+        "node_id": 45,
+        "node_index": 45,
+        "node_type": 55,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000003": {
+        "byte_range": {
+          "end": 469,
+          "length": 9,
+          "start": 460
+        },
+        "entity_id": 3,
+        "key": "parasolid:half_edge:000003",
+        "kind": "half_edge",
+        "node_id": 46,
+        "node_index": 46,
+        "node_type": 56,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000004": {
+        "byte_range": {
+          "end": 479,
+          "length": 9,
+          "start": 470
+        },
+        "entity_id": 4,
+        "key": "parasolid:half_edge:000004",
+        "kind": "half_edge",
+        "node_id": 47,
+        "node_index": 47,
+        "node_type": 57,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000005": {
+        "byte_range": {
+          "end": 489,
+          "length": 9,
+          "start": 480
+        },
+        "entity_id": 5,
+        "key": "parasolid:half_edge:000005",
+        "kind": "half_edge",
+        "node_id": 48,
+        "node_index": 48,
+        "node_type": 58,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000006": {
+        "byte_range": {
+          "end": 499,
+          "length": 9,
+          "start": 490
+        },
+        "entity_id": 6,
+        "key": "parasolid:half_edge:000006",
+        "kind": "half_edge",
+        "node_id": 49,
+        "node_index": 49,
+        "node_type": 59,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000007": {
+        "byte_range": {
+          "end": 509,
+          "length": 9,
+          "start": 500
+        },
+        "entity_id": 7,
+        "key": "parasolid:half_edge:000007",
+        "kind": "half_edge",
+        "node_id": 50,
+        "node_index": 50,
+        "node_type": 60,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000008": {
+        "byte_range": {
+          "end": 519,
+          "length": 9,
+          "start": 510
+        },
+        "entity_id": 8,
+        "key": "parasolid:half_edge:000008",
+        "kind": "half_edge",
+        "node_id": 51,
+        "node_index": 51,
+        "node_type": 61,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000009": {
+        "byte_range": {
+          "end": 529,
+          "length": 9,
+          "start": 520
+        },
+        "entity_id": 9,
+        "key": "parasolid:half_edge:000009",
+        "kind": "half_edge",
+        "node_id": 52,
+        "node_index": 52,
+        "node_type": 62,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000010": {
+        "byte_range": {
+          "end": 539,
+          "length": 9,
+          "start": 530
+        },
+        "entity_id": 10,
+        "key": "parasolid:half_edge:000010",
+        "kind": "half_edge",
+        "node_id": 53,
+        "node_index": 53,
+        "node_type": 63,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000011": {
+        "byte_range": {
+          "end": 549,
+          "length": 9,
+          "start": 540
+        },
+        "entity_id": 11,
+        "key": "parasolid:half_edge:000011",
+        "kind": "half_edge",
+        "node_id": 54,
+        "node_index": 54,
+        "node_type": 64,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000012": {
+        "byte_range": {
+          "end": 559,
+          "length": 9,
+          "start": 550
+        },
+        "entity_id": 12,
+        "key": "parasolid:half_edge:000012",
+        "kind": "half_edge",
+        "node_id": 55,
+        "node_index": 55,
+        "node_type": 65,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000013": {
+        "byte_range": {
+          "end": 569,
+          "length": 9,
+          "start": 560
+        },
+        "entity_id": 13,
+        "key": "parasolid:half_edge:000013",
+        "kind": "half_edge",
+        "node_id": 56,
+        "node_index": 56,
+        "node_type": 66,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000014": {
+        "byte_range": {
+          "end": 579,
+          "length": 9,
+          "start": 570
+        },
+        "entity_id": 14,
+        "key": "parasolid:half_edge:000014",
+        "kind": "half_edge",
+        "node_id": 57,
+        "node_index": 57,
+        "node_type": 67,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000015": {
+        "byte_range": {
+          "end": 589,
+          "length": 9,
+          "start": 580
+        },
+        "entity_id": 15,
+        "key": "parasolid:half_edge:000015",
+        "kind": "half_edge",
+        "node_id": 58,
+        "node_index": 58,
+        "node_type": 68,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000016": {
+        "byte_range": {
+          "end": 599,
+          "length": 9,
+          "start": 590
+        },
+        "entity_id": 16,
+        "key": "parasolid:half_edge:000016",
+        "kind": "half_edge",
+        "node_id": 59,
+        "node_index": 59,
+        "node_type": 69,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000017": {
+        "byte_range": {
+          "end": 609,
+          "length": 9,
+          "start": 600
+        },
+        "entity_id": 17,
+        "key": "parasolid:half_edge:000017",
+        "kind": "half_edge",
+        "node_id": 60,
+        "node_index": 60,
+        "node_type": 70,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000018": {
+        "byte_range": {
+          "end": 619,
+          "length": 9,
+          "start": 610
+        },
+        "entity_id": 18,
+        "key": "parasolid:half_edge:000018",
+        "kind": "half_edge",
+        "node_id": 61,
+        "node_index": 61,
+        "node_type": 71,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000019": {
+        "byte_range": {
+          "end": 629,
+          "length": 9,
+          "start": 620
+        },
+        "entity_id": 19,
+        "key": "parasolid:half_edge:000019",
+        "kind": "half_edge",
+        "node_id": 62,
+        "node_index": 62,
+        "node_type": 72,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000020": {
+        "byte_range": {
+          "end": 639,
+          "length": 9,
+          "start": 630
+        },
+        "entity_id": 20,
+        "key": "parasolid:half_edge:000020",
+        "kind": "half_edge",
+        "node_id": 63,
+        "node_index": 63,
+        "node_type": 73,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000021": {
+        "byte_range": {
+          "end": 649,
+          "length": 9,
+          "start": 640
+        },
+        "entity_id": 21,
+        "key": "parasolid:half_edge:000021",
+        "kind": "half_edge",
+        "node_id": 64,
+        "node_index": 64,
+        "node_type": 74,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000022": {
+        "byte_range": {
+          "end": 659,
+          "length": 9,
+          "start": 650
+        },
+        "entity_id": 22,
+        "key": "parasolid:half_edge:000022",
+        "kind": "half_edge",
+        "node_id": 65,
+        "node_index": 65,
+        "node_type": 75,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000023": {
+        "byte_range": {
+          "end": 669,
+          "length": 9,
+          "start": 660
+        },
+        "entity_id": 23,
+        "key": "parasolid:half_edge:000023",
+        "kind": "half_edge",
+        "node_id": 66,
+        "node_index": 66,
+        "node_type": 76,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000024": {
+        "byte_range": {
+          "end": 679,
+          "length": 9,
+          "start": 670
+        },
+        "entity_id": 24,
+        "key": "parasolid:half_edge:000024",
+        "kind": "half_edge",
+        "node_id": 67,
+        "node_index": 67,
+        "node_type": 77,
+        "type_name": "fin"
+      },
+      "parasolid:loop:000001": {
+        "byte_range": {
+          "end": 689,
+          "length": 9,
+          "start": 680
+        },
+        "entity_id": 1,
+        "key": "parasolid:loop:000001",
+        "kind": "loop",
+        "node_id": 68,
+        "node_index": 68,
+        "node_type": 78,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000002": {
+        "byte_range": {
+          "end": 699,
+          "length": 9,
+          "start": 690
+        },
+        "entity_id": 2,
+        "key": "parasolid:loop:000002",
+        "kind": "loop",
+        "node_id": 69,
+        "node_index": 69,
+        "node_type": 79,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000003": {
+        "byte_range": {
+          "end": 709,
+          "length": 9,
+          "start": 700
+        },
+        "entity_id": 3,
+        "key": "parasolid:loop:000003",
+        "kind": "loop",
+        "node_id": 70,
+        "node_index": 70,
+        "node_type": 80,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000004": {
+        "byte_range": {
+          "end": 719,
+          "length": 9,
+          "start": 710
+        },
+        "entity_id": 4,
+        "key": "parasolid:loop:000004",
+        "kind": "loop",
+        "node_id": 71,
+        "node_index": 71,
+        "node_type": 81,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000005": {
+        "byte_range": {
+          "end": 729,
+          "length": 9,
+          "start": 720
+        },
+        "entity_id": 5,
+        "key": "parasolid:loop:000005",
+        "kind": "loop",
+        "node_id": 72,
+        "node_index": 72,
+        "node_type": 82,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000006": {
+        "byte_range": {
+          "end": 739,
+          "length": 9,
+          "start": 730
+        },
+        "entity_id": 6,
+        "key": "parasolid:loop:000006",
+        "kind": "loop",
+        "node_id": 73,
+        "node_index": 73,
+        "node_type": 83,
+        "type_name": "loop"
+      },
+      "parasolid:point:000001": {
+        "byte_range": {
+          "end": 49,
+          "length": 9,
+          "start": 40
+        },
+        "entity_id": 1,
+        "key": "parasolid:point:000001",
+        "kind": "point",
+        "node_id": 4,
+        "node_index": 4,
+        "node_type": 14,
+        "type_name": "point"
+      },
+      "parasolid:point:000002": {
+        "byte_range": {
+          "end": 59,
+          "length": 9,
+          "start": 50
+        },
+        "entity_id": 2,
+        "key": "parasolid:point:000002",
+        "kind": "point",
+        "node_id": 5,
+        "node_index": 5,
+        "node_type": 15,
+        "type_name": "point"
+      },
+      "parasolid:point:000003": {
+        "byte_range": {
+          "end": 69,
+          "length": 9,
+          "start": 60
+        },
+        "entity_id": 3,
+        "key": "parasolid:point:000003",
+        "kind": "point",
+        "node_id": 6,
+        "node_index": 6,
+        "node_type": 16,
+        "type_name": "point"
+      },
+      "parasolid:point:000004": {
+        "byte_range": {
+          "end": 79,
+          "length": 9,
+          "start": 70
+        },
+        "entity_id": 4,
+        "key": "parasolid:point:000004",
+        "kind": "point",
+        "node_id": 7,
+        "node_index": 7,
+        "node_type": 17,
+        "type_name": "point"
+      },
+      "parasolid:point:000005": {
+        "byte_range": {
+          "end": 89,
+          "length": 9,
+          "start": 80
+        },
+        "entity_id": 5,
+        "key": "parasolid:point:000005",
+        "kind": "point",
+        "node_id": 8,
+        "node_index": 8,
+        "node_type": 18,
+        "type_name": "point"
+      },
+      "parasolid:point:000006": {
+        "byte_range": {
+          "end": 99,
+          "length": 9,
+          "start": 90
+        },
+        "entity_id": 6,
+        "key": "parasolid:point:000006",
+        "kind": "point",
+        "node_id": 9,
+        "node_index": 9,
+        "node_type": 19,
+        "type_name": "point"
+      },
+      "parasolid:point:000007": {
+        "byte_range": {
+          "end": 109,
+          "length": 9,
+          "start": 100
+        },
+        "entity_id": 7,
+        "key": "parasolid:point:000007",
+        "kind": "point",
+        "node_id": 10,
+        "node_index": 10,
+        "node_type": 20,
+        "type_name": "point"
+      },
+      "parasolid:point:000008": {
+        "byte_range": {
+          "end": 119,
+          "length": 9,
+          "start": 110
+        },
+        "entity_id": 8,
+        "key": "parasolid:point:000008",
+        "kind": "point",
+        "node_id": 11,
+        "node_index": 11,
+        "node_type": 21,
+        "type_name": "point"
+      },
+      "parasolid:region:000001": {
+        "byte_range": {
+          "end": 29,
+          "length": 9,
+          "start": 20
+        },
+        "entity_id": 1,
+        "key": "parasolid:region:000001",
+        "kind": "region",
+        "node_id": 2,
+        "node_index": 2,
+        "node_type": 12,
+        "type_name": "region"
+      },
+      "parasolid:shell:000001": {
+        "byte_range": {
+          "end": 39,
+          "length": 9,
+          "start": 30
+        },
+        "entity_id": 1,
+        "key": "parasolid:shell:000001",
+        "kind": "shell",
+        "node_id": 3,
+        "node_index": 3,
+        "node_type": 13,
+        "type_name": "shell"
+      },
+      "parasolid:surface:000001": {
+        "byte_range": {
+          "end": 809,
+          "length": 9,
+          "start": 800
+        },
+        "entity_id": 1,
+        "key": "parasolid:surface:000001",
+        "kind": "surface",
+        "node_id": 80,
+        "node_index": 80,
+        "node_type": 90,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000002": {
+        "byte_range": {
+          "end": 819,
+          "length": 9,
+          "start": 810
+        },
+        "entity_id": 2,
+        "key": "parasolid:surface:000002",
+        "kind": "surface",
+        "node_id": 81,
+        "node_index": 81,
+        "node_type": 91,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000003": {
+        "byte_range": {
+          "end": 829,
+          "length": 9,
+          "start": 820
+        },
+        "entity_id": 3,
+        "key": "parasolid:surface:000003",
+        "kind": "surface",
+        "node_id": 82,
+        "node_index": 82,
+        "node_type": 92,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000004": {
+        "byte_range": {
+          "end": 839,
+          "length": 9,
+          "start": 830
+        },
+        "entity_id": 4,
+        "key": "parasolid:surface:000004",
+        "kind": "surface",
+        "node_id": 83,
+        "node_index": 83,
+        "node_type": 93,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000005": {
+        "byte_range": {
+          "end": 849,
+          "length": 9,
+          "start": 840
+        },
+        "entity_id": 5,
+        "key": "parasolid:surface:000005",
+        "kind": "surface",
+        "node_id": 84,
+        "node_index": 84,
+        "node_type": 94,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000006": {
+        "byte_range": {
+          "end": 859,
+          "length": 9,
+          "start": 850
+        },
+        "entity_id": 6,
+        "key": "parasolid:surface:000006",
+        "kind": "surface",
+        "node_id": 85,
+        "node_index": 85,
+        "node_type": 95,
+        "type_name": "plane"
+      },
+      "parasolid:vertex:000001": {
+        "byte_range": {
+          "end": 129,
+          "length": 9,
+          "start": 120
+        },
+        "entity_id": 1,
+        "key": "parasolid:vertex:000001",
+        "kind": "vertex",
+        "node_id": 12,
+        "node_index": 12,
+        "node_type": 22,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000002": {
+        "byte_range": {
+          "end": 139,
+          "length": 9,
+          "start": 130
+        },
+        "entity_id": 2,
+        "key": "parasolid:vertex:000002",
+        "kind": "vertex",
+        "node_id": 13,
+        "node_index": 13,
+        "node_type": 23,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000003": {
+        "byte_range": {
+          "end": 149,
+          "length": 9,
+          "start": 140
+        },
+        "entity_id": 3,
+        "key": "parasolid:vertex:000003",
+        "kind": "vertex",
+        "node_id": 14,
+        "node_index": 14,
+        "node_type": 24,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000004": {
+        "byte_range": {
+          "end": 159,
+          "length": 9,
+          "start": 150
+        },
+        "entity_id": 4,
+        "key": "parasolid:vertex:000004",
+        "kind": "vertex",
+        "node_id": 15,
+        "node_index": 15,
+        "node_type": 25,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000005": {
+        "byte_range": {
+          "end": 169,
+          "length": 9,
+          "start": 160
+        },
+        "entity_id": 5,
+        "key": "parasolid:vertex:000005",
+        "kind": "vertex",
+        "node_id": 16,
+        "node_index": 16,
+        "node_type": 26,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000006": {
+        "byte_range": {
+          "end": 179,
+          "length": 9,
+          "start": 170
+        },
+        "entity_id": 6,
+        "key": "parasolid:vertex:000006",
+        "kind": "vertex",
+        "node_id": 17,
+        "node_index": 17,
+        "node_type": 27,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000007": {
+        "byte_range": {
+          "end": 189,
+          "length": 9,
+          "start": 180
+        },
+        "entity_id": 7,
+        "key": "parasolid:vertex:000007",
+        "kind": "vertex",
+        "node_id": 18,
+        "node_index": 18,
+        "node_type": 28,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000008": {
+        "byte_range": {
+          "end": 199,
+          "length": 9,
+          "start": 190
+        },
+        "entity_id": 8,
+        "key": "parasolid:vertex:000008",
+        "kind": "vertex",
+        "node_id": 19,
+        "node_index": 19,
+        "node_type": 29,
+        "type_name": "vertex"
+      }
+    }
+  },
+  "box-partial": {
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "solid"
+      }
+    ],
+    "inputs": {
+      "preview.glb": "ddea1b2fbb405edb0619fb322489f9601c9c820ad280bd7da8c55d82092b8918",
+      "preview.manifest.json": "c43583430dc6c864cdf4128cc9b6e7e16b7c61c76193206fcfb0b82da8fa5de2"
+    },
+    "sources": {
+      "parasolid:body:000001": {
+        "byte_range": {
+          "end": 19,
+          "length": 9,
+          "start": 10
+        },
+        "entity_id": 1,
+        "key": "parasolid:body:000001",
+        "kind": "body",
+        "node_id": 1,
+        "node_index": 1,
+        "node_type": 11,
+        "type_name": "body"
+      },
+      "parasolid:curve:000001": {
+        "byte_range": {
+          "end": 209,
+          "length": 9,
+          "start": 200
+        },
+        "entity_id": 1,
+        "key": "parasolid:curve:000001",
+        "kind": "curve",
+        "node_id": 20,
+        "node_index": 20,
+        "node_type": 30,
+        "type_name": "line"
+      },
+      "parasolid:curve:000002": {
+        "byte_range": {
+          "end": 219,
+          "length": 9,
+          "start": 210
+        },
+        "entity_id": 2,
+        "key": "parasolid:curve:000002",
+        "kind": "curve",
+        "node_id": 21,
+        "node_index": 21,
+        "node_type": 31,
+        "type_name": "line"
+      },
+      "parasolid:curve:000003": {
+        "byte_range": {
+          "end": 229,
+          "length": 9,
+          "start": 220
+        },
+        "entity_id": 3,
+        "key": "parasolid:curve:000003",
+        "kind": "curve",
+        "node_id": 22,
+        "node_index": 22,
+        "node_type": 32,
+        "type_name": "line"
+      },
+      "parasolid:curve:000004": {
+        "byte_range": {
+          "end": 239,
+          "length": 9,
+          "start": 230
+        },
+        "entity_id": 4,
+        "key": "parasolid:curve:000004",
+        "kind": "curve",
+        "node_id": 23,
+        "node_index": 23,
+        "node_type": 33,
+        "type_name": "line"
+      },
+      "parasolid:curve:000005": {
+        "byte_range": {
+          "end": 249,
+          "length": 9,
+          "start": 240
+        },
+        "entity_id": 5,
+        "key": "parasolid:curve:000005",
+        "kind": "curve",
+        "node_id": 24,
+        "node_index": 24,
+        "node_type": 34,
+        "type_name": "line"
+      },
+      "parasolid:curve:000006": {
+        "byte_range": {
+          "end": 259,
+          "length": 9,
+          "start": 250
+        },
+        "entity_id": 6,
+        "key": "parasolid:curve:000006",
+        "kind": "curve",
+        "node_id": 25,
+        "node_index": 25,
+        "node_type": 35,
+        "type_name": "line"
+      },
+      "parasolid:curve:000007": {
+        "byte_range": {
+          "end": 269,
+          "length": 9,
+          "start": 260
+        },
+        "entity_id": 7,
+        "key": "parasolid:curve:000007",
+        "kind": "curve",
+        "node_id": 26,
+        "node_index": 26,
+        "node_type": 36,
+        "type_name": "line"
+      },
+      "parasolid:curve:000008": {
+        "byte_range": {
+          "end": 279,
+          "length": 9,
+          "start": 270
+        },
+        "entity_id": 8,
+        "key": "parasolid:curve:000008",
+        "kind": "curve",
+        "node_id": 27,
+        "node_index": 27,
+        "node_type": 37,
+        "type_name": "line"
+      },
+      "parasolid:curve:000009": {
+        "byte_range": {
+          "end": 289,
+          "length": 9,
+          "start": 280
+        },
+        "entity_id": 9,
+        "key": "parasolid:curve:000009",
+        "kind": "curve",
+        "node_id": 28,
+        "node_index": 28,
+        "node_type": 38,
+        "type_name": "line"
+      },
+      "parasolid:curve:000010": {
+        "byte_range": {
+          "end": 299,
+          "length": 9,
+          "start": 290
+        },
+        "entity_id": 10,
+        "key": "parasolid:curve:000010",
+        "kind": "curve",
+        "node_id": 29,
+        "node_index": 29,
+        "node_type": 39,
+        "type_name": "line"
+      },
+      "parasolid:curve:000011": {
+        "byte_range": {
+          "end": 309,
+          "length": 9,
+          "start": 300
+        },
+        "entity_id": 11,
+        "key": "parasolid:curve:000011",
+        "kind": "curve",
+        "node_id": 30,
+        "node_index": 30,
+        "node_type": 40,
+        "type_name": "line"
+      },
+      "parasolid:curve:000012": {
+        "byte_range": {
+          "end": 319,
+          "length": 9,
+          "start": 310
+        },
+        "entity_id": 12,
+        "key": "parasolid:curve:000012",
+        "kind": "curve",
+        "node_id": 31,
+        "node_index": 31,
+        "node_type": 41,
+        "type_name": "line"
+      },
+      "parasolid:edge:000001": {
+        "byte_range": {
+          "end": 329,
+          "length": 9,
+          "start": 320
+        },
+        "entity_id": 1,
+        "key": "parasolid:edge:000001",
+        "kind": "edge",
+        "node_id": 32,
+        "node_index": 32,
+        "node_type": 42,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000002": {
+        "byte_range": {
+          "end": 339,
+          "length": 9,
+          "start": 330
+        },
+        "entity_id": 2,
+        "key": "parasolid:edge:000002",
+        "kind": "edge",
+        "node_id": 33,
+        "node_index": 33,
+        "node_type": 43,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000003": {
+        "byte_range": {
+          "end": 349,
+          "length": 9,
+          "start": 340
+        },
+        "entity_id": 3,
+        "key": "parasolid:edge:000003",
+        "kind": "edge",
+        "node_id": 34,
+        "node_index": 34,
+        "node_type": 44,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000004": {
+        "byte_range": {
+          "end": 359,
+          "length": 9,
+          "start": 350
+        },
+        "entity_id": 4,
+        "key": "parasolid:edge:000004",
+        "kind": "edge",
+        "node_id": 35,
+        "node_index": 35,
+        "node_type": 45,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000005": {
+        "byte_range": {
+          "end": 369,
+          "length": 9,
+          "start": 360
+        },
+        "entity_id": 5,
+        "key": "parasolid:edge:000005",
+        "kind": "edge",
+        "node_id": 36,
+        "node_index": 36,
+        "node_type": 46,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000006": {
+        "byte_range": {
+          "end": 379,
+          "length": 9,
+          "start": 370
+        },
+        "entity_id": 6,
+        "key": "parasolid:edge:000006",
+        "kind": "edge",
+        "node_id": 37,
+        "node_index": 37,
+        "node_type": 47,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000007": {
+        "byte_range": {
+          "end": 389,
+          "length": 9,
+          "start": 380
+        },
+        "entity_id": 7,
+        "key": "parasolid:edge:000007",
+        "kind": "edge",
+        "node_id": 38,
+        "node_index": 38,
+        "node_type": 48,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000008": {
+        "byte_range": {
+          "end": 399,
+          "length": 9,
+          "start": 390
+        },
+        "entity_id": 8,
+        "key": "parasolid:edge:000008",
+        "kind": "edge",
+        "node_id": 39,
+        "node_index": 39,
+        "node_type": 49,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000009": {
+        "byte_range": {
+          "end": 409,
+          "length": 9,
+          "start": 400
+        },
+        "entity_id": 9,
+        "key": "parasolid:edge:000009",
+        "kind": "edge",
+        "node_id": 40,
+        "node_index": 40,
+        "node_type": 50,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000010": {
+        "byte_range": {
+          "end": 419,
+          "length": 9,
+          "start": 410
+        },
+        "entity_id": 10,
+        "key": "parasolid:edge:000010",
+        "kind": "edge",
+        "node_id": 41,
+        "node_index": 41,
+        "node_type": 51,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000011": {
+        "byte_range": {
+          "end": 429,
+          "length": 9,
+          "start": 420
+        },
+        "entity_id": 11,
+        "key": "parasolid:edge:000011",
+        "kind": "edge",
+        "node_id": 42,
+        "node_index": 42,
+        "node_type": 52,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000012": {
+        "byte_range": {
+          "end": 439,
+          "length": 9,
+          "start": 430
+        },
+        "entity_id": 12,
+        "key": "parasolid:edge:000012",
+        "kind": "edge",
+        "node_id": 43,
+        "node_index": 43,
+        "node_type": 53,
+        "type_name": "edge"
+      },
+      "parasolid:face:000001": {
+        "byte_range": {
+          "end": 749,
+          "length": 9,
+          "start": 740
+        },
+        "entity_id": 1,
+        "key": "parasolid:face:000001",
+        "kind": "face",
+        "node_id": 74,
+        "node_index": 74,
+        "node_type": 84,
+        "type_name": "face"
+      },
+      "parasolid:face:000002": {
+        "byte_range": {
+          "end": 759,
+          "length": 9,
+          "start": 750
+        },
+        "entity_id": 2,
+        "key": "parasolid:face:000002",
+        "kind": "face",
+        "node_id": 75,
+        "node_index": 75,
+        "node_type": 85,
+        "type_name": "face"
+      },
+      "parasolid:face:000003": {
+        "byte_range": {
+          "end": 769,
+          "length": 9,
+          "start": 760
+        },
+        "entity_id": 3,
+        "key": "parasolid:face:000003",
+        "kind": "face",
+        "node_id": 76,
+        "node_index": 76,
+        "node_type": 86,
+        "type_name": "face"
+      },
+      "parasolid:face:000004": {
+        "byte_range": {
+          "end": 779,
+          "length": 9,
+          "start": 770
+        },
+        "entity_id": 4,
+        "key": "parasolid:face:000004",
+        "kind": "face",
+        "node_id": 77,
+        "node_index": 77,
+        "node_type": 87,
+        "type_name": "face"
+      },
+      "parasolid:face:000005": {
+        "byte_range": {
+          "end": 789,
+          "length": 9,
+          "start": 780
+        },
+        "entity_id": 5,
+        "key": "parasolid:face:000005",
+        "kind": "face",
+        "node_id": 78,
+        "node_index": 78,
+        "node_type": 88,
+        "type_name": "face"
+      },
+      "parasolid:face:000006": {
+        "byte_range": {
+          "end": 799,
+          "length": 9,
+          "start": 790
+        },
+        "entity_id": 6,
+        "key": "parasolid:face:000006",
+        "kind": "face",
+        "node_id": 79,
+        "node_index": 79,
+        "node_type": 89,
+        "type_name": "face"
+      },
+      "parasolid:half_edge:000001": {
+        "byte_range": {
+          "end": 449,
+          "length": 9,
+          "start": 440
+        },
+        "entity_id": 1,
+        "key": "parasolid:half_edge:000001",
+        "kind": "half_edge",
+        "node_id": 44,
+        "node_index": 44,
+        "node_type": 54,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000002": {
+        "byte_range": {
+          "end": 459,
+          "length": 9,
+          "start": 450
+        },
+        "entity_id": 2,
+        "key": "parasolid:half_edge:000002",
+        "kind": "half_edge",
+        "node_id": 45,
+        "node_index": 45,
+        "node_type": 55,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000003": {
+        "byte_range": {
+          "end": 469,
+          "length": 9,
+          "start": 460
+        },
+        "entity_id": 3,
+        "key": "parasolid:half_edge:000003",
+        "kind": "half_edge",
+        "node_id": 46,
+        "node_index": 46,
+        "node_type": 56,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000004": {
+        "byte_range": {
+          "end": 479,
+          "length": 9,
+          "start": 470
+        },
+        "entity_id": 4,
+        "key": "parasolid:half_edge:000004",
+        "kind": "half_edge",
+        "node_id": 47,
+        "node_index": 47,
+        "node_type": 57,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000005": {
+        "byte_range": {
+          "end": 489,
+          "length": 9,
+          "start": 480
+        },
+        "entity_id": 5,
+        "key": "parasolid:half_edge:000005",
+        "kind": "half_edge",
+        "node_id": 48,
+        "node_index": 48,
+        "node_type": 58,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000006": {
+        "byte_range": {
+          "end": 499,
+          "length": 9,
+          "start": 490
+        },
+        "entity_id": 6,
+        "key": "parasolid:half_edge:000006",
+        "kind": "half_edge",
+        "node_id": 49,
+        "node_index": 49,
+        "node_type": 59,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000007": {
+        "byte_range": {
+          "end": 509,
+          "length": 9,
+          "start": 500
+        },
+        "entity_id": 7,
+        "key": "parasolid:half_edge:000007",
+        "kind": "half_edge",
+        "node_id": 50,
+        "node_index": 50,
+        "node_type": 60,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000008": {
+        "byte_range": {
+          "end": 519,
+          "length": 9,
+          "start": 510
+        },
+        "entity_id": 8,
+        "key": "parasolid:half_edge:000008",
+        "kind": "half_edge",
+        "node_id": 51,
+        "node_index": 51,
+        "node_type": 61,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000009": {
+        "byte_range": {
+          "end": 529,
+          "length": 9,
+          "start": 520
+        },
+        "entity_id": 9,
+        "key": "parasolid:half_edge:000009",
+        "kind": "half_edge",
+        "node_id": 52,
+        "node_index": 52,
+        "node_type": 62,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000010": {
+        "byte_range": {
+          "end": 539,
+          "length": 9,
+          "start": 530
+        },
+        "entity_id": 10,
+        "key": "parasolid:half_edge:000010",
+        "kind": "half_edge",
+        "node_id": 53,
+        "node_index": 53,
+        "node_type": 63,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000011": {
+        "byte_range": {
+          "end": 549,
+          "length": 9,
+          "start": 540
+        },
+        "entity_id": 11,
+        "key": "parasolid:half_edge:000011",
+        "kind": "half_edge",
+        "node_id": 54,
+        "node_index": 54,
+        "node_type": 64,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000012": {
+        "byte_range": {
+          "end": 559,
+          "length": 9,
+          "start": 550
+        },
+        "entity_id": 12,
+        "key": "parasolid:half_edge:000012",
+        "kind": "half_edge",
+        "node_id": 55,
+        "node_index": 55,
+        "node_type": 65,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000013": {
+        "byte_range": {
+          "end": 569,
+          "length": 9,
+          "start": 560
+        },
+        "entity_id": 13,
+        "key": "parasolid:half_edge:000013",
+        "kind": "half_edge",
+        "node_id": 56,
+        "node_index": 56,
+        "node_type": 66,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000014": {
+        "byte_range": {
+          "end": 579,
+          "length": 9,
+          "start": 570
+        },
+        "entity_id": 14,
+        "key": "parasolid:half_edge:000014",
+        "kind": "half_edge",
+        "node_id": 57,
+        "node_index": 57,
+        "node_type": 67,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000015": {
+        "byte_range": {
+          "end": 589,
+          "length": 9,
+          "start": 580
+        },
+        "entity_id": 15,
+        "key": "parasolid:half_edge:000015",
+        "kind": "half_edge",
+        "node_id": 58,
+        "node_index": 58,
+        "node_type": 68,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000016": {
+        "byte_range": {
+          "end": 599,
+          "length": 9,
+          "start": 590
+        },
+        "entity_id": 16,
+        "key": "parasolid:half_edge:000016",
+        "kind": "half_edge",
+        "node_id": 59,
+        "node_index": 59,
+        "node_type": 69,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000017": {
+        "byte_range": {
+          "end": 609,
+          "length": 9,
+          "start": 600
+        },
+        "entity_id": 17,
+        "key": "parasolid:half_edge:000017",
+        "kind": "half_edge",
+        "node_id": 60,
+        "node_index": 60,
+        "node_type": 70,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000018": {
+        "byte_range": {
+          "end": 619,
+          "length": 9,
+          "start": 610
+        },
+        "entity_id": 18,
+        "key": "parasolid:half_edge:000018",
+        "kind": "half_edge",
+        "node_id": 61,
+        "node_index": 61,
+        "node_type": 71,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000019": {
+        "byte_range": {
+          "end": 629,
+          "length": 9,
+          "start": 620
+        },
+        "entity_id": 19,
+        "key": "parasolid:half_edge:000019",
+        "kind": "half_edge",
+        "node_id": 62,
+        "node_index": 62,
+        "node_type": 72,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000020": {
+        "byte_range": {
+          "end": 639,
+          "length": 9,
+          "start": 630
+        },
+        "entity_id": 20,
+        "key": "parasolid:half_edge:000020",
+        "kind": "half_edge",
+        "node_id": 63,
+        "node_index": 63,
+        "node_type": 73,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000021": {
+        "byte_range": {
+          "end": 649,
+          "length": 9,
+          "start": 640
+        },
+        "entity_id": 21,
+        "key": "parasolid:half_edge:000021",
+        "kind": "half_edge",
+        "node_id": 64,
+        "node_index": 64,
+        "node_type": 74,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000022": {
+        "byte_range": {
+          "end": 659,
+          "length": 9,
+          "start": 650
+        },
+        "entity_id": 22,
+        "key": "parasolid:half_edge:000022",
+        "kind": "half_edge",
+        "node_id": 65,
+        "node_index": 65,
+        "node_type": 75,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000023": {
+        "byte_range": {
+          "end": 669,
+          "length": 9,
+          "start": 660
+        },
+        "entity_id": 23,
+        "key": "parasolid:half_edge:000023",
+        "kind": "half_edge",
+        "node_id": 66,
+        "node_index": 66,
+        "node_type": 76,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000024": {
+        "byte_range": {
+          "end": 679,
+          "length": 9,
+          "start": 670
+        },
+        "entity_id": 24,
+        "key": "parasolid:half_edge:000024",
+        "kind": "half_edge",
+        "node_id": 67,
+        "node_index": 67,
+        "node_type": 77,
+        "type_name": "fin"
+      },
+      "parasolid:loop:000001": {
+        "byte_range": {
+          "end": 689,
+          "length": 9,
+          "start": 680
+        },
+        "entity_id": 1,
+        "key": "parasolid:loop:000001",
+        "kind": "loop",
+        "node_id": 68,
+        "node_index": 68,
+        "node_type": 78,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000002": {
+        "byte_range": {
+          "end": 699,
+          "length": 9,
+          "start": 690
+        },
+        "entity_id": 2,
+        "key": "parasolid:loop:000002",
+        "kind": "loop",
+        "node_id": 69,
+        "node_index": 69,
+        "node_type": 79,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000003": {
+        "byte_range": {
+          "end": 709,
+          "length": 9,
+          "start": 700
+        },
+        "entity_id": 3,
+        "key": "parasolid:loop:000003",
+        "kind": "loop",
+        "node_id": 70,
+        "node_index": 70,
+        "node_type": 80,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000004": {
+        "byte_range": {
+          "end": 719,
+          "length": 9,
+          "start": 710
+        },
+        "entity_id": 4,
+        "key": "parasolid:loop:000004",
+        "kind": "loop",
+        "node_id": 71,
+        "node_index": 71,
+        "node_type": 81,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000005": {
+        "byte_range": {
+          "end": 729,
+          "length": 9,
+          "start": 720
+        },
+        "entity_id": 5,
+        "key": "parasolid:loop:000005",
+        "kind": "loop",
+        "node_id": 72,
+        "node_index": 72,
+        "node_type": 82,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000006": {
+        "byte_range": {
+          "end": 739,
+          "length": 9,
+          "start": 730
+        },
+        "entity_id": 6,
+        "key": "parasolid:loop:000006",
+        "kind": "loop",
+        "node_id": 73,
+        "node_index": 73,
+        "node_type": 83,
+        "type_name": "loop"
+      },
+      "parasolid:point:000001": {
+        "byte_range": {
+          "end": 49,
+          "length": 9,
+          "start": 40
+        },
+        "entity_id": 1,
+        "key": "parasolid:point:000001",
+        "kind": "point",
+        "node_id": 4,
+        "node_index": 4,
+        "node_type": 14,
+        "type_name": "point"
+      },
+      "parasolid:point:000002": {
+        "byte_range": {
+          "end": 59,
+          "length": 9,
+          "start": 50
+        },
+        "entity_id": 2,
+        "key": "parasolid:point:000002",
+        "kind": "point",
+        "node_id": 5,
+        "node_index": 5,
+        "node_type": 15,
+        "type_name": "point"
+      },
+      "parasolid:point:000003": {
+        "byte_range": {
+          "end": 69,
+          "length": 9,
+          "start": 60
+        },
+        "entity_id": 3,
+        "key": "parasolid:point:000003",
+        "kind": "point",
+        "node_id": 6,
+        "node_index": 6,
+        "node_type": 16,
+        "type_name": "point"
+      },
+      "parasolid:point:000004": {
+        "byte_range": {
+          "end": 79,
+          "length": 9,
+          "start": 70
+        },
+        "entity_id": 4,
+        "key": "parasolid:point:000004",
+        "kind": "point",
+        "node_id": 7,
+        "node_index": 7,
+        "node_type": 17,
+        "type_name": "point"
+      },
+      "parasolid:point:000005": {
+        "byte_range": {
+          "end": 89,
+          "length": 9,
+          "start": 80
+        },
+        "entity_id": 5,
+        "key": "parasolid:point:000005",
+        "kind": "point",
+        "node_id": 8,
+        "node_index": 8,
+        "node_type": 18,
+        "type_name": "point"
+      },
+      "parasolid:point:000006": {
+        "byte_range": {
+          "end": 99,
+          "length": 9,
+          "start": 90
+        },
+        "entity_id": 6,
+        "key": "parasolid:point:000006",
+        "kind": "point",
+        "node_id": 9,
+        "node_index": 9,
+        "node_type": 19,
+        "type_name": "point"
+      },
+      "parasolid:point:000007": {
+        "byte_range": {
+          "end": 109,
+          "length": 9,
+          "start": 100
+        },
+        "entity_id": 7,
+        "key": "parasolid:point:000007",
+        "kind": "point",
+        "node_id": 10,
+        "node_index": 10,
+        "node_type": 20,
+        "type_name": "point"
+      },
+      "parasolid:point:000008": {
+        "byte_range": {
+          "end": 119,
+          "length": 9,
+          "start": 110
+        },
+        "entity_id": 8,
+        "key": "parasolid:point:000008",
+        "kind": "point",
+        "node_id": 11,
+        "node_index": 11,
+        "node_type": 21,
+        "type_name": "point"
+      },
+      "parasolid:region:000001": {
+        "byte_range": {
+          "end": 29,
+          "length": 9,
+          "start": 20
+        },
+        "entity_id": 1,
+        "key": "parasolid:region:000001",
+        "kind": "region",
+        "node_id": 2,
+        "node_index": 2,
+        "node_type": 12,
+        "type_name": "region"
+      },
+      "parasolid:shell:000001": {
+        "byte_range": {
+          "end": 39,
+          "length": 9,
+          "start": 30
+        },
+        "entity_id": 1,
+        "key": "parasolid:shell:000001",
+        "kind": "shell",
+        "node_id": 3,
+        "node_index": 3,
+        "node_type": 13,
+        "type_name": "shell"
+      },
+      "parasolid:surface:000001": {
+        "byte_range": {
+          "end": 809,
+          "length": 9,
+          "start": 800
+        },
+        "entity_id": 1,
+        "key": "parasolid:surface:000001",
+        "kind": "surface",
+        "node_id": 80,
+        "node_index": 80,
+        "node_type": 90,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000002": {
+        "byte_range": {
+          "end": 819,
+          "length": 9,
+          "start": 810
+        },
+        "entity_id": 2,
+        "key": "parasolid:surface:000002",
+        "kind": "surface",
+        "node_id": 81,
+        "node_index": 81,
+        "node_type": 91,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000003": {
+        "byte_range": {
+          "end": 829,
+          "length": 9,
+          "start": 820
+        },
+        "entity_id": 3,
+        "key": "parasolid:surface:000003",
+        "kind": "surface",
+        "node_id": 82,
+        "node_index": 82,
+        "node_type": 92,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000004": {
+        "byte_range": {
+          "end": 839,
+          "length": 9,
+          "start": 830
+        },
+        "entity_id": 4,
+        "key": "parasolid:surface:000004",
+        "kind": "surface",
+        "node_id": 83,
+        "node_index": 83,
+        "node_type": 93,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000005": {
+        "byte_range": {
+          "end": 849,
+          "length": 9,
+          "start": 840
+        },
+        "entity_id": 5,
+        "key": "parasolid:surface:000005",
+        "kind": "surface",
+        "node_id": 84,
+        "node_index": 84,
+        "node_type": 94,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000006": {
+        "byte_range": {
+          "end": 859,
+          "length": 9,
+          "start": 850
+        },
+        "entity_id": 6,
+        "key": "parasolid:surface:000006",
+        "kind": "surface",
+        "node_id": 85,
+        "node_index": 85,
+        "node_type": 95,
+        "type_name": "plane"
+      },
+      "parasolid:vertex:000001": {
+        "byte_range": {
+          "end": 129,
+          "length": 9,
+          "start": 120
+        },
+        "entity_id": 1,
+        "key": "parasolid:vertex:000001",
+        "kind": "vertex",
+        "node_id": 12,
+        "node_index": 12,
+        "node_type": 22,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000002": {
+        "byte_range": {
+          "end": 139,
+          "length": 9,
+          "start": 130
+        },
+        "entity_id": 2,
+        "key": "parasolid:vertex:000002",
+        "kind": "vertex",
+        "node_id": 13,
+        "node_index": 13,
+        "node_type": 23,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000003": {
+        "byte_range": {
+          "end": 149,
+          "length": 9,
+          "start": 140
+        },
+        "entity_id": 3,
+        "key": "parasolid:vertex:000003",
+        "kind": "vertex",
+        "node_id": 14,
+        "node_index": 14,
+        "node_type": 24,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000004": {
+        "byte_range": {
+          "end": 159,
+          "length": 9,
+          "start": 150
+        },
+        "entity_id": 4,
+        "key": "parasolid:vertex:000004",
+        "kind": "vertex",
+        "node_id": 15,
+        "node_index": 15,
+        "node_type": 25,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000005": {
+        "byte_range": {
+          "end": 169,
+          "length": 9,
+          "start": 160
+        },
+        "entity_id": 5,
+        "key": "parasolid:vertex:000005",
+        "kind": "vertex",
+        "node_id": 16,
+        "node_index": 16,
+        "node_type": 26,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000006": {
+        "byte_range": {
+          "end": 179,
+          "length": 9,
+          "start": 170
+        },
+        "entity_id": 6,
+        "key": "parasolid:vertex:000006",
+        "kind": "vertex",
+        "node_id": 17,
+        "node_index": 17,
+        "node_type": 27,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000007": {
+        "byte_range": {
+          "end": 189,
+          "length": 9,
+          "start": 180
+        },
+        "entity_id": 7,
+        "key": "parasolid:vertex:000007",
+        "kind": "vertex",
+        "node_id": 18,
+        "node_index": 18,
+        "node_type": 28,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000008": {
+        "byte_range": {
+          "end": 199,
+          "length": 9,
+          "start": 190
+        },
+        "entity_id": 8,
+        "key": "parasolid:vertex:000008",
+        "kind": "vertex",
+        "node_id": 19,
+        "node_index": 19,
+        "node_type": 29,
+        "type_name": "vertex"
+      }
+    }
+  },
+  "cylinder-hole": {
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "solid"
+      }
+    ],
+    "inputs": {
+      "preview.glb": "789f0385faf17a10e7cb1c6b1ebed85ed314c180997e6c952a23f70a0a6811e1",
+      "preview.manifest.json": "ea78961e0480fbf4926dcbb17b250368837a4f58360e8563f0faba24385b69dc"
+    },
+    "sources": {
+      "parasolid:body:000001": {
+        "byte_range": {
+          "end": 19,
+          "length": 9,
+          "start": 10
+        },
+        "entity_id": 1,
+        "key": "parasolid:body:000001",
+        "kind": "body",
+        "node_id": 1,
+        "node_index": 1,
+        "node_type": 11,
+        "type_name": "body"
+      },
+      "parasolid:curve:000001": {
+        "byte_range": {
+          "end": 49,
+          "length": 9,
+          "start": 40
+        },
+        "entity_id": 1,
+        "key": "parasolid:curve:000001",
+        "kind": "curve",
+        "node_id": 4,
+        "node_index": 4,
+        "node_type": 14,
+        "type_name": "circle"
+      },
+      "parasolid:curve:000002": {
+        "byte_range": {
+          "end": 59,
+          "length": 9,
+          "start": 50
+        },
+        "entity_id": 2,
+        "key": "parasolid:curve:000002",
+        "kind": "curve",
+        "node_id": 5,
+        "node_index": 5,
+        "node_type": 15,
+        "type_name": "circle"
+      },
+      "parasolid:curve:000003": {
+        "byte_range": {
+          "end": 69,
+          "length": 9,
+          "start": 60
+        },
+        "entity_id": 3,
+        "key": "parasolid:curve:000003",
+        "kind": "curve",
+        "node_id": 6,
+        "node_index": 6,
+        "node_type": 16,
+        "type_name": "circle"
+      },
+      "parasolid:curve:000004": {
+        "byte_range": {
+          "end": 79,
+          "length": 9,
+          "start": 70
+        },
+        "entity_id": 4,
+        "key": "parasolid:curve:000004",
+        "kind": "curve",
+        "node_id": 7,
+        "node_index": 7,
+        "node_type": 17,
+        "type_name": "circle"
+      },
+      "parasolid:edge:000001": {
+        "byte_range": {
+          "end": 89,
+          "length": 9,
+          "start": 80
+        },
+        "entity_id": 1,
+        "key": "parasolid:edge:000001",
+        "kind": "edge",
+        "node_id": 8,
+        "node_index": 8,
+        "node_type": 18,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000002": {
+        "byte_range": {
+          "end": 99,
+          "length": 9,
+          "start": 90
+        },
+        "entity_id": 2,
+        "key": "parasolid:edge:000002",
+        "kind": "edge",
+        "node_id": 9,
+        "node_index": 9,
+        "node_type": 19,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000003": {
+        "byte_range": {
+          "end": 109,
+          "length": 9,
+          "start": 100
+        },
+        "entity_id": 3,
+        "key": "parasolid:edge:000003",
+        "kind": "edge",
+        "node_id": 10,
+        "node_index": 10,
+        "node_type": 20,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000004": {
+        "byte_range": {
+          "end": 119,
+          "length": 9,
+          "start": 110
+        },
+        "entity_id": 4,
+        "key": "parasolid:edge:000004",
+        "kind": "edge",
+        "node_id": 11,
+        "node_index": 11,
+        "node_type": 21,
+        "type_name": "edge"
+      },
+      "parasolid:face:000001": {
+        "byte_range": {
+          "end": 129,
+          "length": 9,
+          "start": 120
+        },
+        "entity_id": 1,
+        "key": "parasolid:face:000001",
+        "kind": "face",
+        "node_id": 12,
+        "node_index": 12,
+        "node_type": 22,
+        "type_name": "face"
+      },
+      "parasolid:face:000002": {
+        "byte_range": {
+          "end": 139,
+          "length": 9,
+          "start": 130
+        },
+        "entity_id": 2,
+        "key": "parasolid:face:000002",
+        "kind": "face",
+        "node_id": 13,
+        "node_index": 13,
+        "node_type": 23,
+        "type_name": "face"
+      },
+      "parasolid:face:000003": {
+        "byte_range": {
+          "end": 149,
+          "length": 9,
+          "start": 140
+        },
+        "entity_id": 3,
+        "key": "parasolid:face:000003",
+        "kind": "face",
+        "node_id": 14,
+        "node_index": 14,
+        "node_type": 24,
+        "type_name": "face"
+      },
+      "parasolid:face:000004": {
+        "byte_range": {
+          "end": 159,
+          "length": 9,
+          "start": 150
+        },
+        "entity_id": 4,
+        "key": "parasolid:face:000004",
+        "kind": "face",
+        "node_id": 15,
+        "node_index": 15,
+        "node_type": 25,
+        "type_name": "face"
+      },
+      "parasolid:half_edge:000001": {
+        "byte_range": {
+          "end": 289,
+          "length": 9,
+          "start": 280
+        },
+        "entity_id": 1,
+        "key": "parasolid:half_edge:000001",
+        "kind": "half_edge",
+        "node_id": 28,
+        "node_index": 28,
+        "node_type": 38,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000002": {
+        "byte_range": {
+          "end": 299,
+          "length": 9,
+          "start": 290
+        },
+        "entity_id": 2,
+        "key": "parasolid:half_edge:000002",
+        "kind": "half_edge",
+        "node_id": 29,
+        "node_index": 29,
+        "node_type": 39,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000003": {
+        "byte_range": {
+          "end": 309,
+          "length": 9,
+          "start": 300
+        },
+        "entity_id": 3,
+        "key": "parasolid:half_edge:000003",
+        "kind": "half_edge",
+        "node_id": 30,
+        "node_index": 30,
+        "node_type": 40,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000004": {
+        "byte_range": {
+          "end": 319,
+          "length": 9,
+          "start": 310
+        },
+        "entity_id": 4,
+        "key": "parasolid:half_edge:000004",
+        "kind": "half_edge",
+        "node_id": 31,
+        "node_index": 31,
+        "node_type": 41,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000005": {
+        "byte_range": {
+          "end": 329,
+          "length": 9,
+          "start": 320
+        },
+        "entity_id": 5,
+        "key": "parasolid:half_edge:000005",
+        "kind": "half_edge",
+        "node_id": 32,
+        "node_index": 32,
+        "node_type": 42,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000006": {
+        "byte_range": {
+          "end": 339,
+          "length": 9,
+          "start": 330
+        },
+        "entity_id": 6,
+        "key": "parasolid:half_edge:000006",
+        "kind": "half_edge",
+        "node_id": 33,
+        "node_index": 33,
+        "node_type": 43,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000007": {
+        "byte_range": {
+          "end": 349,
+          "length": 9,
+          "start": 340
+        },
+        "entity_id": 7,
+        "key": "parasolid:half_edge:000007",
+        "kind": "half_edge",
+        "node_id": 34,
+        "node_index": 34,
+        "node_type": 44,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000008": {
+        "byte_range": {
+          "end": 359,
+          "length": 9,
+          "start": 350
+        },
+        "entity_id": 8,
+        "key": "parasolid:half_edge:000008",
+        "kind": "half_edge",
+        "node_id": 35,
+        "node_index": 35,
+        "node_type": 45,
+        "type_name": "fin"
+      },
+      "parasolid:loop:000001": {
+        "byte_range": {
+          "end": 209,
+          "length": 9,
+          "start": 200
+        },
+        "entity_id": 1,
+        "key": "parasolid:loop:000001",
+        "kind": "loop",
+        "node_id": 20,
+        "node_index": 20,
+        "node_type": 30,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000002": {
+        "byte_range": {
+          "end": 219,
+          "length": 9,
+          "start": 210
+        },
+        "entity_id": 2,
+        "key": "parasolid:loop:000002",
+        "kind": "loop",
+        "node_id": 21,
+        "node_index": 21,
+        "node_type": 31,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000003": {
+        "byte_range": {
+          "end": 229,
+          "length": 9,
+          "start": 220
+        },
+        "entity_id": 3,
+        "key": "parasolid:loop:000003",
+        "kind": "loop",
+        "node_id": 22,
+        "node_index": 22,
+        "node_type": 32,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000004": {
+        "byte_range": {
+          "end": 239,
+          "length": 9,
+          "start": 230
+        },
+        "entity_id": 4,
+        "key": "parasolid:loop:000004",
+        "kind": "loop",
+        "node_id": 23,
+        "node_index": 23,
+        "node_type": 33,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000005": {
+        "byte_range": {
+          "end": 249,
+          "length": 9,
+          "start": 240
+        },
+        "entity_id": 5,
+        "key": "parasolid:loop:000005",
+        "kind": "loop",
+        "node_id": 24,
+        "node_index": 24,
+        "node_type": 34,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000006": {
+        "byte_range": {
+          "end": 259,
+          "length": 9,
+          "start": 250
+        },
+        "entity_id": 6,
+        "key": "parasolid:loop:000006",
+        "kind": "loop",
+        "node_id": 25,
+        "node_index": 25,
+        "node_type": 35,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000007": {
+        "byte_range": {
+          "end": 269,
+          "length": 9,
+          "start": 260
+        },
+        "entity_id": 7,
+        "key": "parasolid:loop:000007",
+        "kind": "loop",
+        "node_id": 26,
+        "node_index": 26,
+        "node_type": 36,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000008": {
+        "byte_range": {
+          "end": 279,
+          "length": 9,
+          "start": 270
+        },
+        "entity_id": 8,
+        "key": "parasolid:loop:000008",
+        "kind": "loop",
+        "node_id": 27,
+        "node_index": 27,
+        "node_type": 37,
+        "type_name": "loop"
+      },
+      "parasolid:region:000001": {
+        "byte_range": {
+          "end": 29,
+          "length": 9,
+          "start": 20
+        },
+        "entity_id": 1,
+        "key": "parasolid:region:000001",
+        "kind": "region",
+        "node_id": 2,
+        "node_index": 2,
+        "node_type": 12,
+        "type_name": "region"
+      },
+      "parasolid:shell:000001": {
+        "byte_range": {
+          "end": 39,
+          "length": 9,
+          "start": 30
+        },
+        "entity_id": 1,
+        "key": "parasolid:shell:000001",
+        "kind": "shell",
+        "node_id": 3,
+        "node_index": 3,
+        "node_type": 13,
+        "type_name": "shell"
+      },
+      "parasolid:surface:000001": {
+        "byte_range": {
+          "end": 169,
+          "length": 9,
+          "start": 160
+        },
+        "entity_id": 1,
+        "key": "parasolid:surface:000001",
+        "kind": "surface",
+        "node_id": 16,
+        "node_index": 16,
+        "node_type": 26,
+        "type_name": "surface"
+      },
+      "parasolid:surface:000002": {
+        "byte_range": {
+          "end": 179,
+          "length": 9,
+          "start": 170
+        },
+        "entity_id": 2,
+        "key": "parasolid:surface:000002",
+        "kind": "surface",
+        "node_id": 17,
+        "node_index": 17,
+        "node_type": 27,
+        "type_name": "surface"
+      },
+      "parasolid:surface:000003": {
+        "byte_range": {
+          "end": 189,
+          "length": 9,
+          "start": 180
+        },
+        "entity_id": 3,
+        "key": "parasolid:surface:000003",
+        "kind": "surface",
+        "node_id": 18,
+        "node_index": 18,
+        "node_type": 28,
+        "type_name": "surface"
+      },
+      "parasolid:surface:000004": {
+        "byte_range": {
+          "end": 199,
+          "length": 9,
+          "start": 190
+        },
+        "entity_id": 4,
+        "key": "parasolid:surface:000004",
+        "kind": "surface",
+        "node_id": 19,
+        "node_index": 19,
+        "node_type": 29,
+        "type_name": "surface"
+      }
+    }
+  },
+  "sheet": {
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "sheet"
+      }
+    ],
+    "inputs": {
+      "preview.glb": "a309a7c311d38786d3b5328f620b1221356b4574ad32c9ba1a33a6ab873d91b8",
+      "preview.manifest.json": "ae53c46e21edc03d1a17c8564a89035599a377569c0e4860b92916ab067d0e97"
+    },
+    "sources": {
+      "parasolid:body:000001": {
+        "byte_range": {
+          "end": 19,
+          "length": 9,
+          "start": 10
+        },
+        "entity_id": 1,
+        "key": "parasolid:body:000001",
+        "kind": "body",
+        "node_id": 1,
+        "node_index": 1,
+        "node_type": 11,
+        "type_name": "body"
+      },
+      "parasolid:face:000001": {
+        "byte_range": {
+          "end": 49,
+          "length": 9,
+          "start": 40
+        },
+        "entity_id": 1,
+        "key": "parasolid:face:000001",
+        "kind": "face",
+        "node_id": 4,
+        "node_index": 4,
+        "node_type": 14,
+        "type_name": "face"
+      },
+      "parasolid:region:000001": {
+        "byte_range": {
+          "end": 29,
+          "length": 9,
+          "start": 20
+        },
+        "entity_id": 1,
+        "key": "parasolid:region:000001",
+        "kind": "region",
+        "node_id": 2,
+        "node_index": 2,
+        "node_type": 12,
+        "type_name": "region"
+      },
+      "parasolid:shell:000001": {
+        "byte_range": {
+          "end": 39,
+          "length": 9,
+          "start": 30
+        },
+        "entity_id": 1,
+        "key": "parasolid:shell:000001",
+        "kind": "shell",
+        "node_id": 3,
+        "node_index": 3,
+        "node_type": 13,
+        "type_name": "shell"
+      },
+      "parasolid:surface:000001": {
+        "byte_range": {
+          "end": 59,
+          "length": 9,
+          "start": 50
+        },
+        "entity_id": 1,
+        "key": "parasolid:surface:000001",
+        "kind": "surface",
+        "node_id": 5,
+        "node_index": 5,
+        "node_type": 15,
+        "type_name": "b_surface"
+      }
+    }
+  },
+  "two-boxes": {
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "solid"
+      },
+      {
+        "id": 101,
+        "kind": "solid"
+      }
+    ],
+    "inputs": {
+      "preview.glb": "ba303dc0527026a6072970a91d953e132301a0e7c7f7c412459d286a1cf71405",
+      "preview.manifest.json": "014e7bf14031bf1534d2f22d9493ffca55798cb12eac903ff1e10df7246ef5fd"
+    },
+    "sources": {
+      "parasolid:body:000001": {
+        "byte_range": {
+          "end": 19,
+          "length": 9,
+          "start": 10
+        },
+        "entity_id": 1,
+        "key": "parasolid:body:000001",
+        "kind": "body",
+        "node_id": 1,
+        "node_index": 1,
+        "node_type": 11,
+        "type_name": "body"
+      },
+      "parasolid:body:000101": {
+        "byte_range": {
+          "end": 10019,
+          "length": 9,
+          "start": 10010
+        },
+        "entity_id": 101,
+        "key": "parasolid:body:000101",
+        "kind": "body",
+        "node_id": 1001,
+        "node_index": 1001,
+        "node_type": 1011,
+        "type_name": "body"
+      },
+      "parasolid:curve:000001": {
+        "byte_range": {
+          "end": 209,
+          "length": 9,
+          "start": 200
+        },
+        "entity_id": 1,
+        "key": "parasolid:curve:000001",
+        "kind": "curve",
+        "node_id": 20,
+        "node_index": 20,
+        "node_type": 30,
+        "type_name": "line"
+      },
+      "parasolid:curve:000002": {
+        "byte_range": {
+          "end": 219,
+          "length": 9,
+          "start": 210
+        },
+        "entity_id": 2,
+        "key": "parasolid:curve:000002",
+        "kind": "curve",
+        "node_id": 21,
+        "node_index": 21,
+        "node_type": 31,
+        "type_name": "line"
+      },
+      "parasolid:curve:000003": {
+        "byte_range": {
+          "end": 229,
+          "length": 9,
+          "start": 220
+        },
+        "entity_id": 3,
+        "key": "parasolid:curve:000003",
+        "kind": "curve",
+        "node_id": 22,
+        "node_index": 22,
+        "node_type": 32,
+        "type_name": "line"
+      },
+      "parasolid:curve:000004": {
+        "byte_range": {
+          "end": 239,
+          "length": 9,
+          "start": 230
+        },
+        "entity_id": 4,
+        "key": "parasolid:curve:000004",
+        "kind": "curve",
+        "node_id": 23,
+        "node_index": 23,
+        "node_type": 33,
+        "type_name": "line"
+      },
+      "parasolid:curve:000005": {
+        "byte_range": {
+          "end": 249,
+          "length": 9,
+          "start": 240
+        },
+        "entity_id": 5,
+        "key": "parasolid:curve:000005",
+        "kind": "curve",
+        "node_id": 24,
+        "node_index": 24,
+        "node_type": 34,
+        "type_name": "line"
+      },
+      "parasolid:curve:000006": {
+        "byte_range": {
+          "end": 259,
+          "length": 9,
+          "start": 250
+        },
+        "entity_id": 6,
+        "key": "parasolid:curve:000006",
+        "kind": "curve",
+        "node_id": 25,
+        "node_index": 25,
+        "node_type": 35,
+        "type_name": "line"
+      },
+      "parasolid:curve:000007": {
+        "byte_range": {
+          "end": 269,
+          "length": 9,
+          "start": 260
+        },
+        "entity_id": 7,
+        "key": "parasolid:curve:000007",
+        "kind": "curve",
+        "node_id": 26,
+        "node_index": 26,
+        "node_type": 36,
+        "type_name": "line"
+      },
+      "parasolid:curve:000008": {
+        "byte_range": {
+          "end": 279,
+          "length": 9,
+          "start": 270
+        },
+        "entity_id": 8,
+        "key": "parasolid:curve:000008",
+        "kind": "curve",
+        "node_id": 27,
+        "node_index": 27,
+        "node_type": 37,
+        "type_name": "line"
+      },
+      "parasolid:curve:000009": {
+        "byte_range": {
+          "end": 289,
+          "length": 9,
+          "start": 280
+        },
+        "entity_id": 9,
+        "key": "parasolid:curve:000009",
+        "kind": "curve",
+        "node_id": 28,
+        "node_index": 28,
+        "node_type": 38,
+        "type_name": "line"
+      },
+      "parasolid:curve:000010": {
+        "byte_range": {
+          "end": 299,
+          "length": 9,
+          "start": 290
+        },
+        "entity_id": 10,
+        "key": "parasolid:curve:000010",
+        "kind": "curve",
+        "node_id": 29,
+        "node_index": 29,
+        "node_type": 39,
+        "type_name": "line"
+      },
+      "parasolid:curve:000011": {
+        "byte_range": {
+          "end": 309,
+          "length": 9,
+          "start": 300
+        },
+        "entity_id": 11,
+        "key": "parasolid:curve:000011",
+        "kind": "curve",
+        "node_id": 30,
+        "node_index": 30,
+        "node_type": 40,
+        "type_name": "line"
+      },
+      "parasolid:curve:000012": {
+        "byte_range": {
+          "end": 319,
+          "length": 9,
+          "start": 310
+        },
+        "entity_id": 12,
+        "key": "parasolid:curve:000012",
+        "kind": "curve",
+        "node_id": 31,
+        "node_index": 31,
+        "node_type": 41,
+        "type_name": "line"
+      },
+      "parasolid:curve:000101": {
+        "byte_range": {
+          "end": 10209,
+          "length": 9,
+          "start": 10200
+        },
+        "entity_id": 101,
+        "key": "parasolid:curve:000101",
+        "kind": "curve",
+        "node_id": 1020,
+        "node_index": 1020,
+        "node_type": 1030,
+        "type_name": "line"
+      },
+      "parasolid:curve:000102": {
+        "byte_range": {
+          "end": 10219,
+          "length": 9,
+          "start": 10210
+        },
+        "entity_id": 102,
+        "key": "parasolid:curve:000102",
+        "kind": "curve",
+        "node_id": 1021,
+        "node_index": 1021,
+        "node_type": 1031,
+        "type_name": "line"
+      },
+      "parasolid:curve:000103": {
+        "byte_range": {
+          "end": 10229,
+          "length": 9,
+          "start": 10220
+        },
+        "entity_id": 103,
+        "key": "parasolid:curve:000103",
+        "kind": "curve",
+        "node_id": 1022,
+        "node_index": 1022,
+        "node_type": 1032,
+        "type_name": "line"
+      },
+      "parasolid:curve:000104": {
+        "byte_range": {
+          "end": 10239,
+          "length": 9,
+          "start": 10230
+        },
+        "entity_id": 104,
+        "key": "parasolid:curve:000104",
+        "kind": "curve",
+        "node_id": 1023,
+        "node_index": 1023,
+        "node_type": 1033,
+        "type_name": "line"
+      },
+      "parasolid:curve:000105": {
+        "byte_range": {
+          "end": 10249,
+          "length": 9,
+          "start": 10240
+        },
+        "entity_id": 105,
+        "key": "parasolid:curve:000105",
+        "kind": "curve",
+        "node_id": 1024,
+        "node_index": 1024,
+        "node_type": 1034,
+        "type_name": "line"
+      },
+      "parasolid:curve:000106": {
+        "byte_range": {
+          "end": 10259,
+          "length": 9,
+          "start": 10250
+        },
+        "entity_id": 106,
+        "key": "parasolid:curve:000106",
+        "kind": "curve",
+        "node_id": 1025,
+        "node_index": 1025,
+        "node_type": 1035,
+        "type_name": "line"
+      },
+      "parasolid:curve:000107": {
+        "byte_range": {
+          "end": 10269,
+          "length": 9,
+          "start": 10260
+        },
+        "entity_id": 107,
+        "key": "parasolid:curve:000107",
+        "kind": "curve",
+        "node_id": 1026,
+        "node_index": 1026,
+        "node_type": 1036,
+        "type_name": "line"
+      },
+      "parasolid:curve:000108": {
+        "byte_range": {
+          "end": 10279,
+          "length": 9,
+          "start": 10270
+        },
+        "entity_id": 108,
+        "key": "parasolid:curve:000108",
+        "kind": "curve",
+        "node_id": 1027,
+        "node_index": 1027,
+        "node_type": 1037,
+        "type_name": "line"
+      },
+      "parasolid:curve:000109": {
+        "byte_range": {
+          "end": 10289,
+          "length": 9,
+          "start": 10280
+        },
+        "entity_id": 109,
+        "key": "parasolid:curve:000109",
+        "kind": "curve",
+        "node_id": 1028,
+        "node_index": 1028,
+        "node_type": 1038,
+        "type_name": "line"
+      },
+      "parasolid:curve:000110": {
+        "byte_range": {
+          "end": 10299,
+          "length": 9,
+          "start": 10290
+        },
+        "entity_id": 110,
+        "key": "parasolid:curve:000110",
+        "kind": "curve",
+        "node_id": 1029,
+        "node_index": 1029,
+        "node_type": 1039,
+        "type_name": "line"
+      },
+      "parasolid:curve:000111": {
+        "byte_range": {
+          "end": 10309,
+          "length": 9,
+          "start": 10300
+        },
+        "entity_id": 111,
+        "key": "parasolid:curve:000111",
+        "kind": "curve",
+        "node_id": 1030,
+        "node_index": 1030,
+        "node_type": 1040,
+        "type_name": "line"
+      },
+      "parasolid:curve:000112": {
+        "byte_range": {
+          "end": 10319,
+          "length": 9,
+          "start": 10310
+        },
+        "entity_id": 112,
+        "key": "parasolid:curve:000112",
+        "kind": "curve",
+        "node_id": 1031,
+        "node_index": 1031,
+        "node_type": 1041,
+        "type_name": "line"
+      },
+      "parasolid:edge:000001": {
+        "byte_range": {
+          "end": 329,
+          "length": 9,
+          "start": 320
+        },
+        "entity_id": 1,
+        "key": "parasolid:edge:000001",
+        "kind": "edge",
+        "node_id": 32,
+        "node_index": 32,
+        "node_type": 42,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000002": {
+        "byte_range": {
+          "end": 339,
+          "length": 9,
+          "start": 330
+        },
+        "entity_id": 2,
+        "key": "parasolid:edge:000002",
+        "kind": "edge",
+        "node_id": 33,
+        "node_index": 33,
+        "node_type": 43,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000003": {
+        "byte_range": {
+          "end": 349,
+          "length": 9,
+          "start": 340
+        },
+        "entity_id": 3,
+        "key": "parasolid:edge:000003",
+        "kind": "edge",
+        "node_id": 34,
+        "node_index": 34,
+        "node_type": 44,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000004": {
+        "byte_range": {
+          "end": 359,
+          "length": 9,
+          "start": 350
+        },
+        "entity_id": 4,
+        "key": "parasolid:edge:000004",
+        "kind": "edge",
+        "node_id": 35,
+        "node_index": 35,
+        "node_type": 45,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000005": {
+        "byte_range": {
+          "end": 369,
+          "length": 9,
+          "start": 360
+        },
+        "entity_id": 5,
+        "key": "parasolid:edge:000005",
+        "kind": "edge",
+        "node_id": 36,
+        "node_index": 36,
+        "node_type": 46,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000006": {
+        "byte_range": {
+          "end": 379,
+          "length": 9,
+          "start": 370
+        },
+        "entity_id": 6,
+        "key": "parasolid:edge:000006",
+        "kind": "edge",
+        "node_id": 37,
+        "node_index": 37,
+        "node_type": 47,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000007": {
+        "byte_range": {
+          "end": 389,
+          "length": 9,
+          "start": 380
+        },
+        "entity_id": 7,
+        "key": "parasolid:edge:000007",
+        "kind": "edge",
+        "node_id": 38,
+        "node_index": 38,
+        "node_type": 48,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000008": {
+        "byte_range": {
+          "end": 399,
+          "length": 9,
+          "start": 390
+        },
+        "entity_id": 8,
+        "key": "parasolid:edge:000008",
+        "kind": "edge",
+        "node_id": 39,
+        "node_index": 39,
+        "node_type": 49,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000009": {
+        "byte_range": {
+          "end": 409,
+          "length": 9,
+          "start": 400
+        },
+        "entity_id": 9,
+        "key": "parasolid:edge:000009",
+        "kind": "edge",
+        "node_id": 40,
+        "node_index": 40,
+        "node_type": 50,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000010": {
+        "byte_range": {
+          "end": 419,
+          "length": 9,
+          "start": 410
+        },
+        "entity_id": 10,
+        "key": "parasolid:edge:000010",
+        "kind": "edge",
+        "node_id": 41,
+        "node_index": 41,
+        "node_type": 51,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000011": {
+        "byte_range": {
+          "end": 429,
+          "length": 9,
+          "start": 420
+        },
+        "entity_id": 11,
+        "key": "parasolid:edge:000011",
+        "kind": "edge",
+        "node_id": 42,
+        "node_index": 42,
+        "node_type": 52,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000012": {
+        "byte_range": {
+          "end": 439,
+          "length": 9,
+          "start": 430
+        },
+        "entity_id": 12,
+        "key": "parasolid:edge:000012",
+        "kind": "edge",
+        "node_id": 43,
+        "node_index": 43,
+        "node_type": 53,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000101": {
+        "byte_range": {
+          "end": 10329,
+          "length": 9,
+          "start": 10320
+        },
+        "entity_id": 101,
+        "key": "parasolid:edge:000101",
+        "kind": "edge",
+        "node_id": 1032,
+        "node_index": 1032,
+        "node_type": 1042,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000102": {
+        "byte_range": {
+          "end": 10339,
+          "length": 9,
+          "start": 10330
+        },
+        "entity_id": 102,
+        "key": "parasolid:edge:000102",
+        "kind": "edge",
+        "node_id": 1033,
+        "node_index": 1033,
+        "node_type": 1043,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000103": {
+        "byte_range": {
+          "end": 10349,
+          "length": 9,
+          "start": 10340
+        },
+        "entity_id": 103,
+        "key": "parasolid:edge:000103",
+        "kind": "edge",
+        "node_id": 1034,
+        "node_index": 1034,
+        "node_type": 1044,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000104": {
+        "byte_range": {
+          "end": 10359,
+          "length": 9,
+          "start": 10350
+        },
+        "entity_id": 104,
+        "key": "parasolid:edge:000104",
+        "kind": "edge",
+        "node_id": 1035,
+        "node_index": 1035,
+        "node_type": 1045,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000105": {
+        "byte_range": {
+          "end": 10369,
+          "length": 9,
+          "start": 10360
+        },
+        "entity_id": 105,
+        "key": "parasolid:edge:000105",
+        "kind": "edge",
+        "node_id": 1036,
+        "node_index": 1036,
+        "node_type": 1046,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000106": {
+        "byte_range": {
+          "end": 10379,
+          "length": 9,
+          "start": 10370
+        },
+        "entity_id": 106,
+        "key": "parasolid:edge:000106",
+        "kind": "edge",
+        "node_id": 1037,
+        "node_index": 1037,
+        "node_type": 1047,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000107": {
+        "byte_range": {
+          "end": 10389,
+          "length": 9,
+          "start": 10380
+        },
+        "entity_id": 107,
+        "key": "parasolid:edge:000107",
+        "kind": "edge",
+        "node_id": 1038,
+        "node_index": 1038,
+        "node_type": 1048,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000108": {
+        "byte_range": {
+          "end": 10399,
+          "length": 9,
+          "start": 10390
+        },
+        "entity_id": 108,
+        "key": "parasolid:edge:000108",
+        "kind": "edge",
+        "node_id": 1039,
+        "node_index": 1039,
+        "node_type": 1049,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000109": {
+        "byte_range": {
+          "end": 10409,
+          "length": 9,
+          "start": 10400
+        },
+        "entity_id": 109,
+        "key": "parasolid:edge:000109",
+        "kind": "edge",
+        "node_id": 1040,
+        "node_index": 1040,
+        "node_type": 1050,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000110": {
+        "byte_range": {
+          "end": 10419,
+          "length": 9,
+          "start": 10410
+        },
+        "entity_id": 110,
+        "key": "parasolid:edge:000110",
+        "kind": "edge",
+        "node_id": 1041,
+        "node_index": 1041,
+        "node_type": 1051,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000111": {
+        "byte_range": {
+          "end": 10429,
+          "length": 9,
+          "start": 10420
+        },
+        "entity_id": 111,
+        "key": "parasolid:edge:000111",
+        "kind": "edge",
+        "node_id": 1042,
+        "node_index": 1042,
+        "node_type": 1052,
+        "type_name": "edge"
+      },
+      "parasolid:edge:000112": {
+        "byte_range": {
+          "end": 10439,
+          "length": 9,
+          "start": 10430
+        },
+        "entity_id": 112,
+        "key": "parasolid:edge:000112",
+        "kind": "edge",
+        "node_id": 1043,
+        "node_index": 1043,
+        "node_type": 1053,
+        "type_name": "edge"
+      },
+      "parasolid:face:000001": {
+        "byte_range": {
+          "end": 749,
+          "length": 9,
+          "start": 740
+        },
+        "entity_id": 1,
+        "key": "parasolid:face:000001",
+        "kind": "face",
+        "node_id": 74,
+        "node_index": 74,
+        "node_type": 84,
+        "type_name": "face"
+      },
+      "parasolid:face:000002": {
+        "byte_range": {
+          "end": 759,
+          "length": 9,
+          "start": 750
+        },
+        "entity_id": 2,
+        "key": "parasolid:face:000002",
+        "kind": "face",
+        "node_id": 75,
+        "node_index": 75,
+        "node_type": 85,
+        "type_name": "face"
+      },
+      "parasolid:face:000003": {
+        "byte_range": {
+          "end": 769,
+          "length": 9,
+          "start": 760
+        },
+        "entity_id": 3,
+        "key": "parasolid:face:000003",
+        "kind": "face",
+        "node_id": 76,
+        "node_index": 76,
+        "node_type": 86,
+        "type_name": "face"
+      },
+      "parasolid:face:000004": {
+        "byte_range": {
+          "end": 779,
+          "length": 9,
+          "start": 770
+        },
+        "entity_id": 4,
+        "key": "parasolid:face:000004",
+        "kind": "face",
+        "node_id": 77,
+        "node_index": 77,
+        "node_type": 87,
+        "type_name": "face"
+      },
+      "parasolid:face:000005": {
+        "byte_range": {
+          "end": 789,
+          "length": 9,
+          "start": 780
+        },
+        "entity_id": 5,
+        "key": "parasolid:face:000005",
+        "kind": "face",
+        "node_id": 78,
+        "node_index": 78,
+        "node_type": 88,
+        "type_name": "face"
+      },
+      "parasolid:face:000006": {
+        "byte_range": {
+          "end": 799,
+          "length": 9,
+          "start": 790
+        },
+        "entity_id": 6,
+        "key": "parasolid:face:000006",
+        "kind": "face",
+        "node_id": 79,
+        "node_index": 79,
+        "node_type": 89,
+        "type_name": "face"
+      },
+      "parasolid:face:000101": {
+        "byte_range": {
+          "end": 10749,
+          "length": 9,
+          "start": 10740
+        },
+        "entity_id": 101,
+        "key": "parasolid:face:000101",
+        "kind": "face",
+        "node_id": 1074,
+        "node_index": 1074,
+        "node_type": 1084,
+        "type_name": "face"
+      },
+      "parasolid:face:000102": {
+        "byte_range": {
+          "end": 10759,
+          "length": 9,
+          "start": 10750
+        },
+        "entity_id": 102,
+        "key": "parasolid:face:000102",
+        "kind": "face",
+        "node_id": 1075,
+        "node_index": 1075,
+        "node_type": 1085,
+        "type_name": "face"
+      },
+      "parasolid:face:000103": {
+        "byte_range": {
+          "end": 10769,
+          "length": 9,
+          "start": 10760
+        },
+        "entity_id": 103,
+        "key": "parasolid:face:000103",
+        "kind": "face",
+        "node_id": 1076,
+        "node_index": 1076,
+        "node_type": 1086,
+        "type_name": "face"
+      },
+      "parasolid:face:000104": {
+        "byte_range": {
+          "end": 10779,
+          "length": 9,
+          "start": 10770
+        },
+        "entity_id": 104,
+        "key": "parasolid:face:000104",
+        "kind": "face",
+        "node_id": 1077,
+        "node_index": 1077,
+        "node_type": 1087,
+        "type_name": "face"
+      },
+      "parasolid:face:000105": {
+        "byte_range": {
+          "end": 10789,
+          "length": 9,
+          "start": 10780
+        },
+        "entity_id": 105,
+        "key": "parasolid:face:000105",
+        "kind": "face",
+        "node_id": 1078,
+        "node_index": 1078,
+        "node_type": 1088,
+        "type_name": "face"
+      },
+      "parasolid:face:000106": {
+        "byte_range": {
+          "end": 10799,
+          "length": 9,
+          "start": 10790
+        },
+        "entity_id": 106,
+        "key": "parasolid:face:000106",
+        "kind": "face",
+        "node_id": 1079,
+        "node_index": 1079,
+        "node_type": 1089,
+        "type_name": "face"
+      },
+      "parasolid:half_edge:000001": {
+        "byte_range": {
+          "end": 449,
+          "length": 9,
+          "start": 440
+        },
+        "entity_id": 1,
+        "key": "parasolid:half_edge:000001",
+        "kind": "half_edge",
+        "node_id": 44,
+        "node_index": 44,
+        "node_type": 54,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000002": {
+        "byte_range": {
+          "end": 459,
+          "length": 9,
+          "start": 450
+        },
+        "entity_id": 2,
+        "key": "parasolid:half_edge:000002",
+        "kind": "half_edge",
+        "node_id": 45,
+        "node_index": 45,
+        "node_type": 55,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000003": {
+        "byte_range": {
+          "end": 469,
+          "length": 9,
+          "start": 460
+        },
+        "entity_id": 3,
+        "key": "parasolid:half_edge:000003",
+        "kind": "half_edge",
+        "node_id": 46,
+        "node_index": 46,
+        "node_type": 56,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000004": {
+        "byte_range": {
+          "end": 479,
+          "length": 9,
+          "start": 470
+        },
+        "entity_id": 4,
+        "key": "parasolid:half_edge:000004",
+        "kind": "half_edge",
+        "node_id": 47,
+        "node_index": 47,
+        "node_type": 57,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000005": {
+        "byte_range": {
+          "end": 489,
+          "length": 9,
+          "start": 480
+        },
+        "entity_id": 5,
+        "key": "parasolid:half_edge:000005",
+        "kind": "half_edge",
+        "node_id": 48,
+        "node_index": 48,
+        "node_type": 58,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000006": {
+        "byte_range": {
+          "end": 499,
+          "length": 9,
+          "start": 490
+        },
+        "entity_id": 6,
+        "key": "parasolid:half_edge:000006",
+        "kind": "half_edge",
+        "node_id": 49,
+        "node_index": 49,
+        "node_type": 59,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000007": {
+        "byte_range": {
+          "end": 509,
+          "length": 9,
+          "start": 500
+        },
+        "entity_id": 7,
+        "key": "parasolid:half_edge:000007",
+        "kind": "half_edge",
+        "node_id": 50,
+        "node_index": 50,
+        "node_type": 60,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000008": {
+        "byte_range": {
+          "end": 519,
+          "length": 9,
+          "start": 510
+        },
+        "entity_id": 8,
+        "key": "parasolid:half_edge:000008",
+        "kind": "half_edge",
+        "node_id": 51,
+        "node_index": 51,
+        "node_type": 61,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000009": {
+        "byte_range": {
+          "end": 529,
+          "length": 9,
+          "start": 520
+        },
+        "entity_id": 9,
+        "key": "parasolid:half_edge:000009",
+        "kind": "half_edge",
+        "node_id": 52,
+        "node_index": 52,
+        "node_type": 62,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000010": {
+        "byte_range": {
+          "end": 539,
+          "length": 9,
+          "start": 530
+        },
+        "entity_id": 10,
+        "key": "parasolid:half_edge:000010",
+        "kind": "half_edge",
+        "node_id": 53,
+        "node_index": 53,
+        "node_type": 63,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000011": {
+        "byte_range": {
+          "end": 549,
+          "length": 9,
+          "start": 540
+        },
+        "entity_id": 11,
+        "key": "parasolid:half_edge:000011",
+        "kind": "half_edge",
+        "node_id": 54,
+        "node_index": 54,
+        "node_type": 64,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000012": {
+        "byte_range": {
+          "end": 559,
+          "length": 9,
+          "start": 550
+        },
+        "entity_id": 12,
+        "key": "parasolid:half_edge:000012",
+        "kind": "half_edge",
+        "node_id": 55,
+        "node_index": 55,
+        "node_type": 65,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000013": {
+        "byte_range": {
+          "end": 569,
+          "length": 9,
+          "start": 560
+        },
+        "entity_id": 13,
+        "key": "parasolid:half_edge:000013",
+        "kind": "half_edge",
+        "node_id": 56,
+        "node_index": 56,
+        "node_type": 66,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000014": {
+        "byte_range": {
+          "end": 579,
+          "length": 9,
+          "start": 570
+        },
+        "entity_id": 14,
+        "key": "parasolid:half_edge:000014",
+        "kind": "half_edge",
+        "node_id": 57,
+        "node_index": 57,
+        "node_type": 67,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000015": {
+        "byte_range": {
+          "end": 589,
+          "length": 9,
+          "start": 580
+        },
+        "entity_id": 15,
+        "key": "parasolid:half_edge:000015",
+        "kind": "half_edge",
+        "node_id": 58,
+        "node_index": 58,
+        "node_type": 68,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000016": {
+        "byte_range": {
+          "end": 599,
+          "length": 9,
+          "start": 590
+        },
+        "entity_id": 16,
+        "key": "parasolid:half_edge:000016",
+        "kind": "half_edge",
+        "node_id": 59,
+        "node_index": 59,
+        "node_type": 69,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000017": {
+        "byte_range": {
+          "end": 609,
+          "length": 9,
+          "start": 600
+        },
+        "entity_id": 17,
+        "key": "parasolid:half_edge:000017",
+        "kind": "half_edge",
+        "node_id": 60,
+        "node_index": 60,
+        "node_type": 70,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000018": {
+        "byte_range": {
+          "end": 619,
+          "length": 9,
+          "start": 610
+        },
+        "entity_id": 18,
+        "key": "parasolid:half_edge:000018",
+        "kind": "half_edge",
+        "node_id": 61,
+        "node_index": 61,
+        "node_type": 71,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000019": {
+        "byte_range": {
+          "end": 629,
+          "length": 9,
+          "start": 620
+        },
+        "entity_id": 19,
+        "key": "parasolid:half_edge:000019",
+        "kind": "half_edge",
+        "node_id": 62,
+        "node_index": 62,
+        "node_type": 72,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000020": {
+        "byte_range": {
+          "end": 639,
+          "length": 9,
+          "start": 630
+        },
+        "entity_id": 20,
+        "key": "parasolid:half_edge:000020",
+        "kind": "half_edge",
+        "node_id": 63,
+        "node_index": 63,
+        "node_type": 73,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000021": {
+        "byte_range": {
+          "end": 649,
+          "length": 9,
+          "start": 640
+        },
+        "entity_id": 21,
+        "key": "parasolid:half_edge:000021",
+        "kind": "half_edge",
+        "node_id": 64,
+        "node_index": 64,
+        "node_type": 74,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000022": {
+        "byte_range": {
+          "end": 659,
+          "length": 9,
+          "start": 650
+        },
+        "entity_id": 22,
+        "key": "parasolid:half_edge:000022",
+        "kind": "half_edge",
+        "node_id": 65,
+        "node_index": 65,
+        "node_type": 75,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000023": {
+        "byte_range": {
+          "end": 669,
+          "length": 9,
+          "start": 660
+        },
+        "entity_id": 23,
+        "key": "parasolid:half_edge:000023",
+        "kind": "half_edge",
+        "node_id": 66,
+        "node_index": 66,
+        "node_type": 76,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000024": {
+        "byte_range": {
+          "end": 679,
+          "length": 9,
+          "start": 670
+        },
+        "entity_id": 24,
+        "key": "parasolid:half_edge:000024",
+        "kind": "half_edge",
+        "node_id": 67,
+        "node_index": 67,
+        "node_type": 77,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000101": {
+        "byte_range": {
+          "end": 10449,
+          "length": 9,
+          "start": 10440
+        },
+        "entity_id": 101,
+        "key": "parasolid:half_edge:000101",
+        "kind": "half_edge",
+        "node_id": 1044,
+        "node_index": 1044,
+        "node_type": 1054,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000102": {
+        "byte_range": {
+          "end": 10459,
+          "length": 9,
+          "start": 10450
+        },
+        "entity_id": 102,
+        "key": "parasolid:half_edge:000102",
+        "kind": "half_edge",
+        "node_id": 1045,
+        "node_index": 1045,
+        "node_type": 1055,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000103": {
+        "byte_range": {
+          "end": 10469,
+          "length": 9,
+          "start": 10460
+        },
+        "entity_id": 103,
+        "key": "parasolid:half_edge:000103",
+        "kind": "half_edge",
+        "node_id": 1046,
+        "node_index": 1046,
+        "node_type": 1056,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000104": {
+        "byte_range": {
+          "end": 10479,
+          "length": 9,
+          "start": 10470
+        },
+        "entity_id": 104,
+        "key": "parasolid:half_edge:000104",
+        "kind": "half_edge",
+        "node_id": 1047,
+        "node_index": 1047,
+        "node_type": 1057,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000105": {
+        "byte_range": {
+          "end": 10489,
+          "length": 9,
+          "start": 10480
+        },
+        "entity_id": 105,
+        "key": "parasolid:half_edge:000105",
+        "kind": "half_edge",
+        "node_id": 1048,
+        "node_index": 1048,
+        "node_type": 1058,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000106": {
+        "byte_range": {
+          "end": 10499,
+          "length": 9,
+          "start": 10490
+        },
+        "entity_id": 106,
+        "key": "parasolid:half_edge:000106",
+        "kind": "half_edge",
+        "node_id": 1049,
+        "node_index": 1049,
+        "node_type": 1059,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000107": {
+        "byte_range": {
+          "end": 10509,
+          "length": 9,
+          "start": 10500
+        },
+        "entity_id": 107,
+        "key": "parasolid:half_edge:000107",
+        "kind": "half_edge",
+        "node_id": 1050,
+        "node_index": 1050,
+        "node_type": 1060,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000108": {
+        "byte_range": {
+          "end": 10519,
+          "length": 9,
+          "start": 10510
+        },
+        "entity_id": 108,
+        "key": "parasolid:half_edge:000108",
+        "kind": "half_edge",
+        "node_id": 1051,
+        "node_index": 1051,
+        "node_type": 1061,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000109": {
+        "byte_range": {
+          "end": 10529,
+          "length": 9,
+          "start": 10520
+        },
+        "entity_id": 109,
+        "key": "parasolid:half_edge:000109",
+        "kind": "half_edge",
+        "node_id": 1052,
+        "node_index": 1052,
+        "node_type": 1062,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000110": {
+        "byte_range": {
+          "end": 10539,
+          "length": 9,
+          "start": 10530
+        },
+        "entity_id": 110,
+        "key": "parasolid:half_edge:000110",
+        "kind": "half_edge",
+        "node_id": 1053,
+        "node_index": 1053,
+        "node_type": 1063,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000111": {
+        "byte_range": {
+          "end": 10549,
+          "length": 9,
+          "start": 10540
+        },
+        "entity_id": 111,
+        "key": "parasolid:half_edge:000111",
+        "kind": "half_edge",
+        "node_id": 1054,
+        "node_index": 1054,
+        "node_type": 1064,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000112": {
+        "byte_range": {
+          "end": 10559,
+          "length": 9,
+          "start": 10550
+        },
+        "entity_id": 112,
+        "key": "parasolid:half_edge:000112",
+        "kind": "half_edge",
+        "node_id": 1055,
+        "node_index": 1055,
+        "node_type": 1065,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000113": {
+        "byte_range": {
+          "end": 10569,
+          "length": 9,
+          "start": 10560
+        },
+        "entity_id": 113,
+        "key": "parasolid:half_edge:000113",
+        "kind": "half_edge",
+        "node_id": 1056,
+        "node_index": 1056,
+        "node_type": 1066,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000114": {
+        "byte_range": {
+          "end": 10579,
+          "length": 9,
+          "start": 10570
+        },
+        "entity_id": 114,
+        "key": "parasolid:half_edge:000114",
+        "kind": "half_edge",
+        "node_id": 1057,
+        "node_index": 1057,
+        "node_type": 1067,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000115": {
+        "byte_range": {
+          "end": 10589,
+          "length": 9,
+          "start": 10580
+        },
+        "entity_id": 115,
+        "key": "parasolid:half_edge:000115",
+        "kind": "half_edge",
+        "node_id": 1058,
+        "node_index": 1058,
+        "node_type": 1068,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000116": {
+        "byte_range": {
+          "end": 10599,
+          "length": 9,
+          "start": 10590
+        },
+        "entity_id": 116,
+        "key": "parasolid:half_edge:000116",
+        "kind": "half_edge",
+        "node_id": 1059,
+        "node_index": 1059,
+        "node_type": 1069,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000117": {
+        "byte_range": {
+          "end": 10609,
+          "length": 9,
+          "start": 10600
+        },
+        "entity_id": 117,
+        "key": "parasolid:half_edge:000117",
+        "kind": "half_edge",
+        "node_id": 1060,
+        "node_index": 1060,
+        "node_type": 1070,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000118": {
+        "byte_range": {
+          "end": 10619,
+          "length": 9,
+          "start": 10610
+        },
+        "entity_id": 118,
+        "key": "parasolid:half_edge:000118",
+        "kind": "half_edge",
+        "node_id": 1061,
+        "node_index": 1061,
+        "node_type": 1071,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000119": {
+        "byte_range": {
+          "end": 10629,
+          "length": 9,
+          "start": 10620
+        },
+        "entity_id": 119,
+        "key": "parasolid:half_edge:000119",
+        "kind": "half_edge",
+        "node_id": 1062,
+        "node_index": 1062,
+        "node_type": 1072,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000120": {
+        "byte_range": {
+          "end": 10639,
+          "length": 9,
+          "start": 10630
+        },
+        "entity_id": 120,
+        "key": "parasolid:half_edge:000120",
+        "kind": "half_edge",
+        "node_id": 1063,
+        "node_index": 1063,
+        "node_type": 1073,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000121": {
+        "byte_range": {
+          "end": 10649,
+          "length": 9,
+          "start": 10640
+        },
+        "entity_id": 121,
+        "key": "parasolid:half_edge:000121",
+        "kind": "half_edge",
+        "node_id": 1064,
+        "node_index": 1064,
+        "node_type": 1074,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000122": {
+        "byte_range": {
+          "end": 10659,
+          "length": 9,
+          "start": 10650
+        },
+        "entity_id": 122,
+        "key": "parasolid:half_edge:000122",
+        "kind": "half_edge",
+        "node_id": 1065,
+        "node_index": 1065,
+        "node_type": 1075,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000123": {
+        "byte_range": {
+          "end": 10669,
+          "length": 9,
+          "start": 10660
+        },
+        "entity_id": 123,
+        "key": "parasolid:half_edge:000123",
+        "kind": "half_edge",
+        "node_id": 1066,
+        "node_index": 1066,
+        "node_type": 1076,
+        "type_name": "fin"
+      },
+      "parasolid:half_edge:000124": {
+        "byte_range": {
+          "end": 10679,
+          "length": 9,
+          "start": 10670
+        },
+        "entity_id": 124,
+        "key": "parasolid:half_edge:000124",
+        "kind": "half_edge",
+        "node_id": 1067,
+        "node_index": 1067,
+        "node_type": 1077,
+        "type_name": "fin"
+      },
+      "parasolid:loop:000001": {
+        "byte_range": {
+          "end": 689,
+          "length": 9,
+          "start": 680
+        },
+        "entity_id": 1,
+        "key": "parasolid:loop:000001",
+        "kind": "loop",
+        "node_id": 68,
+        "node_index": 68,
+        "node_type": 78,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000002": {
+        "byte_range": {
+          "end": 699,
+          "length": 9,
+          "start": 690
+        },
+        "entity_id": 2,
+        "key": "parasolid:loop:000002",
+        "kind": "loop",
+        "node_id": 69,
+        "node_index": 69,
+        "node_type": 79,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000003": {
+        "byte_range": {
+          "end": 709,
+          "length": 9,
+          "start": 700
+        },
+        "entity_id": 3,
+        "key": "parasolid:loop:000003",
+        "kind": "loop",
+        "node_id": 70,
+        "node_index": 70,
+        "node_type": 80,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000004": {
+        "byte_range": {
+          "end": 719,
+          "length": 9,
+          "start": 710
+        },
+        "entity_id": 4,
+        "key": "parasolid:loop:000004",
+        "kind": "loop",
+        "node_id": 71,
+        "node_index": 71,
+        "node_type": 81,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000005": {
+        "byte_range": {
+          "end": 729,
+          "length": 9,
+          "start": 720
+        },
+        "entity_id": 5,
+        "key": "parasolid:loop:000005",
+        "kind": "loop",
+        "node_id": 72,
+        "node_index": 72,
+        "node_type": 82,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000006": {
+        "byte_range": {
+          "end": 739,
+          "length": 9,
+          "start": 730
+        },
+        "entity_id": 6,
+        "key": "parasolid:loop:000006",
+        "kind": "loop",
+        "node_id": 73,
+        "node_index": 73,
+        "node_type": 83,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000101": {
+        "byte_range": {
+          "end": 10689,
+          "length": 9,
+          "start": 10680
+        },
+        "entity_id": 101,
+        "key": "parasolid:loop:000101",
+        "kind": "loop",
+        "node_id": 1068,
+        "node_index": 1068,
+        "node_type": 1078,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000102": {
+        "byte_range": {
+          "end": 10699,
+          "length": 9,
+          "start": 10690
+        },
+        "entity_id": 102,
+        "key": "parasolid:loop:000102",
+        "kind": "loop",
+        "node_id": 1069,
+        "node_index": 1069,
+        "node_type": 1079,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000103": {
+        "byte_range": {
+          "end": 10709,
+          "length": 9,
+          "start": 10700
+        },
+        "entity_id": 103,
+        "key": "parasolid:loop:000103",
+        "kind": "loop",
+        "node_id": 1070,
+        "node_index": 1070,
+        "node_type": 1080,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000104": {
+        "byte_range": {
+          "end": 10719,
+          "length": 9,
+          "start": 10710
+        },
+        "entity_id": 104,
+        "key": "parasolid:loop:000104",
+        "kind": "loop",
+        "node_id": 1071,
+        "node_index": 1071,
+        "node_type": 1081,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000105": {
+        "byte_range": {
+          "end": 10729,
+          "length": 9,
+          "start": 10720
+        },
+        "entity_id": 105,
+        "key": "parasolid:loop:000105",
+        "kind": "loop",
+        "node_id": 1072,
+        "node_index": 1072,
+        "node_type": 1082,
+        "type_name": "loop"
+      },
+      "parasolid:loop:000106": {
+        "byte_range": {
+          "end": 10739,
+          "length": 9,
+          "start": 10730
+        },
+        "entity_id": 106,
+        "key": "parasolid:loop:000106",
+        "kind": "loop",
+        "node_id": 1073,
+        "node_index": 1073,
+        "node_type": 1083,
+        "type_name": "loop"
+      },
+      "parasolid:point:000001": {
+        "byte_range": {
+          "end": 49,
+          "length": 9,
+          "start": 40
+        },
+        "entity_id": 1,
+        "key": "parasolid:point:000001",
+        "kind": "point",
+        "node_id": 4,
+        "node_index": 4,
+        "node_type": 14,
+        "type_name": "point"
+      },
+      "parasolid:point:000002": {
+        "byte_range": {
+          "end": 59,
+          "length": 9,
+          "start": 50
+        },
+        "entity_id": 2,
+        "key": "parasolid:point:000002",
+        "kind": "point",
+        "node_id": 5,
+        "node_index": 5,
+        "node_type": 15,
+        "type_name": "point"
+      },
+      "parasolid:point:000003": {
+        "byte_range": {
+          "end": 69,
+          "length": 9,
+          "start": 60
+        },
+        "entity_id": 3,
+        "key": "parasolid:point:000003",
+        "kind": "point",
+        "node_id": 6,
+        "node_index": 6,
+        "node_type": 16,
+        "type_name": "point"
+      },
+      "parasolid:point:000004": {
+        "byte_range": {
+          "end": 79,
+          "length": 9,
+          "start": 70
+        },
+        "entity_id": 4,
+        "key": "parasolid:point:000004",
+        "kind": "point",
+        "node_id": 7,
+        "node_index": 7,
+        "node_type": 17,
+        "type_name": "point"
+      },
+      "parasolid:point:000005": {
+        "byte_range": {
+          "end": 89,
+          "length": 9,
+          "start": 80
+        },
+        "entity_id": 5,
+        "key": "parasolid:point:000005",
+        "kind": "point",
+        "node_id": 8,
+        "node_index": 8,
+        "node_type": 18,
+        "type_name": "point"
+      },
+      "parasolid:point:000006": {
+        "byte_range": {
+          "end": 99,
+          "length": 9,
+          "start": 90
+        },
+        "entity_id": 6,
+        "key": "parasolid:point:000006",
+        "kind": "point",
+        "node_id": 9,
+        "node_index": 9,
+        "node_type": 19,
+        "type_name": "point"
+      },
+      "parasolid:point:000007": {
+        "byte_range": {
+          "end": 109,
+          "length": 9,
+          "start": 100
+        },
+        "entity_id": 7,
+        "key": "parasolid:point:000007",
+        "kind": "point",
+        "node_id": 10,
+        "node_index": 10,
+        "node_type": 20,
+        "type_name": "point"
+      },
+      "parasolid:point:000008": {
+        "byte_range": {
+          "end": 119,
+          "length": 9,
+          "start": 110
+        },
+        "entity_id": 8,
+        "key": "parasolid:point:000008",
+        "kind": "point",
+        "node_id": 11,
+        "node_index": 11,
+        "node_type": 21,
+        "type_name": "point"
+      },
+      "parasolid:point:000101": {
+        "byte_range": {
+          "end": 10049,
+          "length": 9,
+          "start": 10040
+        },
+        "entity_id": 101,
+        "key": "parasolid:point:000101",
+        "kind": "point",
+        "node_id": 1004,
+        "node_index": 1004,
+        "node_type": 1014,
+        "type_name": "point"
+      },
+      "parasolid:point:000102": {
+        "byte_range": {
+          "end": 10059,
+          "length": 9,
+          "start": 10050
+        },
+        "entity_id": 102,
+        "key": "parasolid:point:000102",
+        "kind": "point",
+        "node_id": 1005,
+        "node_index": 1005,
+        "node_type": 1015,
+        "type_name": "point"
+      },
+      "parasolid:point:000103": {
+        "byte_range": {
+          "end": 10069,
+          "length": 9,
+          "start": 10060
+        },
+        "entity_id": 103,
+        "key": "parasolid:point:000103",
+        "kind": "point",
+        "node_id": 1006,
+        "node_index": 1006,
+        "node_type": 1016,
+        "type_name": "point"
+      },
+      "parasolid:point:000104": {
+        "byte_range": {
+          "end": 10079,
+          "length": 9,
+          "start": 10070
+        },
+        "entity_id": 104,
+        "key": "parasolid:point:000104",
+        "kind": "point",
+        "node_id": 1007,
+        "node_index": 1007,
+        "node_type": 1017,
+        "type_name": "point"
+      },
+      "parasolid:point:000105": {
+        "byte_range": {
+          "end": 10089,
+          "length": 9,
+          "start": 10080
+        },
+        "entity_id": 105,
+        "key": "parasolid:point:000105",
+        "kind": "point",
+        "node_id": 1008,
+        "node_index": 1008,
+        "node_type": 1018,
+        "type_name": "point"
+      },
+      "parasolid:point:000106": {
+        "byte_range": {
+          "end": 10099,
+          "length": 9,
+          "start": 10090
+        },
+        "entity_id": 106,
+        "key": "parasolid:point:000106",
+        "kind": "point",
+        "node_id": 1009,
+        "node_index": 1009,
+        "node_type": 1019,
+        "type_name": "point"
+      },
+      "parasolid:point:000107": {
+        "byte_range": {
+          "end": 10109,
+          "length": 9,
+          "start": 10100
+        },
+        "entity_id": 107,
+        "key": "parasolid:point:000107",
+        "kind": "point",
+        "node_id": 1010,
+        "node_index": 1010,
+        "node_type": 1020,
+        "type_name": "point"
+      },
+      "parasolid:point:000108": {
+        "byte_range": {
+          "end": 10119,
+          "length": 9,
+          "start": 10110
+        },
+        "entity_id": 108,
+        "key": "parasolid:point:000108",
+        "kind": "point",
+        "node_id": 1011,
+        "node_index": 1011,
+        "node_type": 1021,
+        "type_name": "point"
+      },
+      "parasolid:region:000001": {
+        "byte_range": {
+          "end": 29,
+          "length": 9,
+          "start": 20
+        },
+        "entity_id": 1,
+        "key": "parasolid:region:000001",
+        "kind": "region",
+        "node_id": 2,
+        "node_index": 2,
+        "node_type": 12,
+        "type_name": "region"
+      },
+      "parasolid:region:000101": {
+        "byte_range": {
+          "end": 10029,
+          "length": 9,
+          "start": 10020
+        },
+        "entity_id": 101,
+        "key": "parasolid:region:000101",
+        "kind": "region",
+        "node_id": 1002,
+        "node_index": 1002,
+        "node_type": 1012,
+        "type_name": "region"
+      },
+      "parasolid:shell:000001": {
+        "byte_range": {
+          "end": 39,
+          "length": 9,
+          "start": 30
+        },
+        "entity_id": 1,
+        "key": "parasolid:shell:000001",
+        "kind": "shell",
+        "node_id": 3,
+        "node_index": 3,
+        "node_type": 13,
+        "type_name": "shell"
+      },
+      "parasolid:shell:000101": {
+        "byte_range": {
+          "end": 10039,
+          "length": 9,
+          "start": 10030
+        },
+        "entity_id": 101,
+        "key": "parasolid:shell:000101",
+        "kind": "shell",
+        "node_id": 1003,
+        "node_index": 1003,
+        "node_type": 1013,
+        "type_name": "shell"
+      },
+      "parasolid:surface:000001": {
+        "byte_range": {
+          "end": 809,
+          "length": 9,
+          "start": 800
+        },
+        "entity_id": 1,
+        "key": "parasolid:surface:000001",
+        "kind": "surface",
+        "node_id": 80,
+        "node_index": 80,
+        "node_type": 90,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000002": {
+        "byte_range": {
+          "end": 819,
+          "length": 9,
+          "start": 810
+        },
+        "entity_id": 2,
+        "key": "parasolid:surface:000002",
+        "kind": "surface",
+        "node_id": 81,
+        "node_index": 81,
+        "node_type": 91,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000003": {
+        "byte_range": {
+          "end": 829,
+          "length": 9,
+          "start": 820
+        },
+        "entity_id": 3,
+        "key": "parasolid:surface:000003",
+        "kind": "surface",
+        "node_id": 82,
+        "node_index": 82,
+        "node_type": 92,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000004": {
+        "byte_range": {
+          "end": 839,
+          "length": 9,
+          "start": 830
+        },
+        "entity_id": 4,
+        "key": "parasolid:surface:000004",
+        "kind": "surface",
+        "node_id": 83,
+        "node_index": 83,
+        "node_type": 93,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000005": {
+        "byte_range": {
+          "end": 849,
+          "length": 9,
+          "start": 840
+        },
+        "entity_id": 5,
+        "key": "parasolid:surface:000005",
+        "kind": "surface",
+        "node_id": 84,
+        "node_index": 84,
+        "node_type": 94,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000006": {
+        "byte_range": {
+          "end": 859,
+          "length": 9,
+          "start": 850
+        },
+        "entity_id": 6,
+        "key": "parasolid:surface:000006",
+        "kind": "surface",
+        "node_id": 85,
+        "node_index": 85,
+        "node_type": 95,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000101": {
+        "byte_range": {
+          "end": 10809,
+          "length": 9,
+          "start": 10800
+        },
+        "entity_id": 101,
+        "key": "parasolid:surface:000101",
+        "kind": "surface",
+        "node_id": 1080,
+        "node_index": 1080,
+        "node_type": 1090,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000102": {
+        "byte_range": {
+          "end": 10819,
+          "length": 9,
+          "start": 10810
+        },
+        "entity_id": 102,
+        "key": "parasolid:surface:000102",
+        "kind": "surface",
+        "node_id": 1081,
+        "node_index": 1081,
+        "node_type": 1091,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000103": {
+        "byte_range": {
+          "end": 10829,
+          "length": 9,
+          "start": 10820
+        },
+        "entity_id": 103,
+        "key": "parasolid:surface:000103",
+        "kind": "surface",
+        "node_id": 1082,
+        "node_index": 1082,
+        "node_type": 1092,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000104": {
+        "byte_range": {
+          "end": 10839,
+          "length": 9,
+          "start": 10830
+        },
+        "entity_id": 104,
+        "key": "parasolid:surface:000104",
+        "kind": "surface",
+        "node_id": 1083,
+        "node_index": 1083,
+        "node_type": 1093,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000105": {
+        "byte_range": {
+          "end": 10849,
+          "length": 9,
+          "start": 10840
+        },
+        "entity_id": 105,
+        "key": "parasolid:surface:000105",
+        "kind": "surface",
+        "node_id": 1084,
+        "node_index": 1084,
+        "node_type": 1094,
+        "type_name": "plane"
+      },
+      "parasolid:surface:000106": {
+        "byte_range": {
+          "end": 10859,
+          "length": 9,
+          "start": 10850
+        },
+        "entity_id": 106,
+        "key": "parasolid:surface:000106",
+        "kind": "surface",
+        "node_id": 1085,
+        "node_index": 1085,
+        "node_type": 1095,
+        "type_name": "plane"
+      },
+      "parasolid:vertex:000001": {
+        "byte_range": {
+          "end": 129,
+          "length": 9,
+          "start": 120
+        },
+        "entity_id": 1,
+        "key": "parasolid:vertex:000001",
+        "kind": "vertex",
+        "node_id": 12,
+        "node_index": 12,
+        "node_type": 22,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000002": {
+        "byte_range": {
+          "end": 139,
+          "length": 9,
+          "start": 130
+        },
+        "entity_id": 2,
+        "key": "parasolid:vertex:000002",
+        "kind": "vertex",
+        "node_id": 13,
+        "node_index": 13,
+        "node_type": 23,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000003": {
+        "byte_range": {
+          "end": 149,
+          "length": 9,
+          "start": 140
+        },
+        "entity_id": 3,
+        "key": "parasolid:vertex:000003",
+        "kind": "vertex",
+        "node_id": 14,
+        "node_index": 14,
+        "node_type": 24,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000004": {
+        "byte_range": {
+          "end": 159,
+          "length": 9,
+          "start": 150
+        },
+        "entity_id": 4,
+        "key": "parasolid:vertex:000004",
+        "kind": "vertex",
+        "node_id": 15,
+        "node_index": 15,
+        "node_type": 25,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000005": {
+        "byte_range": {
+          "end": 169,
+          "length": 9,
+          "start": 160
+        },
+        "entity_id": 5,
+        "key": "parasolid:vertex:000005",
+        "kind": "vertex",
+        "node_id": 16,
+        "node_index": 16,
+        "node_type": 26,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000006": {
+        "byte_range": {
+          "end": 179,
+          "length": 9,
+          "start": 170
+        },
+        "entity_id": 6,
+        "key": "parasolid:vertex:000006",
+        "kind": "vertex",
+        "node_id": 17,
+        "node_index": 17,
+        "node_type": 27,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000007": {
+        "byte_range": {
+          "end": 189,
+          "length": 9,
+          "start": 180
+        },
+        "entity_id": 7,
+        "key": "parasolid:vertex:000007",
+        "kind": "vertex",
+        "node_id": 18,
+        "node_index": 18,
+        "node_type": 28,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000008": {
+        "byte_range": {
+          "end": 199,
+          "length": 9,
+          "start": 190
+        },
+        "entity_id": 8,
+        "key": "parasolid:vertex:000008",
+        "kind": "vertex",
+        "node_id": 19,
+        "node_index": 19,
+        "node_type": 29,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000101": {
+        "byte_range": {
+          "end": 10129,
+          "length": 9,
+          "start": 10120
+        },
+        "entity_id": 101,
+        "key": "parasolid:vertex:000101",
+        "kind": "vertex",
+        "node_id": 1012,
+        "node_index": 1012,
+        "node_type": 1022,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000102": {
+        "byte_range": {
+          "end": 10139,
+          "length": 9,
+          "start": 10130
+        },
+        "entity_id": 102,
+        "key": "parasolid:vertex:000102",
+        "kind": "vertex",
+        "node_id": 1013,
+        "node_index": 1013,
+        "node_type": 1023,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000103": {
+        "byte_range": {
+          "end": 10149,
+          "length": 9,
+          "start": 10140
+        },
+        "entity_id": 103,
+        "key": "parasolid:vertex:000103",
+        "kind": "vertex",
+        "node_id": 1014,
+        "node_index": 1014,
+        "node_type": 1024,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000104": {
+        "byte_range": {
+          "end": 10159,
+          "length": 9,
+          "start": 10150
+        },
+        "entity_id": 104,
+        "key": "parasolid:vertex:000104",
+        "kind": "vertex",
+        "node_id": 1015,
+        "node_index": 1015,
+        "node_type": 1025,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000105": {
+        "byte_range": {
+          "end": 10169,
+          "length": 9,
+          "start": 10160
+        },
+        "entity_id": 105,
+        "key": "parasolid:vertex:000105",
+        "kind": "vertex",
+        "node_id": 1016,
+        "node_index": 1016,
+        "node_type": 1026,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000106": {
+        "byte_range": {
+          "end": 10179,
+          "length": 9,
+          "start": 10170
+        },
+        "entity_id": 106,
+        "key": "parasolid:vertex:000106",
+        "kind": "vertex",
+        "node_id": 1017,
+        "node_index": 1017,
+        "node_type": 1027,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000107": {
+        "byte_range": {
+          "end": 10189,
+          "length": 9,
+          "start": 10180
+        },
+        "entity_id": 107,
+        "key": "parasolid:vertex:000107",
+        "kind": "vertex",
+        "node_id": 1018,
+        "node_index": 1018,
+        "node_type": 1028,
+        "type_name": "vertex"
+      },
+      "parasolid:vertex:000108": {
+        "byte_range": {
+          "end": 10199,
+          "length": 9,
+          "start": 10190
+        },
+        "entity_id": 108,
+        "key": "parasolid:vertex:000108",
+        "kind": "vertex",
+        "node_id": 1019,
+        "node_index": 1019,
+        "node_type": 1029,
+        "type_name": "vertex"
+      }
+    }
+  }
+}

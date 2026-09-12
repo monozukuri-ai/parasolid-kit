@@ -615,6 +615,10 @@ def _manifest(
         "schema_version": 1,
         "producer": "parasolid-kit.interop.preview",
         "source": source,
+        "bodies": [
+            {"id": body.id, "kind": body.kind.value}
+            for body in sorted(brep.bodies, key=lambda body: body.id)
+        ],
         "conversion": {
             "complete": report.conversion_complete,
             "occt_valid": report.occt_valid,

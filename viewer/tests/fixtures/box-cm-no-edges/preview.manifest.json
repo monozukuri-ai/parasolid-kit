@@ -1,0 +1,372 @@
+{
+  "bodies": [
+    {
+      "id": 1,
+      "kind": "solid"
+    }
+  ],
+  "conversion": {
+    "applied_scale": 0.1,
+    "complete": true,
+    "occt_valid": true,
+    "target_unit": "cm"
+  },
+  "diagnostics": [],
+  "limits": {
+    "max_curve_samples": 1000000,
+    "max_diagnostics": 10000,
+    "max_entities": 1000000,
+    "max_occt_subshapes": 2000000,
+    "max_output_bytes": 536870912,
+    "max_triangles": 5000000,
+    "max_vertices": 10000000
+  },
+  "missing_entities": [],
+  "preview": {
+    "bounds": [
+      0.0,
+      0.0,
+      0.0,
+      4.0,
+      3.0,
+      2.0
+    ],
+    "counts": {
+      "curve_samples": 0,
+      "edge_primitives": 0,
+      "face_primitives": 6,
+      "missing_edges": 0,
+      "missing_faces": 0,
+      "triangles": 12,
+      "vertices": 24
+    },
+    "options": {
+      "allow_partial": false,
+      "angular_deflection": 0.5,
+      "include_edges": false,
+      "linear_deflection": 0.1
+    },
+    "partial": false
+  },
+  "primitives": [
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        1
+      ],
+      "pick_id": 1,
+      "primitive_index": 0,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 749,
+            "length": 9,
+            "start": 740
+          },
+          "entity_id": 1,
+          "key": "parasolid:face:000001",
+          "kind": "face",
+          "node_id": 74,
+          "node_index": 74,
+          "node_type": 84,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 809,
+            "length": 9,
+            "start": 800
+          },
+          "entity_id": 1,
+          "key": "parasolid:surface:000001",
+          "kind": "surface",
+          "node_id": 80,
+          "node_index": 80,
+          "node_type": 90,
+          "relation": "direct",
+          "type_name": "plane"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000001",
+      "triangle_count": 2,
+      "vertex_count": 4
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        2
+      ],
+      "pick_id": 2,
+      "primitive_index": 1,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 759,
+            "length": 9,
+            "start": 750
+          },
+          "entity_id": 2,
+          "key": "parasolid:face:000002",
+          "kind": "face",
+          "node_id": 75,
+          "node_index": 75,
+          "node_type": 85,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 819,
+            "length": 9,
+            "start": 810
+          },
+          "entity_id": 2,
+          "key": "parasolid:surface:000002",
+          "kind": "surface",
+          "node_id": 81,
+          "node_index": 81,
+          "node_type": 91,
+          "relation": "direct",
+          "type_name": "plane"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000002",
+      "triangle_count": 2,
+      "vertex_count": 4
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        3
+      ],
+      "pick_id": 3,
+      "primitive_index": 2,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 769,
+            "length": 9,
+            "start": 760
+          },
+          "entity_id": 3,
+          "key": "parasolid:face:000003",
+          "kind": "face",
+          "node_id": 76,
+          "node_index": 76,
+          "node_type": 86,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 829,
+            "length": 9,
+            "start": 820
+          },
+          "entity_id": 3,
+          "key": "parasolid:surface:000003",
+          "kind": "surface",
+          "node_id": 82,
+          "node_index": 82,
+          "node_type": 92,
+          "relation": "direct",
+          "type_name": "plane"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000003",
+      "triangle_count": 2,
+      "vertex_count": 4
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        4
+      ],
+      "pick_id": 4,
+      "primitive_index": 3,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 779,
+            "length": 9,
+            "start": 770
+          },
+          "entity_id": 4,
+          "key": "parasolid:face:000004",
+          "kind": "face",
+          "node_id": 77,
+          "node_index": 77,
+          "node_type": 87,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 839,
+            "length": 9,
+            "start": 830
+          },
+          "entity_id": 4,
+          "key": "parasolid:surface:000004",
+          "kind": "surface",
+          "node_id": 83,
+          "node_index": 83,
+          "node_type": 93,
+          "relation": "direct",
+          "type_name": "plane"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000004",
+      "triangle_count": 2,
+      "vertex_count": 4
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        5
+      ],
+      "pick_id": 5,
+      "primitive_index": 4,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 789,
+            "length": 9,
+            "start": 780
+          },
+          "entity_id": 5,
+          "key": "parasolid:face:000005",
+          "kind": "face",
+          "node_id": 78,
+          "node_index": 78,
+          "node_type": 88,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 849,
+            "length": 9,
+            "start": 840
+          },
+          "entity_id": 5,
+          "key": "parasolid:surface:000005",
+          "kind": "surface",
+          "node_id": 84,
+          "node_index": 84,
+          "node_type": 94,
+          "relation": "direct",
+          "type_name": "plane"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000005",
+      "triangle_count": 2,
+      "vertex_count": 4
+    },
+    {
+      "body_ids": [
+        1
+      ],
+      "curve_kinds": [],
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [
+        6
+      ],
+      "pick_id": 6,
+      "primitive_index": 5,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 799,
+            "length": 9,
+            "start": 790
+          },
+          "entity_id": 6,
+          "key": "parasolid:face:000006",
+          "kind": "face",
+          "node_id": 79,
+          "node_index": 79,
+          "node_type": 89,
+          "relation": "direct",
+          "type_name": "face"
+        },
+        {
+          "byte_range": {
+            "end": 859,
+            "length": 9,
+            "start": 850
+          },
+          "entity_id": 6,
+          "key": "parasolid:surface:000006",
+          "kind": "surface",
+          "node_id": 85,
+          "node_index": 85,
+          "node_type": 95,
+          "relation": "direct",
+          "type_name": "plane"
+        }
+      ],
+      "surface_kinds": [
+        "plane"
+      ],
+      "target_key": "occt:face:000006",
+      "triangle_count": 2,
+      "vertex_count": 4
+    }
+  ],
+  "producer": "parasolid-kit.interop.preview",
+  "schema_version": 1,
+  "source": {
+    "complete": true,
+    "format": "text",
+    "schema_key": "synthetic-box"
+  }
+}

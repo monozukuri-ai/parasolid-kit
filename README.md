@@ -29,8 +29,8 @@ data.
   provenance sidecar without routing through CadQuery.
 - Wrap the same strict conversion as CadQuery `Shape` values for immediate
   inspection and downstream CadQuery operations.
-- Write a bounded GLB/source manifest and inspect faces or edges in a bundled,
-  offline local WebGL viewer.
+- Inspect bounded GLB/source previews with the bundled three-cad-viewer UI:
+  face/edge source picking, body visibility, diagnostic filters, and section views.
 - Return structured diagnostics and enforce configurable resource limits.
 - Use the same functionality from Python or a command-line interface with
   deterministic JSON output where required.
@@ -159,28 +159,6 @@ multiple bodies become a `cadquery.Compound`. The adapter does not infer a
 feature history. Source mapping belongs to the original conversion result and must not
 be treated as valid after a returned CadQuery object is modified.
 
-Generate a persistent, self-contained preview from that same conversion:
-
-```python
-from parasolid_kit.interop.preview import PreviewOptions, write_preview
-
-preview = write_preview(
-    converted,
-    parsed.brep,
-    "model.parasolid-preview",
-    options=PreviewOptions(linear_deflection=0.1),
-)
-print(preview.index_path, preview.report.to_dict())
-```
-
-The directory contains `index.html`, `viewer.js`, `viewer.css`, `preview.glb`,
-and `preview.manifest.json`. Each face/edge primitive retains its
-conversion-local key plus Parasolid entity ID, source node ID, byte range,
-geometry kind, and diagnostics. The manifest never includes raw source bytes
-or a path-like `source_identity`; only an exact `sha256:<digest>` is retained.
-
-![parasolid-kit offline B-Rep viewer showing the model and its Parasolid source mapping](https://raw.githubusercontent.com/monozukuri-ai/parasolid-kit/main/assets/viewer.png)
-
 I7 extends the exact OCCT path with ellipses, parabolas, hyperbolas, explicit
 trimmed curves, cone frustums, untrimmed spheres and ring tori, open
 non-periodic non-rational 3D NURBS, and exact offset surfaces.
@@ -207,6 +185,32 @@ git clone https://github.com/monozukuri-ai/parasolid-kit.git
 cd parasolid-kit
 python -m pip install .
 ```
+
+## Local viewer
+
+To use the viewer described here, install this checkout with the OCCT extra in
+a fresh virtual environment (Rust 1.88+ is required for a source install):
+
+```bash
+python -m pip install ".[occt]"
+parasolid-kit viewer model.x_t --source-unit mm
+```
+
+Set `--source-unit` to the actual unit of your input; it is never inferred.
+`view` is an alias. The command opens a loopback URL and keeps its five output
+files after Ctrl-C. `--no-open` prints the URL without launching a browser;
+`--write-only` generates files and exits. Node/npm are unnecessary for use.
+
+![three-cad-viewer displaying two boxes with the selected face's source ID, node and byte range](docs/images/viewer.png)
+
+Public synthetic two-body fixture, with source face 102 selected. Display colors
+are illustrative. The image uses Linux/SwiftShader; it is not a real CAD-file test.
+
+See the [preview API and controls](docs/api.md#bounded-local-preview) for saving,
+reopening, units and partial output, [display limits](docs/format-support.md#viewer-display-boundary)
+for supported scope, and [viewer development](viewer/README.md) for build/test steps.
+The [validation record](docs/viewer-validation.md) separates local artifact checks
+from unrun CI/platform tests; these changes have not been published as a release.
 
 ## Schema catalogs
 
@@ -356,13 +360,14 @@ parasolid-kit export-step model.x_t model.step \
 
 # Generate the same bounded artifacts, bind an ephemeral localhost port, and
 # open the bundled offline viewer. Use --no-open for remote/CI shells.
-parasolid-kit view model.x_t \
+parasolid-kit viewer model.x_t \
   --source-unit m
 ```
 
 `check` is human-readable by default and accepts `--json`; the existing
-`inspect`, `parse`, `compare`, `export-step`, and `view` reports remain JSON.
-`view` writes `<input-stem>.parasolid-preview` before serving only its five
+`inspect`, `parse`, `compare`, `export-step`, and `viewer` reports remain JSON.
+`viewer` (also available as `view`) uses the bundled three-cad-viewer UI and
+writes `<input-stem>.parasolid-preview` before serving only its five
 fixed resources from `127.0.0.1` and an ephemeral port. `--write-only` retains
 the artifacts without a server, `--overwrite` replaces an existing output,
 and non-loopback `--host` values require the separate `--allow-external`
@@ -383,6 +388,7 @@ completeness must affect the exit code. An allowed partial preview also returns
 - [Format support and limitations](docs/format-support.md)
 - [Built-in profile provenance](docs/builtin-profiles.md)
 - [Corpus provenance and redistribution policy](corpus/README.md)
+- [Viewer validation](docs/viewer-validation.md)
 
 ## Project boundaries
 
@@ -405,3 +411,5 @@ The original implementation is under the [MIT License](LICENSE). Partial transmi
 readers adopted from cadmpeg/sldkit are under [Apache-2.0](LICENSES/Apache-2.0.txt);
 the combined distribution declares `MIT AND Apache-2.0`. See the
 [reader provenance](crates/parasolid-core/PARTIAL_READERS.md).
+The bundled viewer also contains third-party notices; see
+[viewer dependencies and licenses](viewer/README.md#dependencies-and-licenses).

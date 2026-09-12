@@ -32,6 +32,7 @@ _ROUTES: Final = {
 _CSP: Final = (
     "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
     "object-src 'none'; script-src 'self'; style-src 'self'; "
+    "style-src-attr 'unsafe-inline'; "
     "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 

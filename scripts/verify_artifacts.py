@@ -40,20 +40,68 @@ EXPECTED_LICENSE_SHA256 = hashlib.sha256(EXPECTED_LICENSE_BYTES).hexdigest()
 APACHE_LICENSE_PATH = "LICENSES/Apache-2.0.txt"
 EXPECTED_APACHE_LICENSE_BYTES = (ROOT / APACHE_LICENSE_PATH).read_bytes()
 EXPECTED_APACHE_LICENSE_SHA256 = hashlib.sha256(EXPECTED_APACHE_LICENSE_BYTES).hexdigest()
-VIEWER_ASSET_VERSION = "1.0.0"
-VIEWER_ASSET_LICENSE = "MIT"
-VIEWER_ASSET_MARKER = b'content="1.0.0; license=MIT"'
+VIEWER_ASSET_VERSION = "2.0.0"
+VIEWER_ASSET_LICENSE = "MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice"
+VIEWER_ASSET_MARKER = b'content="2.0.0; license=MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice"'
 VIEWER_ASSET_SHA256 = {
     "parasolid_kit/interop/preview/static/index.html": (
-        "0a80d9176e27433c009cebba64671d75f1bc405b979d2ed43bea248b6e184ca4"
+        "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e"
     ),
     "parasolid_kit/interop/preview/static/viewer.css": (
-        "c6b6f8778e83ef6c16f6a42d03b864f05f3ee99fe10b272d046717e9290de296"
+        "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791"
     ),
     "parasolid_kit/interop/preview/static/viewer.js": (
-        "81094c0fbb08865157d6091fd60be9f85ffbc3cdcc60153325ee27a313351d6e"
+        "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d"
     ),
 }
+VIEWER_SOURCE_FILES = frozenset(
+    {
+        "viewer/README.md",
+        "viewer/asset-manifest.json",
+        "viewer/build.mjs",
+        "viewer/package-lock.json",
+        "viewer/package.json",
+        "viewer/src/adapter.ts",
+        "viewer/src/app.ts",
+        "viewer/src/filter.ts",
+        "viewer/src/glb.ts",
+        "viewer/src/index.html",
+        "viewer/src/index.ts",
+        "viewer/src/manifest.ts",
+        "viewer/src/selection.ts",
+        "viewer/src/style.css",
+        "viewer/src/validation.ts",
+        "viewer/tests/adapter.test.ts",
+        "viewer/tests/browser.mjs",
+        "viewer/tests/filter.test.ts",
+        "viewer/tests/fixtures/box-cm-no-edges/preview.glb",
+        "viewer/tests/fixtures/box-cm-no-edges/preview.manifest.json",
+        "viewer/tests/fixtures/box-partial/preview.glb",
+        "viewer/tests/fixtures/box-partial/preview.manifest.json",
+        "viewer/tests/fixtures/box/preview.glb",
+        "viewer/tests/fixtures/box/preview.manifest.json",
+        "viewer/tests/fixtures/cylinder-hole/preview.glb",
+        "viewer/tests/fixtures/cylinder-hole/preview.manifest.json",
+        "viewer/tests/fixtures/oracle.json",
+        "viewer/tests/fixtures/sheet/preview.glb",
+        "viewer/tests/fixtures/sheet/preview.manifest.json",
+        "viewer/tests/fixtures/two-boxes/preview.glb",
+        "viewer/tests/fixtures/two-boxes/preview.manifest.json",
+        "viewer/tests/generate_fixtures.py",
+        "viewer/tests/helpers.ts",
+        "viewer/tests/launch_cli.py",
+        "viewer/tests/production.mjs",
+        "viewer/tests/screenshot.mjs",
+        "viewer/tests/selection.test.ts",
+        "viewer/tests/serve_previews.py",
+        "viewer/third-party/manifest.json",
+        "viewer/third-party/n8ao-1.10.1.txt",
+        "viewer/third-party/postprocessing-6.39.0.txt",
+        "viewer/third-party/three-0.184.0.txt",
+        "viewer/third-party/three-cad-viewer-5.0.6.txt",
+        "viewer/tsconfig.json",
+    }
+)
 NATIVE_CAD_SUFFIXES = {
     ".asm",
     ".icd",
@@ -83,6 +131,7 @@ SDIST_ROOT_FILES = {
     "uv.lock",
 }
 SDIST_ROOT_DIRECTORIES = {
+    "viewer",
     "LICENSES",
     "corpus",
     "crates",
@@ -101,6 +150,7 @@ SDIST_SCRIPT_FILES = frozenset(
         "scripts/verify_artifacts.py",
         "scripts/verify_corpus.py",
         "scripts/verify_isolated_install.py",
+        "scripts/verify_viewer_install.py",
         "scripts/verify_release_corpus.py",
         "scripts/release_corpus_runtime.py",
         "scripts/release_corpus_oracle.py",
@@ -624,6 +674,8 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
             }
         ):
             errors.append(f"unexpected fuzz runtime file in sdist: {relative.as_posix()}")
+        if top == "viewer" and relative.as_posix() not in VIEWER_SOURCE_FILES:
+            errors.append(f"unapproved frontend source in sdist: {relative.as_posix()}")
         if top == "scripts" and relative.as_posix() not in SDIST_SCRIPT_FILES:
             errors.append(f"unexpected maintainer script in sdist: {relative.as_posix()}")
         if relative.name in {"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"}:
@@ -674,6 +726,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_isolated_install.py",
+        "scripts/verify_viewer_install.py",
         "scripts/verify_release_corpus.py",
         "scripts/release_corpus_runtime.py",
         "scripts/release_corpus_oracle.py",
@@ -715,6 +768,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "tests/test_step_export.py",
     }
     required.update(PARTIAL_SOURCE_FILES)
+    required.update(VIEWER_SOURCE_FILES)
     required.add(APACHE_LICENSE_PATH)
     for missing in sorted(required - file_names):
         errors.append(f"required sdist file is missing: {missing}")
@@ -741,6 +795,14 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
             license_file_sha256 = hashlib.sha256(license_bytes).hexdigest()
     except (OSError, tarfile.TarError, zipfile.BadZipFile) as error:
         errors.append(f"cannot read sdist PKG-INFO: {error}")
+
+    frontend_sources = {}
+    for relative in sorted(VIEWER_SOURCE_FILES & file_names):
+        payload = _read_sdist_file(path, relative)
+        if payload is not None:
+            frontend_sources[relative] = hashlib.sha256(payload).hexdigest()
+            if payload != (ROOT / relative).read_bytes():
+                errors.append(f"sdist frontend source differs from reviewed source: {relative}")
 
     # Wire hash correctness is tested in Rust. This checks that the reviewed
     # definition/selection/role sources and provenance doc actually ship intact.
@@ -772,6 +834,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
     return {
         "path": str(path),
         "builtin_sources_sha256": builtin_sources,
+        "viewer_sources_sha256": frontend_sources,
         "status": "passed" if not errors else "failed",
         "license_expression": license_expression,
         "metadata_license_file": metadata_license_file,

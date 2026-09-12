@@ -376,18 +376,49 @@ sidecar.
 
 ### Bounded local preview
 
-I6 consumes the conversion result directly; it does not tessellate a modified CadQuery
-object or create a second geometry evaluator:
+The `viewer` command (alias `view`) renders the package's GLB and source manifest
+with the bundled three-cad-viewer UI. Generate a preview from the documented OCCT
+subset with one optional profile installed. This source-tree viewer can be installed
+from the repository root as follows; source builds require Rust 1.88+:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install ".[occt]"
+parasolid-kit viewer model.x_t --source-unit mm
+```
+
+On Windows, use `.venv\Scripts\Activate.ps1` in PowerShell instead of `source`.
+Choose the input's actual unit. For an input outside the built-in schema subset,
+add `--schema-dir /path/to/catalogs`; viewer support does not expand parser coverage.
+The printed JSON contains a loopback `url` and the generated file paths. Open that
+URL, and use Ctrl-C to stop serving; the output directory remains on disk.
+Use an HTTP URL to view it: opening `index.html` as `file://` does not provide the
+module/fetch environment needed to load the adjacent GLB and manifest.
+
+```bash
+# Keep a preview without starting a server or launching a browser.
+parasolid-kit viewer model.x_t --source-unit mm --write-only --output preview
+
+# Explicitly replace the same directory, serving it without opening a browser.
+parasolid-kit view model.x_t --source-unit mm --output preview --overwrite --no-open
+```
+
+For Python, I6 consumes the conversion result directly. A complete example is:
 
 ```python
+from parasolid_kit import read_brep
+from parasolid_kit.interop.occt import to_occt
 from parasolid_kit.interop.preview import (
     PreviewOptions,
     create_preview_server,
     write_preview,
 )
 
+parsed = read_brep("model.x_t")
+converted = to_occt(parsed.brep, source_unit="mm", target_unit="mm")
 preview = write_preview(
-    result,
+    converted,
     parsed.brep,
     "model.parasolid-preview",
     options=PreviewOptions(
@@ -398,9 +429,66 @@ preview = write_preview(
 )
 
 with create_preview_server(preview.directory) as server:
-    print(server.url)
-    server.serve_forever()
+    print(server.url, flush=True)
+    server.open_browser()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
 ```
+
+To reopen saved files without reconverting, use
+`create_preview_server("model.parasolid-preview")` with the same server block.
+Serving existing previews requires only the base Python package and a WebGL2
+browser. Generation requires OCCT; viewing requires neither Node/npm nor a CAD app.
+
+#### Viewer controls
+
+| Operation | Control |
+| --- | --- |
+| Orbit / pan / zoom | Drag / Shift-drag / mouse wheel |
+| Frame the model | Fit view; preset isometric, top, front or right view |
+| Projection and axes | Orthographic and Axes checkboxes |
+| Inspect sources | Choose Faces or Edges, then click; successive clicks add selections |
+| Clear selections | Escape or Clear selection; Backspace removes the last selection |
+| Show a subset | Body, Faces/Edges, Surface and Diagnostic controls; Reset filters restores filters |
+| Section display | Select X/Y/Z, move Position, or Reverse the retained side; Off restores the whole display |
+
+Selection details retain the complete source relations, face/edge IDs, source node
+ID/type/index and byte range, body membership and matching diagnostic codes.
+Body groups represent source membership, including shared/unknown membership;
+they do not establish an assembly. Visibility, filter and section changes clear
+the selection so hidden elements do not remain in the inspector. Camera changes
+retain selection. `--no-edges` omits edge geometry and disables edge picking.
+
+#### Units, partial previews and display limits
+
+`--source-unit` is required and accepts `m`, `cm`, `mm`, `in`, or `ft`.
+`--target-unit` defaults to `mm` and uses the same choices. Conversion applies
+the scale once; the browser uses those target coordinates without an extra GLB
+meter conversion. For example, a 0.04 m source edge becomes 40 mm in a preview
+generated with `--source-unit m --target-unit mm`. Linear deflection (default
+0.1) and section position use target units; angular deflection (default 0.5)
+uses radians. Display colors carry no source-material meaning.
+
+The Source, Conversion and OCCT badges describe separate states. An explicit
+`--allow-partial` permits an incomplete source or missing source mappings for
+inspection, showing a warning and the known missing entities. If the source is
+incomplete without an enumerated missing mapping, the UI still warns that additional
+geometry may be absent. It continues to require a complete, OCCT-valid conversion;
+unsupported geometry, invalid topology or exceeded limits remain errors. In Python,
+use `to_occt(..., require_complete=False)` for an incomplete source and
+`PreviewOptions(allow_partial=True)` for the preview. Successful partial generation
+returns CLI exit code 0; completeness must be read from the report and UI.
+
+Sections clip the display mesh. Caps are shown only for complete known solids,
+and are not exported as new B-Rep or exact section geometry. Measurement, CAD
+vertex/whole-solid picking, material editing, animation and inferred assemblies
+are outside this viewer. See the [display boundary](format-support.md#viewer-display-boundary).
+Load failures, invalid input pairs and WebGL2 failures appear in the error panel.
+After a WebGL context loss, reload to recreate the renderer.
+
+#### Artifacts and provenance
 
 `write_preview()` writes exactly five self-contained files: `index.html`,
 `viewer.css`, `viewer.js`, `preview.glb`, and `preview.manifest.json`. Face
@@ -410,6 +498,10 @@ face mesh as the triangles; there is no independent unbounded curve sampler.
 The manifest reverses every primitive to its
 conversion-local subshape key, Parasolid face/edge IDs, source node ID and byte
 range, body, surface/curve kind, relation, and matching diagnostic codes.
+Schema version 1 also includes `bodies: [{"id": ..., "kind": ...}]`, sorted by
+body ID, with the source `BrepModel` classification (`solid`, `sheet`, `wire`,
+or `general`). Primitive `body_ids` retain the complete membership set;
+this grouping does not describe an assembly hierarchy.
 Source completeness, conversion completeness, and OCCT validity remain three
 separate values.
 
@@ -419,11 +511,17 @@ Tessellation is bounded by `InteropLimits.max_triangles`, `max_vertices`,
 `preview.limit_exceeded`; the writer never silently coarsens or drops the mesh.
 Missing source mappings are rejected by default.
 `PreviewOptions(allow_partial=True)` is an explicit inspection mode: the
-manifest lists every missing face/edge and the UI shows a red warning and list.
+manifest lists known missing face/edge mappings and the UI shows a warning and list.
 
-The static WebGL application is package-owned MIT code with fixed release
-hashes. It uses no CDN, VTK, Node.js runtime, inline script, or unsafe
-`innerHTML` insertion. The server exposes only the five reviewed resources,
+The static WebGL application bundles `three-cad-viewer@5.0.6` with fixed release
+hashes. JS/CSS embed the original notices for three-cad-viewer and Three.js (MIT),
+postprocessing (Zlib), and n8ao (ISC package metadata / CC0-1.0 license text).
+`asset_bundle.license` is a notice summary preserving that upstream discrepancy,
+not a single SPDX expression. It uses no CDN, VTK, or Node.js runtime.
+Source and diagnostic values use text DOM APIs; upstream's fixed HTML templates
+are covered by the reviewed asset hashes. CSP allows inline style attributes,
+but no inline scripts, external connections, or dynamic code evaluation.
+The server exposes only the five reviewed resources,
 adds restrictive browser headers, binds `127.0.0.1` with an ephemeral port by
 default, and rejects any external bind unless `allow_external=True`. It does
 not serve the input directory, source path, or raw Parasolid bytes. A path-like
@@ -464,19 +562,19 @@ parasolid-kit parse MODEL.x_b --brep
 parasolid-kit compare LEFT.x_t RIGHT.x_b
 parasolid-kit export-step MODEL.x_t MODEL.step \
   --source-unit m
-parasolid-kit view MODEL.x_t \
+parasolid-kit viewer MODEL.x_t \
   --source-unit m
 ```
 
 `check` writes a compact human-readable report by default and uses human-readable
 errors; `--json` selects JSON stdout/stderr. Existing `inspect`, `parse`,
-`compare`, `export-step`, and `view` output remains JSON. Exit status is `0` when
+`compare`, `export-step`, and `viewer`/`view` output remains JSON. Exit status is `0` when
 the requested stage succeeds, `1` for an incomplete `check` result or a valid
 comparison that is different, and `2` for input, schema,
 parse, mapping, conversion, or export errors.
 `parse --brep` returns `0` even for an explicitly incomplete mapped model;
 inspect `brep.complete` in its JSON or use `check` for a completeness exit code.
-`view --allow-partial` can also generate its requested partial output with `0`.
+`viewer --allow-partial` can also generate its requested partial output with `0`.
 Auto-detection accepts only known suffixes or signatures; ambiguous files
 require `--format x-b` or `--format x-t`. The schema directory is optional for
 the built-in subset. An explicit
@@ -486,7 +584,7 @@ the built-in subset. An explicit
 the sidecar, converts to an mm OCCT working result, writes AP242 in
 `--output-unit` (default `mm`), and rejects existing outputs unless
 `--overwrite` is supplied.
-`view` also requires `--source-unit`, writes a persistent preview directory,
+`viewer` (`view` alias) also requires `--source-unit`, writes a persistent preview directory,
 and serves it on `127.0.0.1` and an ephemeral port. `--no-open` suppresses
 browser launch, `--write-only` generates artifacts and exits, and
 `--allow-partial` opts into a visibly incomplete preview. `--host` cannot name

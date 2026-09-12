@@ -12,6 +12,8 @@ build/
 dist/
 target/
 *.egg-info/
+node_modules/
+/viewer/test-results/
 
 # Maintainer research scripts, tests, schemas, and records are local-only
 # and are not part of the public repository or source distribution.

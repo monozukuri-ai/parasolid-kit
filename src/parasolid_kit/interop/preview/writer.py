@@ -19,16 +19,17 @@ from .glb import validate_glb_bytes
 from .model import PreviewArtifact, PreviewOptions, PreviewReport, PreviewResult
 from .tessellation import tessellate_preview
 
-ASSET_BUNDLE_VERSION: Final = "1.0.0"
-ASSET_LICENSE: Final = "MIT"
+ASSET_BUNDLE_VERSION: Final = "2.0.0"
+# Notice summary, not a single SPDX expression: retain n8ao's upstream discrepancy.
+ASSET_LICENSE: Final = "MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice"
 STATIC_ASSET_NAMES: Final = ("index.html", "viewer.css", "viewer.js")
 
-# Updated deliberately whenever the reviewed, package-owned UI changes. Keeping
+# Updated deliberately whenever the reviewed, bundled UI changes. Keeping
 # this allowlist here makes unexpected wheel resources fail before being served.
 STATIC_ASSET_SHA256: Final[dict[str, str]] = {
-    "index.html": "0a80d9176e27433c009cebba64671d75f1bc405b979d2ed43bea248b6e184ca4",
-    "viewer.css": "c6b6f8778e83ef6c16f6a42d03b864f05f3ee99fe10b272d046717e9290de296",
-    "viewer.js": "81094c0fbb08865157d6091fd60be9f85ffbc3cdcc60153325ee27a313351d6e",
+    "index.html": "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e",
+    "viewer.css": "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791",
+    "viewer.js": "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d",
 }
 
 

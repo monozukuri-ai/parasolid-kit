@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from hashlib import sha256
 from pathlib import Path
@@ -19,6 +20,7 @@ from parasolid_kit import (
     cli,
 )
 from parasolid_kit.cli import main
+from tests.support.import_contract import assert_dependency_free_imports
 from tests.support.parasolid_binary import SyntheticXbBuilder
 
 
@@ -364,7 +366,9 @@ def test_cli_export_step_keeps_conversion_and_writer_lazy(
     assert captured.err == ""
 
 
+@pytest.mark.parametrize("command", ["viewer", "view"])
 def test_cli_view_writes_a_persistent_preview_without_starting_a_server(
+    command: str,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -420,7 +424,7 @@ def test_cli_view_writes_a_persistent_preview_without_starting_a_server(
     assert (
         main(
             [
-                "view",
+                command,
                 str(source),
                 "--schema-dir",
                 str(tmp_path),
@@ -464,6 +468,73 @@ def test_cli_view_writes_a_persistent_preview_without_starting_a_server(
     assert report["source_sha256"] == source_hash
     assert report["preview"]["status"] == "complete"
     assert captured.err == ""
+
+
+@pytest.mark.parametrize("command", ["viewer", "view"])
+def test_cli_viewer_help_remains_dependency_free(command: str) -> None:
+    assert_dependency_free_imports(f"""
+from parasolid_kit.cli import main
+try:
+    main([{command!r}, "--help"])
+except SystemExit as error:
+    assert error.code == 0
+else:
+    raise AssertionError("help did not exit")
+""")
+
+
+@pytest.mark.skipif(importlib.util.find_spec("OCP") is None, reason="requires OCCT")
+@pytest.mark.parametrize("command", ["viewer", "view"])
+def test_cli_viewer_generates_and_refuses_existing_output(
+    command: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from parasolid_kit.interop.preview import ASSET_BUNDLE_VERSION, STATIC_ASSET_SHA256
+    from tests._occt_fixtures import make_box_model
+
+    # Public synthetic B-Rep at the parser boundary; conversion and writing are real.
+    source = tmp_path / "box.x_t"
+    raw = b"synthetic B-Rep fixture (not an X_T parser test)"
+    monkeypatch.setattr(
+        cli,
+        "read_brep",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            brep=make_box_model(),
+            document=SimpleNamespace(raw_bytes=raw),
+        ),
+    )
+    args = [command, str(source), "--source-unit", "mm", "--write-only"]
+    assert main(args) == 0
+    first = json.loads(capsys.readouterr().out)
+    assert set(first) == {
+        "status",
+        "source_sha256",
+        "output",
+        "index",
+        "glb",
+        "manifest",
+        "preview",
+    }
+    assert first["status"] == "generated"
+    assert first["source_sha256"] == sha256(raw).hexdigest()
+    assert first["preview"]["asset_bundle"]["version"] == ASSET_BUNDLE_VERSION
+    output = tmp_path / "box.parasolid-preview"
+    assert first["output"] == str(output)
+    before = {p.name: p.read_bytes() for p in output.iterdir()}
+    assert set(before) == {*STATIC_ASSET_SHA256, "preview.glb", "preview.manifest.json"}
+    for name, expected in STATIC_ASSET_SHA256.items():
+        assert sha256(before[name]).hexdigest() == expected
+
+    assert main(args) == 2
+    refused = capsys.readouterr()
+    assert refused.out == ""
+    assert json.loads(refused.err)["error_type"] == "FileExistsError"
+    assert {p.name: p.read_bytes() for p in output.iterdir()} == before
+    assert main([*args, "--overwrite"]) == 0
+    assert json.loads(capsys.readouterr().out) == first
+    assert {p.name: p.read_bytes() for p in output.iterdir()} == before
 
 
 def test_cli_check_human_errors_do_not_change_existing_json_error_contract(
