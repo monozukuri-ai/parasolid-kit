@@ -39,17 +39,35 @@ def spcurve(
     tolerance=None,
     cylinder=False,
     patch=None,
+    embedded=False,
+    include_surface_curves=True,
+    replace_nurbs=False,
 ):
-    data = bytearray(general_body(encoding, BASE)[:-4])
+    data = bytearray(general_body(encoding, EMBEDDED if embedded else BASE)[:-4])
+    seen = {12}
 
     def record(kind, index, codes, values, length=None):
+        marker = b""
+        if embedded and kind not in seen:
+            marker = b"255 " if encoding == "x_t" else b"\xff"
+            if kind == 134 and replace_nurbs:
+                marker = (
+                    b"9 CCCCCCCD I9 nurbs_ref136 0 CZ".replace(b"D I", b"DI")
+                    if encoding == "x_t"
+                    else b"\x09"
+                    + b"C" * 7
+                    + b"DI\x09nurbs_ref\x00\x88"
+                    + positive_integer(0)
+                    + b"CZ"
+                )
+        seen.add(kind)
         if encoding == "x_t":
-            data.extend(f"{kind} ".encode())
+            data.extend(f"{kind} ".encode() + marker)
             if length is not None:
                 data.extend(f"{length} ".encode())
             data.extend(f"{index} ".encode())
         else:
-            data.extend(struct.pack(">H", kind))
+            data.extend(struct.pack(">H", kind) + marker)
             if length is not None:
                 data.extend(struct.pack(">i", length))
             data.extend(positive_integer(index))
@@ -82,7 +100,7 @@ def spcurve(
         return [index, 0, 0, 0, 0, 0, "+"]
 
     # Forward links, repeated SP_CURVE and array types exercise cached definitions.
-    for index in (3, 10):
+    for index in (3, 10) if include_surface_curves else ():
         record(137, index, "dpppppcpppf", [*common(index), surface, parameter, original, tolerance])
     if patch is not None:
         record(124, 2, "dpppppcpp", [*common(2), patch.get("nurbs", 12), 13])

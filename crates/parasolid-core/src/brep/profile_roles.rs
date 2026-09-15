@@ -63,9 +63,26 @@ impl RoleAccess {
                         && *profile_revision == 1
                         && key == "SCH_3701229_37102_13006"
                         && profile_sha256
-                            == crate::schema::profiles::SOLIDWORKS_PROFILE_SHA256)) =>
+                            == crate::schema::profiles::SOLIDWORKS_PROFILE_SHA256)
+                    || (profile_id == "onshape-sch37102-13006-r2"
+                        && *profile_revision == 2
+                        && key == "SCH_3701212_37102_13006"
+                        && profile_sha256
+                            == crate::schema::profiles::ONSHAPE_CURRENT_PROFILE_SHA256)) =>
             {
-                validate_base_roles(schemas, key != "SCH_3000310_30000_13006")?;
+                let base = if key == "SCH_3701212_37102_13006" {
+                    crate::schema::profiles::onshape_current_definitions()
+                } else {
+                    let mut base = crate::schema::profiles::sch13006_definitions();
+                    if key != "SCH_3000310_30000_13006" {
+                        base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
+                        base.extend(
+                            crate::schema::profiles::sch13006_bspline_surface_definitions(),
+                        );
+                    }
+                    base
+                };
+                validate_base_roles(schemas, &base)?;
                 Ok(Self::Sch13006)
             }
             SchemaProviderResolution::Builtin { .. } => Err(ParseError::new(
@@ -111,7 +128,7 @@ impl RoleAccess {
                 51 => "CYLINDER",
                 52 => "CONE",
                 53 => "SPHERE",
-                54 if matches!(self, Self::OnshapeSch30000) => "TORUS",
+                54 => "TORUS",
                 133 => "TRIMMED_CURVE",
                 204 => "INTERSECTION_DATA",
                 _ => "", // List/attribute types cannot acquire roles from their names.
@@ -162,7 +179,7 @@ impl RoleAccess {
     pub(super) fn is_surface(self, node: &RawNode) -> bool {
         match self {
             Self::OnshapeSch30000 => matches!(node.node_type, 50..=54 | 124),
-            Self::Sch13006 => matches!(node.node_type, 50..=53 | 124),
+            Self::Sch13006 => matches!(node.node_type, 50..=54 | 124),
             Self::Named => {
                 self.has_common_geometry(node)
                     && self
@@ -182,12 +199,10 @@ impl RoleAccess {
 /// Embedded edits can move fields; trusted B-Rep roles must survive as copies
 /// of reviewed base fields. A matching scalar codec or inserted name is not
 /// sufficient to assign meaning to an input-defined field.
-fn validate_base_roles(schemas: &[SchemaResolution], standard_v13: bool) -> Result<(), ParseError> {
-    let mut base = crate::schema::profiles::sch13006_definitions();
-    if standard_v13 {
-        base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
-        base.extend(crate::schema::profiles::sch13006_bspline_surface_definitions());
-    }
+fn validate_base_roles(
+    schemas: &[SchemaResolution],
+    base: &[crate::TypeDefinition],
+) -> Result<(), ParseError> {
     for resolution in schemas {
         let definition = &resolution.definition;
         let roles = field_roles(definition.node_type);
@@ -576,7 +591,10 @@ mod tests {
     fn embedded_roles_follow_copied_fields_after_an_insert()
     -> Result<(), Box<dyn std::error::Error>> {
         let resolution = changed_body(false)?;
-        validate_base_roles(std::slice::from_ref(&resolution), false)?;
+        validate_base_roles(
+            std::slice::from_ref(&resolution),
+            &crate::schema::profiles::sch13006_definitions(),
+        )?;
         let definition = resolution.definition;
         let fields = definition
             .fields
@@ -616,7 +634,9 @@ mod tests {
         let bad = changed_body(true)?;
         assert_eq!(good.definition, bad.definition);
         assert_eq!(
-            validate_base_roles(&[bad], false).err().map(|e| e.kind()),
+            validate_base_roles(&[bad], &crate::schema::profiles::sch13006_definitions())
+                .err()
+                .map(|e| e.kind()),
             Some(ErrorKind::InvalidBrepField)
         );
         Ok(())
@@ -632,10 +652,18 @@ mod tests {
             offset: 0,
             field: region,
         };
-        assert!(validate_base_roles(&[duplicate], false).is_err());
+        assert!(
+            validate_base_roles(
+                &[duplicate],
+                &crate::schema::profiles::sch13006_definitions()
+            )
+            .is_err()
+        );
         let mut full = changed_body(false)?;
         full.definition.source = SchemaSource::EmbeddedFull;
-        assert!(validate_base_roles(&[full], false).is_err());
+        assert!(
+            validate_base_roles(&[full], &crate::schema::profiles::sch13006_definitions()).is_err()
+        );
         Ok(())
     }
 
@@ -662,7 +690,10 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             let standard = profile.metadata().profile_id.starts_with("onshape");
-            validate_base_roles(&schemas, standard)?;
+            validate_base_roles(
+                &schemas,
+                &profile.definitions().cloned().collect::<Vec<_>>(),
+            )?;
             assert_eq!(
                 schemas
                     .iter()

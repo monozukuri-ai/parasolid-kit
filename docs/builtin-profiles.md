@@ -3,7 +3,7 @@
 The [SolidWorks partition profile](solidworks-partitions.md) documents the
 additional exact V37 key, WORLD base layout, local validation and delta boundary.
 
-Four profiles are registered for default parsing. The complete internal stream
+Five profiles are registered for default parsing. The complete internal stream
 key must match; a caller-selected provider always takes priority. The
 [shared support matrix](format-support.md#supported-profiles) records their
 current identities and separate raw, B-Rep, independent-geometry, conversion,
@@ -163,6 +163,110 @@ positions are retained in the source model separately from any reconstructed
 curve. Raw support does not imply arbitrary schema, rational/periodic adapter,
 STEP mass-property, or assembly reconstruction support.
 
+### V30 revision 3: new analytic producer pairs
+
+On 2026-09-14, two new Onshape models were created after freezing the parser,
+oracle implementation, dimensions and tolerances: a Z-axis frustum with lower
+radius 13 mm, upper radius 7 mm and height 19 mm, and a Z-axis ring torus with
+major radius 23 mm and minor radius 4 mm. Both centres lie on the origin axis.
+The same immutable Onshape Version supplied V30 text/neutral binary pairs,
+native Body Details, mass properties and independent STEP AP242 exports.
+
+All four V30 streams passed the unchanged revision-3 parser, complete source
+B-Rep/topology checks, and decoded analytic-geometry comparisons against native
+and STEP data. The frustum has 59 nodes and three faces; the torus has 31 nodes
+and one face. Both producer pairs compare equivalent and preserve X_B bytes.
+The Rust corpus probe separately passed full consumption and decoded-value
+reencoding. STEP area and volume match the native bounds and predeclared
+dimensions, using absolute tolerances of 1e-12 m² and 1e-14 m³ and relative
+tolerance 1e-8; geometry position/direction tolerances are 1e-9 m and 1e-10.
+
+The initial API STEP captures declared metres despite requesting millimetres;
+that acquisition failure remains recorded. Browser exports with custom
+Millimeter units corrected the input settings without changing the model
+Version, parser or tolerances. The initial files and failed check are retained.
+These two models have no source vertices, so they add no vertex-position
+evidence. Curved core metrics and general parametric-solid conversion were not
+validated. The real fixtures remain local; they do not expand public CI coverage.
+
+Normal/latest exports from the same Version use internal key
+`SCH_3701212_37102_13006`. They initially failed default parsing and then became
+development inputs for the [separate current-key profile](#onshape-current-embedded-analytic-profile).
+They are not independent holdouts for that new profile.
+
+## Onshape current embedded analytic profile
+
+The current source tree uses revision 2 (35 types / 292 field groups); see
+[ellipse and NURBS evidence](onshape-current-parametric.md). The revision-1
+identity and campaign below are retained as historical evidence.
+
+Revision 1 added `onshape-sch37102-13006-r1` revision 1 for the exact
+internal key `SCH_3701212_37102_13006`, observed in Onshape 37.1.212 current
+exports. This addition has not yet been published. It uses the reviewed 13006
+base and input-defined embedded edits, with explicit membership of 25 types
+and 204 base field groups:
+
+```text
+12 13 14 15 16 17 18 19 29 30 31 50 51 52 53 54 70 74 79 80 81 82 83 84 98
+```
+
+The definitions are in
+[`onshape_current.rs`](../crates/parasolid-core/src/schema/profiles/onshape_current.rs).
+They reuse 24 previously reviewed base definitions and add TORUS (54), whose
+12 fields follow the public reference on printed pages 60–61. The canonical
+hash is `da8fcfa794a26dd57caec6b944f5ebe8431657980ce033488ca1ce0b032fbcc6`.
+Future additions to other 13006 profiles do not implicitly expand membership.
+
+The source B-Rep roles cover topology, points, lines, circles, planes,
+cylinders, cones, spheres and tori. An embedded insertion may move a field,
+but only preserved copies of reviewed base fields acquire semantic roles.
+Deleting a required field and inserting another with the same name fails
+B-Rep mapping. Unknown base types remain unknown even when an input supplies
+a full declaration; the profile has no declared-absent or unsupported-base
+exceptions. Nonzero user fields and neighboring keys are rejected.
+
+Development used five producer pairs: a box, a cylinder with a coaxial
+through-hole, a sphere, and the earlier frustum and torus current exports.
+All ten streams pass complete decoding and source B-Rep, Rust/Python value
+and byte-range parity, producer-pair equivalence, decoded-value reencoding,
+and native/STEP analytic geometry checks. Binary documents also preserve the
+original bytes. Box core area and volume match the independent measurements;
+curved models use native, STEP and formula metrics because curved core metrics
+are unavailable.
+
+On 2026-09-14, 192 implementation, validation and recipe files (including the
+native module and Rust probe) were frozen before creating five further models.
+Their immutable Onshape Version was created at 04:19:12 UTC, after the
+04:18:14 UTC freeze. The models are a translated 19 × 29 × 37 mm box, a
+translated coaxial through-hole cylinder (radii 11 / 3.5 mm, height 23 mm),
+a translated sphere (radius 8.013 mm), an inclined frustum (radii 17 / 9 mm,
+height 23 mm), and an inclined ring torus (radii 29 / 5 mm). The last two use
+axis `(0, 0.6, 0.8)` and translated origins.
+
+All five new X_T/X_B pairs passed the frozen validation: ten streams,
+746 records, complete B-Rep/topology, API/CLI and Rust/Python parity, producer
+pair comparison and value reencoding, native/STEP geometry and formula metric
+checks, and byte-exact X_B retention. Source positions and directions use fixed
+tolerances of 1e-9 m and 1e-10; area and volume use 1e-12 m² and 1e-14 m³,
+with relative tolerance 1e-8. The box additionally verifies its eight vertices
+and core area/volume. These STEP exports use metres, confirmed from the actual
+SI declaration. Extra STEP seam/degenerate curves are recorded separately;
+all required source primitives still match. No frozen file or tolerance was
+changed after collection.
+
+A separate exact-catalog audit agrees on decoded values, ranges and normalized
+B-Rep. It does not establish identical field metadata: type 74 `entries`
+retains generic pointer class 0 in the reviewed base, while the local catalog
+labels it 1001. This difference is recorded explicitly. The guarded API/CLI
+checks prohibit catalog and network access; the optional catalog audit runs
+separately and is not a runtime dependency.
+
+At revision 1, ellipse (32), intersection/trimmed/SP_CURVE and NURBS families
+were outside the profile. Other modeller keys, assemblies and native saved-state
+reconstruction remain unsupported. The recorded analytic source-B-Rep evidence does not establish
+general curved-solid OCCT conversion, STEP export or viewer coverage. Real CAD
+fixtures remain local; public tests use project-authored synthetic wire data.
+
 ## 13006 base and embedded profiles
 
 The additional profiles are implemented in
@@ -296,9 +400,11 @@ The B-Rep source curve references its two supporting surfaces and the chart,
 start and end records. Mapping validates target types, chart point counts,
 finite positions, and the H/L (one point) and T (two points) limit layouts.
 The raw records retain array contents, schema edits, byte ranges, and original
-values. Type 141's shared-owner ring is retained as raw data. This extension
-does not implement numerical intersection evaluation, core area/volume, or
-optional OCCT/STEP conversion for these curves.
+values. Type 141's shared-owner ring is retained as raw data. At this
+source-decoding milestone, numerical intersection evaluation, core area/volume,
+and optional OCCT/STEP conversion were not implemented. The current optional
+adapter provides [bounded intersection construction](v30-parametric-viewer.md);
+that later implementation does not change this campaign's evidence or failures.
 
 Two new development models subtract an offset transverse or tilted cylinder
 from another cylinder. Both pairs pass text/binary comparison, independent
@@ -365,8 +471,9 @@ The full schema bytes can also be reconstructed independently from decoded
 field metadata. At revision 4, the reused 17-stream set had **16/17 complete**, with only
 type 133 remaining. These are development regressions, not new holdouts or
 independent evidence for the geometry's physical correctness. Embedded X_T
-coverage remains synthetic. The revision-3 strict STEP distance failures and
-numerical intersection/OCCT export limitations remain unchanged.
+coverage remains synthetic. The revision-3 strict STEP distance failures remain
+recorded. This campaign did not validate numerical intersection/OCCT export;
+current adapter constraints are listed in [format support](format-support.md).
 
 ## Embedded trimmed curves (revision 5)
 
@@ -397,8 +504,8 @@ forward references, both basis senses, invalid references, non-finite/null value
 truncation and exact-key scope. Embedded X_T evidence remains synthetic. A new
 Onshape collection attempt at that milestone returned HTTP 403 for the existing
 test document before creating any model; the resumed V13 evidence is described
-below. Numerical
-intersection and OCCT conversion limits remain as recorded above.
+below. This campaign did not extend numerical intersection or OCCT conversion;
+see [format support](format-support.md) for the current adapter constraints.
 
 ## V13 trimmed curves (Onshape revision 4)
 

@@ -42,15 +42,17 @@ expected_profile = {
     "profile_sha256": "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4",
 }
 expected_profiles = {expected_profile["schema_key"]: expected_profile}
-for key, profile_id, digest in (
-    ("SCH_1300000_13006", "onshape-sch13006-r6",
+for key, profile_id, revision, digest in (
+    ("SCH_1300000_13006", "onshape-sch13006-r6", 6,
      "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb"),
-    ("SCH_3000310_30000_13006", "icad-sch30000-13006-r5",
+    ("SCH_3000310_30000_13006", "icad-sch30000-13006-r5", 5,
      "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5"),
+    ("SCH_3701212_37102_13006", "onshape-sch37102-13006-r2", 2,
+     "c65102214f88d51a41758fde42a3a691cf3532d0f9341533c5f7c86fa53fa93b"),
 ):
     expected_profiles[key] = {
         "kind": "builtin", "profile_id": profile_id,
-        "profile_revision": 6 if key == "SCH_1300000_13006" else 5,
+        "profile_revision": revision,
         "schema_key": key, "coverage": "verified_subset", "profile_sha256": digest,
     }
 """.strip()

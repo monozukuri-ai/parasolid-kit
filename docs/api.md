@@ -28,7 +28,9 @@ Each has `verified_subset` coverage and requires zero user fields. The embedded
 profiles supply the reviewed 13006 base before applying stream edits. Runtime,
 build, and installation require no external catalog; the parser does not use
 the network. Development-only catalog comparisons and membership evidence
-remain documented. See [profile provenance](builtin-profiles.md) for
+remain documented. The current source tree adds the exact Onshape internal key
+`SCH_3701212_37102_13006` for the analytic and direct NURBS subset documented in the matrix;
+this addition is not yet published. See [profile provenance](builtin-profiles.md) for
 the separate producer, geometry, and encoding validation scopes.
 
 ```python
@@ -242,6 +244,15 @@ geometry with approximate primitives or Boolean operations. Periodic and
 naturally bounded faces introduce topology required by OCCT. Those seam and
 boundary edges and vertices are retained as `generated` source-map relations.
 
+The [parametric path](v30-parametric-viewer.md) additionally constructs trimmed
+analytic/NURBS faces using open nonrational surface-parameter curves and
+source-identified open intersections. It evaluates source UV curves on their
+supports and uses bounded numerical 3D approximation or intersection fitting.
+Reports retain construction operations and `occt.parametric_approximation`
+warnings when sampled deviation exceeds a source edge tolerance but remains
+within the conversion limit. These checks do not certify a continuous
+whole-curve error bound.
+
 ```python
 from parasolid_kit.interop.occt import geometry_coverage
 
@@ -268,10 +279,13 @@ a vertex-free Parasolid circle can acquire an OCCT seam vertex, so edge and
 vertex counts are validation evidence rather than identity claims.
 
 The default is `require_complete=True, heal=False`; healing remains unavailable.
-Direct vertex-trimmed circles/ellipses, rational or non-3D NURBS, pcurves,
-intersection curves, blend surfaces, dummy loop topology, unknown orientation,
-invalid OCCT shapes, and metric mismatches raise `OcctConversionError` instead
-of being silently dropped. Explicit `TrimmedCurve` is supported because it
+Rational, closed, or periodic NURBS, unsupported UV/intersection variants,
+blend construction, invalid loop topology, unknown orientation, invalid OCCT
+shapes, and metric mismatches raise `OcctConversionError`. Two-dimensional NURBS
+are accepted only as parameter curves used by `SP_CURVE`. The analytic path
+requires explicit trims for circular/elliptical arcs; the parametric path can
+resolve bounded conics from source orientation and endpoints.
+Explicit `TrimmedCurve` is supported because it
 retains the basis, endpoint positions, and parameter interval needed to choose
 one arc. `.report` contains the partial `ConversionReport` available at failure
 time. `InteropLimits` is checked before amplified topology/control-net

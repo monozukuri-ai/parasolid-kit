@@ -25,7 +25,7 @@ data.
   source model.
 - Parse, map, and summarize one file with `read_brep()` or the human-readable
   `check` command.
-- Convert the exact optional OCCT subset and export validated AP242 plus a
+- Convert the documented optional OCCT subset and export validated AP242 plus a
   provenance sidecar without routing through CadQuery.
 - Wrap the same strict conversion as CadQuery `Shape` values for immediate
   inspection and downstream CadQuery operations.
@@ -60,7 +60,7 @@ python -m pip install /path/to/parasolid_kit-0.1.0-cp310-abi3-PLATFORM.whl
 ```
 
 Header inspection works immediately after installation. Parsing and source
-B-Rep checking also work without a schema file for the four exact-key
+B-Rep checking also work without a schema file for the exact-key
 [supported profiles](docs/format-support.md#supported-profiles). Each covers a
 verified subset with zero user fields; the table distinguishes producer,
 encoding, geometry, and saved-state evidence. Native CAD containers are handled
@@ -97,7 +97,7 @@ On Intel macOS, the CadQuery extra uses Numba 0.62.x, the last release series
 with prebuilt wheels for that platform. Use Python 3.11–3.13 for this profile
 on Intel Macs; see [Numba's platform notice](https://numba.readthedocs.io/en/stable/release/0.63.0-notes.html#deprecation-of-macos-x86-64-intel-support).
 
-The `[occt]` profile converts the documented exact I7 subset from `BrepModel` into a
+The `[occt]` profile converts the documented geometry subset from `BrepModel` into a
 validated OCCT shape and can export that result directly as AP242. The
 `[cadquery]` profile runs the same strict converter with CadQuery's full OCP
 runtime and exposes the result through CadQuery `Shape` objects. Tessellation
@@ -163,10 +163,13 @@ I7 extends the exact OCCT path with ellipses, parabolas, hyperbolas, explicit
 trimmed curves, cone frustums, untrimmed spheres and ring tori, open
 non-periodic non-rational 3D NURBS, and exact offset surfaces.
 `geometry_coverage()` exposes the parser, OCCT, STEP, and constraint status
-without importing OCP. Rational, closed, or periodic NURBS, pcurves,
-intersection curves, and blend surfaces remain explicit errors; they are not
-approximated from incomplete semantics. Unknown orientation, invalid
-references or topology, metric disagreement, and requested healing likewise
+without importing OCP. The [parametric extension](docs/v30-parametric-viewer.md)
+also supports bounded open nonrational surface-parameter curves and
+source-identified open intersections, including trimmed analytic/NURBS faces.
+Their numerical approximation and source-tolerance warnings remain in the
+conversion report. Rational, closed, or periodic NURBS, unsupported parametric
+variants, and blend construction remain explicit errors. Unknown orientation,
+invalid references or topology, metric disagreement, and requested healing likewise
 stop with `OcctConversionError`, whose partial report retains the diagnostic.
 Generated OCCT seam/boundary topology remains explicit in the source map.
 
@@ -217,7 +220,10 @@ from unrun CI/platform tests; these changes have not been published as a release
 When neither a provider nor a schema directory is supplied, default parsing
 selects a compiled profile by the exact internal stream key. The
 [shared support matrix](docs/format-support.md#supported-profiles) lists all
-four keys, profile revisions, definition hashes, and stage-specific evidence.
+keys, profile revisions, definition hashes, and stage-specific evidence.
+
+The source tree also includes an [Onshape current-key analytic and NURBS profile](docs/onshape-current-parametric.md)
+for `SCH_3701212_37102_13006`; this addition is not yet in a published release.
 
 The [SolidWorks partition profile](docs/solidworks-partitions.md) reads a
 partition's B-Rep. Associated delta streams remain unsupported, so a complete

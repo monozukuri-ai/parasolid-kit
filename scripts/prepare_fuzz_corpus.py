@@ -257,6 +257,43 @@ def build_seeds() -> dict[str, bytes]:
     seeds["wrong-exact-key-binary"] = seeds["solidworks-world-binary"].replace(
         b"SCH_3701229_37102_13006", b"SCH_3701230_37102_13006"
     )
+    # Current Onshape analytic and direct NURBS layouts; intersection stays excluded.
+    current = "SCH_3701212_37102_13006"
+    for encoding, header, body in zip(
+        ("text", "binary"), _headers(current), _body(current), strict=True
+    ):
+        seeds[f"onshape-current-cone-{encoding}"] = seeds[
+            f"brep-solidworks-cone-{encoding}"
+        ].replace(b"SCH_3701229_37102_13006", current.encode())
+        if encoding == "text":
+            record = b"54 255 1 73 0 0 0 0 0 +-0.011 0.017 0.023 0 0.6 0.8 0.029 0.005 1 0 0 1 0 "
+        else:
+            record = (
+                struct.pack(">H", 54) + b"\xff" + struct.pack(">hi5h", 2, 73, 1, 1, 1, 1, 1) + b"+"
+            )
+            record += struct.pack(
+                ">11d", -0.011, 0.017, 0.023, 0, 0.6, 0.8, 0.029, 0.005, 1, 0, 0
+            ) + bytes([0, 1, 0, 1])
+        seeds[f"onshape-current-torus-{encoding}"] = header + body + record
+        # A three-dimensional linear B-curve, including all six dependency types.
+        if encoding == "text":
+            record = (
+                b"134 255 1 73 0 0 0 0 0 +2 3 "
+                b"136 255 2 1 2 3 2 5 FFF1 4 5 6 135 255 3 1 0 "
+                b"45 255 6 4 0.011 -0.017 0.023 0.031 0.019 -0.007 "
+                b"127 255 2 5 2 2 128 255 2 6 0 1 1 0 "
+            )
+        else:
+            record = struct.pack(">HBhi5h", 134, 255, 2, 73, 1, 1, 1, 1, 1) + b"+"
+            record += struct.pack(">2h", 3, 4)
+            record += struct.pack(">HBhhihi5B3h", 136, 255, 3, 1, 2, 3, 2, 5, 0, 0, 0, 1, 5, 6, 7)
+            record += struct.pack(">HBhBh", 135, 255, 4, 1, 1)
+            record += struct.pack(
+                ">HBi h6d", 45, 255, 6, 5, 0.011, -0.017, 0.023, 0.031, 0.019, -0.007
+            )
+            record += struct.pack(">HBi h2h", 127, 255, 2, 6, 2, 2)
+            record += struct.pack(">HBi h2d", 128, 255, 2, 7, 0, 1) + bytes([0, 1, 0, 1])
+        seeds[f"onshape-current-nurbs-{encoding}"] = header + body + record
     return seeds
 
 

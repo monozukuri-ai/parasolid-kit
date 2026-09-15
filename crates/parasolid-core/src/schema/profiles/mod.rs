@@ -1,8 +1,13 @@
 //! Reviewed compiled profiles, registered by `BuiltinProfileRegistry::compiled`.
 
+mod onshape_current;
 mod sch13006;
 mod sch30000;
 mod solidworks;
+
+pub(crate) use onshape_current::PROFILE_SHA256 as ONSHAPE_CURRENT_PROFILE_SHA256;
+pub(crate) use onshape_current::definitions as onshape_current_definitions;
+pub use onshape_current::onshape_sch37102_13006;
 
 pub(crate) use solidworks::PROFILE_SHA256 as SOLIDWORKS_PROFILE_SHA256;
 pub use solidworks::solidworks_sch37102_13006;

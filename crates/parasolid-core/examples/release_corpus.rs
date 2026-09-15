@@ -49,7 +49,7 @@ fn document<P: SchemaProvider>(
     };
     let (nodes, start, end, model, reencoded, replayed) = if text {
         let doc = parse_xt(bytes, provider, limits)?;
-        let encoded = support::encode_document_nodes(key, &doc.nodes)?;
+        let encoded = support::encode_text_document_nodes(key, &doc.nodes)?;
         let other = parse_xb(&encoded, provider, limits)?;
         (
             support::nodes_json(&doc.nodes),
@@ -57,7 +57,7 @@ fn document<P: SchemaProvider>(
             doc.terminator.byte_range.end,
             if brep { Some(map_xt_brep(&doc)?) } else { None },
             compare_xt_xb_documents(&doc, &other, options)?.equivalent,
-            doc.nodes.iter().any(|n| n.first_schema.is_some()),
+            false, // Embedded text schemas are encoded from decoded edits/fields.
         )
     } else {
         let doc = parse_xb(bytes, provider, limits)?;

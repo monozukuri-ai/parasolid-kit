@@ -75,8 +75,9 @@ default), with catalog and Python network access prohibited. It checks the
 actual API and CLI exit codes/JSON, full consumption, decoded values and source
 ranges against Rust, the compiled profile identity, independent value
 reencoding, paired-document equivalence, and the declared B-Rep regression
-baseline. Embedded schema blobs used by the value encoder are reported as
-replayed; source record payloads are reencoded from decoded values.
+baseline. Binary embedded schema blobs used by the value encoder are reported
+as replayed. Text embedded declarations are encoded into binary from their
+decoded definitions and edits; source record payloads are reencoded from values.
 
 Baselines are hashed JSON reports, not independent geometry ground truth. Their
 floating values use the existing document-comparison tolerances (absolute and
@@ -94,6 +95,14 @@ STEP curve types, including seam/degenerate edges, are reported separately;
 they never substitute for a missing required source-geometry match. Other
 geometry families need their own independent evidence before this oracle can
 be requested for them.
+
+The analytic oracle compares planes, lines, circles, ellipses, cylinders,
+spheres, cones and ring tori. Cone comparison uses the apex, opening direction
+and half-angle so that equivalent reference sections can differ. Ring-torus
+comparison checks the centre, axis and both radii; horn, spindle and negative
+major-radius variants remain outside this oracle. This runner capability does
+not establish producer coverage for a new profile. Record the actual captured
+X_T/X_B pair, native state and independent STEP outcome separately.
 
 Known diagnostics have their exact code and offset checked and are counted
 separately from parsed inputs. `usage: holdout` records provenance supplied by

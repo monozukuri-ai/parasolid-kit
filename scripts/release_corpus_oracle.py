@@ -41,12 +41,61 @@ def axial(a, b, axis):
     return math.sqrt(max(0, dot(d, d) - dot(d, axis) ** 2)) <= POSITION_TOL
 
 
+def cone_parameters(g):
+    """Compare the apex and opening direction, independent of reference section."""
+    angle = g.get("halfAngle")
+    if angle is None:
+        sine, cosine = g["sinHalfAngle"], g["cosHalfAngle"]
+        require(abs(math.hypot(sine, cosine) - 1) <= DIRECTION_TOL, "cone angle normalization")
+        angle = math.atan2(sine, cosine)
+    require(math.isfinite(angle) and 0 < abs(angle) < math.pi / 2, "unsupported cone angle")
+    require(math.isfinite(g["radius"]) and g["radius"] >= 0, "invalid cone reference radius")
+    require(abs(dot(g["axis"], g["axis"]) - 1) <= DIRECTION_TOL, "cone axis normalization")
+    slope = math.tan(angle)
+    apex = [
+        p - v * g["radius"] / slope for p, v in zip(vec(g["origin"]), vec(g["axis"]), strict=True)
+    ]
+    opening = [v * math.copysign(1, slope) for v in vec(g["axis"])]
+    return abs(angle), apex, opening
+
+
 def matches(a, b):
-    if a["type"] not in {"PLANE", "LINE", "CYLINDER", "CIRCLE", "SPHERE", "ELLIPSE"}:
+    if a["type"] not in {
+        "PLANE",
+        "LINE",
+        "CYLINDER",
+        "CIRCLE",
+        "CONE",
+        "SPHERE",
+        "ELLIPSE",
+        "TORUS",
+    }:
         raise ValueError("geometry outside the analytic oracle scope")
     if a["type"] != b["type"]:
         return False
     kind = a["type"]
+    if kind == "CONE":
+        angle_a, apex_a, opening_a = cone_parameters(a)
+        angle_b, apex_b, opening_b = cone_parameters(b)
+        return (
+            abs(angle_a - angle_b) <= DIRECTION_TOL
+            and math.dist(apex_a, apex_b) <= POSITION_TOL
+            and math.dist(opening_a, opening_b) <= DIRECTION_TOL
+        )
+    if kind == "TORUS":
+        for g in (a, b):
+            require(
+                math.isfinite(g["majorRadius"])
+                and math.isfinite(g["minorRadius"])
+                and g["majorRadius"] > g["minorRadius"] > 0,
+                "only ring tori are covered by the analytic oracle",
+            )
+        return (
+            math.dist(vec(a["origin"]), vec(b["origin"])) <= POSITION_TOL
+            and parallel(a["axis"], b["axis"])
+            and abs(a["majorRadius"] - b["majorRadius"]) <= POSITION_TOL
+            and abs(a["minorRadius"] - b["minorRadius"]) <= POSITION_TOL
+        )
     d = minus(a["origin"], b["origin"])
     if kind == "PLANE":
         return parallel(a["normal"], b["normal"]) and abs(dot(d, a["normal"])) <= POSITION_TOL
@@ -76,11 +125,13 @@ def step_geometry(path):
     from OCP.BRepGProp import BRepGProp
     from OCP.GeomAbs import (
         GeomAbs_Circle,
+        GeomAbs_Cone,
         GeomAbs_Cylinder,
         GeomAbs_Ellipse,
         GeomAbs_Line,
         GeomAbs_Plane,
         GeomAbs_Sphere,
+        GeomAbs_Torus,
     )
     from OCP.GProp import GProp_GProps
     from OCP.IFSelect import IFSelect_RetDone
@@ -159,6 +210,24 @@ def step_geometry(path):
         elif kind == GeomAbs_Sphere:
             s = adaptor.Sphere()
             g = dict(type="SPHERE", origin=xyz(s.Location()), radius=s.Radius())
+        elif kind == GeomAbs_Cone:
+            s = adaptor.Cone()
+            g = dict(
+                type="CONE",
+                origin=xyz(s.Location()),
+                axis=xyz(s.Axis().Direction()),
+                radius=s.RefRadius(),
+                halfAngle=s.SemiAngle(),
+            )
+        elif kind == GeomAbs_Torus:
+            s = adaptor.Torus()
+            g = dict(
+                type="TORUS",
+                origin=xyz(s.Location()),
+                axis=xyz(s.Axis().Direction()),
+                majorRadius=s.MajorRadius(),
+                minorRadius=s.MinorRadius(),
+            )
         else:
             raise ValueError("unexpected STEP surface " + str(kind))
         geometry.append(g)
@@ -202,6 +271,23 @@ def source_geometry(model):
             value = dict(type="CYLINDER", origin=list(d.point), axis=list(d.axis), radius=d.radius)
         elif kind == "sphere":
             value = dict(type="SPHERE", origin=list(d.center), radius=d.radius)
+        elif kind == "cone":
+            value = dict(
+                type="CONE",
+                origin=list(d.point),
+                axis=list(d.axis),
+                radius=d.radius,
+                sinHalfAngle=d.sin_half_angle,
+                cosHalfAngle=d.cos_half_angle,
+            )
+        elif kind == "torus":
+            value = dict(
+                type="TORUS",
+                origin=list(d.center),
+                axis=list(d.axis),
+                majorRadius=d.major_radius,
+                minorRadius=d.minor_radius,
+            )
         else:
             raise ValueError(f"source {kind} is outside the analytic oracle scope")
         geometry.append(value)

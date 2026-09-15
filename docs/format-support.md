@@ -16,7 +16,7 @@ compatibility with every Parasolid version, producer, or geometry type.
 | Compare decoded documents | Supported | Supported |
 | Map to the typed B-Rep source model | Supported subset | Supported subset |
 | Compact `read_brep`/`check` summary | Supported | Supported |
-| Optional OCCT conversion | Documented exact I7 subset | Documented exact I7 subset |
+| Optional OCCT conversion | Documented exact and bounded parametric subset | Documented exact and bounded parametric subset |
 | Optional AP242 export with cold reimport | Documented I7/OCCT subset | Documented I7/OCCT subset |
 | Optional CadQuery shape adapter | Documented I7/OCCT subset | Documented I7/OCCT subset |
 | Optional GLB/local viewer with source picking | Documented I7/OCCT subset | Documented I7/OCCT subset |
@@ -41,6 +41,7 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_3000000_30000` | `onshape-sch30000-r3` / 3 | 44 / 356 | `67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4` |
 | `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | 40 / 327 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` / 5 | 30 / 240 | `1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5` |
+| `SCH_3701212_37102_13006` | `onshape-sch37102-13006-r2` / 2 | 35 / 292 | `c65102214f88d51a41758fde42a3a691cf3532d0f9341533c5f7c86fa53fa93b` |
 | `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` / 1 | 41 / 338 | `5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480` |
 
 The following cells summarize recorded local validation, not a new CAD capture
@@ -51,7 +52,8 @@ public CI. The detailed evidence and its retained failures are in
 
 | Profile scope | Raw decoding | Source B-Rep | Independent geometry evidence | OCCT / STEP / preview | Native saved state |
 |---|---|---|---|---|---|
-| Onshape V30 | Paired X_T / neutral X_B for the documented basic solids, spheres and elliptical edges | Topology and supported analytic definitions | Producer / STEP comparisons; oblique-cut strict mass-property failures remain recorded | Planar box/prism path validated; other inputs must satisfy the adapter constraints | CAD container/configuration reconstruction is outside the parser |
+| Onshape V30 | Paired X_T / neutral X_B for basic solids, spheres, elliptical edges, a frustum and a ring torus; revision-3 complex X_T has exact-catalog parity | Topology, analytic, NURBS and curve-wrapper definitions in the reviewed subset | Producer / STEP comparisons, including two new analytic models under revision 3; complex parametric geometry has no new independent producer campaign; earlier metric failures remain | Planar box/prism validation plus bounded UV/intersection conversion and preview of one local complex model; source-tolerance warnings remain | CAD container/configuration reconstruction is outside the parser |
+| Onshape current (`SCH_3701212_37102_13006`) | Analytic solids plus [elliptical edges and direct NURBS sheets](onshape-current-parametric.md) in paired X_T / X_B | Analytic topology, direct NURBS curves/surfaces, homogeneous coefficients and U/V periodic overlap | Native / STEP analytic evidence and sampled NURBS coefficient/geometry evidence; strict ellipse integrated metrics remain unverified | No new general curved-solid or rational/periodic NURBS adapter conversion | CAD container/configuration reconstruction is outside the parser |
 | Onshape V13 | Paired X_T / neutral X_B, including the documented NURBS / SP_CURVE campaigns | Topology, analytic and bounded NURBS / wrapper definitions | Producer / STEP and sampled surface evidence; recorded curve-tolerance failures remain | Bounded open nonrational UV and intersection conversion; rational/periodic NURBS remain unsupported | CAD container/configuration reconstruction is outside the parser |
 | iCAD embedded V30 | 17 neutral X_B streams from one container; embedded X_T tests are synthetic | All 17 reach complete source B-Rep/topology | No independent CAD/STEP oracle; line-trim endpoint checks are internal consistency evidence | No real iCAD conversion validation; source B-Rep success does not establish conversion | `.icd` extraction and saved-state selection are caller responsibilities; not established by these streams |
 | SolidWorks 2026 partitions | Four neutral X_B partitions; associated deltas stop at unknown base type 3 | Four complete partition B-Reps, including one three-body partition | Existing sldkit point/FIN/NURBS parity; no independent CAD/STEP evaluation repeated for this profile | No real partition conversion validation | Delta application and final saved configuration reconstruction remain unsupported |
@@ -67,10 +69,19 @@ developer audit and its version-specific definitions are documented separately.
 
 ### Detailed verified scope
 
+The source tree adds `onshape-sch37102-13006-r2` for current Onshape exports
+whose internal key is exactly `SCH_3701212_37102_13006`. This unreleased profile
+covers 35 base types / 292 field groups for analytic solids, elliptical edges
+and direct NURBS curves/surfaces, including rational and U/V-periodic sheets.
+Intersection/trimmed/SP_CURVE families are outside this profile. See the
+[current-key parametric evidence and boundaries](onshape-current-parametric.md).
+
+
 For V30, default parsing uses `onshape-sch30000-r3` revision 3 only for the exact internal
 key `SCH_3000000_30000`. Its coverage is `verified_subset`: Onshape V30 text and
 neutral binary exports, zero user fields, and single-solid boxes, prisms,
-cylinders, through-holes, spheres, and verified solids with elliptical edges.
+cylinders, through-holes, spheres, verified solids with elliptical edges, and
+the [new frustum and ring-torus cases](builtin-profiles.md#v30-revision-3-new-analytic-producer-pairs).
 The same producer with a different modeller/key
 component is not selected. See [profile provenance](builtin-profiles.md) for
 sources, canonical hash, covered types, and local evidence.
@@ -135,8 +146,11 @@ requiring a transmitted scalar pointer of class 204.
 V13 validation covers paired Onshape text/neutral binary exports of boxes,
 spheres, cones/frustums, solids with elliptical edges, and intersecting-cylinder
 booleans. Intersection curves remain source models: their point arrays identify
-the branch; numerical curve evaluation, core metrics, and optional OCCT export
-are not added. Embedded real-data validation uses
+the branch. That producer campaign verified source decoding, without adding a
+public core evaluator or curved core metrics. The optional adapter now provides
+[bounded intersection construction](v30-parametric-viewer.md) under the geometry
+coverage constraints below; this does not expand the campaign's producer evidence.
+Embedded real-data validation uses
 neutral binary streams extracted locally from one iCAD file; embedded text
 has synthetic decoder and B-Rep tests, without a real paired producer export.
 This does not add `.icd` container support or an independent geometry oracle

@@ -199,6 +199,7 @@ impl BuiltinProfileRegistry {
                     super::profiles::onshape_sch13006()?,
                     super::profiles::icad_sch30000_13006()?,
                     super::profiles::solidworks_sch37102_13006()?,
+                    super::profiles::onshape_sch37102_13006()?,
                 ])
             })
             .as_ref()

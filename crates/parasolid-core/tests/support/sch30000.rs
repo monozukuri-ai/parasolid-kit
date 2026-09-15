@@ -147,6 +147,75 @@ pub fn encode_nodes(nodes: &[RawNode]) -> Result<Vec<u8>> {
 /// Reencode decoded values, retaining embedded declarations separately.
 /// Schema blobs are replayed verbatim; no record payload or raw field range is reused.
 pub fn encode_document_nodes(key: &str, nodes: &[RawNode]) -> Result<Vec<u8>> {
+    encode_with_schema(key, nodes, false)
+}
+
+/// Text schema blobs have a different wire encoding and cannot be replayed in `X_B`.
+pub fn encode_text_document_nodes(key: &str, nodes: &[RawNode]) -> Result<Vec<u8>> {
+    encode_with_schema(key, nodes, true)
+}
+
+fn schema_string(output: &mut Vec<u8>, value: &str) -> Result<()> {
+    output.push(u8::try_from(value.len())?);
+    output.extend_from_slice(value.as_bytes());
+    Ok(())
+}
+
+fn schema_field(output: &mut Vec<u8>, field: &parasolid_core::FieldDefinition) -> Result<()> {
+    schema_string(output, &field.name)?;
+    output.extend_from_slice(&field.pointer_class.to_be_bytes());
+    output.extend_from_slice(&pointer(field.element_count)?);
+    if field.pointer_class == 0 {
+        schema_string(output, field.field_type.code())?;
+    }
+    if field.element_count == 1 {
+        output.push(u8::from(field.transmitted));
+    }
+    Ok(())
+}
+
+fn encode_schema(output: &mut Vec<u8>, schema: &parasolid_core::SchemaResolution) -> Result<()> {
+    use parasolid_core::{SchemaEdit, SchemaSource};
+    let definition = &schema.definition;
+    if definition.source == SchemaSource::Base {
+        return Ok(());
+    }
+    if definition.source == SchemaSource::EmbeddedUnchanged {
+        output.push(255);
+        return Ok(());
+    }
+    output.push(u8::try_from(definition.fields.len())?);
+    match definition.source {
+        SchemaSource::EmbeddedFull => {
+            schema_string(output, &definition.name)?;
+            schema_string(output, &definition.description)?;
+            for field in &definition.fields {
+                schema_field(output, field)?;
+            }
+        }
+        SchemaSource::EmbeddedDelta => {
+            for edit in &schema.edits {
+                match edit {
+                    SchemaEdit::Copy { .. } => output.push(b'C'),
+                    SchemaEdit::Delete { .. } => output.push(b'D'),
+                    SchemaEdit::End { .. } => output.push(b'Z'),
+                    SchemaEdit::Insert { field, .. } | SchemaEdit::Append { field, .. } => {
+                        output.push(if matches!(edit, SchemaEdit::Insert { .. }) {
+                            b'I'
+                        } else {
+                            b'A'
+                        });
+                        schema_field(output, field)?;
+                    }
+                }
+            }
+        }
+        _ => return Err("expected an embedded schema declaration".into()),
+    }
+    Ok(())
+}
+
+fn encode_with_schema(key: &str, nodes: &[RawNode], text_schema: bool) -> Result<Vec<u8>> {
     let mut output = xb_header(key, 0)?;
     for node in nodes {
         if !node.user_fields.is_empty() {
@@ -154,7 +223,11 @@ pub fn encode_document_nodes(key: &str, nodes: &[RawNode]) -> Result<Vec<u8>> {
         }
         output.extend_from_slice(&node.node_type.to_be_bytes());
         if let Some(schema) = &node.first_schema {
-            output.extend_from_slice(&schema.raw_schema);
+            if text_schema {
+                encode_schema(&mut output, schema)?;
+            } else {
+                output.extend_from_slice(&schema.raw_schema);
+            }
         }
         if let Some(length) = node.variable_length {
             output.extend_from_slice(&i32::try_from(length)?.to_be_bytes());
