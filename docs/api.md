@@ -66,7 +66,7 @@ rejects symbolic-link directories/catalogs, validates the internal identifier,
 and caches a successful load. A missing exact file returns `None` to the parser;
 `read_brep(schema_dir=...)` and the CLI report `FileNotFoundError` for that case.
 The repository and package do not contain Siemens catalogs. See
-[Schema catalogs](../README.md#schema-catalogs) for the external-provider path.
+[Schema catalogs](schema-catalogs.md) for the external-provider path.
 
 | Condition | Diagnostic / error |
 |---|---|

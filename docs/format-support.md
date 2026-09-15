@@ -179,7 +179,7 @@ without fallback. For `SCH_<modeller>_<effective>` the required catalog is
 embedded definitions are present. `DirectorySchemaProvider` considers only
 `sch_<provider-schema>.sch_txt`, rejects symbolic links, and does not recurse or
 substitute a nearby version. The human-readable common-header `SCH` in X_T is
-not used for selection. [Schema catalogs](../README.md#schema-catalogs) describes
+not used for selection. [Schema catalogs](schema-catalogs.md) describes
 the external-provider path.
 
 Unsupported default keys use `schema.missing_base_schema`; uncovered built-in
