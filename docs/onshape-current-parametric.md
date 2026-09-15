@@ -5,7 +5,9 @@ Revision 2 of `onshape-sch37102-13006-r2` extends the exact internal key
 surfaces. It contains 35 base types / 292 field groups, with canonical hash
 `c65102214f88d51a41758fde42a3a691cf3532d0f9341533c5f7c86fa53fa93b`.
 This source-tree addition has not been published. Other profiles keep their
-existing identities and definitions.
+existing identities and definitions. The current source profile is revision 3;
+[compound-geometry evidence](onshape-composite.md) describes its additional scope.
+The revision-2 evidence below remains a historical campaign record.
 
 The ten added types are ELLIPSE (32), BSPLINE_VERTICES (45), B_SURFACE (124),
 SURFACE_DATA (125), NURBS_SURF (126), KNOT_MULT (127), KNOT_SET (128), B_CURVE

@@ -190,6 +190,9 @@
             },
             {
               "$ref": "#/$defs/oracle"
+            },
+            {
+              "$ref": "#/$defs/parametric_oracle"
             }
           ]
         },
@@ -319,6 +322,100 @@
           }
         }
       }
+    },
+    "parametric_oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "body_details",
+        "mass_properties",
+        "step",
+        "microversion",
+        "unit",
+        "linear_tolerance",
+        "direction_tolerance",
+        "kind",
+        "native_geometry",
+        "step_surface_checks",
+        "coefficient_tolerance",
+        "knot_tolerance",
+        "max_step_tolerance",
+        "max_source_tolerance"
+      ],
+      "properties": {
+        "body_details": {
+          "$ref": "#/$defs/artifact"
+        },
+        "mass_properties": {
+          "$ref": "#/$defs/artifact"
+        },
+        "step": {
+          "$ref": "#/$defs/artifact"
+        },
+        "microversion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unit": {
+          "const": "m"
+        },
+        "linear_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "direction_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "kind": {
+          "const": "onshape_parametric"
+        },
+        "native_geometry": {
+          "$ref": "#/$defs/artifact"
+        },
+        "step_surface_checks": {
+          "enum": [
+            "required",
+            "report_only"
+          ]
+        },
+        "coefficient_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "knot_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_step_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_source_tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "step_surface_exception": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "step_surface_checks": {
+                "const": "report_only"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "step_surface_exception"
+            ]
+          }
+        }
+      ]
     }
   }
 }

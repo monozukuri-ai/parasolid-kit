@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "parasolid-kit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Schema-aware Python parser for Parasolid X_T and X_B data"
 readme = "README.md"
 license = "MIT AND Apache-2.0"
@@ -68,6 +68,7 @@ module-name = "parasolid_kit._core"
 bindings = "pyo3"
 include = [
   { path = ".gitattributes", format = "sdist" },
+  { path = "CHANGELOG.md", format = "sdist" },
   "src/parasolid_kit/interop/preview/static/*.html",
   "src/parasolid_kit/interop/preview/static/*.js",
   "src/parasolid_kit/interop/preview/static/*.css",
@@ -93,6 +94,8 @@ include = [
   { path = "scripts/verify_release_corpus.py", format = "sdist" },
   { path = "scripts/release_corpus_runtime.py", format = "sdist" },
   { path = "scripts/release_corpus_oracle.py", format = "sdist" },
+  { path = "scripts/release_corpus_parametric.py", format = "sdist" },
+  { path = "scripts/release_geometry.py", format = "sdist" },
   { path = "scripts/verify_isolated_install.py", format = "sdist" },
   { path = "scripts/verify_viewer_install.py", format = "sdist" },
   { path = "scripts/prepare_fuzz_corpus.py", format = "sdist" },

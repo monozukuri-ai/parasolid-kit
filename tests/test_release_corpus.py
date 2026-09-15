@@ -226,6 +226,46 @@ def test_missing_required_oracle_does_not_become_a_skip(corpus):
     assert any("oracle interpreter" in e for e in report["errors"])
 
 
+@pytest.mark.parametrize("problem", ["missing_native", "native_hash", "unexplained_exception"])
+def test_parametric_oracle_requires_hashed_native_geometry_and_explicit_exceptions(corpus, problem):
+    spec = rules(corpus)
+    case = spec["cases"][0]
+    case["stage"] = "brep"
+    oracle = {
+        "kind": "onshape_parametric",
+        "unit": "m",
+        "microversion": "fixture-v1",
+        **{
+            k: copy.deepcopy(case["baseline"])
+            for k in ("step", "body_details", "mass_properties", "native_geometry")
+        },
+        **{
+            k: 1e-10
+            for k in (
+                "linear_tolerance",
+                "direction_tolerance",
+                "coefficient_tolerance",
+                "knot_tolerance",
+                "max_step_tolerance",
+                "max_source_tolerance",
+            )
+        },
+        "step_surface_checks": "required",
+    }
+    if problem == "missing_native":
+        del oracle["native_geometry"]
+    elif problem == "native_hash":
+        oracle["native_geometry"]["sha256"] = "0" * 64
+    else:
+        oracle["step_surface_checks"] = "report_only"
+    case["oracle"] = oracle
+    save_rules(corpus, spec)
+    (corpus / "rust-probe").write_bytes(b"unused")
+    report = verify(corpus)
+    assert report["status"] == "failed"
+    assert report["counts"]["parsed"] == 0
+
+
 def test_worker_checks_cli_exit_and_json(corpus, monkeypatch):
     monkeypatch.setattr(runtime, "cli", lambda *args: (2, {}))
     with pytest.raises(ValueError, match="CLI inspect differs"):

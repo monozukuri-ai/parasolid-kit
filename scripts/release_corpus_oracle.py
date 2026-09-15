@@ -118,7 +118,7 @@ def matches(a, b):
     return True
 
 
-def step_geometry(path):
+def step_geometry(path, *, include_parametric=False):
     from OCP.BRep import BRep_Tool
     from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
     from OCP.BRepCheck import BRepCheck_Analyzer
@@ -228,13 +228,15 @@ def step_geometry(path):
                 majorRadius=s.MajorRadius(),
                 minorRadius=s.MinorRadius(),
             )
+        elif include_parametric:
+            continue
         else:
             raise ValueError("unexpected STEP surface " + str(kind))
         geometry.append(g)
     a, v = GProp_GProps(), GProp_GProps()
     BRepGProp.SurfaceProperties_s(shape, a, Eps=1e-10, SkipShared=False)
     BRepGProp.VolumeProperties_s(shape, v, Eps=1e-10, OnlyClosed=True, SkipShared=False)
-    return dict(
+    result = dict(
         geometry=geometry,
         other_curve_types=other_curve_types,
         points=[xyz(BRep_Tool.Pnt_s(TopoDS.Vertex_s(p))) for p in shapes(TopAbs_VERTEX)],
@@ -243,6 +245,10 @@ def step_geometry(path):
         area=a.Mass(),
         volume=v.Mass(),
     )
+    if include_parametric:
+        result["edges"] = [TopoDS.Edge_s(e) for e in shapes(TopAbs_EDGE)]
+        result["surfaces"] = [BRep_Tool.Surface_s(TopoDS.Face_s(f)) for f in shapes(TopAbs_FACE)]
+    return result
 
 
 def source_geometry(model):
@@ -297,6 +303,14 @@ def source_geometry(model):
 def verify(root, path, specification):
     global POSITION_TOL, DIRECTION_TOL
     from parasolid_kit import read_brep
+
+    if specification["kind"] == "onshape_parametric":
+        # The -I worker intentionally excludes cwd/PYTHONPATH. Add only this
+        # trusted runner directory for its sibling numerical oracle modules.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from release_corpus_parametric import verify as verify_parametric
+
+        return verify_parametric(root, path, specification)
 
     require(
         specification["kind"] == "onshape_analytic" and specification["unit"] == "m",

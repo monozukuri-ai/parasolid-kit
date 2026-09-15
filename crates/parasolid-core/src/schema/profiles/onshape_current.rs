@@ -1,12 +1,12 @@
-//! Exact Onshape 37.1 embedded analytic and NURBS subset over the reviewed 13006 base.
+//! Exact Onshape 37.1 compound-geometry subset over the reviewed 13006 base.
 
 use crate::schema::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
 use crate::{BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, ParseError};
 
 pub(crate) const PROFILE_SHA256: &str =
-    "c65102214f88d51a41758fde42a3a691cf3532d0f9341533c5f7c86fa53fa93b";
+    "3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa";
 
-/// Construct the exact Onshape 37.1 analytic and NURBS subset.
+/// Construct the exact Onshape 37.1 analytic, NURBS and curve-wrapper subset.
 ///
 /// This profile does not select other modeller builds or the non-embedded V37 key.
 ///
@@ -15,10 +15,10 @@ pub(crate) const PROFILE_SHA256: &str =
 pub fn onshape_sch37102_13006() -> Result<BuiltinSchemaProfile, ParseError> {
     BuiltinSchemaProfile::new_embedded(
         BuiltinProfileMetadata {
-            profile_id: "onshape-sch37102-13006-r2".into(),
-            revision: 2,
+            profile_id: "onshape-sch37102-13006-r3".into(),
+            revision: 3,
             provider_schema: "13006".into(),
-            producer_scope: "Onshape 37.1.212 analytic solids and NURBS sheets".into(),
+            producer_scope: "Onshape 37.1.212 compound solids and NURBS sheets".into(),
             coverage: BuiltinProfileCoverage::VerifiedSubset,
             evidence_manifest_sha256: None,
             profile_sha256: PROFILE_SHA256.into(),
@@ -26,26 +26,29 @@ pub fn onshape_sch37102_13006() -> Result<BuiltinSchemaProfile, ParseError> {
         vec!["SCH_3701212_37102_13006".into()],
         definitions(),
         vec![],
-        vec![],
+        // Membership-only audit of the complete 13006 type table: these types
+        // are absent. Their complete definitions must come from the input.
+        // 176 retains the multi-part transmit block; it adds no assembly roles.
+        vec![176, 204],
     )
 }
 
 pub(crate) fn definitions() -> Vec<TypeDefinition> {
     // Explicit membership: future 13006 additions do not expand this profile.
     let types = [
-        12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 50, 51, 52, 53, 70, 74, 79, 80, 81, 82, 83,
-        84, 98,
+        12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 50, 51, 52, 53, 70, 74, 79, 80,
+        81, 82, 83, 84, 98, 133, 141,
     ];
     let mut definitions: Vec<_> = super::sch13006_definitions()
         .into_iter()
         .filter(|d| types.contains(&d.node_type))
         .collect();
-    // Ellipse and direct B-curve/B-surface families are reviewed separately from
-    // intersection, trimmed and surface-parametric curves, which remain unknown.
+    // Current-key producer pairs exercise these reviewed V13 base definitions.
+    // Membership remains explicit rather than inheriting future V13 additions.
     definitions.extend(
         super::sch13006_sp_curve_definitions()
             .into_iter()
-            .filter(|d| [45, 127, 128, 134, 135, 136].contains(&d.node_type)),
+            .filter(|d| [45, 127, 128, 134, 135, 136, 137].contains(&d.node_type)),
     );
     definitions.extend(
         super::sch13006_bspline_surface_definitions()

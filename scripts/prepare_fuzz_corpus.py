@@ -199,6 +199,7 @@ def build_seeds() -> dict[str, bytes]:
         ("v13", "SCH_1300000_13006"),
         ("icad", "SCH_3000310_30000_13006"),
         ("solidworks", "SCH_3701229_37102_13006"),
+        ("onshape-current", "SCH_3701212_37102_13006"),
     ):
         text_header, binary_header = _headers(key)
         text, binary = _body(key, region=101)
@@ -257,8 +258,13 @@ def build_seeds() -> dict[str, bytes]:
     seeds["wrong-exact-key-binary"] = seeds["solidworks-world-binary"].replace(
         b"SCH_3701229_37102_13006", b"SCH_3701230_37102_13006"
     )
-    # Current Onshape analytic and direct NURBS layouts; intersection stays excluded.
+    # Current Onshape analytic, direct NURBS and compound-geometry layouts.
     current = "SCH_3701212_37102_13006"
+    for name in ("brep-embedded-intersection", "embedded-trimmed", "embedded-full204"):
+        for encoding in ("text", "binary"):
+            seeds[f"onshape-current-{name}-{encoding}"] = seeds[f"{name}-{encoding}"].replace(
+                b"SCH_3000310_30000_13006", current.encode()
+            )
     for encoding, header, body in zip(
         ("text", "binary"), _headers(current), _body(current), strict=True
     ):

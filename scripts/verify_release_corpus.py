@@ -144,6 +144,8 @@ def load_cases(
             )
             for key in ("step", "body_details", "mass_properties"):
                 check_artifact(root, case["oracle"][key], max_file_size)
+            if case["oracle"]["kind"] == "onshape_parametric":
+                check_artifact(root, case["oracle"]["native_geometry"], max_file_size)
         if "pair_id" in case:
             require(case["pair_id"] in by_id, "required pair is missing")
             other = by_id[case["pair_id"]]
