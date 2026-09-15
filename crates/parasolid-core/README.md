@@ -42,7 +42,7 @@ println!("{} bodies; complete={}", brep.bodies.len(), brep.complete);
 # }
 ```
 
-The four compiled profiles are listed in the
+The five compiled profiles are listed in the
 [shared support matrix](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/format-support.md#supported-profiles),
 with exact keys, revisions, hashes, and separate raw/B-Rep/geometry evidence.
 A supported header, schema key, or raw record does not imply complete

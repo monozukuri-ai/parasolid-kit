@@ -64,8 +64,8 @@ impl RoleAccess {
                         && key == "SCH_3701229_37102_13006"
                         && profile_sha256
                             == crate::schema::profiles::SOLIDWORKS_PROFILE_SHA256)
-                    || (profile_id == "onshape-sch37102-13006-r2"
-                        && *profile_revision == 2
+                    || (profile_id == "onshape-sch37102-13006-r3"
+                        && *profile_revision == 3
                         && key == "SCH_3701212_37102_13006"
                         && profile_sha256
                             == crate::schema::profiles::ONSHAPE_CURRENT_PROFILE_SHA256)) =>

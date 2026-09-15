@@ -47,8 +47,8 @@ for key, profile_id, revision, digest in (
      "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb"),
     ("SCH_3000310_30000_13006", "icad-sch30000-13006-r5", 5,
      "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5"),
-    ("SCH_3701212_37102_13006", "onshape-sch37102-13006-r2", 2,
-     "c65102214f88d51a41758fde42a3a691cf3532d0f9341533c5f7c86fa53fa93b"),
+    ("SCH_3701212_37102_13006", "onshape-sch37102-13006-r3", 3,
+     "3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa"),
 ):
     expected_profiles[key] = {
         "kind": "builtin", "profile_id": profile_id,
@@ -115,9 +115,9 @@ from parasolid_kit import (
     read_brep,
 )
 assert Path(parasolid_kit.__file__).resolve().is_relative_to(installed_environment)
-assert parasolid_kit.__version__ == "0.1.0"
+assert parasolid_kit.__version__ == "0.2.0"
 from parasolid_kit import _core
-assert _core.CORE_VERSION == "0.1.0"
+assert _core.CORE_VERSION == "0.2.0"
 assert callable(read_brep)
 assert BrepSummary.__module__ == "parasolid_kit.summary"
 assert ParsedBrep.__module__ == "parasolid_kit.summary"

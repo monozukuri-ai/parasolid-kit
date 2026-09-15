@@ -6,7 +6,10 @@ functions validate their arguments and return immutable typed values.
 
 Starting with `0.1.0`, patch releases in the `0.1.x` series preserve the
 documented public Python API. Incompatible API changes require a new minor
-series. This guarantee does not apply retroactively to development releases.
+series. The same patch-compatibility policy applies within `0.2.x`; the
+[0.2.0 migration notes](../CHANGELOG.md#migration-from-010) describe changed
+profile identities, JSON fields and metric availability. This guarantee does
+not apply retroactively to development releases.
 Use structured diagnostic codes for matching; human-readable messages may change.
 
 ## Inputs and schema selection
@@ -29,7 +32,7 @@ profiles supply the reviewed 13006 base before applying stream edits. Runtime,
 build, and installation require no external catalog; the parser does not use
 the network. Development-only catalog comparisons and membership evidence
 remain documented. The current source tree adds the exact Onshape internal key
-`SCH_3701212_37102_13006` for the analytic and direct NURBS subset documented in the matrix;
+`SCH_3701212_37102_13006` for the analytic, direct NURBS and compound subset documented in the matrix;
 this addition is not yet published. See [profile provenance](builtin-profiles.md) for
 the separate producer, geometry, and encoding validation scopes.
 

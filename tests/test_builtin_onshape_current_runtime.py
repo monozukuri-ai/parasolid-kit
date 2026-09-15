@@ -21,11 +21,11 @@ from tests.test_builtin_embedded_runtime import EMBEDDED, general_body
 KEY = "SCH_3701212_37102_13006"
 PROFILE = {
     "kind": "builtin",
-    "profile_id": "onshape-sch37102-13006-r2",
-    "profile_revision": 2,
+    "profile_id": "onshape-sch37102-13006-r3",
+    "profile_revision": 3,
     "schema_key": KEY,
     "coverage": "verified_subset",
-    "profile_sha256": "c65102214f88d51a41758fde42a3a691cf3532d0f9341533c5f7c86fa53fa93b",
+    "profile_sha256": "3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa",
 }
 
 
@@ -113,7 +113,7 @@ def test_explicit_empty_provider_and_neighbor_keys_do_not_fallback(encoding):
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
-@pytest.mark.parametrize("kind", [3, 38, 40, 41, 133, 137, 141, 204])
+@pytest.mark.parametrize("kind", [3, 101, 110, 177, 205])
 def test_types_outside_reviewed_subset_fail_even_with_full_declarations(encoding, kind):
     # Zero-field full declaration cannot establish unknown base membership.
     if encoding == "x_t":

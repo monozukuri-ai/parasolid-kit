@@ -1,7 +1,7 @@
 # Release verification
 
-Python and Rust releases use the same candidate commit. Version `0.1.0rc1` maps
-to Rust `0.1.0-rc.1` and tag `v0.1.0rc1`; the stable pair is `0.1.0` / `0.1.0`.
+Python and Rust releases use the same candidate commit. Version `0.2.0rc1` maps
+to Rust `0.2.0-rc.1` and tag `v0.2.0rc1`; the stable pair is `0.2.0` / `0.2.0`.
 `scripts/verify_release.py` (Python 3.11+) checks the manifests, lockfiles, facade
 and tag. Update the fixed expectations in artifact/runtime tests when changing
 versions. A stable version requires a fresh candidate run and fresh evidence.
@@ -31,6 +31,15 @@ versions. A stable version requires a fresh candidate run and fresh evidence.
    releasing maintainer, not an independent signature or a proof of arbitrary
    geometry support. Do not upload private reports, filenames or CAD inputs.
 
+For 0.2.0, the private case set also includes the current-key analytic,
+ellipse/direct-NURBS and [compound-geometry](onshape-composite.md) campaigns,
+with both producer encodings. Use `onshape_parametric` for NURBS and compound
+cases, retaining the frozen per-family exceptions and strict-distance failures
+in every artifact report. The older M9.2 corpus alone does not exercise the
+new profile coverage. Freeze the parser, runtime, oracle, tolerances and recipes
+before collecting fresh holdouts; record the freeze hashes and subsequent
+immutable Onshape Version. Rerun the same case IDs against each cold install.
+
 ```json
 {
   "schema_version": 1,
@@ -38,8 +47,8 @@ versions. A stable version requires a fresh candidate run and fresh evidence.
   "source_sha": "<40 lowercase hex characters>",
   "candidate_run_id": 123,
   "candidate_run_attempt": 1,
-  "python_version": "0.1.0rc1",
-  "rust_version": "0.1.0-rc.1",
+  "python_version": "0.2.0rc1",
+  "rust_version": "0.2.0-rc.1",
   "gates": {
     "private_wheel": {"status": "passed", "report_sha256": "<sha256>"},
     "private_sdist": {"status": "passed", "report_sha256": "<sha256>"},
@@ -53,7 +62,7 @@ versions. A stable version requires a fresh candidate run and fresh evidence.
 Validate the receipt from the clean candidate checkout:
 
 ```bash
-python scripts/verify_release.py --tag v0.1.0rc1 \
+python scripts/verify_release.py --tag v0.2.0rc1 \
   --receipt /private/release-verification.json --artifacts /private/candidate
 ```
 

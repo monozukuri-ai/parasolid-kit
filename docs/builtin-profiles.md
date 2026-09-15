@@ -196,7 +196,8 @@ They are not independent holdouts for that new profile.
 
 ## Onshape current embedded analytic profile
 
-The current source tree uses revision 2 (35 types / 292 field groups); see
+The current source tree uses revision 3 (41 types / 339 field groups); see
+[compound-geometry evidence](onshape-composite.md) and the earlier
 [ellipse and NURBS evidence](onshape-current-parametric.md). The revision-1
 identity and campaign below are retained as historical evidence.
 

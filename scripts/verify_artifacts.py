@@ -21,10 +21,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "parasolid-kit"
 IMPORT_NAME = "parasolid_kit"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 LICENSE_EXPRESSION = "MIT AND Apache-2.0"
 RUST_PACKAGE_NAME = "parasolid-python"
-RUST_PACKAGE_VERSION = "0.1.0"
+RUST_PACKAGE_VERSION = "0.2.0"
 RUST_SBOM_FILENAME = f"{RUST_PACKAGE_NAME}.cyclonedx.json"
 APPROVED_EXTRAS = frozenset({"cadquery", "occt"})
 APPROVED_EXTRA_REQUIREMENTS = {
@@ -127,6 +127,7 @@ SDIST_ROOT_FILES = {
     "COPYING",
     "PKG-INFO",
     "README.md",
+    "CHANGELOG.md",
     "pyproject.toml",
     "uv.lock",
 }
@@ -154,6 +155,8 @@ SDIST_SCRIPT_FILES = frozenset(
         "scripts/verify_release_corpus.py",
         "scripts/release_corpus_runtime.py",
         "scripts/release_corpus_oracle.py",
+        "scripts/release_corpus_parametric.py",
+        "scripts/release_geometry.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
         "scripts/verify_optional_interop_i5.py",
@@ -730,6 +733,8 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "scripts/verify_release_corpus.py",
         "scripts/release_corpus_runtime.py",
         "scripts/release_corpus_oracle.py",
+        "scripts/release_corpus_parametric.py",
+        "scripts/release_geometry.py",
         "scripts/verify_optional_install.py",
         "scripts/verify_optional_interop_i0.py",
         "scripts/verify_optional_interop_i5.py",

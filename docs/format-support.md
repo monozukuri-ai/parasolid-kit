@@ -41,7 +41,7 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_3000000_30000` | `onshape-sch30000-r3` / 3 | 44 / 356 | `67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4` |
 | `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | 40 / 327 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` / 5 | 30 / 240 | `1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5` |
-| `SCH_3701212_37102_13006` | `onshape-sch37102-13006-r2` / 2 | 35 / 292 | `c65102214f88d51a41758fde42a3a691cf3532d0f9341533c5f7c86fa53fa93b` |
+| `SCH_3701212_37102_13006` | `onshape-sch37102-13006-r3` / 3 | 41 / 339 | `3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa` |
 | `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` / 1 | 41 / 338 | `5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480` |
 
 The following cells summarize recorded local validation, not a new CAD capture
@@ -53,7 +53,7 @@ public CI. The detailed evidence and its retained failures are in
 | Profile scope | Raw decoding | Source B-Rep | Independent geometry evidence | OCCT / STEP / preview | Native saved state |
 |---|---|---|---|---|---|
 | Onshape V30 | Paired X_T / neutral X_B for basic solids, spheres, elliptical edges, a frustum and a ring torus; revision-3 complex X_T has exact-catalog parity | Topology, analytic, NURBS and curve-wrapper definitions in the reviewed subset | Producer / STEP comparisons, including two new analytic models under revision 3; complex parametric geometry has no new independent producer campaign; earlier metric failures remain | Planar box/prism validation plus bounded UV/intersection conversion and preview of one local complex model; source-tolerance warnings remain | CAD container/configuration reconstruction is outside the parser |
-| Onshape current (`SCH_3701212_37102_13006`) | Analytic solids plus [elliptical edges and direct NURBS sheets](onshape-current-parametric.md) in paired X_T / X_B | Analytic topology, direct NURBS curves/surfaces, homogeneous coefficients and U/V periodic overlap | Native / STEP analytic evidence and sampled NURBS coefficient/geometry evidence; strict ellipse integrated metrics remain unverified | No new general curved-solid or rational/periodic NURBS adapter conversion | CAD container/configuration reconstruction is outside the parser |
+| Onshape current (`SCH_3701212_37102_13006`) | Paired X_T / X_B for analytic solids, direct NURBS sheets and [compound shapes](onshape-composite.md) | Analytic/NURBS geometry, intersection/trimmed/SP_CURVE wrappers and multiple source bodies | Native coefficients and sampled geometry; auxiliary-surface evidence is bounded; strict STEP and integrated-metric failures remain recorded | No new general curved-solid or rational/periodic NURBS adapter conversion | CAD container/configuration reconstruction is outside the parser |
 | Onshape V13 | Paired X_T / neutral X_B, including the documented NURBS / SP_CURVE campaigns | Topology, analytic and bounded NURBS / wrapper definitions | Producer / STEP and sampled surface evidence; recorded curve-tolerance failures remain | Bounded open nonrational UV and intersection conversion; rational/periodic NURBS remain unsupported | CAD container/configuration reconstruction is outside the parser |
 | iCAD embedded V30 | 17 neutral X_B streams from one container; embedded X_T tests are synthetic | All 17 reach complete source B-Rep/topology | No independent CAD/STEP oracle; line-trim endpoint checks are internal consistency evidence | No real iCAD conversion validation; source B-Rep success does not establish conversion | `.icd` extraction and saved-state selection are caller responsibilities; not established by these streams |
 | SolidWorks 2026 partitions | Four neutral X_B partitions; associated deltas stop at unknown base type 3 | Four complete partition B-Reps, including one three-body partition | Existing sldkit point/FIN/NURBS parity; no independent CAD/STEP evaluation repeated for this profile | No real partition conversion validation | Delta application and final saved configuration reconstruction remain unsupported |
@@ -62,19 +62,21 @@ Runtime, build, and installation of the built-in parser require no external
 schema catalog or CAD installation. Normal build/package dependencies are
 separate from parser runtime inputs. The implementation does not download
 catalogs. Development provenance includes optional catalog comparisons and a
-one-time catalog-header audit for type 204's absence from base 13006; see
+membership-only audits for types 176 and 204 in base 13006; see
 [that evidence boundary](builtin-profiles.md#embedded-intersection-data-revision-4).
 Historical catalog comparisons did not generate the profiles. The V30 revision-3
 developer audit and its version-specific definitions are documented separately.
 
 ### Detailed verified scope
 
-The source tree adds `onshape-sch37102-13006-r2` for current Onshape exports
+The source tree adds `onshape-sch37102-13006-r3` for current Onshape exports
 whose internal key is exactly `SCH_3701212_37102_13006`. This unreleased profile
-covers 35 base types / 292 field groups for analytic solids, elliptical edges
-and direct NURBS curves/surfaces, including rational and U/V-periodic sheets.
-Intersection/trimmed/SP_CURVE families are outside this profile. See the
-[current-key parametric evidence and boundaries](onshape-current-parametric.md).
+covers 41 base types / 339 field groups: analytic solids, elliptical edges,
+direct NURBS curves/surfaces, intersections, trimmed and surface-parametric
+curves. Fully declared types 176 and 204 are accepted based on their confirmed
+absence from base 13006. Multi-body B-Rep does not establish assembly semantics.
+See the [compound-geometry evidence and retained accuracy failures](onshape-composite.md)
+and the earlier [direct NURBS evidence](onshape-current-parametric.md).
 
 
 For V30, default parsing uses `onshape-sch30000-r3` revision 3 only for the exact internal

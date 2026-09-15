@@ -10,7 +10,7 @@ The defaults are configuration values, not a measured capacity guarantee.
 
 The parse target runs both strict parsing and B-Rep mapping with at most 256
 diagnostics, while retaining the existing partial-reader scans. Synthetic seeds
-cover all four compiled profiles, valid BODY/REGION/SHELL mapping, analytic and
+cover all five compiled profiles, valid BODY/REGION/SHELL mapping, analytic and
 trimmed geometry, schema Copy/Delete/Insert/Append, unknown membership, array
 and node limits, non-finite values, cycles and truncation. The seed tests require
 actual parse and B-Rep results; retaining source bytes is not a success criterion.

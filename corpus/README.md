@@ -104,6 +104,20 @@ major-radius variants remain outside this oracle. This runner capability does
 not establish producer coverage for a new profile. Record the actual captured
 X_T/X_B pair, native state and independent STEP outcome separately.
 
+The `onshape_parametric` oracle additionally requires a hashed native-geometry
+artifact from that immutable state. It compares exposed native NURBS
+coefficients and topology, independently evaluates spline definitions, and
+checks intersection/trim samples against supporting surfaces and STEP edges.
+Auxiliary intersection surfaces have no claimed native coefficient oracle.
+The report distinguishes strict distance checks from declared STEP uncertainty
+and the source model's maximum edge tolerance. Both declared tolerances have
+explicit upper bounds in the sidecar. A `report_only` STEP surface check needs a
+recorded exception reason; a failed distance remains visible and does not
+certify STEP accuracy. This oracle certifies neither curved metrics nor
+continuous error bounds. See the [compound evidence](../docs/onshape-composite.md)
+for the measured limitations. The optional OCP oracle environment remains
+separate from the parser-only runtime.
+
 Known diagnostics have their exact code and offset checked and are counted
 separately from parsed inputs. `usage: holdout` records provenance supplied by
 the maintainer; the label alone does not prove that an input was unseen.

@@ -15,10 +15,10 @@ fn current_profile_has_bounded_membership_and_exact_identity() -> support::Resul
         .provider_for_key(&SchemaKey::parse(KEY)?)
         .ok_or("missing profile")?;
     let profile = provider.profile();
-    assert_eq!(profile.definitions().len(), 35);
+    assert_eq!(profile.definitions().len(), 41);
     assert_eq!(
         profile.definitions().map(|d| d.fields.len()).sum::<usize>(),
-        292
+        339
     );
     assert_eq!(
         profile.metadata().profile_sha256,
@@ -28,7 +28,7 @@ fn current_profile_has_bounded_membership_and_exact_identity() -> support::Resul
         profile.definition(54).ok_or("missing TORUS")?.fields.len(),
         12
     );
-    for kind in [3, 38, 40, 41, 133, 137, 141, 204] {
+    for kind in [3, 101, 110, 177, 205] {
         assert_eq!(
             provider.lookup_type("13006", kind),
             SchemaTypeLookup::Unknown

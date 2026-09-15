@@ -56,7 +56,7 @@ python -m pip install "parasolid-kit==0.1.0"
 Alternatively, install a downloaded wheel directly:
 
 ```bash
-python -m pip install /path/to/parasolid_kit-0.1.0-cp310-abi3-PLATFORM.whl
+python -m pip install /path/to/parasolid_kit-0.2.0-cp310-abi3-PLATFORM.whl
 ```
 
 Header inspection works immediately after installation. Parsing and source
@@ -222,7 +222,7 @@ selects a compiled profile by the exact internal stream key. The
 [shared support matrix](docs/format-support.md#supported-profiles) lists all
 keys, profile revisions, definition hashes, and stage-specific evidence.
 
-The source tree also includes an [Onshape current-key analytic and NURBS profile](docs/onshape-current-parametric.md)
+The source tree also includes an [Onshape current-key compound-geometry profile](docs/onshape-composite.md)
 for `SCH_3701212_37102_13006`; this addition is not yet in a published release.
 
 The [SolidWorks partition profile](docs/solidworks-partitions.md) reads a
