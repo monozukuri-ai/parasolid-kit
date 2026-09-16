@@ -42,7 +42,10 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           if [[ -n "$RELEASE_TAG" ]]; then
-            gh release download "$RELEASE_TAG" --pattern release-verification.json --dir receipt
+            if ! gh release download "$RELEASE_TAG" --pattern release-verification.json --dir receipt; then
+              echo "::error::Could not download release-verification.json for $RELEASE_TAG. Attach the verified receipt for this exact tag commit before retrying. See docs/releasing.md#recovering-a-release-published-without-a-receipt."
+              exit 1
+            fi
             python scripts/verify_release.py --tag "$RELEASE_TAG" \
               --receipt receipt/release-verification.json --github-output "$GITHUB_OUTPUT"
           else

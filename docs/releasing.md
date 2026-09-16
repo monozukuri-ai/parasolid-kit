@@ -94,3 +94,29 @@ If one registry upload fails, record the partial publication and inspect the
 registry before retrying. Do not overwrite or blindly re-upload a used version.
 Public inputs, package contents and declared support remain bounded by
 [format support](format-support.md) and [resource validation](resource-validation.md).
+
+## Recovering a release published without a receipt
+
+`gh release download ... --pattern release-verification.json` reports
+`no assets to download` when the release has no assets. Check the release's
+assets first; publishing the GitHub Release does not generate its receipt.
+
+The tag, receipt's `source_sha` and candidate run's commit must match exactly.
+A different commit with identical files still requires a candidate run at the
+tagged commit. Create a `release/*` branch at that commit and complete the
+candidate verification above. Keep the published tag fixed, and generate the
+receipt from the actual reports and downloaded artifacts.
+
+From the clean tagged checkout, validate and attach the sanitized receipt:
+
+```bash
+python scripts/verify_release.py --tag v0.2.0 \
+  --receipt /private/release-verification.json --artifacts /private/candidate
+gh release upload v0.2.0 /private/release-verification.json
+```
+
+Complete Rust publication and verify its registry checksum before retrying the
+failed Python publication run. Attaching an asset does not retrigger the
+`release: published` event. Inspect both registries for partial publication,
+then use `gh run rerun <failed-publication-run-id> --failed`. Rerun the publication
+workflow only; rerunning the candidate would invalidate the receipt's attempt.
