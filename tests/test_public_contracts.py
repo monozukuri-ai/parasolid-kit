@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+from textwrap import dedent
+
+from scripts.verify_release import runtime_version_check
 from tests.support.import_contract import assert_dependency_free_imports
 
 
 def test_public_contracts_import_without_optional_cad_dependencies() -> None:
     assert_dependency_free_imports(
-        """
+        runtime_version_check()
+        + dedent("""
         import parasolid_kit
         from parasolid_kit import _core, interop, schema
         from parasolid_kit.interop import occt
 
         limits = parasolid_kit.ParseLimits(max_nodes=100)
 
-        assert parasolid_kit.__version__ == "0.3.0"
         assert limits.max_nodes == 100
         assert parasolid_kit.DEFAULT_PARSE_LIMITS.max_file_size > 0
         assert callable(parasolid_kit.inspect_xb)
@@ -48,7 +51,6 @@ def test_public_contracts_import_without_optional_cad_dependencies() -> None:
         assert callable(occt.to_occt)
         assert callable(occt.write_step)
         assert occt.OcctConversionOptions(source_unit="m").applied_scale == 1000.0
-        assert _core.CORE_VERSION == "0.3.0"
         assert "_core" not in parasolid_kit.__all__
-        """
+        """)
     )

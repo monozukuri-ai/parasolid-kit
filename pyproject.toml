@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "parasolid-kit"
-version = "0.3.0"
+dynamic = ["version"]
 description = "Schema-aware Python parser for Parasolid X_T and X_B data"
 readme = "README.md"
 license = "MIT AND Apache-2.0"
@@ -48,6 +48,8 @@ dev = [
 ]
 
 [tool.uv]
+# The package version comes from Cargo.toml, so a bump must invalidate metadata.
+cache-keys = [{ file = "pyproject.toml" }, { file = "Cargo.toml" }]
 # uv resolves every optional extra into one universal lock. Limit that
 # maintainer lock to the Python range shared by the CadQuery profile; published
 # package metadata remains >=3.10 and keeps the CadQuery requirement unmarked.
@@ -89,6 +91,7 @@ include = [
   { path = "viewer/tests/fixtures/sheet/*", format = "sdist" },
   { path = "docs/**/*", format = "sdist" },
   { path = "scripts/verify_release.py", format = "sdist" },
+  { path = "scripts/bump_version.py", format = "sdist" },
   { path = "scripts/verify_artifacts.py", format = "sdist" },
   { path = "scripts/verify_corpus.py", format = "sdist" },
   { path = "scripts/verify_release_corpus.py", format = "sdist" },

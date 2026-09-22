@@ -18,13 +18,17 @@ from email.parser import BytesParser
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+if __package__:
+    from .verify_release import source_versions
+else:
+    from verify_release import source_versions
+
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "parasolid-kit"
 IMPORT_NAME = "parasolid_kit"
-VERSION = "0.3.0"
+VERSION, RUST_PACKAGE_VERSION = source_versions()
 LICENSE_EXPRESSION = "MIT AND Apache-2.0"
 RUST_PACKAGE_NAME = "parasolid-python"
-RUST_PACKAGE_VERSION = "0.3.0"
 RUST_SBOM_FILENAME = f"{RUST_PACKAGE_NAME}.cyclonedx.json"
 APPROVED_EXTRAS = frozenset({"cadquery", "occt"})
 APPROVED_EXTRA_REQUIREMENTS = {
@@ -146,6 +150,7 @@ SDIST_SCRIPT_FILES = frozenset(
     {
         "scripts/benchmark_parser.py",
         "scripts/verify_release.py",
+        "scripts/bump_version.py",
         "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_artifacts.py",
@@ -726,6 +731,7 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "pyproject.toml",
         "scripts/benchmark_parser.py",
         "scripts/verify_release.py",
+        "scripts/bump_version.py",
         "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_isolated_install.py",
@@ -784,6 +790,8 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         pkg_info = _read_sdist_file(path, "PKG-INFO")
         if pkg_info is not None:
             metadata = BytesParser().parsebytes(pkg_info)
+            if metadata.get("Version") != VERSION:
+                errors.append(f"unexpected project version: {metadata.get('Version')}")
             license_expression = _license_expression(metadata)
             metadata_license_file = "LICENSE" in metadata.get_all("License-File", [])
             metadata_apache_license = APACHE_LICENSE_PATH in metadata.get_all("License-File", [])

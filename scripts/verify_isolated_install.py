@@ -12,6 +12,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+if __package__:
+    from .verify_release import runtime_version_check
+else:
+    from verify_release import runtime_version_check
+
 ROOT = Path(__file__).resolve().parents[1]
 
 # Installed before package import in every runtime subprocess. Build/install may
@@ -115,9 +120,6 @@ from parasolid_kit import (
     read_brep,
 )
 assert Path(parasolid_kit.__file__).resolve().is_relative_to(installed_environment)
-assert parasolid_kit.__version__ == "0.3.0"
-from parasolid_kit import _core
-assert _core.CORE_VERSION == "0.3.0"
 assert callable(read_brep)
 assert BrepSummary.__module__ == "parasolid_kit.summary"
 assert ParsedBrep.__module__ == "parasolid_kit.summary"
@@ -303,7 +305,16 @@ def verify_install(
         runtime = [str(environment_python), "-I", "-c"]
         runtime_args = [str(ROOT), str(environment_path)]
         imported = _run(
-            [*runtime, RUNTIME_GUARD_CODE + "\n" + BUILTIN_CODE + "\n" + SMOKE_CODE, *runtime_args],
+            [
+                *runtime,
+                RUNTIME_GUARD_CODE
+                + "\n"
+                + runtime_version_check()
+                + BUILTIN_CODE
+                + "\n"
+                + SMOKE_CODE,
+                *runtime_args,
+            ],
             cwd=work_dir,
             environment=environment,
         )

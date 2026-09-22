@@ -16,6 +16,8 @@ from scripts.verify_artifacts import (
     EXPECTED_APACHE_LICENSE_BYTES,
     EXPECTED_LICENSE_BYTES,
     PARTIAL_SOURCE_FILES,
+    RUST_PACKAGE_VERSION,
+    VERSION,
     VIEWER_ASSET_LICENSE,
     VIEWER_ASSET_SHA256,
     VIEWER_ASSET_VERSION,
@@ -24,7 +26,7 @@ from scripts.verify_artifacts import (
     verify_wheel,
 )
 
-DIST_INFO = "parasolid_kit-0.3.0.dist-info"
+DIST_INFO = f"parasolid_kit-{VERSION}.dist-info"
 RUST_SBOM = f"{DIST_INFO}/sboms/parasolid-python.cyclonedx.json"
 ROOT = Path(__file__).resolve().parents[1]
 VIEWER_ASSETS = {name: (ROOT / "src" / name).read_bytes() for name in VIEWER_ASSET_SHA256}
@@ -44,7 +46,7 @@ def _metadata(
     lines = [
         "Metadata-Version: 2.4",
         "Name: parasolid-kit",
-        "Version: 0.3.0",
+        f"Version: {VERSION}",
         "Requires-Python: >=3.10",
         f"License-Expression: {license_expression}",
         "License-File: LICENSE",
@@ -73,7 +75,7 @@ def _record(files: dict[str, bytes]) -> bytes:
 
 def _wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     files = {
-        "parasolid_kit/__init__.py": b'__version__ = "0.3.0"\n',
+        "parasolid_kit/__init__.py": f"__version__ = {VERSION!r}\n".encode(),
         "parasolid_kit/_core.abi3.so": b"native-placeholder",
         f"{DIST_INFO}/METADATA": _metadata(),
         f"{DIST_INFO}/WHEEL": b"Wheel-Version: 1.0\nRoot-Is-Purelib: false\n",
@@ -122,6 +124,7 @@ def _sdist(
         "pyproject.toml",
         "scripts/benchmark_parser.py",
         "scripts/verify_release.py",
+        "scripts/bump_version.py",
         "scripts/run_fuzz.py",
         "scripts/prepare_fuzz_corpus.py",
         "scripts/verify_isolated_install.py",
@@ -184,7 +187,7 @@ def _sdist(
         del files[name]
     with tarfile.open(path, "w:gz") as archive:
         for relative, payload in files.items():
-            name = f"parasolid_kit-0.3.0/{relative}"
+            name = f"parasolid_kit-{VERSION}/{relative}"
             info = tarfile.TarInfo(name)
             info.size = len(payload)
             archive.addfile(info, io.BytesIO(payload))
@@ -207,6 +210,21 @@ def test_wheel_gate_accepts_expected_files_and_license(tmp_path: Path) -> None:
     assert report["viewer_assets"] == sorted(VIEWER_ASSET_SHA256)
 
 
+@pytest.mark.parametrize("kind", ["wheel", "sdist"])
+def test_artifact_gate_rejects_a_stale_package_version(tmp_path: Path, kind: str) -> None:
+    metadata = _metadata().replace(f"Version: {VERSION}".encode(), b"Version: 0.0.0")
+    if kind == "wheel":
+        artifact = tmp_path / "package.whl"
+        _wheel(artifact, extra={f"{DIST_INFO}/METADATA": metadata})
+        report = verify_wheel(artifact)
+    else:
+        artifact = tmp_path / "package.tar.gz"
+        _sdist(artifact, extra={"PKG-INFO": metadata})
+        report = verify_sdist(artifact)
+    assert report["status"] == "failed"
+    assert "unexpected project version: 0.0.0" in report["errors"]
+
+
 def test_wheel_gate_rejects_native_cad_data(tmp_path: Path) -> None:
     wheel = tmp_path / "package.whl"
     _wheel(wheel, extra={"parasolid_kit/private-model.x_t": b"not distributable"})
@@ -226,7 +244,7 @@ def test_wheel_gate_accepts_maturin_rust_sbom(tmp_path: Path) -> None:
         "metadata": {
             "component": {
                 "name": "parasolid-python",
-                "version": "0.3.0",
+                "version": RUST_PACKAGE_VERSION,
                 "licenses": [{"expression": "MIT AND Apache-2.0"}],
             }
         },

@@ -11,6 +11,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+if __package__:
+    from .verify_release import runtime_version_check
+else:
+    from verify_release import runtime_version_check
+
 ROOT = Path(__file__).resolve().parents[1]
 I0_SPIKE = ROOT / "scripts" / "verify_optional_interop_i0.py"
 I5_ADAPTER = ROOT / "scripts" / "verify_optional_interop_i5.py"
@@ -30,9 +35,6 @@ profile = sys.argv[1]
 import parasolid_kit
 import parasolid_kit.interop as interop
 
-assert parasolid_kit.__version__ == "0.3.0"
-from parasolid_kit import _core
-assert _core.CORE_VERSION == "0.3.0"
 assert "OCP" not in sys.modules
 assert "cadquery" not in sys.modules
 before = interop.installed_interop_distributions()
@@ -161,9 +163,6 @@ import sys
 import parasolid_kit
 from parasolid_kit import interop
 
-assert parasolid_kit.__version__ == "0.3.0"
-from parasolid_kit import _core
-assert _core.CORE_VERSION == "0.3.0"
 assert sys.platform == "win32"
 assert "OCP" not in sys.modules
 assert "cadquery" not in sys.modules
@@ -275,7 +274,12 @@ def verify_profile(
         if expect_unsupported_platform:
             diagnostic = json.loads(
                 _run(
-                    [str(environment_python), "-I", "-c", UNSUPPORTED_PLATFORM_SMOKE_CODE],
+                    [
+                        str(environment_python),
+                        "-I",
+                        "-c",
+                        runtime_version_check() + UNSUPPORTED_PLATFORM_SMOKE_CODE,
+                    ],
                     cwd=work_dir,
                     environment=environment,
                 )
@@ -293,7 +297,7 @@ def verify_profile(
                     str(environment_python),
                     "-I",
                     "-c",
-                    PROFILE_SMOKE_CODE,
+                    runtime_version_check() + PROFILE_SMOKE_CODE,
                     profile,
                     str(I3_FIXTURES),
                 ],

@@ -1,10 +1,37 @@
 # Release verification
 
-Python and Rust releases use the same candidate commit. Version `0.2.0rc1` maps
-to Rust `0.2.0-rc.1` and tag `v0.2.0rc1`; the stable pair is `0.2.0` / `0.2.0`.
-`scripts/verify_release.py` (Python 3.11+) checks the manifests, lockfiles, facade
-and tag. Update the fixed expectations in artifact/runtime tests when changing
-versions. A stable version requires a fresh candidate run and fresh evidence.
+Python and Rust releases use the same candidate commit. The only version
+definition is `[workspace.package].version` in the root `Cargo.toml`. Maturin
+derives Python package metadata from it; `parasolid_kit.__version__` reads the
+installed package metadata. Artifact and runtime checks derive their expected
+versions from the same Cargo manifest.
+
+## Change the version
+
+With Python 3.11+, Cargo and uv available, run from the repository root:
+
+```bash
+python3 scripts/bump_version.py 0.4.0
+```
+
+This updates `Cargo.toml`, refreshes `Cargo.lock`, `fuzz/Cargo.lock` and `uv.lock`,
+then verifies their consistency. Review and commit those generated changes.
+There are no version literals to edit in Python code, tests or verification
+scripts. Run `uv sync --locked` afterward to rebuild the development install.
+
+For prereleases, use Cargo syntax: `0.4.0-rc.1` becomes Python `0.4.0rc1` and tag
+`v0.4.0rc1`; `0.4.0-dev1` becomes `0.4.0.dev1`. A stable `0.4.0` uses tag `v0.4.0`.
+Do not use `uv version` to add a second version definition to `pyproject.toml`.
+
+The command refreshes workspace packages with Cargo's offline cache and uses
+`uv lock` without upgrading dependencies. On a fresh checkout, install the
+development dependencies first. If a lock refresh fails, fix the reported error
+and rerun the same command; `scripts/verify_release.py` rejects stale lockfiles.
+It does not create commits, tags or publish packages.
+
+Release verification tools run on Python 3.11+; installed-package checks still
+exercise Python 3.10. CI checks the source version and locks before testing the
+package. A stable version requires a fresh candidate run and fresh evidence.
 
 ## Candidate
 

@@ -1,5 +1,7 @@
 """Public contracts for the Parasolid parser package."""
 
+from importlib.metadata import version as _distribution_version
+
 from .api import (
     compare_documents,
     inspect_xb,
@@ -171,4 +173,4 @@ __all__ = [
     "write_xb",
 ]
 
-__version__ = "0.3.0"
+__version__ = _distribution_version("parasolid-kit")

@@ -48,8 +48,10 @@ jobs:
           uv python install 3.11
           uv sync --locked --python 3.11
 
-      - name: Verify dependency lock
-        run: uv lock --check
+      - name: Verify dependency locks and release version
+        run: |
+          uv lock --check
+          uv run --no-sync python scripts/verify_release.py
 
       - name: Test Python facade
         run: uv run pytest

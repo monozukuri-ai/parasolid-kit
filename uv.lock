@@ -1346,7 +1346,6 @@ wheels = [
 
 [[package]]
 name = "parasolid-kit"
-version = "0.3.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
@@ -1372,7 +1371,7 @@ requires-dist = [
     { name = "cadquery-ocp-novtk", marker = "extra == 'occt'", specifier = ">=7.9.3.1,<7.10" },
     { name = "numba", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'cadquery'", specifier = ">=0.62.1,<0.63" },
 ]
-provides-extras = ["occt", "cadquery"]
+provides-extras = ["cadquery", "occt"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -8,7 +8,6 @@ replacement for the private reports. Only hashes and gate status leave the host.
 from __future__ import annotations
 
 import argparse
-import ast
 import hashlib
 import json
 import re
@@ -27,45 +26,60 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def versions(root: Path = ROOT, tag: str | None = None) -> tuple[str, str]:
-    project = tomllib.loads((root / "pyproject.toml").read_text())
-    python = project["project"]["version"]
-    match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:rc(\d+)|\.dev(\d+))?", python)
+def python_version(rust: str) -> str:
+    """Convert the supported Cargo release versions to Maturin's PEP 440 form."""
+    number = r"(?:0|[1-9]\d*)"
+    match = re.fullmatch(
+        rf"({number}\.{number}\.{number})(?:-rc\.({number})|-dev({number}))?", rust
+    )
     if not match:
-        raise ValueError(f"unsupported release version: {python}")
-    rust = match[1]
+        raise ValueError(f"unsupported release version: {rust}")
+    python = match[1]
     if match[2]:
-        rust += f"-rc.{match[2]}"
+        python += f"rc{match[2]}"
     elif match[3]:
-        rust += f"-dev{match[3]}"
-    cargo = tomllib.loads((root / "Cargo.toml").read_text())
-    if cargo["workspace"]["package"]["version"] != rust:
-        raise ValueError("Python and Rust versions differ")
+        python += f".dev{match[3]}"
+    return python
+
+
+def source_versions(root: Path = ROOT) -> tuple[str, str]:
+    """Read the single version definition without importing the built package."""
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    if "version" in project or "version" not in project.get("dynamic", []):
+        raise ValueError("pyproject.toml must derive its version from Cargo.toml")
+    cargo = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+    rust = cargo["workspace"]["package"]["version"]
+    return python_version(rust), rust
+
+
+def runtime_version_check(root: Path = ROOT) -> str:
+    """Embed source expectations before a cold runtime is isolated from the checkout."""
+    python, rust = source_versions(root)
+    return (
+        "from importlib.metadata import version\n"
+        "import parasolid_kit\n"
+        "from parasolid_kit import _core\n"
+        f"assert parasolid_kit.__version__ == version('parasolid-kit') == {python!r}\n"
+        f"assert _core.CORE_VERSION == {rust!r}\n"
+    )
+
+
+def versions(root: Path = ROOT, tag: str | None = None) -> tuple[str, str]:
+    python, rust = source_versions(root)
     for filename in ("Cargo.lock", "fuzz/Cargo.lock", "uv.lock"):
-        lock = tomllib.loads((root / filename).read_text())
-        expected = (
-            {"parasolid-kit": python}
-            if filename == "uv.lock"
-            else {
-                "parasolid-core": rust,
-                "parasolid-python": rust,
-            }
-        )
-        packages = {p["name"]: p["version"] for p in lock["package"]}
+        lock = tomllib.loads((root / filename).read_text(encoding="utf-8"))
+        packages = {p["name"]: p for p in lock["package"]}
+        if filename == "uv.lock":
+            package = packages.get("parasolid-kit", {})
+            if package.get("source") != {"editable": "."} or "version" in package:
+                raise ValueError("uv.lock: parasolid-kit must use dynamic local metadata")
+            continue
+        expected = {"parasolid-core": rust, "parasolid-python": rust}
         for name, value in expected.items():
             if name == "parasolid-python" and filename.startswith("fuzz/"):
                 continue
-            if packages.get(name) != value:
+            if packages.get(name, {}).get("version") != value:
                 raise ValueError(f"{filename}: {name} version differs")
-    tree = ast.parse((root / "src/parasolid_kit/__init__.py").read_text())
-    facade = [
-        ast.literal_eval(n.value)
-        for n in tree.body
-        if isinstance(n, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "__version__" for t in n.targets)
-    ]
-    if facade != [python]:
-        raise ValueError("Python facade version differs")
     if tag is not None and tag != f"v{python}":
         raise ValueError("release tag differs from package version")
     return python, rust
