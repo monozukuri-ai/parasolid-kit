@@ -42,7 +42,7 @@ println!("{} bodies; complete={}", brep.bodies.len(), brep.complete);
 # }
 ```
 
-The five compiled profiles are listed in the
+The compiled profiles are listed in the
 [shared support matrix](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/format-support.md#supported-profiles),
 with exact keys, revisions, hashes, and separate raw/B-Rep/geometry evidence.
 A supported header, schema key, or raw record does not imply complete
@@ -53,8 +53,8 @@ to the caller. `SolidWorks` deltas are unsupported even when their header uses
 the same supported partition key; no final saved configuration is reconstructed.
 `BrepModel.complete` describes source mapping for that document. It does not
 certify interpreted attributes, numerical geometry evaluation, available curved
-metrics, or optional conversion. The planned iCAD container adapter has not
-been created; its current evidence consists of extracted stream inputs.
+metrics, or optional conversion. iCAD container extraction and saved-state
+selection belong to the caller; this crate consumes extracted streams.
 
 Lengths and identifiers retain their Parasolid source meaning. Byte ranges are
 relative to the complete byte slice supplied to the parser. Embedding applications

@@ -3,7 +3,7 @@
 The [SolidWorks partition profile](solidworks-partitions.md) documents the
 additional exact V37 key, WORLD base layout, local validation and delta boundary.
 
-Five profiles are registered for default parsing. The complete internal stream
+Six profiles are registered for default parsing. The complete internal stream
 key must match; a caller-selected provider always takes priority. The
 [shared support matrix](format-support.md#supported-profiles) records their
 current identities and separate raw, B-Rep, independent-geometry, conversion,
@@ -756,3 +756,26 @@ cross-sections pass position/derivative checks. The
 [doubly periodic surface report](doubly-periodic-surface-evidence.md) records
 the evidence and two added regression cases; the runtime and profile remain
 unchanged.
+
+## iCAD V34 embedded key
+
+The exact `SCH_3401212_34101_13006` key uses
+`icad-sch34101-13006-r1`: the existing independently reviewed 13006 subset
+(30 types / 240 field groups). Unknown base types still fail closed. The only
+confirmed absent type is 204, reusing the existing 13006 membership audit;
+no vendor catalog field definitions are embedded. Nearby keys are not accepted.
+
+Ten separately supplied resources from iCAD SX V8L3 cover boxes, a through-hole,
+rotated cylinders, a sphere, face-colour conversion and a distinct cylinder
+holdout. Candidate parsing used no catalog. A subsequent explicit-catalog
+comparison matched all node values and byte boundaries, B-Rep topology and
+geometry, except for expected schema-provider type labels. SDK measurements
+separately check intrinsic dimensions of four newly authored solids. The SDK
+edge-list query failed for the sphere, so its cross-system edge count is not
+qualified; its radius, surface area and volume are checked independently.
+
+This qualifies resource decoding, not ICD part ownership, global placement,
+file units, native CSG evaluation or arbitrary V34 data. Curved core area/volume
+remain unavailable. Public tests use synthetic unchanged POINT records, exact
+selection, unknown-base rejection, truncation and pinned B-Rep roles. Private
+resources, CAD files and catalogs are not included in the package.

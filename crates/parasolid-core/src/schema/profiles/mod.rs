@@ -17,3 +17,7 @@ pub(crate) use sch13006::definitions as sch13006_definitions;
 pub(crate) use sch13006::sp_curve_definitions as sch13006_sp_curve_definitions;
 pub use sch13006::{icad_sch30000_13006, onshape_sch13006};
 pub use sch30000::onshape_sch30000;
+
+mod icad_v34;
+pub(crate) use icad_v34::PROFILE_SHA256 as ICAD_V34_PROFILE_SHA256;
+pub use icad_v34::icad_sch34101_13006;

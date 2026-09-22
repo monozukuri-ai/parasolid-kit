@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add the exact iCAD `SCH_3401212_34101_13006` built-in profile for extracted
+  Parasolid streams, including pinned source B-Rep roles. Unknown base types and
+  nearby keys still require their own reviewed support. Native ICD extraction,
+  part ownership, placement and unit interpretation remain caller responsibilities.
+
 ## 0.2.0 — unreleased
 
 - Add the exact Onshape `SCH_3701212_37102_13006` profile, including analytic

@@ -59,6 +59,10 @@ impl RoleAccess {
                         && *profile_revision == 5
                         && key == "SCH_3000310_30000_13006"
                         && profile_sha256 == ROLE_EMBEDDED_SHA256)
+                    || (profile_id == "icad-sch34101-13006-r1"
+                        && *profile_revision == 1
+                        && key == "SCH_3401212_34101_13006"
+                        && profile_sha256 == crate::schema::profiles::ICAD_V34_PROFILE_SHA256)
                     || (profile_id == "solidworks-sch37102-13006-r1"
                         && *profile_revision == 1
                         && key == "SCH_3701229_37102_13006"
@@ -678,6 +682,10 @@ mod tests {
                 crate::schema::profiles::icad_sch30000_13006()?,
                 ROLE_EMBEDDED_SHA256,
             ),
+            (
+                crate::schema::profiles::icad_sch34101_13006()?,
+                crate::schema::profiles::ICAD_V34_PROFILE_SHA256,
+            ),
         ] {
             assert_eq!(profile.metadata().profile_sha256, digest);
             let schemas = profile
@@ -689,6 +697,16 @@ mod tests {
                     byte_range: 0..0,
                 })
                 .collect::<Vec<_>>();
+            let key = profile.accepted_schema_keys().next().ok_or("missing key")?;
+            let meta = profile.metadata();
+            let provenance = SchemaProviderResolution::Builtin {
+                profile_id: meta.profile_id.clone(),
+                profile_revision: meta.revision,
+                schema_key: key.raw().into(),
+                coverage: meta.coverage,
+                profile_sha256: meta.profile_sha256.clone(),
+            };
+            RoleAccess::select(&provenance, key.raw(), &schemas)?;
             let standard = profile.metadata().profile_id.starts_with("onshape");
             validate_base_roles(
                 &schemas,
