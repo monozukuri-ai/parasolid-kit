@@ -59,8 +59,8 @@ impl RoleAccess {
                         && *profile_revision == 5
                         && key == "SCH_3000310_30000_13006"
                         && profile_sha256 == ROLE_EMBEDDED_SHA256)
-                    || (profile_id == "icad-sch34101-13006-r1"
-                        && *profile_revision == 1
+                    || (profile_id == "icad-sch34101-13006-r2"
+                        && *profile_revision == 2
                         && key == "SCH_3401212_34101_13006"
                         && profile_sha256 == crate::schema::profiles::ICAD_V34_PROFILE_SHA256)
                     || (profile_id == "solidworks-sch37102-13006-r1"
@@ -82,6 +82,13 @@ impl RoleAccess {
                         base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
                         base.extend(
                             crate::schema::profiles::sch13006_bspline_surface_definitions(),
+                        );
+                    }
+                    if key == "SCH_3401212_34101_13006" {
+                        base.extend(
+                            crate::schema::profiles::onshape_current_definitions()
+                                .into_iter()
+                                .filter(|d| d.node_type == 54),
                         );
                     }
                     base
@@ -717,7 +724,13 @@ mod tests {
                     .iter()
                     .filter(|s| !field_roles(s.definition.node_type).is_empty())
                     .count(),
-                if standard { 28 } else { 20 }
+                if standard {
+                    28
+                } else if key.raw() == "SCH_3401212_34101_13006" {
+                    21
+                } else {
+                    20
+                }
             );
         }
         Ok(())

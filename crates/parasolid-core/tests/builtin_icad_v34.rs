@@ -10,12 +10,12 @@ fn exact_v34_profile_pins_reviewed_base_and_rejects_nearby_keys() -> support::Re
         .provider_for_key(&key)
         .ok_or("missing V34 profile")?;
     let profile = provider.profile();
-    assert_eq!(profile.metadata().profile_id, "icad-sch34101-13006-r1");
+    assert_eq!(profile.metadata().profile_id, "icad-sch34101-13006-r2");
     assert_eq!(
         profile.metadata().profile_sha256,
         support::profile_hash(profile)?
     );
-    assert_eq!(profile.definitions().len(), 30);
+    assert_eq!(profile.definitions().len(), 31);
     assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
     assert_eq!(
         provider.lookup_type("13006", 101),
@@ -91,5 +91,52 @@ fn unreviewed_base_type_is_not_guessed_from_an_embedded_marker() -> support::Res
         .err()
         .ok_or("accepted unknown type")?;
     assert_eq!(error.kind().code(), "schema.unknown_base_type");
+    Ok(())
+}
+
+#[test]
+fn torus_base_preserves_authored_values_and_binary_boundaries() -> support::Result<()> {
+    use parasolid_core::{DocumentLimits, FieldValue, parse_xb, parse_xt};
+    let key = "SCH_3401212_34101_13006";
+    let registry = BuiltinProfileRegistry::compiled()?;
+    let provider = registry
+        .provider_for_key(&SchemaKey::parse(key)?)
+        .ok_or("profile")?;
+    let mut binary = support::xb_header(key, 0)?;
+    binary.extend_from_slice(&[0, 54, 255]);
+    binary.extend(support::pointer(7)?);
+    binary.extend(123_i32.to_be_bytes());
+    binary.extend(support::pointer(0)?.repeat(5));
+    binary.push(b'+');
+    for value in [1.0_f64, 2.0, 3.0, 0.0, 0.0, 1.0, 13.0, 2.5, 1.0, 0.0, 0.0] {
+        binary.extend(value.to_be_bytes());
+    }
+    support::terminate(&mut binary);
+    let mut text = support::xt_header(key, 0);
+    text.extend(b"54 255 7 123 0 0 0 0 0 +1 2 3 0 0 1 13 2.5 1 0 0 1 0");
+    let a = parse_xb(&binary, &provider, DocumentLimits::default())?;
+    let b = parse_xt(&text, &provider, DocumentLimits::default())?;
+    assert_eq!(a.nodes.len(), 1);
+    for (left, right) in a.nodes[0].fields.iter().zip(&b.nodes[0].fields) {
+        assert_eq!(left.values, right.values);
+    }
+    assert_eq!(
+        a.nodes[0].fields[9].values,
+        [FieldValue::Double(Some(13.0))]
+    );
+    assert_eq!(
+        a.nodes[0].fields[10].values,
+        [FieldValue::Double(Some(2.5))]
+    );
+    assert_eq!(support::encode_document_nodes(key, &a.nodes)?, binary);
+    // The semantic role gate accepts this exact profile revision, then reports
+    // that this deliberately isolated surface has no owning body.
+    let error = parasolid_core::brep::map_xb_brep(&a)
+        .err()
+        .ok_or("accepted bodyless surface")?;
+    assert_eq!(error.kind(), parasolid_core::ErrorKind::MissingBrepBody);
+    for end in 0..binary.len() {
+        assert!(parse_xb(&binary[..end], &provider, DocumentLimits::default()).is_err());
+    }
     Ok(())
 }

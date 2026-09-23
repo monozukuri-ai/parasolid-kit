@@ -760,8 +760,8 @@ unchanged.
 ## iCAD V34 embedded key
 
 The exact `SCH_3401212_34101_13006` key uses
-`icad-sch34101-13006-r1`: the existing independently reviewed 13006 subset
-(30 types / 240 field groups). Unknown base types still fail closed. The only
+`icad-sch34101-13006-r2`: the independently reviewed 13006 subset plus
+the public-reference TORUS (54) declaration (31 types / 252 field groups). Unknown base types still fail closed. The only
 confirmed absent type is 204, reusing the existing 13006 membership audit;
 no vendor catalog field definitions are embedded. Nearby keys are not accepted.
 
@@ -777,5 +777,7 @@ qualified; its radius, surface area and volume are checked independently.
 This qualifies resource decoding, not ICD part ownership, global placement,
 file units, native CSG evaluation or arbitrary V34 data. Curved core area/volume
 remain unavailable. Public tests use synthetic unchanged POINT records, exact
-selection, unknown-base rejection, truncation and pinned B-Rep roles. Private
+selection, TORUS text/binary values and roundtrips, unknown-base rejection,
+truncation and pinned B-Rep roles. Revision 2 retains the exact-key restriction
+and changes both the profile identity and its canonical digest. Private
 resources, CAD files and catalogs are not included in the package.

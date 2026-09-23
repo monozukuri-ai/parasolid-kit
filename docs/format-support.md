@@ -41,7 +41,7 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_3000000_30000` | `onshape-sch30000-r3` / 3 | 44 / 356 | `67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4` |
 | `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | 40 / 327 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` / 5 | 30 / 240 | `1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5` |
-| `SCH_3401212_34101_13006` | `icad-sch34101-13006-r1` / 1 | 30 / 240 | `a516a515d3d0c0866a001cf148e7e2e066e9741912c26d45c6ba4fc232179d6e` |
+| `SCH_3401212_34101_13006` | `icad-sch34101-13006-r2` / 2 | 31 / 252 | `eaebc3477246b7a6b56d1b5dc500029beba46f54e9226973883bc444684f26eb` |
 | `SCH_3701212_37102_13006` | `onshape-sch37102-13006-r3` / 3 | 41 / 339 | `3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa` |
 | `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` / 1 | 41 / 338 | `5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480` |
 
@@ -72,7 +72,7 @@ developer audit and its version-specific definitions are documented separately.
 ### Detailed verified scope
 
 The development checkout adds the exact iCAD V34 key
-`SCH_3401212_34101_13006` with `icad-sch34101-13006-r1`. It is not included in the
+`SCH_3401212_34101_13006` with `icad-sch34101-13006-r2`. It is not included in the
 published 0.2.0 release. This profile reuses the reviewed 13006 subset and only
 the existing type-204 absence audit. No nearby-key fallback is used. See the
 [V34 evidence and limits](builtin-profiles.md#icad-v34-embedded-key).

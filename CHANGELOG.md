@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Extend the exact iCAD V34 profile to revision 2 with the reviewed 13006
+  TORUS (54) definition and matching B-Rep roles. The profile ID is
+  `icad-sch34101-13006-r2`; other schema keys and unknown base types retain
+  their existing boundaries. This core patch supports catalog-free parsing
+  of qualified toroidal saved solids in downstream iCAD readers.
+
 - Add the exact iCAD `SCH_3401212_34101_13006` built-in profile for extracted
   Parasolid streams, including pinned source B-Rep roles. Unknown base types and
   nearby keys still require their own reviewed support. Native ICD extraction,

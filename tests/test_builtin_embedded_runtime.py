@@ -146,11 +146,11 @@ def test_icad_v34_selects_exact_profile_and_maps_copied_body_roles(encoding):
     result = read_brep(data)
     assert result.document.schema_resolution.to_dict() == {
         "kind": "builtin",
-        "profile_id": "icad-sch34101-13006-r1",
-        "profile_revision": 1,
+        "profile_id": "icad-sch34101-13006-r2",
+        "profile_revision": 2,
         "schema_key": key,
         "coverage": "verified_subset",
-        "profile_sha256": "a516a515d3d0c0866a001cf148e7e2e066e9741912c26d45c6ba4fc232179d6e",
+        "profile_sha256": "eaebc3477246b7a6b56d1b5dc500029beba46f54e9226973883bc444684f26eb",
     }
     assert result.brep.complete and result.brep.topology.valid
     assert len(result.brep.bodies) == 1
