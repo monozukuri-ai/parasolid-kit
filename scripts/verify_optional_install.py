@@ -362,6 +362,7 @@ def verify_profile(
                 "--no-cache",
                 "pytest>=8.3,<9",
                 "jsonschema>=4.23,<5",
+                "tomli>=2,<3; python_version < '3.11'",
             ],
             cwd=work_dir,
             environment=environment,

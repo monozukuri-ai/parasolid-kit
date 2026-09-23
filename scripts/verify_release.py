@@ -14,7 +14,10 @@ import re
 import subprocess
 from pathlib import Path
 
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 cold-install test environments.
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "monozukuri-ai/parasolid-kit"
