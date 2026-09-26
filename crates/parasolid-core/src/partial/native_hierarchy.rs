@@ -1,6 +1,6 @@
 // Modified by sldkit/parasolid-kit; see the crate-root PARTIAL_READERS.md.
 // SPDX-License-Identifier: Apache-2.0
-//! Direct BODY/REGION/SHELL links for the verified `SolidWorks` 2026 profile.
+//! Direct BODY/REGION/SHELL links for reviewed exact `SolidWorks` profiles.
 //!
 //! Attribute (00 51) dictionaries are not the topology body arena. This reader
 //! follows native 00 0c -> 00 13 -> 00 0d -> 00 0e references instead. The
@@ -204,7 +204,7 @@ pub fn recover(streams: &[(&[u8], &str, bool)], tables: &Tables) -> Option<Vec<B
 
 /// Return a complete native hierarchy, or leave the existing partial result.
 pub fn scan(data: &[u8], schema: &str, tables: &Tables) -> Option<Vec<BodyRecord>> {
-    if schema != SCHEMA {
+    if !matches!(schema, SCHEMA | "SCH_3601228_36001_13006") {
         return None;
     }
     let body_decl = declaration(data, 12, BODY_DECLARATION)?;

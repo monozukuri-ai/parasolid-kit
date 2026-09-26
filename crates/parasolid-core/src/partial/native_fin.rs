@@ -2,13 +2,82 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Convert verified native FIN links to the graph builder's start-vertex convention.
 //!
-//! Called only after the exact SCH_3701229_37102_13006 native hierarchy gate.
+//! Called only after an exact, reviewed native hierarchy gate.
 //! The unchanged base FIN layout has forward/backward links in refs[2]/refs[3]
 //! and a *forward* (end) vertex in refs[4]. The legacy graph/writer convention
 //! uses refs[3] as next and refs[4] as start. See PARTIAL_READERS.md for source evidence.
 //! Source offsets, read ranges, markers, and byte-ledger hashes are not changed.
 
 use super::topology::Tables;
+use std::collections::HashSet;
+
+/// Select the FINs reached by the verified current faces, including boundary
+/// dummies. Saved journals may also contain FINs from superseded loops.
+///
+/// Call only after native BODY/REGION/SHELL recovery. This follows native
+/// forward links before normalization. Missing, shared or cyclic ownership
+/// returns `false` without changing the table; it never repairs a broken loop.
+pub fn retain_face_fins(tables: &mut Tables) -> bool {
+    let Some(mut fins) = face_fins(tables) else {
+        return false;
+    };
+    let mut dummies = Vec::new();
+    for id in &fins {
+        let fin = &tables.coedges[id];
+        let Some(other) = tables.coedges.get(&fin.refs[5]) else {
+            return false;
+        };
+        if other.refs.len() != 9 || other.refs[5] != *id {
+            return false;
+        }
+        if !fins.contains(&other.attr) {
+            if other.refs[1..4] != [1, 1, 1] {
+                return false;
+            }
+            dummies.push(other.attr);
+        }
+    }
+    fins.extend(dummies);
+    tables.coedges.retain(|id, _| fins.contains(id));
+    true
+}
+
+fn face_fins(tables: &Tables) -> Option<HashSet<u16>> {
+    let mut loops = HashSet::new();
+    let mut fins = HashSet::new();
+    for face in tables.bridges.values() {
+        let mut at = *face.refs.get(2)?;
+        if at <= 1 {
+            return None;
+        }
+        while at != 1 {
+            if !loops.insert(at) {
+                return None;
+            }
+            let loop_ = tables.loops.get(&at)?;
+            if loop_.refs.len() != 4 || loop_.refs[2] != face.attr {
+                return None;
+            }
+            let first = loop_.refs[1];
+            let mut id = first;
+            loop {
+                if !fins.insert(id) {
+                    return None;
+                }
+                let fin = tables.coedges.get(&id)?;
+                if fin.refs.len() != 9 || fin.refs[1] != at {
+                    return None;
+                }
+                id = fin.refs[2];
+                if id == first {
+                    break;
+                }
+            }
+            at = loop_.refs[3];
+        }
+    }
+    (!fins.is_empty()).then_some(fins)
+}
 
 /// A recognized native profile must not fall back to the known reversed gauge.
 /// Retained source streams and read spans remain available when fins are withheld.
@@ -120,7 +189,9 @@ mod tests {
 
     fn triangle() -> Tables {
         let mut tables = Tables::default();
-        tables.bridges.insert(10, record(10, vec![], Some(b'+')));
+        tables
+            .bridges
+            .insert(10, record(10, vec![1, 1, 20, 1, 1], Some(b'+')));
         tables
             .loops
             .insert(20, record(20, vec![1, 30, 10, 1], None));
@@ -158,6 +229,44 @@ mod tests {
                 .insert(edge, record(edge, vec![fin, 1, 1, 70 + i, 1, 1], None));
         }
         tables
+    }
+
+    #[test]
+    fn current_faces_select_fins_and_keep_boundary_dummies() {
+        let mut tables = triangle();
+        // An obsolete journal FIN can reference a removed face and curve.
+        tables.coedges.insert(
+            90,
+            record(90, vec![1, 99, 90, 90, 1, 91, 99, 99, 1], Some(b'+')),
+        );
+        assert!(retain_face_fins(&mut tables));
+        assert_eq!(tables.coedges.len(), 6);
+        assert!(tables.coedges.contains_key(&40));
+        assert!(normalize(&mut tables));
+    }
+
+    #[test]
+    fn ownership_selection_cannot_hide_broken_current_loops() {
+        for (id, field, value) in [
+            (30, 1, 99),
+            (30, 2, 99),
+            (31, 2, 31),
+            (30, 5, 99),
+            (40, 1, 99),
+            (40, 5, 31),
+        ] {
+            let mut tables = triangle();
+            tables.coedges.get_mut(&id).unwrap().refs[field] = value;
+            let before = tables.coedges.len();
+            assert!(!retain_face_fins(&mut tables), "{id}/{field}");
+            assert_eq!(tables.coedges.len(), before);
+        }
+        for field in [2, 3] {
+            let mut tables = triangle();
+            tables.loops.get_mut(&20).unwrap().refs[field] = 20;
+            assert!(!retain_face_fins(&mut tables));
+            assert_eq!(tables.coedges.len(), 6);
+        }
     }
 
     #[test]

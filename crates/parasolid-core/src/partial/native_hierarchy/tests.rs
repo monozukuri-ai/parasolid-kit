@@ -120,6 +120,26 @@ fn native_ids_determine_kind_and_membership_without_geometry() {
 }
 
 #[test]
+fn reviewed_36001_key_keeps_exact_declarations_and_complete_ownership() {
+    let (data, mut tables, _) = fixture();
+    let schema = "SCH_3601228_36001_13006";
+    assert!(scan(&data, schema, &tables).is_some());
+    assert!(!verified_read_spans(&data, schema, &tables).is_empty());
+    for unknown in [
+        "SCH_3601229_36001_13006",
+        "SCH_3601228_36002_13006",
+        "SCH_3601228_36001",
+    ] {
+        assert!(scan(&data, unknown, &tables).is_none());
+    }
+    let mut changed = data.clone();
+    changed[4] ^= 1;
+    assert!(scan(&changed, schema, &tables).is_none());
+    tables.bridges.get_mut(&301).unwrap().refs[3] = 211;
+    assert!(scan(&data, schema, &tables).is_none());
+}
+
+#[test]
 fn schema_and_embedded_declarations_are_required() {
     let (data, tables, _) = fixture();
     for schema in ["SCH_3701229_37103_13006", "SCH_SW_37102_13006", ""] {

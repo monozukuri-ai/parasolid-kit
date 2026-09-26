@@ -12,6 +12,8 @@ pub struct AnalyticCarrier {
     pub attr: u16,
     pub offset: usize,
     pub end: usize,
+    /// Source orientation byte, `+` or `-`, relative to the parameter frame.
+    pub orientation: u8,
     pub values: Vec<f64>,
     pub read_spans: Vec<ReadSpan>,
 }
@@ -149,6 +151,7 @@ fn parse_carrier_at_marker(
         attr,
         offset: off,
         end,
+        orientation: body[marker_at],
         tag: tt,
         values: vals,
     })
@@ -175,4 +178,60 @@ pub fn parse_carrier(body: &[u8], off: usize) -> Option<AnalyticCarrier> {
         .filter_map(|marker_at| parse_carrier_at_marker(body, off, tt, attr, n, marker_at));
     let carrier = candidates.next()?;
     candidates.next().is_none().then_some(carrier)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_orientation_preserves_curve_and_surface_parameters_in_both_framings() {
+        for (tag, values) in [
+            (tag::LINE, vec![0.25_f64, -0.5, 0.75, 0.0, 0.0, 1.0]),
+            (
+                tag::PLANE,
+                vec![0.25, -0.5, 0.75, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+            ),
+        ] {
+            for delta in [false, true] {
+                for extended in [false, true] {
+                    let mut bytes = vec![0xa5; 7];
+                    let offset = bytes.len();
+                    bytes.extend([0, tag]);
+                    if extended {
+                        bytes.push(0xff);
+                    }
+                    bytes.extend([0, 42, 0, 0, 0, 0]);
+                    for _ in 0..5 {
+                        bytes.extend([0, 1]);
+                        if delta {
+                            bytes.push(1);
+                        }
+                    }
+                    let marker = bytes.len();
+                    bytes.push(b'+');
+                    for value in &values {
+                        bytes.extend(value.to_be_bytes());
+                    }
+                    let positive = parse_carrier(&bytes, offset).unwrap();
+                    bytes[marker] = b'-';
+                    let negative = parse_carrier(&bytes, offset).unwrap();
+                    assert_eq!(positive.orientation, b'+');
+                    assert_eq!(negative.orientation, b'-');
+                    for carrier in [&positive, &negative] {
+                        assert_eq!(carrier.tag, tag);
+                        assert_eq!(carrier.attr, 42);
+                        assert_eq!(carrier.offset, offset);
+                        assert_eq!(carrier.end, bytes.len());
+                        assert_eq!(carrier.values, values);
+                        assert_eq!(carrier.read_spans[1].offset, marker);
+                        assert_eq!(carrier.read_spans[1].byte_len, bytes.len() - marker);
+                    }
+                    assert_eq!(positive.read_spans, negative.read_spans);
+                    bytes[marker] = b'?';
+                    assert!(parse_carrier(&bytes, offset).is_none());
+                }
+            }
+        }
+    }
 }
