@@ -18,7 +18,7 @@ use crate::schema::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
 use crate::{BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, ParseError};
 
 const BASE_SHA256: &str = "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb";
-const EMBEDDED_SHA256: &str = "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5";
+const EMBEDDED_SHA256: &str = "29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e";
 
 fn metadata(id: &str, revision: u32, producer: &str, digest: &str) -> BuiltinProfileMetadata {
     BuiltinProfileMetadata {
@@ -130,25 +130,31 @@ pub(crate) fn sp_curve_definitions() -> Vec<TypeDefinition> {
 /// This accepts extracted neutral Parasolid streams, not iCAD containers.
 /// Type 204 is confirmed absent from 13006 and uses its full embedded
 /// declaration. Other types outside the reviewed base subset remain unknown.
+/// Revision 6 adds TORUS (54) and the separately reviewed curve, blend,
+/// offset and B-spline surface types observed under this key.
 ///
 /// # Errors
 /// Returns a profile error if the compiled definitions are inconsistent.
 pub fn icad_sch30000_13006() -> Result<BuiltinSchemaProfile, ParseError> {
     BuiltinSchemaProfile::new_embedded(
         metadata(
-            "icad-sch30000-13006-r5",
-            5,
+            "icad-sch30000-13006-r6",
+            6,
             "iCAD V30 extracted Parasolid streams",
             EMBEDDED_SHA256,
         ),
         vec!["SCH_3000310_30000_13006".to_owned()],
-        definitions(),
+        icad_sch30000_13006_definitions(),
         vec![],
         // Membership-only audit: the complete 13006 catalog header declares
         // a type-table upper bound of 184. No catalog field layouts are copied.
         // Keep this allowlist bounded to the independently tested new type.
         vec![204],
     )
+}
+
+pub(crate) fn icad_sch30000_13006_definitions() -> Vec<TypeDefinition> {
+    super::icad_legacy::base_definitions(&[45, 56, 60, 124, 125, 126, 127, 128, 134, 135, 136, 137])
 }
 
 /// Public XT reference pp. 48-50, V13 producer pairs and V30 unchanged records.

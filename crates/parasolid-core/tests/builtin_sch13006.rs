@@ -13,10 +13,10 @@ use support::{Result, pointer, terminate, xb_header, xt_header};
 fn base_profiles_have_independent_hashes_and_exact_scope() -> Result<()> {
     for profile in [onshape_sch13006()?, icad_sch30000_13006()?] {
         let standard = profile.metadata().profile_id == "onshape-sch13006-r6";
-        assert_eq!(profile.definitions().len(), if standard { 40 } else { 30 });
+        assert_eq!(profile.definitions().len(), if standard { 40 } else { 43 });
         assert_eq!(
             profile.definitions().map(|d| d.fields.len()).sum::<usize>(),
-            if standard { 327 } else { 240 }
+            if standard { 327 } else { 366 }
         );
         assert_eq!(
             profile.metadata().profile_sha256,
@@ -67,8 +67,19 @@ fn base_profiles_have_independent_hashes_and_exact_scope() -> Result<()> {
             .collect::<Vec<_>>(),
         [204]
     );
+    // The embedded profile reuses these declarations for the types seen under
+    // its key; blend boundaries and spun surfaces were not seen there.
     for kind in [45, 124, 125, 126, 127, 128, 134, 135, 136, 137] {
         assert!(onshape_sch13006()?.definition(kind).is_some());
+        assert_eq!(
+            onshape_sch13006()?.definition(kind),
+            icad_sch30000_13006()?.definition(kind)
+        );
+    }
+    for kind in [54, 56, 60] {
+        assert!(icad_sch30000_13006()?.definition(kind).is_some());
+    }
+    for kind in [59, 68] {
         assert!(icad_sch30000_13006()?.definition(kind).is_none());
     }
     assert!(onshape_sch13006()?.definition(133).is_some());

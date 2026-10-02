@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Add OFFSET_SURF (60) to the reviewed 13006 declarations and admit it under
+  the iCAD keys where it was observed. Add exact profiles for two further
+  embedded keys and six further standard keys (13006, 15003, 16100, 19008 and
+  26105). Extend four existing profiles with the types observed under their
+  keys: `icad-sch30000-13006-r6`, `icad-sch34101-13006-r3`,
+  `icad-2100293-20000-13006-r2` and `icad-3301231-33103-13006-r2`. Consumers
+  that pin the earlier IDs or hashes must update them. Of 18,634 distinct
+  sampled iCAD resources, 18,610 now parse without a catalog and match the
+  catalog path. See [format support](docs/format-support.md#supported-profiles).
+- Map a trimmed curve on a LINE whose two parameters are both unset: they are
+  the parameters of the stored end points under `R(t) = P + tD`. The points
+  must lie on the line and the order rule still applies; raw fields stay null.
+  Other bases and partly unset pairs remain errors.
+
 - Add thirteen exact iCAD profiles with pinned B-Rep roles: eight embedded
   13006 keys and five standard keys for schema revisions 20000, 28002, 28101,
   32001 and 33103. Standard profiles declare complete layouts only for the

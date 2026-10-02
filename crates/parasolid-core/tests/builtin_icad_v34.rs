@@ -10,12 +10,23 @@ fn exact_v34_profile_pins_reviewed_base_and_rejects_nearby_keys() -> support::Re
         .provider_for_key(&key)
         .ok_or("missing V34 profile")?;
     let profile = provider.profile();
-    assert_eq!(profile.metadata().profile_id, "icad-sch34101-13006-r2");
+    assert_eq!(profile.metadata().profile_id, "icad-sch34101-13006-r3");
+    assert_eq!(profile.metadata().revision, 3);
     assert_eq!(
         profile.metadata().profile_sha256,
         support::profile_hash(profile)?
     );
-    assert_eq!(profile.definitions().len(), 31);
+    assert_eq!(profile.definitions().len(), 40);
+    // Revision 3 admits only the further types observed under this key.
+    for kind in [45, 56, 68, 127, 128, 134, 135, 136, 137] {
+        assert!(profile.definition(kind).is_some());
+    }
+    for kind in [59, 60, 124, 125, 126] {
+        assert_eq!(
+            provider.lookup_type("13006", kind),
+            SchemaTypeLookup::Unknown
+        );
+    }
     assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
     assert_eq!(
         provider.lookup_type("13006", 101),

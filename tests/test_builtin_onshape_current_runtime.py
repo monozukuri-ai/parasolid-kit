@@ -129,7 +129,7 @@ def test_types_outside_reviewed_subset_fail_even_with_full_declarations(encoding
     assert captured.value.diagnostic.code == "schema.unknown_base_type"
 
 
-@pytest.mark.parametrize("key", [EMBEDDED, "SCH_3701229_37102_13006"])
+@pytest.mark.parametrize("key", ["SCH_3701229_37102_13006"])
 def test_new_torus_base_membership_does_not_expand_existing_profiles(key):
     with pytest.raises(SchemaError) as captured:
         parse_xb(torus("x_b").replace(KEY.encode(), key.encode()))

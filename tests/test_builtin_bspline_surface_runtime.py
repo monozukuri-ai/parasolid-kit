@@ -145,13 +145,15 @@ def test_invalid_surface_dependencies_remain_raw(encoding, parser, patch):
         read_brep(data)
 
 
-@pytest.mark.parametrize("key", [EMBEDDED])
+# The iCAD V34 key admits no B-spline surface type; the V30 key now does.
+@pytest.mark.parametrize("key", ["SCH_3401212_34101_13006"])
 @pytest.mark.parametrize("kind", [124, 125, 126])
 def test_bspline_surface_layouts_do_not_leak_to_other_profiles(key, kind):
     for data, parser in [
-        (header(key) + f"{kind} 1 ".encode(), parse_xt),
-        (builder(key).build()[:-4] + struct.pack(">H", kind), parse_xb),
+        (header(EMBEDDED) + f"{kind} 1 ".encode(), parse_xt),
+        (builder(EMBEDDED).build()[:-4] + struct.pack(">H", kind), parse_xb),
     ]:
+        data = data.replace(EMBEDDED.encode(), key.encode())
         with pytest.raises(ParseError) as error:
             parser(data)
         assert error.value.diagnostic.code in (

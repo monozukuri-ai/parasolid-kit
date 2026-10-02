@@ -11,7 +11,7 @@ const ROLE_PROFILE_SHA256: &str =
     "67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4";
 const ROLE_BASE_SHA256: &str = "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb";
 const ROLE_EMBEDDED_SHA256: &str =
-    "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5";
+    "29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e";
 
 #[derive(Clone, Copy)]
 pub(super) enum RoleAccess {
@@ -55,12 +55,12 @@ impl RoleAccess {
                     && *profile_revision == 6
                     && key == "SCH_1300000_13006"
                     && profile_sha256 == ROLE_BASE_SHA256)
-                    || (profile_id == "icad-sch30000-13006-r5"
-                        && *profile_revision == 5
+                    || (profile_id == "icad-sch30000-13006-r6"
+                        && *profile_revision == 6
                         && key == "SCH_3000310_30000_13006"
                         && profile_sha256 == ROLE_EMBEDDED_SHA256)
-                    || (profile_id == "icad-sch34101-13006-r2"
-                        && *profile_revision == 2
+                    || (profile_id == "icad-sch34101-13006-r3"
+                        && *profile_revision == 3
                         && key == "SCH_3401212_34101_13006"
                         && profile_sha256 == crate::schema::profiles::ICAD_V34_PROFILE_SHA256)
                     || (profile_id == "solidworks-sch37102-13006-r1"
@@ -78,7 +78,7 @@ impl RoleAccess {
                         .any(|spec| {
                             key == spec.key
                                 && profile_id == spec.id
-                                && *profile_revision == 1
+                                && *profile_revision == spec.revision
                                 && profile_sha256 == spec.sha256
                         })) =>
             {
@@ -89,21 +89,14 @@ impl RoleAccess {
                     spec.definitions()
                 } else if key == "SCH_3701212_37102_13006" {
                     crate::schema::profiles::onshape_current_definitions()
+                } else if key == "SCH_3000310_30000_13006" {
+                    crate::schema::profiles::icad_sch30000_13006_definitions()
+                } else if key == "SCH_3401212_34101_13006" {
+                    crate::schema::profiles::icad_v34_definitions()
                 } else {
                     let mut base = crate::schema::profiles::sch13006_definitions();
-                    if key != "SCH_3000310_30000_13006" {
-                        base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
-                        base.extend(
-                            crate::schema::profiles::sch13006_bspline_surface_definitions(),
-                        );
-                    }
-                    if key == "SCH_3401212_34101_13006" {
-                        base.extend(
-                            crate::schema::profiles::onshape_current_definitions()
-                                .into_iter()
-                                .filter(|d| d.node_type == 54),
-                        );
-                    }
+                    base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
+                    base.extend(crate::schema::profiles::sch13006_bspline_surface_definitions());
                     base
                 };
                 validate_base_roles(schemas, &base)?;
@@ -161,6 +154,7 @@ impl RoleAccess {
                 54 => "TORUS",
                 56 => "BLENDED_EDGE",
                 59 => "BLEND_BOUND",
+                60 => "OFFSET_SURF",
                 68 => "SPUN_SURF",
                 133 => "TRIMMED_CURVE",
                 204 => "INTERSECTION_DATA",
@@ -212,7 +206,7 @@ impl RoleAccess {
     pub(super) fn is_surface(self, node: &RawNode) -> bool {
         match self {
             Self::OnshapeSch30000 => matches!(node.node_type, 50..=54 | 124),
-            Self::Sch13006 => matches!(node.node_type, 50..=54 | 56 | 59 | 68 | 124),
+            Self::Sch13006 => matches!(node.node_type, 50..=54 | 56 | 59 | 60 | 68 | 124),
             Self::Named => {
                 self.has_common_geometry(node)
                     && self
@@ -635,6 +629,13 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
             ("boundary", 7, "boundary_index", "n"),
             ("blend", 8, "blend_surface", "p"),
         ],
+        60 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("owner", 2, "owner_ref", "p"),
+            ("sense", 6, "orientation", "c"),
+            ("surface", 9, "basis_surface", "p"),
+            ("offset", 10, "offset", "f"),
+        ],
         // Retain the source surface and report unsupported geometry. No spun
         // surface parameters are assigned geometry semantics by this mapper.
         68 => &[
@@ -836,9 +837,9 @@ mod tests {
                 if standard {
                     28
                 } else if key.raw() == "SCH_3401212_34101_13006" {
-                    21
+                    29
                 } else {
-                    20
+                    31
                 }
             );
         }
@@ -875,7 +876,7 @@ mod tests {
             assert!(RoleAccess::select(&provenance, key, &schemas).is_err());
             for original in base
                 .iter()
-                .filter(|d| matches!(d.node_type, 56 | 59 | 68 | 137))
+                .filter(|d| matches!(d.node_type, 56 | 59 | 60 | 68 | 137))
             {
                 for (_, _, role_name, _) in field_roles(original.node_type) {
                     let mut definition = original.clone();

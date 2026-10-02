@@ -3,9 +3,10 @@
 //! A standard key transmits no schema, so each profile declares complete
 //! layouts for the node types seen under that key. They are the reviewed 13006
 //! declarations with the field edits that iCAD streams of the same schema
-//! revision carry in their embedded schema. No embedded 28002 stream contains
-//! LIMIT (41); it uses the edit carried from 28101 on, which the 28002 inputs
-//! decode with. External catalogs are used only for subsequent comparison.
+//! revision carry in their embedded schema; the two 13006 keys use them
+//! unchanged. No embedded 28002 stream contains LIMIT (41); it uses the edit
+//! carried from 28101 on, which the 28002 inputs decode with. External catalogs
+//! are used only for subsequent comparison.
 
 use crate::{
     BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, ErrorDetails, ErrorKind,
@@ -30,6 +31,7 @@ const fn integer(name: &'static str) -> Edit {
     Edit::Insert(name, FieldType::Integer, 0)
 }
 
+// Embedded 19008 streams carry the same BODY edit as 20000.
 const BODY_20000: &[Edit] = &[
     Keep(23),
     integer("index_origin"),
@@ -38,6 +40,7 @@ const BODY_20000: &[Edit] = &[
     pointer("schema_values", 82),
 ];
 
+// Embedded 26105 streams carry the same BODY edit as 28002.
 const BODY_28002: &[Edit] = &[
     Keep(13),
     Drop,
@@ -153,6 +156,58 @@ pub(crate) struct ProfileSpec {
 
 pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
+        key: "SCH_1300218_13006",
+        id: "icad-1300218-13006-r1",
+        sha256: "928962c3f7f5a87013f6af6e45a443d040ff9a967b0887f959366b9bd2774b82",
+        schema: "13006",
+        types: &[
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 38, 40, 41, 50, 51, 70, 74, 79, 80, 81, 82,
+            141,
+        ],
+        edits: &[],
+    },
+    ProfileSpec {
+        key: "SCH_1302234_13006",
+        id: "icad-1302234-13006-r1",
+        sha256: "29708f25ceea002ff57f2ebcada3a8bd25ffb6ef1f908ff678b45c3c7abc9f54",
+        schema: "13006",
+        types: &[
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 50, 51, 70, 74, 79, 80, 81, 82,
+        ],
+        edits: &[],
+    },
+    ProfileSpec {
+        key: "SCH_1500000_15003",
+        id: "icad-1500000-15003-r1",
+        sha256: "d3f7b3909050da2834e34c7f1ccf6b17f2f9cf16048053634dd7fc61506ad313",
+        schema: "15003",
+        types: &[
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 50, 51, 52, 54, 68, 70, 74,
+            79, 80, 81, 82, 83, 141,
+        ],
+        edits: &[(70, LIST)],
+    },
+    ProfileSpec {
+        key: "SCH_1700000_16100",
+        id: "icad-1700000-16100-r1",
+        sha256: "e9b55fd29420174f205353b6171c40140d70c067d25e9ea5854b014c468c5580",
+        schema: "16100",
+        types: &[
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 50, 51, 70, 74, 79, 80, 81, 82,
+        ],
+        edits: &[(70, LIST)],
+    },
+    ProfileSpec {
+        key: "SCH_1901000_19008",
+        id: "icad-1901000-19008-r1",
+        sha256: "c273c545b4b69f176457113d9bb1e158f170a39a4cd8babfbd687e9e0c325ba0",
+        schema: "19008",
+        types: &[
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 50, 51, 54, 70, 74, 79, 80, 81, 82,
+        ],
+        edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
+    },
+    ProfileSpec {
         key: "SCH_2401000_20000",
         id: "icad-2401000-20000-r1",
         sha256: "002dcea4ae6ff5bf1a817744ce4e83c06f58f8955f7a100c011048484a865a04",
@@ -161,6 +216,22 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
             12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 50, 51, 70, 74, 79, 80, 81, 82,
         ],
         edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
+    },
+    ProfileSpec {
+        key: "SCH_2601000_26105",
+        id: "icad-2601000-26105-r1",
+        sha256: "f2717a3ccb97d6e836bb36e981671974b0d2fd0a586c9b42e3fcbe77fe36976d",
+        schema: "26105",
+        types: &[
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 56, 60, 70, 74,
+            79, 80, 81, 82, 83, 124, 125, 126, 127, 128, 133, 134, 135, 136, 137, 141,
+        ],
+        edits: &[
+            (12, BODY_28002),
+            (19, REGION),
+            (70, LIST),
+            (74, POINTER_BLOCK),
+        ],
     },
     ProfileSpec {
         key: "SCH_2800000_28002",

@@ -26,13 +26,23 @@ from tests.support.parasolid_text import text_header
 
 # BODY codes, then the ordinals of its two precisions, kind and three heads.
 BODIES = {
+    "SCH_1300218_13006": ("dppppppffpppupuuppppppp", (7, 8, 14, 20, 21, 22)),
+    "SCH_1302234_13006": ("dppppppffpppupuuppppppp", (7, 8, 14, 20, 21, 22)),
+    "SCH_1500000_15003": ("dppppppffpppupuuppppppp", (7, 8, 14, 20, 21, 22)),
+    "SCH_1700000_16100": ("dppppppffpppupuuppppppp", (7, 8, 14, 20, 21, 22)),
+    "SCH_1901000_19008": ("dppppppffpppupuupppppppdppp", (7, 8, 14, 20, 21, 22)),
     "SCH_2401000_20000": ("dppppppffpppupuupppppppdppp", (7, 8, 14, 20, 21, 22)),
+    "SCH_2601000_26105": ("dppppppffpppupuuppppppppdppppd", (7, 8, 14, 20, 21, 22)),
     "SCH_2800000_28002": ("dppppppffpppupuuppppppppdppppd", (7, 8, 14, 20, 21, 22)),
     "SCH_2901000_28101": ("dppppppppffpppupuupppppppppdppppd", (9, 10, 16, 24, 25, 26)),
     "SCH_3200000_32001": ("dppppppppffpppupuupppppppppdppppdp", (9, 10, 16, 24, 25, 26)),
     "SCH_3301000_33103": ("dpppppppppffpppupuupppppppppdppppdp", (10, 11, 17, 25, 26, 27)),
 }
 KEYS = tuple(BODIES)
+# The list header keeps its base order only under the two 13006 keys; REGION
+# gains its owner from 26105 on.
+BASE_LIST = KEYS[:2]
+BASE_REGION = KEYS[:6]
 
 CODES = {
     13: "dpppppppp",
@@ -41,7 +51,6 @@ CODES = {
     18: "dpppppfp",
     29: "dppppv",
     30: "dpppppcvv",
-    70: "dulpppdddpp",
 }
 
 
@@ -49,7 +58,9 @@ def codes(key, kind):
     if kind == 12:
         return BODIES[key][0]
     if kind == 19:
-        return "dpppppc" if key == KEYS[0] else "dpppppcp"
+        return "dpppppc" if key in BASE_REGION else "dpppppcp"
+    if kind == 70:
+        return "dpppddddppdl" if key in BASE_LIST else "dulpppdddpp"
     return CODES[kind]
 
 
@@ -152,11 +163,16 @@ def test_body_references_follow_the_revision_layout(encoding, key):
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 @pytest.mark.parametrize("key", KEYS)
-def test_list_header_uses_the_reordered_layout(encoding, key):
-    values = [321, 9, 1, 4, 5, 6, 77, 88, 99, 10, 11]
+def test_list_header_uses_the_revision_layout(encoding, key):
+    # The logical flag is last in the base order and third in the later one.
+    flag = 11 if key in BASE_LIST else 2
+    values = [321, 9, 8, 4, 5, 6, 77, 88, 99, 10, 11, 12][: len(codes(key, 70))]
+    values[flag] = 1
     record = (70, 20, dict(enumerate(values)))
     doc = parse(encoding, fixture(encoding, key, [*wire_records(key), record]))
-    assert [f.values[0].value for f in doc.nodes[-1].fields] == [*values[:2], True, *values[3:]]
+    expected = [*values]
+    expected[flag] = True
+    assert [f.values[0].value for f in doc.nodes[-1].fields] == expected
     assert map_brep(doc).complete
 
 
@@ -185,8 +201,8 @@ def test_nearby_keys_and_unreviewed_types_fail_closed(encoding, key):
         with pytest.raises(SchemaError) as exc:
             parse(encoding, fixture(encoding, "_".join(parts), []))
         assert exc.value.diagnostic.code == "schema.missing_base_schema"
-    # Spun and offset surfaces were not seen under any of these keys.
-    for kind in (60, 68):
+    # Swept and foreign surfaces were not seen under any of these keys.
+    for kind in (67, 69):
         if encoding == "x_t":
             data = text_header(key) + f"{kind} 1 0 ".encode()
         else:

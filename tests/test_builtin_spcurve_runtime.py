@@ -373,11 +373,13 @@ def test_nonfinite_spcurve_tolerance(value):
 
 
 def test_spcurve_scope_truncation_and_array_limits():
-    for key in (EMBEDDED,):
+    # An embedded key under which SP_CURVE was not observed.
+    for key in ("SCH_2401260_20000_13006",):
         for data, parser in [
-            (header(key) + b"137 1 ", parse_xt),
-            (builder(key).build()[:-4] + struct.pack(">H", 137), parse_xb),
+            (header(EMBEDDED) + b"137 1 ", parse_xt),
+            (builder(EMBEDDED).build()[:-4] + struct.pack(">H", 137), parse_xb),
         ]:
+            data = data.replace(EMBEDDED.encode(), key.encode())
             with pytest.raises(ParseError) as error:
                 parser(data)
             assert error.value.diagnostic.code in (

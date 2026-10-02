@@ -20,7 +20,7 @@ from parasolid_kit import (
     parse_xt,
     write_xb,
 )
-from parasolid_kit.brep import NurbsSurface, Vector3
+from parasolid_kit.brep import NurbsSurface, OffsetSurface, Vector3
 from tests.support.parasolid_binary import SyntheticXbBuilder
 from tests.support.parasolid_schema import positive_integer
 from tests.support.parasolid_text import text_header
@@ -41,9 +41,15 @@ KEYS = (
     "SCH_3200152_32001_13006",
     "SCH_3200252_32001_13006",
     "SCH_3301231_33103_13006",
+    "SCH_1901261_19008_13006",
+    "SCH_2601246_26105_13006",
 )
+# Profiles whose reviewed type set grew after their first release.
+REVISIONS = {KEYS[5]: 2, KEYS[12]: 2}
 # Keys under which B-spline surfaces (124-126) were observed.
-SURFACE_KEYS = (KEYS[5], KEYS[6], KEYS[9], KEYS[11], KEYS[12])
+SURFACE_KEYS = (KEYS[5], KEYS[6], KEYS[9], KEYS[11], KEYS[12], KEYS[14])
+# Keys under which offset surfaces (60) were observed.
+OFFSET_KEYS = (KEYS[5], KEYS[12], KEYS[14])
 
 # Fixed scalar order authored independently of the runtime profile declarations.
 CODES = {
@@ -58,6 +64,7 @@ CODES = {
     51: "dpppppcvvfv",
     56: "dpppppccpppffffpppp",  # Four fixed arrays are flattened here.
     59: "dpppppcnp",
+    60: "dpppppcclpff",  # Public XT reference, pp. 65-66.
     68: "dpppppcpvvvvffvf",
 }
 
@@ -90,7 +97,16 @@ def fixture(encoding, key, records, *, user_fields=0):
         seen.add(kind)
         raw.extend(positive_integer(index))
         text.extend(f"{index} ".encode())
-        defaults = {"d": index + 100, "p": 0, "f": None, "u": 0, "c": "+", "v": (0, 0, 0), "n": 0}
+        defaults = {
+            "d": index + 100,
+            "p": 0,
+            "f": None,
+            "u": 0,
+            "c": "+",
+            "v": (0, 0, 0),
+            "n": 0,
+            "l": 0,
+        }
         for ordinal, code in enumerate(CODES[kind]):
             value = overrides.get(ordinal, defaults[code])
             if code == "v":
@@ -102,6 +118,9 @@ def fixture(encoding, key, records, *, user_fields=0):
             elif code == "c":
                 raw.extend(value.encode())
                 text.extend(value.encode())
+            elif code == "l":
+                raw.append(value)
+                text.extend(b"T" if value else b"F")
             else:
                 raw.extend(
                     struct.pack(
@@ -125,8 +144,11 @@ def test_exact_keys_map_authored_wire_with_source_values(encoding, key):
     data = fixture(encoding, key, wire_records())
     doc = parse(encoding, data)
     assert doc.schema_resolution.schema_key == key
-    assert doc.schema_resolution.profile_id == "icad-" + key[4:].replace("_", "-") + "-r1"
-    assert doc.schema_resolution.profile_revision == 1
+    revision = REVISIONS.get(key, 1)
+    assert doc.schema_resolution.profile_id == (
+        "icad-" + key[4:].replace("_", "-") + f"-r{revision}"
+    )
+    assert doc.schema_resolution.profile_revision == revision
     model = map_brep(doc)
     assert model.complete and model.topology.valid
     assert len(model.edges) == 1
@@ -198,6 +220,42 @@ def test_surface_parameter_curve_and_all_dependencies(encoding):
     assert curve.definition.control_vertices == ((0.011, -0.017), (0.023, 0.031))
     assert curve.definition.knots == (0, 1)
     assert curve.definition.knot_multiplicities == (2, 2)
+
+
+@pytest.mark.parametrize("encoding", ["x_t", "x_b"])
+@pytest.mark.parametrize("key", KEYS)
+def test_offset_surface_is_scoped_to_observed_keys(encoding, key):
+    records = [
+        *wire_records(),
+        (51, 20, {7: (1, 2, 3), 8: (0, 0, 1), 9: 7, 10: (1, 0, 0)}),
+        # The internal scale may be unset; the offset distance is signed.
+        (60, 21, {7: "V", 8: 1, 9: 20, 10: -0.25}),
+    ]
+    data = fixture(encoding, key, records)
+    if key not in OFFSET_KEYS:
+        with pytest.raises(SchemaError) as exc:
+            parse(encoding, data)
+        assert exc.value.diagnostic.code == "schema.unknown_base_type"
+        return
+    doc = parse(encoding, data)
+    assert [f.values[0].value for f in doc.nodes[-1].fields[7:]] == [
+        ord("V"),
+        True,
+        20,
+        -0.25,
+        None,
+    ]
+    model = map_brep(doc)
+    assert model.complete and model.topology.valid
+    cylinder, offset = model.surfaces
+    assert isinstance(offset.definition, OffsetSurface)
+    assert offset.definition.basis_surface == cylinder.id
+    assert offset.definition.offset == -0.25
+    assert offset.source.node_type == 60
+    for bad in ({9: 999}, {10: None}):
+        changed = [*records[:-1], (60, 21, {**records[-1][2], **bad})]
+        with pytest.raises(ParseError):
+            map_brep(parse(encoding, fixture(encoding, key, changed)))
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
@@ -278,12 +336,13 @@ def test_nearby_keys_and_unreviewed_types_fail_closed(encoding, key):
         with pytest.raises(SchemaError) as exc:
             parse(encoding, fixture(encoding, "_".join(parts), wire_records()))
         assert exc.value.diagnostic.code == "schema.missing_base_schema"
+    # A swept surface (67) was not observed under any of these keys.
     if encoding == "x_t":
-        data = text_header(key, schema_max_type=205) + b"60 255 1 0 "
+        data = text_header(key, schema_max_type=205) + b"67 255 1 0 "
     else:
         data = (
             SyntheticXbBuilder(schema_name=key, schema_max_type=205)
-            .add_raw_node(60, b"\xff" + positive_integer(1))
+            .add_raw_node(67, b"\xff" + positive_integer(1))
             .build()
         )
     with pytest.raises(SchemaError) as exc:

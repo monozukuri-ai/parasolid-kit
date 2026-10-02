@@ -3,7 +3,7 @@
 The [SolidWorks partition profile](solidworks-partitions.md) documents the
 additional exact V37 key, WORLD base layout, local validation and delta boundary.
 
-Twenty-four profiles are registered for default parsing. The complete internal
+Thirty-two profiles are registered for default parsing. The complete internal
 stream key must match; a caller-selected provider always takes priority. The
 [shared support matrix](format-support.md#supported-profiles) records their
 current identities and separate raw, B-Rep, independent-geometry, conversion,
@@ -761,7 +761,9 @@ unchanged.
 
 The exact `SCH_3401212_34101_13006` key uses
 `icad-sch34101-13006-r2`: the independently reviewed 13006 subset plus
-the public-reference TORUS (54) declaration (31 types / 252 field groups). Unknown base types still fail closed. The only
+the public-reference TORUS (54) declaration (31 types / 252 field groups).
+The current identity is `icad-sch34101-13006-r3`; see
+[further keys and revisions](#further-icad-keys-and-revisions). Unknown base types still fail closed. The only
 confirmed absent type is 204, reusing the existing 13006 membership audit;
 no vendor catalog field definitions are embedded. Nearby keys are not accepted.
 
@@ -913,7 +915,8 @@ Every observed declaration of an extra type uses the unchanged-base marker.
 Revision changes to BODY, REGION, INTERSECTION, LIMIT, LIST and the pointer
 block arrive as embedded edits of each stream and are not declared by a
 profile. Type 204 remains the only confirmed absent type. OFFSET_SURF (60)
-occurs in 17 sampled resources and stays unknown, so those inputs fail closed.
+occurs in 17 sampled resources and stayed unknown in this batch, so those
+inputs failed closed until the [next batch](#further-icad-keys-and-revisions).
 
 ### Standard keys
 
@@ -1010,6 +1013,97 @@ two references of the same codec.
 These are development samples and authored regression fixtures, not held-out
 coverage or an independent CAD measurement campaign. Unknown keys do not
 inherit support from a shared schema number: in the same sample
-`SCH_2601246_26105_13006`, `SCH_2601000_26105` and other keys remain without a
-profile. Private payloads, filenames and catalog contents remain outside the
-public package.
+`SCH_2601246_26105_13006`, `SCH_2601000_26105` and other keys had no profile
+until they were reviewed separately. Private payloads, filenames and catalog
+contents remain outside the public package.
+
+## Further iCAD keys and revisions
+
+A second batch covers the remaining iCAD keys of the same development sample
+that have self-describing evidence. It adds two embedded and six standard
+revision-1 profiles, one base declaration, and new revisions of four existing
+profiles. The [shared support matrix](format-support.md#supported-profiles) pins
+every identity. These are source-tree additions, not a published release.
+
+### OFFSET_SURF
+
+OFFSET_SURF (60) follows the
+[public XT reference](https://ww3.cad.de/foren/ubb/uploads/schulze/XT_Format_April_2008_tcm73-62642.pdf),
+printed pages 65-66: the common surface fields, a check character, an unused
+logical, the underlying surface, the signed offset distance and an internal
+scale that may be null. Project field labels are independently assigned. The
+mapper already modelled this surface for caller-supplied catalogs; the pinned
+roles now select the underlying surface and the distance by reviewed name.
+Every observed declaration of the type uses the unchanged-base marker. The type
+is admitted only where it was observed.
+
+### Profiles
+
+| Exact key | Profile | Change |
+|---|---|---|
+| `SCH_1901261_19008_13006` | `icad-1901261-19008-13006-r1` | New embedded key, no extra type |
+| `SCH_2601246_26105_13006` | `icad-2601246-26105-13006-r1` | New embedded key: 45, 56, 60, 124-128, 134-137 |
+| `SCH_2100293_20000_13006` | `icad-2100293-20000-13006-r2` | Adds 60 |
+| `SCH_3301231_33103_13006` | `icad-3301231-33103-13006-r2` | Adds 60 |
+| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r6` | Adds 45, 54, 56, 60, 124-128, 134-137 |
+| `SCH_3401212_34101_13006` | `icad-sch34101-13006-r3` | Adds 45, 56, 68, 127, 128, 134-137 |
+| `SCH_1300218_13006`, `SCH_1302234_13006` | `icad-1300218-13006-r1`, `icad-1302234-13006-r1` | New standard keys: the reviewed 13006 declarations unchanged |
+| `SCH_1500000_15003`, `SCH_1700000_16100` | `icad-1500000-15003-r1`, `icad-1700000-16100-r1` | New standard keys: LIST differs from base |
+| `SCH_1901000_19008` | `icad-1901000-19008-r1` | New standard key: BODY, LIST, pointer block |
+| `SCH_2601000_26105` | `icad-2601000-26105-r1` | New standard key: BODY, REGION, LIST, pointer block |
+
+The revised profiles change identity and digest; a consumer that pins the
+earlier IDs must update them. Their previous definitions are unchanged, so
+inputs accepted before decode identically. The standard profiles follow the
+method of the [later keys](#later-icad-keys): each differing layout is the
+reviewed 13006 declaration with the edit sequence carried by embedded streams
+of the same schema revision, and each profile lists only the node types seen
+under its key. Embedded 15003 and 16100 streams change only LIST; 19008
+streams carry the BODY and pointer-block edits also seen at 20000; 26105
+streams carry the BODY edit also seen at 28002 and the REGION owner, and leave
+LIMIT and INTERSECTION unchanged. A 13006 key transmits the base itself, which
+a public test compares type by type with the reviewed V13 profile.
+
+Not covered: schema 8008 and 12103 keys have no self-describing stream in the
+sample, and two V30 standard resources need blend or offset types that the V30
+standard profile does not declare. They still require a catalog.
+
+### Unset trim parameters
+
+Twenty resources of the earlier comparison failed in both paths because a
+trimmed curve on a LINE stores both parameters as null. The mapper now takes
+the parameters of the two stored points from `R(t) = P + tD`, which the public
+reference (printed page 31) gives for a line with unit direction, and requires
+each point to lie on the line within 1e-8. In the sample all 154 such curves
+have a unit direction, a positive-sense line, points on the line within 2e-16
+and an increasing derived order; 146 are edge curves whose two vertices sit at
+the two points, and eight are construction lines owned by the body. Raw fields
+keep their null values. Other bases and partly unset pairs are still rejected.
+
+### Local comparison, 2026-10-03
+
+All iCAD keys of the sample were compared again with a separate catalog parse:
+18,634 distinct payloads in 33,941 occurrences.
+
+| Result | Distinct payloads | Occurrences |
+|---|---:|---:|
+| Raw parity and complete source B-Rep | 18,567 | 33,836 |
+| Raw parity, explicitly partial (SPUN_SURF) | 32 | 66 |
+| Raw parity, same B-Rep error in both paths | 11 | 11 |
+| No profile: schema 8008 or 12103 key | 22 | 22 |
+| Uncovered type under the V30 standard key | 2 | 6 |
+
+The 8,668,707 nodes and 67,991,664 field groups of the parsed payloads match
+in values, byte ranges, variable lengths, user fields and terminators. Ten of
+the eleven errors are intersection curves whose limits have kind `B`, which
+the public reference describes for blends and not for intersection curves; the
+mapper keeps rejecting them. The other is an invalid reference under the V30
+standard key. Neither successful mapping nor this comparison proves OCCT, STEP
+or preview conversion.
+
+Public Rust and Python tests cover the new and revised identities, per-key
+membership of OFFSET_SURF and the other extra types, an authored offset surface
+with its basis reference and signed distance in X_T and X_B, the per-revision
+LIST and pointer-block layouts with a distinct value at every ordinal, and
+unset trim parameters on lines of both senses together with the cases that
+stay rejected.

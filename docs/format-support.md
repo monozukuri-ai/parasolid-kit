@@ -41,24 +41,32 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 |---|---|---|---|
 | `SCH_3000000_30000` | `onshape-sch30000-r3` / 3 | 44 / 356 | `67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4` |
 | `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | 40 / 327 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
-| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r5` / 5 | 30 / 240 | `1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5` |
-| `SCH_3401212_34101_13006` | `icad-sch34101-13006-r2` / 2 | 31 / 252 | `eaebc3477246b7a6b56d1b5dc500029beba46f54e9226973883bc444684f26eb` |
+| `SCH_3000310_30000_13006` | `icad-sch30000-13006-r6` / 6 | 43 / 366 | `29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e` |
+| `SCH_3401212_34101_13006` | `icad-sch34101-13006-r3` / 3 | 40 / 320 | `595a8848c2b7730367bb41bbe75332c79c9038eb56accc7ee785ca9742a37de7` |
 | `SCH_3701212_37102_13006` | `onshape-sch37102-13006-r3` / 3 | 41 / 339 | `3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa` |
 | `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` / 1 | 41 / 338 | `5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480` |
 | `SCH_1500137_15003_13006` | `icad-1500137-15003-13006-r1` / 1 | 31 / 252 | `dcb4bb70654e9d1bf091b1310b2068872b56304f0b820435a3910bcec366a9e8` |
 | `SCH_1500245_15003_13006` | `icad-1500245-15003-13006-r1` / 1 | 34 / 292 | `4179d5785e61e89926dfb54e0bc5eed7f0fb7cdec7300de0936ef678ba4d0f4c` |
 | `SCH_1700223_16100_13006` | `icad-1700223-16100-13006-r1` / 1 | 31 / 252 | `a27d8216055fe16425438c854482ec8dfac5e6f2e0aea1e1b7ce3605bc6ac633` |
 | `SCH_1700256_16100_13006` | `icad-1700256-16100-13006-r1` / 1 | 39 / 305 | `30fc3f141639819bb6c76a4585056c7b274a6103d6c3924f71c448603796e802` |
+| `SCH_1901261_19008_13006` | `icad-1901261-19008-13006-r1` / 1 | 31 / 252 | `f8913a60054dd7f29049a46c4b57ec6e7be048a2c112230453d31fe8587b6e22` |
 | `SCH_1901315_19008_13006` | `icad-1901315-19008-13006-r1` / 1 | 31 / 252 | `781de5125a27ee855bd377a456df9f21d2a71099ec231cbd1d67a86b0c637f96` |
-| `SCH_2100293_20000_13006` | `icad-2100293-20000-13006-r1` / 1 | 43 / 363 | `10e8b516eea36c585ae71713d342b203da9b1f9c92f624ce211a5c435189c753` |
+| `SCH_2100293_20000_13006` | `icad-2100293-20000-13006-r2` / 2 | 44 / 375 | `52f7f986db1d2851aaf5c4a9938a5ade7a3c3daaa008cc8811247556a059f31f` |
 | `SCH_2100311_20000_13006` | `icad-2100311-20000-13006-r1` / 1 | 43 / 363 | `09ac64c00702f713b5ef2eaccffe003ce6e073a1b2694dd4184178cbd9399dff` |
 | `SCH_2401260_20000_13006` | `icad-2401260-20000-13006-r1` / 1 | 31 / 252 | `d89bae93d6a526d92c022933d332b88b9c7083561b0e7cecec79c7a94e24a149` |
+| `SCH_2601246_26105_13006` | `icad-2601246-26105-13006-r1` / 1 | 43 / 366 | `bc85f903ff495ab14dcce7e0528e28ad0f23197d60493e68f2b525ea321c024a` |
 | `SCH_2800188_28002_13006` | `icad-2800188-28002-13006-r1` / 1 | 31 / 252 | `83f469624fd9e0a636850444e728bd65b7599669e74fa6816972c9a0f19a0976` |
 | `SCH_2901199_28101_13006` | `icad-2901199-28101-13006-r1` / 1 | 43 / 368 | `1d834f8db3223aa77e005f9ac394d29c0c4d4d018d74dc4098293ae783031627` |
 | `SCH_3200152_32001_13006` | `icad-3200152-32001-13006-r1` / 1 | 39 / 305 | `b6d919827de77377bc8a96581f25c1654bf257e5d0f3c126ba1090850b623413` |
 | `SCH_3200252_32001_13006` | `icad-3200252-32001-13006-r1` / 1 | 44 / 379 | `141ddd0f43c9a5c8bac32395171352899adca081f7b17fb77f9fd625e2495172` |
-| `SCH_3301231_33103_13006` | `icad-3301231-33103-13006-r1` / 1 | 44 / 379 | `3c35b9d4a5ab97492fbcbbbfff3df492b39d52997286cba3b38ca2f313a28bbe` |
+| `SCH_3301231_33103_13006` | `icad-3301231-33103-13006-r2` / 2 | 45 / 391 | `cc98a11221746512e9429ae85dd6c354b2c557fb7fe3959c7d13151220936baf` |
+| `SCH_1300218_13006` | `icad-1300218-13006-r1` / 1 | 23 / 189 | `928962c3f7f5a87013f6af6e45a443d040ff9a967b0887f959366b9bd2774b82` |
+| `SCH_1302234_13006` | `icad-1302234-13006-r1` / 1 | 19 / 165 | `29708f25ceea002ff57f2ebcada3a8bd25ffb6ef1f908ff678b45c3c7abc9f54` |
+| `SCH_1500000_15003` | `icad-1500000-15003-r1` / 1 | 28 / 242 | `d3f7b3909050da2834e34c7f1ccf6b17f2f9cf16048053634dd7fc61506ad313` |
+| `SCH_1700000_16100` | `icad-1700000-16100-r1` / 1 | 20 / 176 | `e9b55fd29420174f205353b6171c40140d70c067d25e9ea5854b014c468c5580` |
+| `SCH_1901000_19008` | `icad-1901000-19008-r1` / 1 | 20 / 181 | `c273c545b4b69f176457113d9bb1e158f170a39a4cd8babfbd687e9e0c325ba0` |
 | `SCH_2401000_20000` | `icad-2401000-20000-r1` / 1 | 19 / 169 | `002dcea4ae6ff5bf1a817744ce4e83c06f58f8955f7a100c011048484a865a04` |
+| `SCH_2601000_26105` | `icad-2601000-26105-r1` / 1 | 38 / 336 | `f2717a3ccb97d6e836bb36e981671974b0d2fd0a586c9b42e3fcbe77fe36976d` |
 | `SCH_2800000_28002` | `icad-2800000-28002-r1` / 1 | 41 / 370 | `a1693181a2af88fd8456155296f7ffefca2a71fdf14366a9866ab9c88e6531b7` |
 | `SCH_2901000_28101` | `icad-2901000-28101-r1` / 1 | 24 / 214 | `3e62cae9a159faf2364f85206fcc2bf1580eb68b4763b446fed1864010df19de` |
 | `SCH_3200000_32001` | `icad-3200000-32001-r1` / 1 | 30 / 255 | `5911102568cc1e2215b3bc93e0e43146a382b747394aca8661527557b3220edf` |
@@ -79,6 +87,7 @@ public CI. The detailed evidence and its retained failures are in
 | iCAD embedded V34 (unreleased) | Ten neutral X_B resources, including saved variants, match explicit-catalog values and byte boundaries | Ten complete source B-Reps match explicit-catalog mapping except type labels | Four authored solids match independent SDK dimensions and mass properties; sphere SDK edge enumeration failed | No new OCCT/STEP/preview qualification | `.icd` extraction, part ownership, placement and unit interpretation remain caller responsibilities |
 | [iCAD legacy five exact keys](builtin-profiles.md#legacy-icad-embedded-keys) (unreleased) | 539 sampled neutral X_B resource occurrences match catalog values, ranges and terminators; public X_T/X_B fixtures are authored | 535 complete, four explicitly partial SPUN_SURF cases; all topology valid; catalog parity including source references | Authored wire coordinates, blend references/parameters and UV spline coefficients; no independent legacy CAD measurement campaign | No new conversion qualification; SPUN_SURF remains unsupported | Native ICD framing, ownership, transforms, extrusion and feature history remain downstream responsibilities |
 | [iCAD later exact keys](builtin-profiles.md#later-icad-keys) (unreleased): eight embedded and five standard | 17,082 of 17,099 distinct sampled X_B resources match catalog values, ranges and terminators; 17 with OFFSET_SURF (60) fail closed; public X_T/X_B fixtures are authored | 17,047 complete, 15 explicitly partial SPUN_SURF cases and 20 null-parameter errors, each identical to the catalog path | Authored wire coordinates, per-ordinal record values and B-spline surface coefficients; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
+| [Further iCAD keys and revisions](builtin-profiles.md#further-icad-keys-and-revisions) (unreleased): two embedded and six standard keys, four revised profiles, OFFSET_SURF | 18,610 of 18,634 distinct sampled X_B resources of all iCAD keys match catalog values, ranges and terminators; schema 8008 and 12103 keys and two V30 standard resources still fail closed | 18,567 complete, 32 explicitly partial SPUN_SURF cases and 11 errors, each identical to the catalog path | Authored offset-surface and unset-trim-parameter records with independent values; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
 | SolidWorks 2026 partitions | Four neutral X_B partitions; associated deltas stop at unknown base type 3 | Four complete partition B-Reps, including one three-body partition | Existing sldkit point/FIN/NURBS parity; no independent CAD/STEP evaluation repeated for this profile | No real partition conversion validation | Delta application and final saved configuration reconstruction remain unsupported |
 
 Runtime, build, and installation of the built-in parser require no external
@@ -93,9 +102,10 @@ developer audit and its version-specific definitions are documented separately.
 ### Detailed verified scope
 
 The development checkout adds the exact iCAD V34 key
-`SCH_3401212_34101_13006` with `icad-sch34101-13006-r2`. It is not included in the
+`SCH_3401212_34101_13006`, now `icad-sch34101-13006-r3`. It is not included in the
 published 0.2.0 release. This profile reuses the reviewed 13006 subset and only
-the existing type-204 absence audit. No nearby-key fallback is used. See the
+the existing type-204 absence audit; revision 3 admits the blend, spun-surface
+and SP-curve dependency types observed under the key. No nearby-key fallback is used. See the
 [V34 evidence and limits](builtin-profiles.md#icad-v34-embedded-key).
 
 The source tree adds `onshape-sch37102-13006-r3` for current Onshape exports
@@ -126,7 +136,7 @@ The B-Rep bounding box encloses source vertices; it is not a curved-shape bounds
 oracle. Core area/volume are available only for planar polygonal topology.
 
 Default parsing also accepts `SCH_1300000_13006` with `onshape-sch13006-r6`
-and `SCH_3000310_30000_13006` with `icad-sch30000-13006-r5`. They share the
+and `SCH_3000310_30000_13006` with `icad-sch30000-13006-r6`. They share the
 reviewed 13006 base subset of 30 types / 240 base field groups, including cone
 (52), intersection (38), chart (40), limit (41), trimmed curve (133) and shared
 geometry owner (141), and retain intersection chart/limit references.
@@ -161,6 +171,11 @@ separately measures imported pcurve consistency and area integration.
 V30 revision 3 separately audits these geometry dependencies; historical V13
 producer evidence does not become new V30 producer evidence.
 The `TrimmedCurve` model retains the basis curve, endpoints and parameters.
+Some inputs leave both parameters of a trim on a LINE unset. They are then the
+parameters of the stored end points under the published parameterisation
+`R(t) = P + tD`; each point must lie on the line within 1e-8 and the usual
+order rule still applies. The raw fields remain null. Unset parameters on any
+other basis, or only one unset parameter, are still rejected.
 V13 type 133 is verified using new producer text/binary pairs and independent
 STEP comparisons; its scope is still the exact V13 key.
 The embedded profile applies each transmitted definition/delta and retains its

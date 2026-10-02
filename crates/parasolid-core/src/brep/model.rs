@@ -419,7 +419,9 @@ pub enum CurveKind {
         transverse_radius: f64,
         conjugate_radius: f64,
     },
-    /// Curve restricted to two parameter values and endpoint positions.
+    /// Curve restricted to two parameter values and endpoint positions. On a
+    /// line whose stored parameters are both unset, they are the parameters of
+    /// the stored end points.
     Trimmed {
         basis_curve: BrepId,
         start_point: Vector3,

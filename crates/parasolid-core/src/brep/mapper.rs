@@ -15,6 +15,10 @@ use super::model::{
 };
 use super::profile_roles::RoleAccess;
 
+/// Default modeller linear precision, in metres: the bound within which a trim
+/// point with unset parameters must lie on its basis line.
+const LINE_TRIM_TOLERANCE: f64 = 1.0e-8;
+
 /// Map a complete `X_B` raw document into the Parasolid-native B-Rep model.
 ///
 /// # Errors
@@ -655,9 +659,67 @@ impl<'a> Mapper<'a> {
                 "trimmed curve sense must be positive",
             ));
         }
-        let start_parameter = self.double(node, "parm_1")?;
-        let end_parameter = self.double(node, "parm_2")?;
-        let basis_sense = self.sense(self.node(basis_index)?, "sense")?;
+        let start_point = self.vector(node, "point_1")?;
+        let end_point = self.vector(node, "point_2")?;
+        let basis = self.node(basis_index)?;
+        let stored = [
+            self.optional_double(node, "parm_1")?,
+            self.optional_double(node, "parm_2")?,
+        ];
+        let [start_parameter, end_parameter] = match stored {
+            [Some(start), Some(end)] => [start, end],
+            // Both parameters can be unset on a line. Its published
+            // parameterisation R(t) = P + tD, with D a unit vector, gives them
+            // from the stored end points, which must lie on that line.
+            [None, None] if self.roles.type_name(basis) == "LINE" => {
+                let origin = self.vector(basis, "pvec")?.to_array();
+                let direction = self.vector(basis, "direction")?.to_array();
+                let unit = direction.iter().map(|d| d * d).sum::<f64>().sqrt();
+                if (unit - 1.0).abs() > LINE_TRIM_TOLERANCE {
+                    return Err(self.invalid_geometry(
+                        basis,
+                        "direction",
+                        "basis line direction is not a unit vector",
+                    ));
+                }
+                let mut parameters = [0.0; 2];
+                for (parameter, (point, field)) in parameters
+                    .iter_mut()
+                    .zip([(start_point, "point_1"), (end_point, "point_2")])
+                {
+                    let point = point.to_array();
+                    let along = (0..3)
+                        .map(|i| (point[i] - origin[i]) * direction[i])
+                        .sum::<f64>();
+                    let off = (0..3)
+                        .map(|i| (origin[i] + along * direction[i] - point[i]).powi(2))
+                        .sum::<f64>()
+                        .sqrt();
+                    if off.is_nan() || off > LINE_TRIM_TOLERANCE {
+                        return Err(self.invalid_geometry(
+                            node,
+                            field,
+                            "trim point is not on its basis line",
+                        ));
+                    }
+                    *parameter = along;
+                }
+                parameters
+            }
+            _ => {
+                let field = if stored[0].is_none() {
+                    "parm_1"
+                } else {
+                    "parm_2"
+                };
+                return Err(self.invalid_geometry(
+                    node,
+                    field,
+                    "required double is null or non-finite",
+                ));
+            }
+        };
+        let basis_sense = self.sense(basis, "sense")?;
         if start_parameter == end_parameter
             || (basis_sense == Sense::Positive && end_parameter < start_parameter)
             || (basis_sense == Sense::Negative && end_parameter > start_parameter)
@@ -670,8 +732,8 @@ impl<'a> Mapper<'a> {
         }
         Ok(CurveKind::Trimmed {
             basis_curve,
-            start_point: self.vector(node, "point_1")?,
-            end_point: self.vector(node, "point_2")?,
+            start_point,
+            end_point,
             start_parameter,
             end_parameter,
         })
@@ -2635,6 +2697,98 @@ mod tests {
                 ..
             }))
         ));
+    }
+
+    #[test]
+    fn derives_unset_trim_parameters_only_on_a_line() {
+        fn vector(name: &str, values: [f64; 3]) -> (FieldDefinition, Vec<FieldValue>) {
+            field(name, 0, vec![FieldValue::Vector(values.map(Some))])
+        }
+        // R(t) = (1, 2, 3) + t (0, 0.6, 0.8) passes (1, 3.5, 5) at t = 2.5 and
+        // (1, 6.5, 9) at t = 7.5.
+        let low = [1.0, 3.5, 5.0];
+        let high = [1.0, 6.5, 9.0];
+        let trim = |sense: u8,
+                    direction: [f64; 3],
+                    points: [[f64; 3]; 2],
+                    parameters: [Option<f64>; 2],
+                    on_circle: bool| {
+            let mut basis = common_curve_fields(0);
+            basis[4] = field("sense", 0, vec![FieldValue::Character(sense)]);
+            let basis = if on_circle {
+                basis.extend([
+                    vector("centre", [1.0, 2.0, 3.0]),
+                    vector("normal", [1.0, 0.0, 0.0]),
+                    vector("x_axis", [0.0, 0.6, 0.8]),
+                    field("radius", 0, vec![FieldValue::Double(Some(2.5))]),
+                ]);
+                node(1, 31, "CIRCLE", basis)
+            } else {
+                basis.extend([
+                    vector("pvec", [1.0, 2.0, 3.0]),
+                    vector("direction", direction),
+                ]);
+                node(1, 30, "LINE", basis)
+            };
+            let mut trimmed = common_curve_fields(0);
+            trimmed.extend([
+                field("basis_curve", 1008, vec![FieldValue::PointerIndex(1)]),
+                vector("point_1", points[0]),
+                vector("point_2", points[1]),
+                field("parm_1", 0, vec![FieldValue::Double(parameters[0])]),
+                field("parm_2", 0, vec![FieldValue::Double(parameters[1])]),
+            ]);
+            let nodes = [basis, node(2, 133, "TRIMMED_CURVE", trimmed)];
+            Mapper::new(
+                BrepSourceFormat::Text,
+                "SCH_TEST",
+                &nodes,
+                RoleAccess::Named,
+            )
+            .map_curve(2)
+            .map(|curve| curve.kind)
+        };
+        let unit = [0.0, 0.6, 0.8];
+        for (sense, points, expected) in [
+            (b'+', [low, high], [2.5, 7.5]),
+            (b'-', [high, low], [7.5, 2.5]),
+        ] {
+            let kind = trim(sense, unit, points, [None, None], false);
+            assert!(matches!(
+                kind,
+                Ok(CurveKind::Trimmed {
+                    start_parameter,
+                    end_parameter,
+                    ..
+                }) if (start_parameter - expected[0]).abs() < 1.0e-12
+                    && (end_parameter - expected[1]).abs() < 1.0e-12
+            ));
+        }
+        // Stored parameters are never replaced.
+        assert!(matches!(
+            trim(b'+', unit, [low, high], [Some(-4.0), Some(9.0)], false),
+            Ok(CurveKind::Trimmed {
+                start_parameter: -4.0,
+                end_parameter: 9.0,
+                ..
+            })
+        ));
+        let off_line = [1.000_001, 6.5, 9.0];
+        for kind in [
+            // The derived order must still follow the basis sense.
+            trim(b'+', unit, [high, low], [None, None], false),
+            trim(b'-', unit, [low, high], [None, None], false),
+            trim(b'+', unit, [low, high], [Some(2.5), None], false),
+            trim(b'+', unit, [low, high], [None, Some(7.5)], false),
+            trim(b'+', unit, [low, high], [None, None], true),
+            trim(b'+', unit, [low, off_line], [None, None], false),
+            trim(b'+', [0.0, 0.6, 0.9], [low, high], [None, None], false),
+        ] {
+            assert_eq!(
+                kind.err().map(|error| error.kind()),
+                Some(ErrorKind::InvalidGeometryParameter)
+            );
+        }
     }
 
     #[test]

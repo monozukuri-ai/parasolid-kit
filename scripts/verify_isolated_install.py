@@ -50,8 +50,8 @@ expected_profiles = {expected_profile["schema_key"]: expected_profile}
 for key, profile_id, revision, digest in (
     ("SCH_1300000_13006", "onshape-sch13006-r6", 6,
      "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb"),
-    ("SCH_3000310_30000_13006", "icad-sch30000-13006-r5", 5,
-     "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5"),
+    ("SCH_3000310_30000_13006", "icad-sch30000-13006-r6", 6,
+     "29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e"),
     ("SCH_3701212_37102_13006", "onshape-sch37102-13006-r3", 3,
      "3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa"),
 ):

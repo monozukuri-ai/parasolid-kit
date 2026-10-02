@@ -8,7 +8,7 @@ mod support;
 use parasolid_core::{
     BuiltinProfileRegistry, BuiltinSchemaProfile, DocumentLimits, ErrorKind, SchemaKey,
     SchemaProvider, SchemaTypeLookup, parse_xb, parse_xt,
-    schema::profiles::{icad_legacy_standard, onshape_sch30000},
+    schema::profiles::{icad_legacy_standard, onshape_sch13006, onshape_sch30000},
 };
 use serde_json::{Value, json};
 use support::Result;
@@ -24,9 +24,76 @@ struct Expected {
     region: &'static str,
     intersection: Option<&'static str>,
     limit: Option<&'static str>,
+    list: &'static str,
+    block: &'static str,
 }
 
-const EXPECTED: [Expected; 5] = [
+const EXPECTED: [Expected; 11] = [
+    Expected {
+        key: "SCH_1300218_13006",
+        types: 23,
+        fields: 189,
+        body: "dppppppffpppupuuppppppp",
+        body_references: &[],
+        region_head: 20,
+        region: "dpppppc",
+        intersection: Some("dpppppcpppp"),
+        limit: Some("ch"),
+        list: "dpppddddppdl",
+        block: "dpp",
+    },
+    Expected {
+        key: "SCH_1302234_13006",
+        types: 19,
+        fields: 165,
+        body: "dppppppffpppupuuppppppp",
+        body_references: &[],
+        region_head: 20,
+        region: "dpppppc",
+        intersection: None,
+        limit: None,
+        list: "dpppddddppdl",
+        block: "dpp",
+    },
+    Expected {
+        key: "SCH_1500000_15003",
+        types: 28,
+        fields: 242,
+        body: "dppppppffpppupuuppppppp",
+        body_references: &[],
+        region_head: 20,
+        region: "dpppppc",
+        intersection: Some("dpppppcpppp"),
+        limit: Some("ch"),
+        list: "dulpppdddpp",
+        block: "dpp",
+    },
+    Expected {
+        key: "SCH_1700000_16100",
+        types: 20,
+        fields: 176,
+        body: "dppppppffpppupuuppppppp",
+        body_references: &[],
+        region_head: 20,
+        region: "dpppppc",
+        intersection: None,
+        limit: None,
+        list: "dulpppdddpp",
+        block: "dpp",
+    },
+    Expected {
+        key: "SCH_1901000_19008",
+        types: 20,
+        fields: 181,
+        body: "dppppppffpppupuupppppppdppp",
+        body_references: &[(24, 82), (25, 82), (26, 82)],
+        region_head: 20,
+        region: "dpppppc",
+        intersection: None,
+        limit: None,
+        list: "dulpppdddpp",
+        block: "ddpp",
+    },
     Expected {
         key: "SCH_2401000_20000",
         types: 19,
@@ -37,6 +104,28 @@ const EXPECTED: [Expected; 5] = [
         region: "dpppppc",
         intersection: None,
         limit: None,
+        list: "dulpppdddpp",
+        block: "ddpp",
+    },
+    Expected {
+        key: "SCH_2601000_26105",
+        types: 38,
+        fields: 336,
+        body: "dppppppffpppupuuppppppppdppppd",
+        body_references: &[
+            (13, 1040),
+            (23, 1006),
+            (25, 82),
+            (26, 82),
+            (27, 82),
+            (28, 12),
+        ],
+        region_head: 20,
+        region: "dpppppcp",
+        intersection: Some("dpppppcpppp"),
+        limit: Some("ch"),
+        list: "dulpppdddpp",
+        block: "ddpp",
     },
     Expected {
         key: "SCH_2800000_28002",
@@ -55,6 +144,8 @@ const EXPECTED: [Expected; 5] = [
         region: "dpppppcp",
         intersection: Some("dpppppcpppp"),
         limit: Some("cch"),
+        list: "dulpppdddpp",
+        block: "ddpp",
     },
     Expected {
         key: "SCH_2901000_28101",
@@ -76,6 +167,8 @@ const EXPECTED: [Expected; 5] = [
         region: "dpppppcp",
         intersection: Some("dpppppcpppp"),
         limit: Some("cch"),
+        list: "dulpppdddpp",
+        block: "ddpp",
     },
     Expected {
         key: "SCH_3200000_32001",
@@ -98,6 +191,8 @@ const EXPECTED: [Expected; 5] = [
         region: "dpppppcp",
         intersection: Some("dpppppcppppp"),
         limit: Some("cch"),
+        list: "dulpppdddpp",
+        block: "ddpp",
     },
     Expected {
         key: "SCH_3301000_33103",
@@ -121,6 +216,8 @@ const EXPECTED: [Expected; 5] = [
         region: "dpppppcp",
         intersection: Some("dpppppcppppp"),
         limit: Some("cch"),
+        list: "dulpppdddpp",
+        block: "ddpp",
     },
 ];
 
@@ -159,13 +256,13 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
         );
         let provider = registry.provider_for_key(key).ok_or("provider")?;
         let schema = key.provider_schema();
-        for kind in [55, 57, 58, 60, 67, 68, 69, 110, 138] {
+        for kind in [55, 57, 58, 67, 69, 110, 138] {
             assert_eq!(
                 provider.lookup_type(schema, kind),
                 SchemaTypeLookup::Unknown
             );
         }
-        assert_eq!(provider.lookup_type("13006", 29), SchemaTypeLookup::Unknown);
+        assert_eq!(provider.lookup_type("99999", 29), SchemaTypeLookup::Unknown);
         for component in 1..=2 {
             let mut parts = key.raw().split('_').map(str::to_owned).collect::<Vec<_>>();
             parts[component].push('9');
@@ -198,8 +295,8 @@ fn revision_layouts_have_the_stated_codecs_and_references() -> Result<()> {
         assert_eq!(codes(profile, 19).as_deref(), Some(expected.region));
         assert_eq!(codes(profile, 38).as_deref(), expected.intersection);
         assert_eq!(codes(profile, 41).as_deref(), expected.limit);
-        assert_eq!(codes(profile, 70).as_deref(), Some("dulpppdddpp"));
-        assert_eq!(codes(profile, 74).as_deref(), Some("ddpp"));
+        assert_eq!(codes(profile, 70).as_deref(), Some(expected.list));
+        assert_eq!(codes(profile, 74).as_deref(), Some(expected.block));
         assert!(profile.definition(74).is_some_and(|d| d.variable));
         if let Some(intersection) = profile.definition(38) {
             let data = intersection
@@ -216,7 +313,8 @@ fn revision_layouts_have_the_stated_codecs_and_references() -> Result<()> {
 }
 
 #[test]
-fn layouts_shared_with_v30_equal_the_reviewed_v30_profile() -> Result<()> {
+fn layouts_agree_with_the_reviewed_v13_and_v30_profiles() -> Result<()> {
+    let v13 = onshape_sch13006()?;
     let v30 = onshape_sch30000()?;
     let layout = |profile: &BuiltinSchemaProfile, kind: u16| {
         profile.definition(kind).map(|d| {
@@ -226,32 +324,47 @@ fn layouts_shared_with_v30_equal_the_reviewed_v30_profile() -> Result<()> {
                 .collect::<Vec<_>>()
         })
     };
-    for profile in icad_legacy_standard()? {
+    for (profile, expected) in icad_legacy_standard()?.iter().zip(&EXPECTED) {
         let schema = profile.metadata().provider_schema.as_str();
-        // BODY has this layout from 28101 until a later reference is added.
+        // A 13006 key is the base itself: every listed type is unchanged.
+        if schema == "13006" {
+            for definition in profile.definitions() {
+                assert_eq!(Some(definition), v13.definition(definition.node_type));
+            }
+        }
+        // BODY has the V30 layout from 28101 until a later reference is added.
         if schema == "28101" {
             assert_eq!(
                 profile.definition(12).map(|d| &d.fields),
                 v30.definition(12).map(|d| &d.fields)
             );
         }
-        for kind in [19, 41] {
-            if schema != "20000" && profile.definition(kind).is_some() {
+        for (kind, changed) in [
+            (19, expected.region.len() == 8),
+            (41, expected.limit == Some("cch")),
+            (38, expected.intersection.is_some_and(|c| c.len() == 12)),
+        ] {
+            if changed {
                 assert_eq!(
                     profile.definition(kind).map(|d| &d.fields),
                     v30.definition(kind).map(|d| &d.fields)
                 );
+            } else if profile.definition(kind).is_some() {
+                assert_eq!(
+                    profile.definition(kind).map(|d| &d.fields),
+                    v13.definition(kind).map(|d| &d.fields)
+                );
             }
         }
-        if matches!(schema, "32001" | "33103") {
-            assert_eq!(
-                profile.definition(38).map(|d| &d.fields),
-                v30.definition(38).map(|d| &d.fields)
-            );
-            assert_eq!(layout(&profile, 204), layout(&v30, 204));
+        if profile.definition(204).is_some() {
+            assert_eq!(layout(profile, 204), layout(&v30, 204));
         }
-        for kind in [70, 74] {
-            assert_eq!(layout(&profile, kind), layout(&v30, kind));
+        for (kind, changed) in [
+            (70, expected.list.len() == 11),
+            (74, expected.block.len() == 4),
+        ] {
+            let reviewed = if changed { &v30 } else { &v13 };
+            assert_eq!(layout(profile, kind), layout(reviewed, kind));
         }
     }
     Ok(())
@@ -316,15 +429,21 @@ fn authored_records_decode_with_each_revision_layout() -> Result<()> {
         let mut records = vec![
             record(12, expected.body, None)?,
             record(19, expected.region, None)?,
-            record(70, "dulpppdddpp", None)?,
-            record(74, "ddpp", Some(&[5, 6, 32_767]))?,
-            record(74, "ddpp", Some(&[]))?,
+            record(70, expected.list, None)?,
+            record(74, expected.block, Some(&[5, 6, 32_767]))?,
+            record(74, expected.block, Some(&[]))?,
         ];
         if let Some(limit) = expected.limit {
-            // An empty limit still carries both leading characters.
-            let (mut binary, _) = record(41, &limit[..2], None)?;
+            // An empty limit still carries its leading characters.
+            let leading = &limit[..limit.len() - 1];
+            let (mut binary, _) = record(41, leading, None)?;
             binary.splice(2..2, 0_i32.to_be_bytes());
-            records.push((binary, json!([[b'A'], [b'B'], []])));
+            let mut values = (b'A'..)
+                .take(leading.len())
+                .map(|c| json!([c]))
+                .collect::<Vec<_>>();
+            values.push(json!([]));
+            records.push((binary, json!(values)));
         }
         for (payload, values) in records {
             let mut binary = support::xb_header(expected.key, 0)?;
@@ -389,8 +508,9 @@ fn independent_point_values_roles_and_uncovered_types() -> Result<()> {
                 .kind(),
             ErrorKind::MissingBrepBody
         );
+        // A swept surface was not seen under any of these keys.
         let mut uncovered = support::xb_header(expected.key, 0)?;
-        uncovered.extend([0, 60]);
+        uncovered.extend([0, 67]);
         assert_eq!(
             parse_xb(&uncovered, &provider, DocumentLimits::default())
                 .err()

@@ -29,8 +29,8 @@ PROFILES = {
         "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb",
     ),
     EMBEDDED: (
-        "icad-sch30000-13006-r5",
-        "1f090c87aef63e99af8dcb3aef9cc077a613af6749f177392989cca70ca3bfa5",
+        "icad-sch30000-13006-r6",
+        "29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e",
     ),
 }
 
@@ -114,7 +114,7 @@ def test_defaults_select_base_and_embedded_profiles(encoding, key):
     assert document.schema_resolution.to_dict() == {
         "kind": "builtin",
         "profile_id": profile_id,
-        "profile_revision": 6 if key == BASE else 5,
+        "profile_revision": 6,
         "schema_key": key,
         "coverage": "verified_subset",
         "profile_sha256": digest,
@@ -146,11 +146,11 @@ def test_icad_v34_selects_exact_profile_and_maps_copied_body_roles(encoding):
     result = read_brep(data)
     assert result.document.schema_resolution.to_dict() == {
         "kind": "builtin",
-        "profile_id": "icad-sch34101-13006-r2",
-        "profile_revision": 2,
+        "profile_id": "icad-sch34101-13006-r3",
+        "profile_revision": 3,
         "schema_key": key,
         "coverage": "verified_subset",
-        "profile_sha256": "eaebc3477246b7a6b56d1b5dc500029beba46f54e9226973883bc444684f26eb",
+        "profile_sha256": "595a8848c2b7730367bb41bbe75332c79c9038eb56accc7ee785ca9742a37de7",
     }
     assert result.brep.complete and result.brep.topology.valid
     assert len(result.brep.bodies) == 1

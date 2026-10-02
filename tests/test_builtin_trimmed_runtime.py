@@ -23,6 +23,7 @@ def trimmed(
     start=-0.013,
     end=0.027,
     coordinate=0.011,
+    stored_parameters=True,
 ):
     data = bytearray(general_body(encoding, key)[:-4])
     seen = {12}
@@ -60,7 +61,10 @@ def trimmed(
             data.extend(f"{kind} ".encode() + schema + f"{index} ".encode())
             for code, values in fields:
                 for value in values:
-                    data.extend(value.encode() if code == "c" else f"{value} ".encode())
+                    if value is None:
+                        data.extend(b"?")
+                    else:
+                        data.extend(value.encode() if code == "c" else f"{value} ".encode())
         else:
             data.extend(struct.pack(">H", kind) + schema + positive_integer(index))
             for code, values in fields:
@@ -90,8 +94,8 @@ def trimmed(
                 ("p", [basis]),
                 ("v", [coordinate, -0.017, a + 0.023]),
                 ("v", [0.011, -0.017, b + 0.023]),
-                ("f", [a]),
-                ("f", [b]),
+                ("f", [a if stored_parameters else None]),
+                ("f", [b if stored_parameters else None]),
             ],
         )
     record(
@@ -163,6 +167,41 @@ def test_null_and_nonfinite_trim_points_are_rejected(coordinate):
 def test_null_and_nonfinite_trim_parameters_are_rejected(end):
     data = trimmed("x_b", end=end)
     assert len(parse_xb(data).nodes) == 4
+    with pytest.raises(ParseError):
+        read_brep(data)
+
+
+@pytest.mark.parametrize("basis_sense", ["+", "-"])
+def test_unset_parameters_on_a_line_are_those_of_its_end_points(basis_sense):
+    # The line is R(t) = (0.011, -0.017, 0.023) + t (0, 0, 1), so each stored
+    # point fixes its parameter. The raw fields stay null.
+    stored = read_brep(trimmed("x_b", basis_sense=basis_sense))
+    expected = {c.source.node_index: c.definition for c in stored.brep.curves}
+    for encoding in ("x_t", "x_b"):
+        data = trimmed(encoding, basis_sense=basis_sense, stored_parameters=False)
+        result = read_brep(data)
+        assert result.brep.complete and result.brep.topology.valid
+        trims = [n for n in result.document.nodes if n.node_type == 133]
+        assert [f.values[0].value for n in trims for f in n.fields[-2:]] == [None] * 4
+        curves = {c.source.node_index: c.definition for c in result.brep.curves}
+        for index in (3, 4):
+            assert isinstance(curves[index], TrimmedCurve)
+            assert curves[index].start_point == expected[index].start_point
+            assert curves[index].start_parameter == pytest.approx(
+                expected[index].start_parameter, abs=1e-15
+            )
+            assert curves[index].end_parameter == pytest.approx(
+                expected[index].end_parameter, abs=1e-15
+            )
+    if basis_sense == "+":
+        assert write_xb(read_brep(data).document) == data
+
+
+@pytest.mark.parametrize("encoding,parser", [("x_t", parse_xt), ("x_b", parse_xb)])
+@pytest.mark.parametrize("change", [{"coordinate": 0.012}, {"start": 0.027}, {"end": -0.019}])
+def test_unset_parameters_do_not_relax_point_or_order_rules(encoding, parser, change):
+    data = trimmed(encoding, stored_parameters=False, **change)
+    assert len(parser(data).nodes) == 4
     with pytest.raises(ParseError):
         read_brep(data)
 
