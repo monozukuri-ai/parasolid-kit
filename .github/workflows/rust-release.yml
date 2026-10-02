@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Draft release containing the private verification receipt
+        description: Existing version tag to test and publish
         type: string
         required: true
       dry_run:
@@ -14,52 +14,43 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
-  group: rust-release-${{ github.ref }}
+  group: rust-release-${{ inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  prepare:
     runs-on: ubuntu-24.04
-    permissions:
-      # GitHub only exposes draft releases to tokens with push access.
-      contents: write
-      actions: read
+    outputs:
+      source_sha: ${{ steps.verify.outputs.source_sha }}
     steps:
-      - name: Check out selected source
+      - name: Check out selected tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: refs/tags/${{ inputs.release_tag }}
           persist-credentials: false
-
-      - name: Verify exact source and private receipt
+      - name: Verify source versions
         id: verify
         env:
-          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          gh release download "$RELEASE_TAG" --pattern release-verification.json --dir receipt
-          python scripts/verify_release.py --tag "$RELEASE_TAG" \
-            --receipt receipt/release-verification.json --github-output "$GITHUB_OUTPUT"
+        run: python scripts/verify_release.py --tag "$RELEASE_TAG" --github-output "$GITHUB_OUTPUT"
 
-      - name: Download verified candidate artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+  quality:
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.source_sha }}
+
+  publish:
+    needs: [prepare, quality]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out tested source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          run-id: ${{ steps.verify.outputs.candidate_run_id }}
-          github-token: ${{ github.token }}
-          pattern: release-*
-          path: candidate
-          merge-multiple: true
-
-      - name: Verify candidate hashes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: >-
-          python scripts/verify_release.py --tag "$RELEASE_TAG"
-          --receipt receipt/release-verification.json --artifacts candidate
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          persist-credentials: false
 
       - name: Install Rust MSRV
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
@@ -68,10 +59,8 @@ jobs:
 
       - name: Test Rust core and build the package
         run: |
-          cargo test -p parasolid-core --locked
           cargo package -p parasolid-core --locked
           cargo test --locked --manifest-path target/package/parasolid-core-*/Cargo.toml
-          cmp candidate/*.crate target/package/*.crate
 
       - name: Validate publishing without upload
         if: inputs.dry_run

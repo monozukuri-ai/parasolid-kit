@@ -31,139 +31,100 @@ It does not create commits, tags or publish packages.
 
 Release verification tools run on Python 3.11+; installed-package checks still
 exercise Python 3.10. CI checks the source version and locks before testing the
-package. A stable version requires a fresh candidate run and fresh evidence.
+package.
 
-## Candidate
+## Publish Python
 
-1. Push a `release/*` branch. The `release` workflow runs the reusable CI at that
-   commit: tests, lint, MSRV, public corpus, packaged core, sanitizer smoke and
-   installation profiles. It then builds four wheels (Linux x86-64, Windows
-   x86-64, macOS Intel and Apple Silicon), an sdist and a core crate, and compares
-   all archives and license bytes together on one host. Manual
-   dispatch on the same branch also builds candidates without publishing.
-2. Wait for the whole candidate workflow to succeed. Download its five
-   `release-*` artifacts into one flat directory. Keep the run ID, attempt and
-   commit SHA. Artifact retention is 30 days; expiration requires a new run and
-   revalidation. Rerunning a job invalidates an earlier receipt.
-3. On the private validation host, cold-install the **downloaded** Linux wheel
-   and sdist separately, outside the checkout. Run every required M9.2 case using
-   `verify_release_corpus.py` and a probe built from the downloaded crate. Run the
-   M9.3 sldkit regressions against that unpacked crate, preserving expected partial
-   results. Validate M9.4 robustness evidence against the candidate source.
-   Keep input manifests, hashes, reports, logs and isolated runtime locations
-   locally. iCAD native-container integration awaits its own parser.
-4. Create `release-verification.json` with the format below. Each private report
-   must identify the candidate commit, tested artifact hashes and actual results;
-   the receipt carries only report hashes. The receipt is an attestation by the
-   releasing maintainer, not an independent signature or a proof of arbitrary
-   geometry support. Do not upload private reports, filenames or CAD inputs.
+1. Commit the version change, push it and create its matching version tag.
+2. Publish a GitHub Release for that tag. This starts `release.yml`, which runs
+   the full CI, builds and tests the distributions, and publishes to PyPI after
+   all required jobs succeed. Mark RCs and development versions as prereleases.
+3. Check that the workflow completed and that PyPI contains the four wheels and
+   source distribution for the selected version.
 
-For 0.2.0, the private case set also includes the current-key analytic,
-ellipse/direct-NURBS and [compound-geometry](onshape-composite.md) campaigns,
-with both producer encodings. Use `onshape_parametric` for NURBS and compound
-cases, retaining the frozen per-family exceptions and strict-distance failures
-in every artifact report. The older M9.2 corpus alone does not exercise the
-new profile coverage. Freeze the parser, runtime, oracle, tolerances and recipes
-before collecting fresh holdouts; record the freeze hashes and subsequent
-immutable Onshape Version. Rerun the same case IDs against each cold install.
+No `release-verification.json`, separate candidate run or private CAD data is
+required. PyPI publication uses the existing `pypi` environment and Trusted
+Publisher. Python publication does not depend on a crates.io upload: the wheels
+already contain the native Rust core, and the sdist contains its source.
 
-```json
-{
-  "schema_version": 1,
-  "repository": "monozukuri-ai/parasolid-kit",
-  "source_sha": "<40 lowercase hex characters>",
-  "candidate_run_id": 123,
-  "candidate_run_attempt": 1,
-  "python_version": "0.2.0rc1",
-  "rust_version": "0.2.0-rc.1",
-  "gates": {
-    "private_wheel": {"status": "passed", "report_sha256": "<sha256>"},
-    "private_sdist": {"status": "passed", "report_sha256": "<sha256>"},
-    "downstream": {"status": "passed", "report_sha256": "<sha256>"},
-    "robustness": {"status": "passed", "report_sha256": "<sha256>"}
-  },
-  "artifacts": {"<each of the six distribution filenames>": "<sha256>"}
-}
-```
+The release workflow always:
 
-Validate the receipt from the clean candidate checkout:
+- Resolves the selected source once and uses that exact commit in every test
+  and build job, including manual publication from a newer workflow revision.
+- Runs the reusable CI: Python/Rust tests, lint, MSRV, public corpus, packaged
+  core tests, sanitizer smoke, viewer checks and optional installation profiles.
+- Builds Linux x86-64, Windows x86-64, macOS Intel and Apple Silicon wheels, a
+  source distribution and a Rust crate. It checks archive metadata, license
+  bytes, isolated installs and OCCT/CadQuery behavior on each platform.
+- Compares all distributions together and records their SHA-256 hashes as job
+  outputs. The publish job downloads artifacts from the **same workflow run**,
+  checks those hashes again, and uploads the tested wheels and sdist.
+
+A missing platform, failed check or changed artifact blocks publication. The
+publish job does not rebuild packages. Artifact retention is 30 days.
+
+## Build without publishing
+
+Push a `release/*` branch, or run `release.yml` manually with `release_tag` left
+empty. It runs the same checks and builds the same distributions, with the PyPI
+job skipped. This is useful when reviewing a candidate or running additional
+private validation; it is optional for normal publication.
+
+## Publish Rust
+
+Rust publication is a separate manual workflow. It resolves the tag to one
+commit, runs the reusable CI, packages and tests the distributable crate, and
+then performs the selected operation:
 
 ```bash
-python scripts/verify_release.py --tag v0.2.0rc1 \
-  --receipt /private/release-verification.json --artifacts /private/candidate
+gh workflow run rust-release.yml --ref main -f release_tag=v0.3.5 -f dry_run=true
 ```
 
-## Publication
+After a successful dry run, publish with:
 
-1. Create the version tag at the verified commit and a **draft** GitHub Release.
-   Attach only the sanitized `release-verification.json`. Mark RCs as prereleases.
-2. Dispatch `rust-release.yml` from `main` with `release_tag` set to that
-   draft and `dry_run=true`. The workflow checks out that tag, independently of
-   the workflow revision, so publication fixes do not change candidate artifacts.
-   Its manual job needs `contents: write` to read draft releases. It checks the successful candidate run, private
-   receipt and all hashes, and requires its repackaged crate to be byte-identical
-   before allowing upload. A real upload (`dry_run=false`) additionally requires
-   the repository's `CARGO_REGISTRY_TOKEN` secret.
-3. After publishing Rust, download the registry crate and verify its checksum.
-   Change both sldkit dependency pins and its lockfile to the published exact
-   version, remove the candidate path patch and rerun downstream validation in
-   an isolated checkout. Record this separately from packaged-crate validation.
-4. Publish the GitHub Release. This triggers Python publication through the
-   existing `pypi` Trusted Publisher environment. It requires the receipt and
-   exact candidate run and verifies the published Rust checksum, then uploads
-   the previously tested wheels/sdist without rebuilding them.
-   If different Cargo versions produced different archive timestamps, the
-   verifier downloads the registry crate, authenticates its registry checksum,
-   and requires every member's name, contents and other tar attributes to match
-   the candidate. Duplicate members, links, missing files and changed source are
-   rejected. Candidate artifact hashes in the receipt remain exact byte hashes.
-5. Download all PyPI distributions and compare their sizes/SHA-256 values with
-   the candidate. Cold-install from the registry and check version, native core,
-   imports, CLI and schema-free parsing. Record local, CI, registry and downstream
-   results separately. An RC does not close the stable-release gate.
+```bash
+gh workflow run rust-release.yml --ref main -f release_tag=v0.3.5 -f dry_run=false
+```
 
-If one registry upload fails, record the partial publication and inspect the
-registry before retrying. Do not overwrite or blindly re-upload a used version.
+A real upload requires the repository's `CARGO_REGISTRY_TOKEN` secret. Neither
+a GitHub Release asset nor a private verification receipt is required. Inspect
+crates.io before retrying an upload; a published version cannot be replaced.
+
+## Recover a failed Python release
+
+Fix the failure and rerun the failed jobs in the same workflow run. A publish
+retry reuses the distributions and hashes from that run. Before retrying a
+partially completed upload, inspect PyPI to determine which files were already
+published; do not blindly rebuild and upload a used version.
+
+If the tagged workflow itself is obsolete, use the current workflow on `main`
+to build, verify and publish the existing tag:
+
+```bash
+gh workflow run release.yml --ref main -f release_tag=v0.3.5
+```
+
+This also recovers old `no assets to download` failures caused by the former
+`release-verification.json` requirement. The tag stays fixed. The current
+workflow checks out the selected tag separately, runs CI at its exact commit,
+and publishes only the distributions produced and verified by this new run.
+Old failed attempts retain their original workflow revision, so rerunning them
+will not pick up the fix. Check the new manual run for the recovery result.
+
+## Additional validation for relevant changes
+
+Run private CAD, geometry-oracle, downstream and longer robustness checks when
+changes affect their behavior or support claims. They are not required for every
+release. Keep the existing `verify_release_corpus.py`, corpus manifests, geometry
+checks, benchmarks and fuzz tools for this work.
+
+When testing a release artifact, download it from the candidate workflow and
+cold-install the wheel and sdist separately. Build Rust probes from the downloaded
+crate and test downstream consumers in isolated checkouts. Reports should record
+the tested commit, artifact/input hashes, actual results and known partial cases.
+Retain detailed reports and private CAD inputs locally; do not upload them as
+public release assets. A local report does not establish arbitrary format or
+geometry support.
+
 Public inputs, package contents and declared support remain bounded by
 [format support](format-support.md) and [resource validation](resource-validation.md).
-
-## Recovering a release published without a receipt
-
-`gh release download ... --pattern release-verification.json` reports
-`no assets to download` when the release has no assets. Check the release's
-assets first; publishing the GitHub Release does not generate its receipt.
-
-The tag, receipt's `source_sha` and candidate run's commit must match exactly.
-A different commit with identical files still requires a candidate run at the
-tagged commit. Create a `release/*` branch at that commit and complete the
-candidate verification above. Keep the published tag fixed, and generate the
-receipt from the actual reports and downloaded artifacts.
-
-From the clean tagged checkout, validate and attach the sanitized receipt:
-
-```bash
-python scripts/verify_release.py --tag v0.2.0 \
-  --receipt /private/release-verification.json --artifacts /private/candidate
-gh release upload v0.2.0 /private/release-verification.json
-```
-
-Complete Rust publication and verify its registry checksum before retrying the
-failed Python publication run. Attaching an asset does not retrigger the
-`release: published` event. Inspect both registries for partial publication,
-then use `gh run rerun <failed-publication-run-id> --failed`. Rerun the publication
-workflow only; rerunning the candidate would invalidate the receipt's attempt.
-
-If publication tooling itself needs a fix, commit that fix to `main`, then use
-the current workflow to publish the existing tag:
-
-```bash
-gh workflow run release.yml --ref main -f release_tag=v0.3.3
-```
-
-This checks out `refs/tags/v0.3.3` separately and validates its version, commit,
-receipt, candidate run and downloaded artifacts using the updated verifier.
-It only publishes the existing candidate; it does not rebuild artifacts or move
-the tag. The `pypi` environment and Trusted Publisher are unchanged. Leave
-`release_tag` empty for a normal candidate build. Old failed workflow attempts
-retain their original workflow revision; inspect the new manual run for recovery
-status.

@@ -48,39 +48,12 @@ def test_recovery_verifier_uses_tagged_checkout(source, monkeypatch, capsys):
     from scripts import verify_release
 
     sha = "a" * 40
-    receipt = {
-        "schema_version": 1,
-        "repository": verify_release.REPOSITORY,
-        "source_sha": sha,
-        "candidate_run_id": 123,
-        "candidate_run_attempt": 1,
-        "python_version": "1.2.3rc4",
-        "rust_version": "1.2.3-rc.4",
-        "gates": {
-            name: {"status": "passed", "report_sha256": "b" * 64} for name in verify_release.GATES
-        },
-    }
-    run = {
-        "id": 123,
-        "run_attempt": 1,
-        "head_sha": sha,
-        "status": "completed",
-        "conclusion": "success",
-        "path": ".github/workflows/release.yml",
-        "repository": {"full_name": verify_release.REPOSITORY},
-        "head_repository": {"full_name": verify_release.REPOSITORY},
-        "event": "push",
-        "head_branch": "release/1.2.3rc4",
-    }
-    path = source / "receipt.json"
-    path.write_text(json.dumps(receipt))
 
     def git(command, **kwargs):
         assert command == ["git", "-C", str(source), "rev-parse", "HEAD"]
         return sha
 
     monkeypatch.setattr(verify_release.subprocess, "check_output", git)
-    monkeypatch.setattr(verify_release, "gh", lambda *args: json.dumps(run))
     monkeypatch.setattr(
         sys,
         "argv",
@@ -90,8 +63,6 @@ def test_recovery_verifier_uses_tagged_checkout(source, monkeypatch, capsys):
             "v1.2.3rc4",
             "--source-root",
             str(source),
-            "--receipt",
-            str(path),
         ],
     )
     verify_release.main()
