@@ -112,6 +112,11 @@ python scripts/verify_release.py --tag v0.2.0rc1 \
    existing `pypi` Trusted Publisher environment. It requires the receipt and
    exact candidate run and verifies the published Rust checksum, then uploads
    the previously tested wheels/sdist without rebuilding them.
+   If different Cargo versions produced different archive timestamps, the
+   verifier downloads the registry crate, authenticates its registry checksum,
+   and requires every member's name, contents and other tar attributes to match
+   the candidate. Duplicate members, links, missing files and changed source are
+   rejected. Candidate artifact hashes in the receipt remain exact byte hashes.
 5. Download all PyPI distributions and compare their sizes/SHA-256 values with
    the candidate. Cold-install from the registry and check version, native core,
    imports, CLI and schema-free parsing. Record local, CI, registry and downstream
@@ -147,3 +152,18 @@ failed Python publication run. Attaching an asset does not retrigger the
 `release: published` event. Inspect both registries for partial publication,
 then use `gh run rerun <failed-publication-run-id> --failed`. Rerun the publication
 workflow only; rerunning the candidate would invalidate the receipt's attempt.
+
+If publication tooling itself needs a fix, commit that fix to `main`, then use
+the current workflow to publish the existing tag:
+
+```bash
+gh workflow run release.yml --ref main -f release_tag=v0.3.3
+```
+
+This checks out `refs/tags/v0.3.3` separately and validates its version, commit,
+receipt, candidate run and downloaded artifacts using the updated verifier.
+It only publishes the existing candidate; it does not rebuild artifacts or move
+the tag. The `pypi` environment and Trusted Publisher are unchanged. Leave
+`release_tag` empty for a normal candidate build. Old failed workflow attempts
+retain their original workflow revision; inspect the new manual run for recovery
+status.

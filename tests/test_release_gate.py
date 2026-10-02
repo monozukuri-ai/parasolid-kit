@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import io
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -15,6 +18,7 @@ from scripts.verify_release import (
     artifact_hashes,
     validate_receipt,
     verify_artifacts,
+    verify_published_core,
     versions,
 )
 
@@ -146,3 +150,55 @@ def test_candidate_receipt_rejects_duplicate_platform(tmp_path):
     intel.rename(tmp_path / intel.name.replace("x86_64", "arm64"))
     with pytest.raises(ValueError, match="platform"):
         artifact_hashes(tmp_path)
+
+
+def core_archive(*, mtime=1, content=b"source", mode=0o644, name="src/lib.rs", duplicate=False):
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode="w:gz") as archive:
+        entry = tarfile.TarInfo(f"parasolid-core-1.2.3/{name}")
+        entry.size = len(content)
+        entry.mtime = mtime
+        entry.mode = mode
+        archive.addfile(entry, io.BytesIO(content))
+        if duplicate:
+            archive.addfile(entry, io.BytesIO(content))
+    return stream.getvalue()
+
+
+def test_published_core_accepts_timestamp_only_repack(tmp_path):
+    candidate = tmp_path / "core.crate"
+    candidate.write_bytes(core_archive())
+    published = core_archive(mtime=1153704088)
+    version = {"yanked": False, "checksum": hashlib.sha256(published).hexdigest()}
+    assert "excluding timestamps" in verify_published_core(version, candidate, published, "1.2.3")
+    candidate.write_bytes(published)
+    assert verify_published_core(version, candidate, published, "1.2.3") == "identical archive"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"content": b"changed source"},
+        {"mode": 0o755},
+        {"name": "src/other.rs"},
+        {"name": "../lib.rs"},
+        {"duplicate": True},
+    ],
+)
+def test_published_core_rejects_changed_members(tmp_path, change):
+    candidate = tmp_path / "core.crate"
+    candidate.write_bytes(core_archive())
+    published = core_archive(**change)
+    version = {"yanked": False, "checksum": hashlib.sha256(published).hexdigest()}
+    with pytest.raises(ValueError, match=r"Rust core differs|Rust crate member"):
+        verify_published_core(version, candidate, published, "1.2.3")
+
+
+@pytest.mark.parametrize("change", [{"yanked": True}, {"checksum": "0" * 64}])
+def test_published_core_authenticates_registry_archive(tmp_path, change):
+    candidate = tmp_path / "core.crate"
+    published = core_archive()
+    candidate.write_bytes(published)
+    version = {"yanked": False, "checksum": hashlib.sha256(published).hexdigest()} | change
+    with pytest.raises(ValueError, match="yanked or its registry checksum"):
+        verify_published_core(version, candidate, published, "1.2.3")

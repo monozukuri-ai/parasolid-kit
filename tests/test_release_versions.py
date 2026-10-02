@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from types import ModuleType
 
@@ -41,6 +42,60 @@ def test_source_and_locks_need_no_installed_package(source):
     assert versions(source, "v1.2.3rc4") == ("1.2.3rc4", "1.2.3-rc.4")
     with pytest.raises(ValueError, match="release tag differs"):
         versions(source, "v1.2.3-rc.4")
+
+
+def test_recovery_verifier_uses_tagged_checkout(source, monkeypatch, capsys):
+    from scripts import verify_release
+
+    sha = "a" * 40
+    receipt = {
+        "schema_version": 1,
+        "repository": verify_release.REPOSITORY,
+        "source_sha": sha,
+        "candidate_run_id": 123,
+        "candidate_run_attempt": 1,
+        "python_version": "1.2.3rc4",
+        "rust_version": "1.2.3-rc.4",
+        "gates": {
+            name: {"status": "passed", "report_sha256": "b" * 64} for name in verify_release.GATES
+        },
+    }
+    run = {
+        "id": 123,
+        "run_attempt": 1,
+        "head_sha": sha,
+        "status": "completed",
+        "conclusion": "success",
+        "path": ".github/workflows/release.yml",
+        "repository": {"full_name": verify_release.REPOSITORY},
+        "head_repository": {"full_name": verify_release.REPOSITORY},
+        "event": "push",
+        "head_branch": "release/1.2.3rc4",
+    }
+    path = source / "receipt.json"
+    path.write_text(json.dumps(receipt))
+
+    def git(command, **kwargs):
+        assert command == ["git", "-C", str(source), "rev-parse", "HEAD"]
+        return sha
+
+    monkeypatch.setattr(verify_release.subprocess, "check_output", git)
+    monkeypatch.setattr(verify_release, "gh", lambda *args: json.dumps(run))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "verify_release.py",
+            "--tag",
+            "v1.2.3rc4",
+            "--source-root",
+            str(source),
+            "--receipt",
+            str(path),
+        ],
+    )
+    verify_release.main()
+    assert json.loads(capsys.readouterr().out)["source_sha"] == sha
 
 
 @pytest.mark.parametrize("project", ['version = "1.2.3rc4"', 'dynamic = ["description"]'])

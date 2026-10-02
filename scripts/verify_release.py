@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import re
 import subprocess
-from pathlib import Path
+import tarfile
+import urllib.request
+from pathlib import Path, PurePosixPath
 
 try:
     import tomllib
@@ -88,8 +91,8 @@ def versions(root: Path = ROOT, tag: str | None = None) -> tuple[str, str]:
     return python, rust
 
 
-def validate_receipt(receipt: dict, run: dict, sha: str, tag: str) -> None:
-    python, rust = versions(tag=tag)
+def validate_receipt(receipt: dict, run: dict, sha: str, tag: str, root: Path = ROOT) -> None:
+    python, rust = versions(root, tag=tag)
     if (
         receipt.get("schema_version") != 1
         or receipt.get("repository") != REPOSITORY
@@ -125,13 +128,13 @@ def validate_receipt(receipt: dict, run: dict, sha: str, tag: str) -> None:
             raise ValueError(f"private gate did not pass: {name}")
 
 
-def artifact_hashes(directory: Path) -> dict[str, str]:
+def artifact_hashes(directory: Path, root: Path = ROOT) -> dict[str, str]:
     files = sorted(p for p in directory.iterdir() if p.is_file())
     if any(p.is_symlink() or not p.name.endswith((".whl", ".tar.gz", ".crate")) for p in files):
         raise ValueError("unexpected release artifact")
     if any(p.is_dir() for p in directory.iterdir()):
         raise ValueError("release artifacts must be flat")
-    python, rust = versions()
+    python, rust = versions(root)
     wheels = [p.name for p in files if p.suffix == ".whl"]
     if len(wheels) != 4 or any(
         not n.startswith(f"parasolid_kit-{python}-cp310-abi3-") for n in wheels
@@ -150,9 +153,52 @@ def artifact_hashes(directory: Path) -> dict[str, str]:
     return {p.name: digest(p) for p in files}
 
 
-def verify_artifacts(receipt: dict, directory: Path) -> None:
-    if receipt.get("artifacts") != artifact_hashes(directory):
+def verify_artifacts(receipt: dict, directory: Path, root: Path = ROOT) -> None:
+    if receipt.get("artifacts") != artifact_hashes(directory, root):
         raise ValueError("artifacts differ from privately verified candidate hashes")
+
+
+def crate_contents(data: bytes, rust: str) -> dict:
+    """Compare every Cargo member, ignoring only tar timestamps and compression."""
+    contents = {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        for member in archive:
+            path = PurePosixPath(member.name)
+            if (
+                not member.isfile()
+                or member.name in contents
+                or path.as_posix() != member.name
+                or ".." in path.parts
+                or not member.name.startswith(f"parasolid-core-{rust}/")
+                or member.pax_headers
+            ):
+                raise ValueError("unexpected or duplicate Rust crate member")
+            info = member.get_info()
+            del info["mtime"], info["chksum"]
+            contents[member.name] = (info, archive.extractfile(member).read())
+    if not contents:
+        raise ValueError("empty Rust crate")
+    return contents
+
+
+def verify_published_core(version: dict, candidate: Path, published: bytes, rust: str) -> str:
+    """Authenticate registry bytes before comparing them with the verified crate."""
+    if version["yanked"] or hashlib.sha256(published).hexdigest() != version["checksum"]:
+        raise ValueError("published Rust core is yanked or its registry checksum differs")
+    verified = candidate.read_bytes()
+    if verified == published:
+        return "identical archive"
+    if crate_contents(verified, rust) != crate_contents(published, rust):
+        raise ValueError("published Rust core differs from verified candidate contents")
+    return "identical members and attributes excluding timestamps"
+
+
+def registry_bytes(url: str) -> bytes:
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "parasolid-kit release verification"}
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read()
 
 
 def gh(*args: str) -> str:
@@ -166,9 +212,11 @@ def main() -> None:
     parser.add_argument("--artifacts", type=Path)
     parser.add_argument("--github-output", type=Path)
     parser.add_argument("--require-core-published", action="store_true")
+    parser.add_argument("--source-root", type=Path, default=ROOT)
     args = parser.parse_args()
-    python, rust = versions(tag=args.tag)
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    root = args.source_root.resolve()
+    python, rust = versions(root, tag=args.tag)
+    sha = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
     outputs = {"source_sha": sha, "python_version": python, "rust_version": rust}
     if args.receipt:
         receipt = json.loads(args.receipt.read_text())
@@ -176,25 +224,22 @@ def main() -> None:
         if type(run_id) is not int or run_id <= 0:
             raise ValueError("invalid candidate run id")
         run = json.loads(gh("api", f"repos/{REPOSITORY}/actions/runs/{run_id}"))
-        validate_receipt(receipt, run, sha, args.tag or f"v{python}")
+        validate_receipt(receipt, run, sha, args.tag or f"v{python}", root)
         outputs["candidate_run_id"] = str(run_id)
         if args.artifacts:
-            verify_artifacts(receipt, args.artifacts)
+            verify_artifacts(receipt, args.artifacts, root)
         if args.require_core_published:
-            # Verify the registry checksum, not merely existence of the version.
-            import urllib.request
-
-            request = urllib.request.Request(
-                f"https://crates.io/api/v1/crates/parasolid-core/{rust}",
-                headers={"User-Agent": "parasolid-kit release verification"},
+            if not args.artifacts:
+                parser.error("registry verification requires --artifacts")
+            url = f"https://crates.io/api/v1/crates/parasolid-core/{rust}"
+            version = json.loads(registry_bytes(url))["version"]
+            outputs["published_core_verification"] = verify_published_core(
+                version,
+                args.artifacts / f"parasolid-core-{rust}.crate",
+                registry_bytes(url + "/download"),
+                rust,
             )
-            with urllib.request.urlopen(request, timeout=30) as response:
-                version = json.load(response)["version"]
-            if (
-                version["yanked"]
-                or version["checksum"] != receipt["artifacts"][f"parasolid-core-{rust}.crate"]
-            ):
-                raise ValueError("published Rust core differs from verified candidate")
+            outputs["published_core_checksum"] = version["checksum"]
     elif args.artifacts or args.require_core_published:
         parser.error("artifact and registry verification require --receipt")
     if args.github_output:
