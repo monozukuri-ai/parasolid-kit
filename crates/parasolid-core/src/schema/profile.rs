@@ -203,6 +203,7 @@ impl BuiltinProfileRegistry {
                     super::profiles::onshape_sch37102_13006()?,
                 ];
                 profiles.extend(super::profiles::icad_legacy_13006()?);
+                profiles.extend(super::profiles::icad_legacy_standard()?);
                 Self::new(profiles)
             })
             .as_ref()

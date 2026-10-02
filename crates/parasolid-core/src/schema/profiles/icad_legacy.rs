@@ -1,6 +1,8 @@
-//! Exact legacy iCAD keys qualified with authored fixtures and retained streams.
+//! Exact iCAD embedded keys qualified with authored fixtures and retained streams.
 //! Declarations come from the public XT reference and existing producer profiles;
 //! external catalogs are used only for subsequent comparison and membership checks.
+//! Version changes to BODY, REGION, INTERSECTION, LIMIT and the list types arrive
+//! as embedded edits of each stream; no profile declares them.
 
 use crate::{
     BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, FieldDefinition,
@@ -45,27 +47,81 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         sha256: "781de5125a27ee855bd377a456df9f21d2a71099ec231cbd1d67a86b0c637f96",
         extra_types: &[],
     },
+    ProfileSpec {
+        key: "SCH_2100293_20000_13006",
+        id: "icad-2100293-20000-13006-r1",
+        sha256: "10e8b516eea36c585ae71713d342b203da9b1f9c92f624ce211a5c435189c753",
+        extra_types: &[45, 56, 59, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+    },
+    ProfileSpec {
+        key: "SCH_2100311_20000_13006",
+        id: "icad-2100311-20000-13006-r1",
+        sha256: "09ac64c00702f713b5ef2eaccffe003ce6e073a1b2694dd4184178cbd9399dff",
+        extra_types: &[45, 56, 59, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+    },
+    ProfileSpec {
+        key: "SCH_2401260_20000_13006",
+        id: "icad-2401260-20000-13006-r1",
+        sha256: "d89bae93d6a526d92c022933d332b88b9c7083561b0e7cecec79c7a94e24a149",
+        extra_types: &[],
+    },
+    ProfileSpec {
+        key: "SCH_2800188_28002_13006",
+        id: "icad-2800188-28002-13006-r1",
+        sha256: "83f469624fd9e0a636850444e728bd65b7599669e74fa6816972c9a0f19a0976",
+        extra_types: &[],
+    },
+    ProfileSpec {
+        key: "SCH_2901199_28101_13006",
+        id: "icad-2901199-28101-13006-r1",
+        sha256: "1d834f8db3223aa77e005f9ac394d29c0c4d4d018d74dc4098293ae783031627",
+        extra_types: &[45, 56, 59, 68, 124, 125, 126, 127, 128, 134, 135, 136],
+    },
+    ProfileSpec {
+        key: "SCH_3200152_32001_13006",
+        id: "icad-3200152-32001-13006-r1",
+        sha256: "b6d919827de77377bc8a96581f25c1654bf257e5d0f3c126ba1090850b623413",
+        extra_types: &[45, 68, 127, 128, 134, 135, 136, 137],
+    },
+    ProfileSpec {
+        key: "SCH_3200252_32001_13006",
+        id: "icad-3200252-32001-13006-r1",
+        sha256: "141ddd0f43c9a5c8bac32395171352899adca081f7b17fb77f9fd625e2495172",
+        extra_types: &[45, 56, 59, 68, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+    },
+    ProfileSpec {
+        key: "SCH_3301231_33103_13006",
+        id: "icad-3301231-33103-13006-r1",
+        sha256: "3c35b9d4a5ab97492fbcbbbfff3df492b39d52997286cba3b38ca2f313a28bbe",
+        extra_types: &[45, 56, 59, 68, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+    },
 ];
 
 impl ProfileSpec {
     pub(crate) fn definitions(&self) -> Vec<TypeDefinition> {
-        let mut definitions = super::sch13006_definitions();
-        definitions.extend(
-            super::onshape_current_definitions()
-                .into_iter()
-                .filter(|d| d.node_type == 54),
-        );
-        definitions.extend(
-            super::sch13006_sp_curve_definitions()
-                .into_iter()
-                .chain(surface_definitions())
-                .filter(|d| self.extra_types.contains(&d.node_type)),
-        );
-        definitions
+        base_definitions(self.extra_types)
     }
 }
 
-/// Construct the five reviewed legacy iCAD embedded profiles.
+/// The reviewed 13006 subset, TORUS (54) and the listed separately reviewed types.
+pub(super) fn base_definitions(extra_types: &[u16]) -> Vec<TypeDefinition> {
+    let mut definitions = super::sch13006_definitions();
+    definitions.extend(
+        super::onshape_current_definitions()
+            .into_iter()
+            .filter(|d| d.node_type == 54),
+    );
+    definitions.extend(
+        super::sch13006_sp_curve_definitions()
+            .into_iter()
+            .chain(super::sch13006_bspline_surface_definitions())
+            .chain(surface_definitions())
+            .filter(|d| extra_types.contains(&d.node_type)),
+    );
+    definitions
+}
+
+/// Construct the reviewed iCAD embedded profiles, one per exact key.
 ///
 /// Each profile claims one exact key and its separately qualified base subset.
 /// `SPUN_SURF` (68) is retained as explicitly unsupported B-Rep geometry.

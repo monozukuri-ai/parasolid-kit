@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Add thirteen exact iCAD profiles with pinned B-Rep roles: eight embedded
+  13006 keys and five standard keys for schema revisions 20000, 28002, 28101,
+  32001 and 33103. Standard profiles declare complete layouts only for the
+  node types seen under each key; their revision-specific BODY, REGION,
+  INTERSECTION, LIMIT and list layouts follow the edits carried by embedded
+  streams of the same revision. Of 17,099 distinct sampled resources, 17,082
+  now parse without a catalog and match the catalog path; 17 with OFFSET_SURF
+  (60) still fail closed. See the
+  [support matrix](docs/format-support.md#supported-profiles) for per-key
+  revisions, hashes and limits.
+
 - Add five exact legacy iCAD embedded 13006 profiles with pinned B-Rep roles
   for Issues #6 and #7. Qualify BLEND_BOUND (59), its BLENDED_EDGE (56)
   dependency, SPUN_SURF (68), and SP_CURVE (137) dependencies only for the

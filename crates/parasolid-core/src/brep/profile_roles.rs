@@ -109,15 +109,21 @@ impl RoleAccess {
                 validate_base_roles(schemas, &base)?;
                 Ok(Self::Sch13006)
             }
-            SchemaProviderResolution::Builtin { .. } => Err(ParseError::new(
-                ErrorKind::InvalidBrepField,
-                0,
-                "no reviewed B-Rep roles for the selected built-in profile",
-                ErrorDetails::InvalidText {
-                    field: "schema_profile",
-                    value: format!("{provenance:?}"),
-                },
-            )),
+            SchemaProviderResolution::Builtin {
+                profile_id,
+                profile_revision,
+                schema_key,
+                coverage,
+                profile_sha256,
+            } if schema_key == key && *coverage == BuiltinProfileCoverage::VerifiedSubset => {
+                // Standard iCAD layouts keep the reviewed 13006 field names.
+                let reviewed =
+                    standard_definitions(key, profile_id, *profile_revision, profile_sha256)
+                        .ok_or_else(|| unreviewed(provenance))??;
+                validate_standard_roles(schemas, &reviewed)?;
+                Ok(Self::Sch13006)
+            }
+            SchemaProviderResolution::Builtin { .. } => Err(unreviewed(provenance)),
         }
     }
 
@@ -221,6 +227,66 @@ impl RoleAccess {
             .into_iter()
             .all(|role| self.field(node, role).is_some())
     }
+}
+
+fn standard_definitions(
+    key: &str,
+    profile_id: &str,
+    revision: u32,
+    sha256: &str,
+) -> Option<Result<Vec<crate::TypeDefinition>, ParseError>> {
+    crate::schema::profiles::icad_standard::PROFILES
+        .iter()
+        .find(|spec| {
+            key == spec.key && profile_id == spec.id && revision == 1 && sha256 == spec.sha256
+        })
+        .map(crate::schema::profiles::icad_standard::ProfileSpec::definitions)
+}
+
+fn unreviewed(provenance: &SchemaProviderResolution) -> ParseError {
+    ParseError::new(
+        ErrorKind::InvalidBrepField,
+        0,
+        "no reviewed B-Rep roles for the selected built-in profile",
+        ErrorDetails::InvalidText {
+            field: "schema_profile",
+            value: format!("{provenance:?}"),
+        },
+    )
+}
+
+/// A standard key resolves every type from the compiled profile. Roles are
+/// assigned only when each resolution is exactly that reviewed definition.
+fn validate_standard_roles(
+    schemas: &[SchemaResolution],
+    reviewed: &[crate::TypeDefinition],
+) -> Result<(), ParseError> {
+    for resolution in schemas {
+        let definition = &resolution.definition;
+        let unchanged = definition.source == SchemaSource::Base
+            && resolution.edits.is_empty()
+            && reviewed.iter().any(|d| {
+                d.node_type == definition.node_type
+                    && d.fields == definition.fields
+                    && d.variable == definition.variable
+            });
+        let unique_roles = field_roles(definition.node_type)
+            .iter()
+            .all(|(_, _, name, _)| {
+                definition.fields.iter().filter(|f| f.name == *name).count() == 1
+            });
+        if !unchanged || !unique_roles {
+            return Err(ParseError::new(
+                ErrorKind::InvalidBrepField,
+                resolution.byte_range.start,
+                "standard definition is not the reviewed layout required by B-Rep",
+                ErrorDetails::NodeType {
+                    node_type: definition.node_type,
+                },
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Embedded edits can move fields; trusted B-Rep roles must survive as copies
@@ -836,6 +902,60 @@ mod tests {
                     assert!(validate_base_roles(&[changed], &base).is_err());
                 }
             }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn standard_profiles_require_the_reviewed_layout_and_identity()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for profile in crate::schema::profiles::icad_legacy_standard()? {
+            let reviewed = profile.definitions().cloned().collect::<Vec<_>>();
+            let resolution = |definition: &crate::TypeDefinition| SchemaResolution {
+                definition: definition.clone(),
+                edits: vec![],
+                raw_schema: vec![],
+                byte_range: 0..0,
+            };
+            let schemas = reviewed.iter().map(resolution).collect::<Vec<_>>();
+            let key = profile.accepted_schema_keys().next().ok_or("key")?.raw();
+            let meta = profile.metadata();
+            let mut provenance = SchemaProviderResolution::Builtin {
+                profile_id: meta.profile_id.clone(),
+                profile_revision: meta.revision,
+                schema_key: key.into(),
+                coverage: meta.coverage,
+                profile_sha256: meta.profile_sha256.clone(),
+            };
+            assert!(matches!(
+                RoleAccess::select(&provenance, key, &schemas)?,
+                RoleAccess::Sch13006
+            ));
+            let body = reviewed.iter().find(|d| d.node_type == 12).ok_or("body")?;
+            // Exchanging two references of one codec keeps every scalar layout.
+            let region = body
+                .fields
+                .iter()
+                .position(|f| f.name == "region_head")
+                .ok_or("region")?;
+            let mut moved = body.clone();
+            moved.fields.swap(region, region + 1);
+            let mut embedded = body.clone();
+            embedded.source = SchemaSource::EmbeddedUnchanged;
+            let mut unlisted = body.clone();
+            unlisted.node_type = 60;
+            for changed in [moved, embedded, unlisted] {
+                assert_eq!(
+                    RoleAccess::select(&provenance, key, &[resolution(&changed)])
+                        .err()
+                        .map(|e| e.kind()),
+                    Some(ErrorKind::InvalidBrepField)
+                );
+            }
+            if let SchemaProviderResolution::Builtin { profile_sha256, .. } = &mut provenance {
+                *profile_sha256 = "0".repeat(64);
+            }
+            assert!(RoleAccess::select(&provenance, key, &schemas).is_err());
         }
         Ok(())
     }

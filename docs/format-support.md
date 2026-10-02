@@ -33,7 +33,8 @@ This is the shared support matrix for the Python, Rust, and CLI entry points.
 Default parsing selects one compiled profile by the complete internal stream
 key. Every profile has `verified_subset` coverage and requires zero user fields.
 The type and field counts describe compiled base definitions; embedded input
-definitions can change the effective layout. Profile hashes identify the
+definitions can change the effective layout. A key without a base suffix
+transmits no schema, so its counts describe the complete layouts. Profile hashes identify the
 reviewed definitions, not the bytes or geometric correctness of an input.
 
 | Exact internal key | Profile / revision | Base types / field groups | Canonical SHA-256 |
@@ -49,6 +50,19 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_1700223_16100_13006` | `icad-1700223-16100-13006-r1` / 1 | 31 / 252 | `a27d8216055fe16425438c854482ec8dfac5e6f2e0aea1e1b7ce3605bc6ac633` |
 | `SCH_1700256_16100_13006` | `icad-1700256-16100-13006-r1` / 1 | 39 / 305 | `30fc3f141639819bb6c76a4585056c7b274a6103d6c3924f71c448603796e802` |
 | `SCH_1901315_19008_13006` | `icad-1901315-19008-13006-r1` / 1 | 31 / 252 | `781de5125a27ee855bd377a456df9f21d2a71099ec231cbd1d67a86b0c637f96` |
+| `SCH_2100293_20000_13006` | `icad-2100293-20000-13006-r1` / 1 | 43 / 363 | `10e8b516eea36c585ae71713d342b203da9b1f9c92f624ce211a5c435189c753` |
+| `SCH_2100311_20000_13006` | `icad-2100311-20000-13006-r1` / 1 | 43 / 363 | `09ac64c00702f713b5ef2eaccffe003ce6e073a1b2694dd4184178cbd9399dff` |
+| `SCH_2401260_20000_13006` | `icad-2401260-20000-13006-r1` / 1 | 31 / 252 | `d89bae93d6a526d92c022933d332b88b9c7083561b0e7cecec79c7a94e24a149` |
+| `SCH_2800188_28002_13006` | `icad-2800188-28002-13006-r1` / 1 | 31 / 252 | `83f469624fd9e0a636850444e728bd65b7599669e74fa6816972c9a0f19a0976` |
+| `SCH_2901199_28101_13006` | `icad-2901199-28101-13006-r1` / 1 | 43 / 368 | `1d834f8db3223aa77e005f9ac394d29c0c4d4d018d74dc4098293ae783031627` |
+| `SCH_3200152_32001_13006` | `icad-3200152-32001-13006-r1` / 1 | 39 / 305 | `b6d919827de77377bc8a96581f25c1654bf257e5d0f3c126ba1090850b623413` |
+| `SCH_3200252_32001_13006` | `icad-3200252-32001-13006-r1` / 1 | 44 / 379 | `141ddd0f43c9a5c8bac32395171352899adca081f7b17fb77f9fd625e2495172` |
+| `SCH_3301231_33103_13006` | `icad-3301231-33103-13006-r1` / 1 | 44 / 379 | `3c35b9d4a5ab97492fbcbbbfff3df492b39d52997286cba3b38ca2f313a28bbe` |
+| `SCH_2401000_20000` | `icad-2401000-20000-r1` / 1 | 19 / 169 | `002dcea4ae6ff5bf1a817744ce4e83c06f58f8955f7a100c011048484a865a04` |
+| `SCH_2800000_28002` | `icad-2800000-28002-r1` / 1 | 41 / 370 | `a1693181a2af88fd8456155296f7ffefca2a71fdf14366a9866ab9c88e6531b7` |
+| `SCH_2901000_28101` | `icad-2901000-28101-r1` / 1 | 24 / 214 | `3e62cae9a159faf2364f85206fcc2bf1580eb68b4763b446fed1864010df19de` |
+| `SCH_3200000_32001` | `icad-3200000-32001-r1` / 1 | 30 / 255 | `5911102568cc1e2215b3bc93e0e43146a382b747394aca8661527557b3220edf` |
+| `SCH_3301000_33103` | `icad-3301000-33103-r1` / 1 | 25 / 219 | `29c38621bc5d937dddd0550bc52a4f3fcbc71616a5dd8774881b66aa5bcf030f` |
 
 The following cells summarize recorded local validation, not a new CAD capture
 or a guarantee for every input with the same key. Real fixtures are outside
@@ -64,6 +78,7 @@ public CI. The detailed evidence and its retained failures are in
 | iCAD embedded V30 | 17 neutral X_B streams from one container; embedded X_T tests are synthetic | All 17 reach complete source B-Rep/topology | No independent CAD/STEP oracle; line-trim endpoint checks are internal consistency evidence | No real iCAD conversion validation; source B-Rep success does not establish conversion | `.icd` extraction and saved-state selection are caller responsibilities; not established by these streams |
 | iCAD embedded V34 (unreleased) | Ten neutral X_B resources, including saved variants, match explicit-catalog values and byte boundaries | Ten complete source B-Reps match explicit-catalog mapping except type labels | Four authored solids match independent SDK dimensions and mass properties; sphere SDK edge enumeration failed | No new OCCT/STEP/preview qualification | `.icd` extraction, part ownership, placement and unit interpretation remain caller responsibilities |
 | [iCAD legacy five exact keys](builtin-profiles.md#legacy-icad-embedded-keys) (unreleased) | 539 sampled neutral X_B resource occurrences match catalog values, ranges and terminators; public X_T/X_B fixtures are authored | 535 complete, four explicitly partial SPUN_SURF cases; all topology valid; catalog parity including source references | Authored wire coordinates, blend references/parameters and UV spline coefficients; no independent legacy CAD measurement campaign | No new conversion qualification; SPUN_SURF remains unsupported | Native ICD framing, ownership, transforms, extrusion and feature history remain downstream responsibilities |
+| [iCAD later exact keys](builtin-profiles.md#later-icad-keys) (unreleased): eight embedded and five standard | 17,082 of 17,099 distinct sampled X_B resources match catalog values, ranges and terminators; 17 with OFFSET_SURF (60) fail closed; public X_T/X_B fixtures are authored | 17,047 complete, 15 explicitly partial SPUN_SURF cases and 20 null-parameter errors, each identical to the catalog path | Authored wire coordinates, per-ordinal record values and B-spline surface coefficients; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
 | SolidWorks 2026 partitions | Four neutral X_B partitions; associated deltas stop at unknown base type 3 | Four complete partition B-Reps, including one three-body partition | Existing sldkit point/FIN/NURBS parity; no independent CAD/STEP evaluation repeated for this profile | No real partition conversion validation | Delta application and final saved configuration reconstruction remain unsupported |
 
 Runtime, build, and installation of the built-in parser require no external

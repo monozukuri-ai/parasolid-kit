@@ -6,17 +6,72 @@ use parasolid_core::{
     parse_xb, parse_xt, schema::profiles::icad_legacy_13006,
 };
 
+// Stated independently of the profile table: exact key, extra base types
+// beyond the shared 31-type subset, and the resulting type and field counts.
+const EXPECTED: [(&str, &[u16], usize, usize); 13] = [
+    ("SCH_1500137_15003_13006", &[], 31, 252),
+    ("SCH_1500245_15003_13006", &[56, 59, 68], 34, 292),
+    ("SCH_1700223_16100_13006", &[], 31, 252),
+    (
+        "SCH_1700256_16100_13006",
+        &[45, 68, 127, 128, 134, 135, 136, 137],
+        39,
+        305,
+    ),
+    ("SCH_1901315_19008_13006", &[], 31, 252),
+    (
+        "SCH_2100293_20000_13006",
+        &[45, 56, 59, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+        43,
+        363,
+    ),
+    (
+        "SCH_2100311_20000_13006",
+        &[45, 56, 59, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+        43,
+        363,
+    ),
+    ("SCH_2401260_20000_13006", &[], 31, 252),
+    ("SCH_2800188_28002_13006", &[], 31, 252),
+    (
+        "SCH_2901199_28101_13006",
+        &[45, 56, 59, 68, 124, 125, 126, 127, 128, 134, 135, 136],
+        43,
+        368,
+    ),
+    (
+        "SCH_3200152_32001_13006",
+        &[45, 68, 127, 128, 134, 135, 136, 137],
+        39,
+        305,
+    ),
+    (
+        "SCH_3200252_32001_13006",
+        &[45, 56, 59, 68, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+        44,
+        379,
+    ),
+    (
+        "SCH_3301231_33103_13006",
+        &[45, 56, 59, 68, 124, 125, 126, 127, 128, 134, 135, 136, 137],
+        44,
+        379,
+    ),
+];
+
 #[test]
 fn exact_profiles_and_canonical_hashes() -> support::Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
     let profiles = icad_legacy_13006()?;
-    assert_eq!(profiles.len(), 5);
-    for (profile, (types, fields)) in
-        profiles
-            .iter()
-            .zip([(31, 252), (34, 292), (31, 252), (39, 305), (31, 252)])
-    {
+    assert_eq!(profiles.len(), EXPECTED.len());
+    for (profile, (expected_key, _, types, fields)) in profiles.iter().zip(EXPECTED) {
         let key = profile.accepted_schema_keys().next().ok_or("key")?;
+        assert_eq!(key.raw(), expected_key);
+        assert_eq!(profile.metadata().revision, 1);
+        assert_eq!(
+            profile.metadata().profile_id,
+            format!("icad-{}-r1", expected_key[4..].replace('_', "-"))
+        );
         let provider = registry.provider_for_key(key).ok_or("provider")?;
         assert_eq!(
             profile.metadata().profile_sha256,
@@ -47,15 +102,9 @@ fn exact_profiles_and_canonical_hashes() -> support::Result<()> {
 
 #[test]
 fn extra_membership_is_scoped_to_observed_keys() -> support::Result<()> {
-    for profile in icad_legacy_13006()? {
-        let key = profile.accepted_schema_keys().next().ok_or("key")?;
-        for kind in [45, 56, 59, 68, 127, 128, 134, 135, 136, 137] {
-            let covered = match key.raw() {
-                "SCH_1500245_15003_13006" => [56, 59, 68].contains(&kind),
-                "SCH_1700256_16100_13006" => ![56, 59].contains(&kind),
-                _ => false,
-            };
-            assert_eq!(profile.definition(kind).is_some(), covered);
+    for (profile, (_, extra, _, _)) in icad_legacy_13006()?.iter().zip(EXPECTED) {
+        for kind in [45, 56, 59, 68, 124, 125, 126, 127, 128, 134, 135, 136, 137] {
+            assert_eq!(profile.definition(kind).is_some(), extra.contains(&kind));
         }
     }
     Ok(())

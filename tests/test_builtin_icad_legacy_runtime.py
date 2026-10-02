@@ -20,7 +20,7 @@ from parasolid_kit import (
     parse_xt,
     write_xb,
 )
-from parasolid_kit.brep import Vector3
+from parasolid_kit.brep import NurbsSurface, Vector3
 from tests.support.parasolid_binary import SyntheticXbBuilder
 from tests.support.parasolid_schema import positive_integer
 from tests.support.parasolid_text import text_header
@@ -33,7 +33,17 @@ KEYS = (
     "SCH_1700223_16100_13006",
     "SCH_1700256_16100_13006",
     "SCH_1901315_19008_13006",
+    "SCH_2100293_20000_13006",
+    "SCH_2100311_20000_13006",
+    "SCH_2401260_20000_13006",
+    "SCH_2800188_28002_13006",
+    "SCH_2901199_28101_13006",
+    "SCH_3200152_32001_13006",
+    "SCH_3200252_32001_13006",
+    "SCH_3301231_33103_13006",
 )
+# Keys under which B-spline surfaces (124-126) were observed.
+SURFACE_KEYS = (KEYS[5], KEYS[6], KEYS[9], KEYS[11], KEYS[12])
 
 # Fixed scalar order authored independently of the runtime profile declarations.
 CODES = {
@@ -188,6 +198,29 @@ def test_surface_parameter_curve_and_all_dependencies(encoding):
     assert curve.definition.control_vertices == ((0.011, -0.017), (0.023, 0.031))
     assert curve.definition.knots == (0, 1)
     assert curve.definition.knot_multiplicities == (2, 2)
+
+
+@pytest.mark.parametrize("encoding", ["x_t", "x_b"])
+@pytest.mark.parametrize("key", KEYS)
+def test_bspline_surface_dependencies_are_scoped_to_observed_keys(encoding, key):
+    vertices = (0, 0, 0, 0, 0.03, 0, 0.02, 0, 0, 0.02, 0.03, 0.002)
+    patch = dict(rational=False, dimension=3, vertices=vertices)
+    # SP_CURVE (137) was not observed under the 28101 key and stays unknown there.
+    data = spcurve(
+        encoding, embedded=True, patch=patch, include_surface_curves=key != KEYS[9]
+    ).replace(EMBEDDED.encode(), key.encode())
+    if key not in SURFACE_KEYS:
+        with pytest.raises(SchemaError) as exc:
+            parse(encoding, data)
+        assert exc.value.diagnostic.code == "schema.unknown_base_type"
+        return
+    model = map_brep(parse(encoding, data))
+    assert model.complete and model.topology.valid
+    surface = model.surfaces[0].definition
+    assert isinstance(surface, NurbsSurface)
+    assert tuple(v for p in surface.control_vertices for v in p) == vertices
+    assert surface.u_knots == surface.v_knots == (0, 1)
+    assert [s.node_type for s in surface.sources] == [126, 45, 127, 127, 128, 128]
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])

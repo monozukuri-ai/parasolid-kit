@@ -3,8 +3,8 @@
 The [SolidWorks partition profile](solidworks-partitions.md) documents the
 additional exact V37 key, WORLD base layout, local validation and delta boundary.
 
-Six profiles are registered for default parsing. The complete internal stream
-key must match; a caller-selected provider always takes priority. The
+Twenty-four profiles are registered for default parsing. The complete internal
+stream key must match; a caller-selected provider always takes priority. The
 [shared support matrix](format-support.md#supported-profiles) records their
 current identities and separate raw, B-Rep, independent-geometry, conversion,
 and saved-state evidence. The campaign results below retain their original
@@ -878,3 +878,138 @@ do not inherit support from their `13006` suffix. Downstream readers can use
 the compiled registry and remove their local raw-only profile after adopting
 an upstream build containing these changes; dependency publication and that
 downstream migration are separate steps.
+
+## Later iCAD keys
+
+Thirteen further revision-1 profiles cover keys written by later iCAD
+releases. Eight are embedded keys in
+[`icad_legacy.rs`](../crates/parasolid-core/src/schema/profiles/icad_legacy.rs);
+five are standard keys in
+[`icad_standard.rs`](../crates/parasolid-core/src/schema/profiles/icad_standard.rs).
+The [shared support matrix](format-support.md#supported-profiles) pins each
+exact key, identity, canonical digest and definition count. These are
+source-tree additions, not a new published release. Existing profile IDs,
+hashes and membership claims are unchanged.
+
+### Embedded keys
+
+The embedded profiles reuse the reviewed 13006 subset plus TORUS (54). Extra
+base types are listed only where they occur under that exact key:
+
+| Exact key | Extra base types beyond the 31-type subset |
+|---|---|
+| `SCH_2100293_20000_13006` | 45, 56, 59, 124-128, 134-137 |
+| `SCH_2100311_20000_13006` | 45, 56, 59, 124-128, 134-137 |
+| `SCH_2401260_20000_13006` | None |
+| `SCH_2800188_28002_13006` | None |
+| `SCH_2901199_28101_13006` | 45, 56, 59, 68, 124-128, 134-136 |
+| `SCH_3200152_32001_13006` | 45, 68, 127, 128, 134-137 |
+| `SCH_3200252_32001_13006` | 45, 56, 59, 68, 124-128, 134-137 |
+| `SCH_3301231_33103_13006` | 45, 56, 59, 68, 124-128, 134-137 |
+
+No declaration is new: B_SURFACE (124), SURFACE_DATA (125) and NURBS_SURF (126)
+are the existing V13 declarations, now also admitted under the listed keys.
+Every observed declaration of an extra type uses the unchanged-base marker.
+Revision changes to BODY, REGION, INTERSECTION, LIMIT, LIST and the pointer
+block arrive as embedded edits of each stream and are not declared by a
+profile. Type 204 remains the only confirmed absent type. OFFSET_SURF (60)
+occurs in 17 sampled resources and stays unknown, so those inputs fail closed.
+
+### Standard keys
+
+A standard key transmits no schema. Each standard profile therefore declares
+complete layouts, and only for the node types seen under that exact key:
+
+| Exact key | Types | Layouts that differ from base 13006 |
+|---|---:|---|
+| `SCH_2401000_20000` | 19 | BODY, LIST, pointer block |
+| `SCH_2800000_28002` | 41 | BODY, REGION, LIMIT, LIST, pointer block |
+| `SCH_2901000_28101` | 24 | BODY, REGION, LIMIT, LIST, pointer block |
+| `SCH_3200000_32001` | 30 | BODY, REGION, INTERSECTION, LIMIT, LIST, pointer block; type 204 |
+| `SCH_3301000_33103` | 25 | BODY, REGION, INTERSECTION, LIMIT, LIST, pointer block; type 204 |
+
+Each differing layout is the reviewed 13006 declaration with the edit sequence
+that embedded iCAD streams of the same schema revision carry for that type.
+Those streams are self-describing: the sequence gives the position, codec and
+reference class of every added, removed or replaced field. BODY has five
+revision layouts; at 28101 it equals the reviewed V30 declaration, which a
+public test checks, as it does for REGION, LIMIT, INTERSECTION, LIST and the
+pointer block. Type 204 has the two-field layout that embedded 32001 and 33103
+streams declare in full. Added fields have project-assigned names; base fields
+keep their reviewed names, so B-Rep roles are found by name after the mapper
+confirms that every resolved type is exactly the compiled definition.
+
+One layout lacks same-revision self-description: no embedded 28002 stream
+contains LIMIT (41). The 28002 profile uses the three-field layout carried from
+28101 on. All 627 sampled 28002 resources with LIMIT records decode to their
+exact terminators with it, and the catalog comparison below agrees.
+
+No catalog field definitions generate the compiled profiles or authored tests.
+A separate local comparison used these catalogs (SHA-256):
+
+| Schema | Catalog SHA-256 |
+|---|---|
+| 13006 | `0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3` |
+| 20000 | `f66857fb80ce2c85669f0fbd0ba57244cf58b3266da1fae41821185fb66dc730` |
+| 28002 | `454f3d62edf047649728ce3e5abdeb23c87cca2c44182c5f9c58583ba12b87f0` |
+| 28101 | `8f06fa843ec7775a8567fa3278e7a7386fe5f1046ded76f55604d027ec22fa0a` |
+| 32001 | `5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159` |
+| 33103 | `c6acc177a3b088bbe7ef2fc144b2bf1101f91521fccb14f0f9bb713652ab50d3` |
+
+### Local comparison, 2026-10-02
+
+The development sample contains 30,378 resource occurrences from 303 container
+files, 17,099 of them distinct by payload SHA-256. Candidate parsing preserves
+each original schema key and uses no external catalog. A separate catalog
+parse supplies the comparison; counts below are distinct payloads:
+
+| Original exact key | Occurrences | Raw parity | Complete source B-Rep | Explicitly partial | Same error on both paths |
+|---|---:|---:|---:|---:|---:|
+| `SCH_2100293_20000_13006` | 2,441 | 483 / 486 | 483 | 0 | 0 |
+| `SCH_2100311_20000_13006` | 753 | 393 / 393 | 393 | 0 | 0 |
+| `SCH_2401260_20000_13006` | 294 | 131 / 131 | 131 | 0 | 0 |
+| `SCH_2800188_28002_13006` | 25 | 23 / 23 | 23 | 0 | 0 |
+| `SCH_2901199_28101_13006` | 2,309 | 498 / 498 | 493 | 3 | 2 |
+| `SCH_3200152_32001_13006` | 188 | 106 / 106 | 103 | 3 | 0 |
+| `SCH_3200252_32001_13006` | 4,105 | 541 / 541 | 529 | 4 | 8 |
+| `SCH_3301231_33103_13006` | 3,965 | 1,941 / 1,955 | 1,936 | 5 | 0 |
+| `SCH_2401000_20000` | 28 | 28 / 28 | 28 | 0 | 0 |
+| `SCH_2800000_28002` | 16,168 | 12,889 / 12,889 | 12,879 | 0 | 10 |
+| `SCH_2901000_28101` | 21 | 10 / 10 | 10 | 0 | 0 |
+| `SCH_3200000_32001` | 64 | 32 / 32 | 32 | 0 | 0 |
+| `SCH_3301000_33103` | 17 | 7 / 7 | 7 | 0 | 0 |
+| Total | 30,378 | 17,082 / 17,099 | 17,047 | 15 | 20 |
+
+The 17 payloads without raw parity contain OFFSET_SURF and are rejected with
+`schema.unknown_base_type`. For the others, all 8,041,842 nodes and 63,103,335
+field groups match in scalar/array values, node/field byte ranges, variable
+lengths, user fields and terminators, and original-byte reconstruction
+matches. B-Rep comparison includes topology, geometry parameters, metrics,
+diagnostics and source node/type/range mappings; only provider-specific type
+labels are excluded. Every mapped topology is valid. The 15 partial resources
+contain SPUN_SURF and keep `geometry.unsupported_surface`. Twenty resources
+fail in both paths with `geometry.invalid_parameter`: a trimmed curve on a line
+stores both parameters as null beside valid end points. No value is
+substituted. Neither successful mapping nor this comparison
+proves OCCT, STEP or preview conversion.
+
+### Independent checks and remaining limits
+
+Public Rust tests pin the hashes, per-key type membership, nearby-key
+rejection and the role gate. For the standard keys they state each revision's
+field codes and reference classes independently of the profile table, decode
+authored BODY, REGION, LIMIT, LIST and pointer-block records with a distinct
+value at every ordinal, and reject truncation at every byte. Public Python
+tests map an authored wire from `(2,-1,3)` to `(5,3,3)` under all thirteen
+keys in X_T and X_B, check that B-spline surface dependencies are admitted only
+under the keys where they were observed, and cover malformed references,
+limits, user fields, nearby keys and unreviewed types. Role validation rejects
+a standard definition that differs from the compiled one, even by exchanging
+two references of the same codec.
+
+These are development samples and authored regression fixtures, not held-out
+coverage or an independent CAD measurement campaign. Unknown keys do not
+inherit support from a shared schema number: in the same sample
+`SCH_2601246_26105_13006`, `SCH_2601000_26105` and other keys remain without a
+profile. Private payloads, filenames and catalog contents remain outside the
+public package.

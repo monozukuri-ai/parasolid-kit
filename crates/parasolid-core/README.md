@@ -56,8 +56,9 @@ certify interpreted attributes, numerical geometry evaluation, available curved
 metrics, or optional conversion. iCAD container extraction and saved-state
 selection belong to the caller; this crate consumes extracted streams.
 
-The five legacy iCAD embedded profiles also use `BuiltinProfileRegistry::compiled()`.
-Their extra base types are scoped to the exact keys in the support matrix.
+The exact iCAD embedded and standard profiles also use `BuiltinProfileRegistry::compiled()`.
+Their extra base types are scoped to the exact keys in the support matrix; a
+standard profile declares only the node types checked under its key.
 `SPUN_SURF` (68) preserves raw parameters and yields an unsupported surface with
 `complete == false`; `BLEND_BOUND` (59), its blend dependency, and `SP_CURVE` (137)
 use the qualified source B-Rep mappings. This does not add OCCT conversion.
