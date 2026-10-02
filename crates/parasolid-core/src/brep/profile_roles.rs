@@ -72,9 +72,22 @@ impl RoleAccess {
                         && *profile_revision == 3
                         && key == "SCH_3701212_37102_13006"
                         && profile_sha256
-                            == crate::schema::profiles::ONSHAPE_CURRENT_PROFILE_SHA256)) =>
+                            == crate::schema::profiles::ONSHAPE_CURRENT_PROFILE_SHA256)
+                    || crate::schema::profiles::icad_legacy::PROFILES
+                        .iter()
+                        .any(|spec| {
+                            key == spec.key
+                                && profile_id == spec.id
+                                && *profile_revision == 1
+                                && profile_sha256 == spec.sha256
+                        })) =>
             {
-                let base = if key == "SCH_3701212_37102_13006" {
+                let base = if let Some(spec) = crate::schema::profiles::icad_legacy::PROFILES
+                    .iter()
+                    .find(|spec| key == spec.key)
+                {
+                    spec.definitions()
+                } else if key == "SCH_3701212_37102_13006" {
                     crate::schema::profiles::onshape_current_definitions()
                 } else {
                     let mut base = crate::schema::profiles::sch13006_definitions();
@@ -140,6 +153,9 @@ impl RoleAccess {
                 52 => "CONE",
                 53 => "SPHERE",
                 54 => "TORUS",
+                56 => "BLENDED_EDGE",
+                59 => "BLEND_BOUND",
+                68 => "SPUN_SURF",
                 133 => "TRIMMED_CURVE",
                 204 => "INTERSECTION_DATA",
                 _ => "", // List/attribute types cannot acquire roles from their names.
@@ -190,7 +206,7 @@ impl RoleAccess {
     pub(super) fn is_surface(self, node: &RawNode) -> bool {
         match self {
             Self::OnshapeSch30000 => matches!(node.node_type, 50..=54 | 124),
-            Self::Sch13006 => matches!(node.node_type, 50..=54 | 124),
+            Self::Sch13006 => matches!(node.node_type, 50..=54 | 56 | 59 | 68 | 124),
             Self::Named => {
                 self.has_common_geometry(node)
                     && self
@@ -533,6 +549,33 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
             ("minor_radius", 10, "minor_radius", "f"),
             ("x_axis", 11, "x_direction", "v"),
         ],
+        56 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("owner", 2, "owner_ref", "p"),
+            ("sense", 6, "orientation", "c"),
+            ("blend_type", 7, "blend_kind", "c"),
+            ("surface", 8, "support_surfaces", "p"),
+            ("spine", 9, "spine_curve", "p"),
+            ("range", 10, "offsets", "f"),
+            ("thumb_weight", 11, "weights", "f"),
+            ("boundary", 12, "boundary_surfaces", "p"),
+            ("start", 13, "start_limit", "p"),
+            ("end", 14, "end_limit", "p"),
+        ],
+        59 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("owner", 2, "owner_ref", "p"),
+            ("sense", 6, "orientation", "c"),
+            ("boundary", 7, "boundary_index", "n"),
+            ("blend", 8, "blend_surface", "p"),
+        ],
+        // Retain the source surface and report unsupported geometry. No spun
+        // surface parameters are assigned geometry semantics by this mapper.
+        68 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("owner", 2, "owner_ref", "p"),
+            ("sense", 6, "orientation", "c"),
+        ],
         53 => &[
             ("node_id", 0, "local_id", "d"),
             ("owner", 2, "owner_ref", "p"),
@@ -732,6 +775,67 @@ mod tests {
                     20
                 }
             );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_profiles_reject_replaced_geometry_roles_and_unreviewed_identity()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for profile in crate::schema::profiles::icad_legacy_13006()? {
+            let base = profile.definitions().cloned().collect::<Vec<_>>();
+            let schemas = base
+                .iter()
+                .map(|definition| SchemaResolution {
+                    definition: definition.clone(),
+                    edits: vec![],
+                    raw_schema: vec![],
+                    byte_range: 0..0,
+                })
+                .collect::<Vec<_>>();
+            let key = profile.accepted_schema_keys().next().ok_or("key")?.raw();
+            let meta = profile.metadata();
+            let mut provenance = SchemaProviderResolution::Builtin {
+                profile_id: meta.profile_id.clone(),
+                profile_revision: meta.revision,
+                schema_key: key.into(),
+                coverage: meta.coverage,
+                profile_sha256: meta.profile_sha256.clone(),
+            };
+            RoleAccess::select(&provenance, key, &schemas)?;
+            if let SchemaProviderResolution::Builtin { profile_sha256, .. } = &mut provenance {
+                *profile_sha256 = "0".repeat(64);
+            }
+            assert!(RoleAccess::select(&provenance, key, &schemas).is_err());
+            for original in base
+                .iter()
+                .filter(|d| matches!(d.node_type, 56 | 59 | 68 | 137))
+            {
+                for (_, _, role_name, _) in field_roles(original.node_type) {
+                    let mut definition = original.clone();
+                    definition.source = SchemaSource::EmbeddedDelta;
+                    let mut edits = vec![];
+                    for field in &definition.fields {
+                        if field.name == *role_name {
+                            edits.push(SchemaEdit::Delete { offset: 0 });
+                            edits.push(SchemaEdit::Insert {
+                                offset: 0,
+                                field: field.clone(),
+                            });
+                        } else {
+                            edits.push(SchemaEdit::Copy { offset: 0 });
+                        }
+                    }
+                    edits.push(SchemaEdit::End { offset: 0 });
+                    let changed = SchemaResolution {
+                        definition,
+                        edits,
+                        raw_schema: vec![],
+                        byte_range: 0..0,
+                    };
+                    assert!(validate_base_roles(&[changed], &base).is_err());
+                }
+            }
         }
         Ok(())
     }

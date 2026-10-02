@@ -194,14 +194,16 @@ impl BuiltinProfileRegistry {
             std::sync::OnceLock::new();
         REGISTRY
             .get_or_init(|| {
-                Self::new(vec![
+                let mut profiles = vec![
                     super::profiles::onshape_sch30000()?,
                     super::profiles::onshape_sch13006()?,
                     super::profiles::icad_sch30000_13006()?,
                     super::profiles::icad_sch34101_13006()?,
                     super::profiles::solidworks_sch37102_13006()?,
                     super::profiles::onshape_sch37102_13006()?,
-                ])
+                ];
+                profiles.extend(super::profiles::icad_legacy_13006()?);
+                Self::new(profiles)
             })
             .as_ref()
             .map_err(Clone::clone)

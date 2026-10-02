@@ -781,3 +781,100 @@ selection, TORUS text/binary values and roundtrips, unknown-base rejection,
 truncation and pinned B-Rep roles. Revision 2 retains the exact-key restriction
 and changes both the profile identity and its canonical digest. Private
 resources, CAD files and catalogs are not included in the package.
+
+## Legacy iCAD embedded keys
+
+Issues [#6](https://github.com/monozukuri-ai/parasolid-kit/issues/6) and
+[#7](https://github.com/monozukuri-ai/parasolid-kit/issues/7) add five separate
+revision-1 profiles in [`icad_legacy.rs`](../crates/parasolid-core/src/schema/profiles/icad_legacy.rs).
+The [shared support matrix](format-support.md#supported-profiles) pins each
+exact key, identity, canonical digest and base-definition count. These are
+source-tree additions, not a new published release. Existing profile IDs,
+hashes and membership claims are unchanged.
+
+### Declarations and membership
+
+All five profiles reuse the reviewed 13006 subset plus TORUS (54), as in the
+V34 revision-2 profile. Additional definitions are scoped independently:
+
+| Exact key | Extra base types beyond the 31-type subset | Raw / source B-Rep boundary |
+|---|---|---|
+| `SCH_1500137_15003_13006` | None | Existing analytic / topology subset |
+| `SCH_1500245_15003_13006` | 56, 59, 68 | Blend and blend-boundary semantics; spun surface remains unsupported |
+| `SCH_1700223_16100_13006` | None | Existing analytic / topology subset |
+| `SCH_1700256_16100_13006` | 45, 68, 127, 128, 134, 135, 136, 137 | Surface-parametric and NURBS curve dependencies; spun surface remains unsupported |
+| `SCH_1901315_19008_13006` | None | Existing analytic / topology subset |
+
+The new 56/59/68 declarations follow the
+[public XT reference](https://ww3.cad.de/foren/ubb/uploads/schulze/XT_Format_April_2008_tcm73-62642.pdf),
+printed pages 62-65 and 74-76. Type 56 stores the supporting surfaces, spine,
+offset and weight pairs, boundary references and limits. Type 59 selects a
+blend boundary. Type 68 retains the generating curve, axis, degeneracy values
+and scale. Project field labels are independently assigned. SP_CURVE and its
+six dependencies reuse the existing public-reference / Onshape V13 declarations.
+No catalog field definitions generate the compiled profiles or authored tests.
+
+A separate local membership check confirms that all ten additional types
+exist in base 13006. The comparison catalog SHA-256 is
+`0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3`.
+Every observed extra-type declaration in the eight formerly failing resources
+uses the unchanged-base marker. Their effective field layouts, values and
+boundaries match the explicit-catalog path. No further missing raw dependency
+was found after adding BLENDED_EDGE (56) for the type-59 input. Only type 204
+is classified as absent, using the previous membership audit; unreviewed types
+remain unknown even if the input looks like a full declaration.
+
+### Local comparison, 2026-10-02
+
+The retained development sample contains 539 resource occurrences from 214
+container files. Candidate parsing preserves each original schema key and
+uses no external catalog. A separate catalog parse supplies the comparison:
+
+| Original exact key | Raw parity | Complete source B-Rep | Explicitly partial | Valid topology |
+|---|---:|---:|---:|---:|
+| `SCH_1500137_15003_13006` | 37 / 37 | 37 | 0 | 37 |
+| `SCH_1500245_15003_13006` | 139 / 139 | 137 | 2 | 139 |
+| `SCH_1700223_16100_13006` | 26 / 26 | 26 | 0 | 26 |
+| `SCH_1700256_16100_13006` | 223 / 223 | 221 | 2 | 223 |
+| `SCH_1901315_19008_13006` | 114 / 114 | 114 | 0 | 114 |
+| Total | 539 / 539 | 535 | 4 | 539 |
+
+All 125,619 nodes and 997,305 field groups match in scalar/array values,
+node/field byte ranges, variable lengths, user fields and terminators. B-Rep
+comparison includes topology, geometry parameters, metrics, diagnostics and
+source node/type/range mappings. Only provider-specific type labels and raw
+field names/pointer classes are excluded. Original-byte reconstruction also
+matches, but is not used as a substitute for value comparison.
+
+The four partial resources contain SPUN_SURF. Their source surfaces remain
+explicit `UnsupportedGeometry` with `geometry.unsupported_surface` and
+`complete=False`, matching the catalog path. No approximate replacement surface
+is created. BLENDED_EDGE / BLEND_BOUND and SP_CURVE use the existing typed
+source model. Neither successful mapping nor this comparison proves OCCT,
+STEP or preview conversion.
+
+### Independent checks and remaining limits
+
+Public Rust tests pin the hashes, per-key type membership, nearby-key rejection,
+authored point values, byte reconstruction, truncation and the role gate. Public
+Python tests exercise both X_T and X_B with independently authored topology:
+an 11-node wire from `(2,-1,3)` to `(5,3,3)`, known blend parameters and links,
+spun-surface raw values, and known UV spline coefficients. They also cover
+explicit-provider precedence, malformed references, truncated fixed/variable
+arrays, limits, user fields and embedded edits that replace trusted fields.
+Role validation rejects delete/insert impersonation for all newly mapped
+geometry roles and rejects an unreviewed profile digest.
+
+These are development samples and authored regression fixtures, not held-out
+coverage or a new independent legacy CAD/SDK measurement campaign. The earlier
+V13 producer evidence supports reused declarations; it does not establish
+legacy whole-model geometry accuracy. Private payloads, filenames and catalog
+contents remain outside the public package. Local inputs, hashes, comparison
+script and reports are retained under `.internal/issues-6-7/`.
+
+Native ICD framing, resource ownership, transforms, polygon extrusion and
+feature-history evaluation remain downstream responsibilities. Unknown keys
+do not inherit support from their `13006` suffix. Downstream readers can use
+the compiled registry and remove their local raw-only profile after adopting
+an upstream build containing these changes; dependency publication and that
+downstream migration are separate steps.

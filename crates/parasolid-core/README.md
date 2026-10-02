@@ -56,6 +56,12 @@ certify interpreted attributes, numerical geometry evaluation, available curved
 metrics, or optional conversion. iCAD container extraction and saved-state
 selection belong to the caller; this crate consumes extracted streams.
 
+The five legacy iCAD embedded profiles also use `BuiltinProfileRegistry::compiled()`.
+Their extra base types are scoped to the exact keys in the support matrix.
+`SPUN_SURF` (68) preserves raw parameters and yields an unsupported surface with
+`complete == false`; `BLEND_BOUND` (59), its blend dependency, and `SP_CURVE` (137)
+use the qualified source B-Rep mappings. This does not add OCCT conversion.
+
 Lengths and identifiers retain their Parasolid source meaning. Byte ranges are
 relative to the complete byte slice supplied to the parser. Embedding applications
 must track container/decompression offsets and any unit or public-ID conversion.

@@ -178,6 +178,7 @@ PARTIAL_SOURCE_FILES = (
     ),
 )
 BUILTIN_SOURCE_FILES = (
+    "crates/parasolid-core/src/schema/profiles/icad_legacy.rs",
     "crates/parasolid-core/src/schema/profiles/sch13006.rs",
     "crates/parasolid-core/src/schema/profiles/sch30000.rs",
     "crates/parasolid-core/src/schema/profiles/mod.rs",

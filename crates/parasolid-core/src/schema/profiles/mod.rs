@@ -1,9 +1,11 @@
 //! Reviewed compiled profiles, registered by `BuiltinProfileRegistry::compiled`.
 
+pub(crate) mod icad_legacy;
 mod onshape_current;
 mod sch13006;
 mod sch30000;
 mod solidworks;
+pub use icad_legacy::icad_legacy_13006;
 
 pub(crate) use onshape_current::PROFILE_SHA256 as ONSHAPE_CURRENT_PROFILE_SHA256;
 pub(crate) use onshape_current::definitions as onshape_current_definitions;

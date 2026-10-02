@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add five exact legacy iCAD embedded 13006 profiles with pinned B-Rep roles
+  for Issues #6 and #7. Qualify BLEND_BOUND (59), its BLENDED_EDGE (56)
+  dependency, SPUN_SURF (68), and SP_CURVE (137) dependencies only for the
+  observed keys. The sampled 539 resources now parse without a catalog;
+  535 map completely and four retain explicit unsupported SPUN_SURF geometry.
+  See the [support matrix](docs/format-support.md#supported-profiles) for
+  per-key revisions, hashes and conversion limits.
+
 - Extend the exact iCAD V34 profile to revision 2 with the reviewed 13006
   TORUS (54) definition and matching B-Rep roles. The profile ID is
   `icad-sch34101-13006-r2`; other schema keys and unknown base types retain
