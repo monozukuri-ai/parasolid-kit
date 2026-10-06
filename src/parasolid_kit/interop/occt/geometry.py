@@ -7,6 +7,9 @@ from itertools import pairwise
 from math import atan2, isfinite, pi, sqrt
 
 from ...brep.geometry import (
+    BlendBoundarySurface,
+    BlendedEdgeSurface,
+    BlendType,
     CircleCurve,
     ConeSurface,
     CurveDefinition,
@@ -399,20 +402,30 @@ class GeometryFactory:
     def nurbs_curve(self, curve: NurbsCurve) -> object:
         from OCP.Geom import Geom_BSplineCurve
         from OCP.TColgp import TColgp_Array1OfPnt
+        from OCP.TColStd import TColStd_Array1OfReal
 
         self._validate_nurbs_curve(curve)
         poles = TColgp_Array1OfPnt(1, curve.control_vertex_count)
+        weights = TColStd_Array1OfReal(1, curve.control_vertex_count)
         for index, values in enumerate(curve.control_vertices, 1):
-            poles.SetValue(index, self.point(Vector3(*values)))
+            # XT stores rational vertices as (x*w, y*w, z*w, w) (p. 37).
+            weight = values[3] if curve.rational else 1.0
+            poles.SetValue(index, self.point(Vector3(*(value / weight for value in values[:3]))))
+            weights.SetValue(index, weight)
         knots = _real_array(curve.knots)
         multiplicities = _integer_array(curve.knot_multiplicities)
-        return Geom_BSplineCurve(
-            poles,
-            knots,
-            multiplicities,
-            curve.degree,
-            curve.periodic,
-        )
+        # A periodic XT curve stores its full knot vector, imaginary knots and
+        # all poles included, so it is the same curve as the non-periodic
+        # B-spline over the stored range (p. 36); OCCT evaluates it as such.
+        if curve.rational:
+            result = Geom_BSplineCurve(poles, weights, knots, multiplicities, curve.degree, False)
+        else:
+            result = Geom_BSplineCurve(poles, knots, multiplicities, curve.degree, False)
+        if curve.closed or curve.periodic:
+            start, end = result.Value(result.FirstParameter()), result.Value(result.LastParameter())
+            if start.Distance(end) > self.options.validation.linear_absolute:
+                raise ValueError("NURBS curve is flagged closed but its ends do not meet")
+        return result
 
     def parameter_curve(self, curve: NurbsCurve, surface: SurfaceDefinition) -> object:
         """Embed open nonrational 2D poles using the support's parameter units."""
@@ -420,8 +433,9 @@ class GeometryFactory:
         from OCP.gp import gp_Pnt2d
         from OCP.TColgp import TColgp_Array1OfPnt2d
 
-        if curve.vertex_dimension != 2 or curve.rational or curve.periodic or curve.closed:
-            raise ValueError("parameter curves require open nonrational 2D NURBS")
+        if curve.vertex_dimension != (3 if curve.rational else 2):
+            raise ValueError("parameter curves require 2D NURBS")
+        self._validate_nurbs_curve(curve, parameter=True)
         if isinstance(surface, PlaneSurface):
             u_scale, v_scale = self.scale, self.scale
         elif isinstance(surface, (CylinderSurface, ConeSurface)):
@@ -430,16 +444,20 @@ class GeometryFactory:
             u_scale, v_scale = 1.0, 1.0
         else:
             raise ValueError("unsupported parameter-curve support surface")
+        from OCP.TColStd import TColStd_Array1OfReal
+
         poles = TColgp_Array1OfPnt2d(1, len(curve.control_vertices))
-        for index, (u, v) in enumerate(curve.control_vertices, 1):
+        weights = TColStd_Array1OfReal(1, len(curve.control_vertices))
+        for index, values in enumerate(curve.control_vertices, 1):
+            weight = values[2] if curve.rational else 1.0
+            u, v = values[0] / weight, values[1] / weight
             poles.SetValue(index, gp_Pnt2d(u * u_scale, v * v_scale))
-        return Geom2d_BSplineCurve(
-            poles,
-            _real_array(curve.knots),
-            _integer_array(curve.knot_multiplicities),
-            curve.degree,
-            False,
-        )
+            weights.SetValue(index, weight)
+        knots = _real_array(curve.knots)
+        multiplicities = _integer_array(curve.knot_multiplicities)
+        if curve.rational:
+            return Geom2d_BSplineCurve(poles, weights, knots, multiplicities, curve.degree, False)
+        return Geom2d_BSplineCurve(poles, knots, multiplicities, curve.degree, False)
 
     def lemon_torus(self, surface: TorusSurface) -> object:
         """Exact XT torus parameterization for a negative major radius (p. 60)."""
@@ -494,6 +512,10 @@ class GeometryFactory:
             return self.nurbs_surface(definition)
         if isinstance(definition, SpunSurface):
             return self.spun_surface(definition, resolve_curve)
+        if isinstance(definition, BlendedEdgeSurface):
+            return self.blend_surface(definition, resolve_curve)
+        if isinstance(definition, BlendBoundarySurface):
+            raise ValueError("blend boundary surfaces are construction surfaces without geometry")
         if isinstance(definition, OffsetSurface):
             if not isfinite(definition.offset):
                 raise ValueError("offset surface distance must be finite")
@@ -555,12 +577,62 @@ class GeometryFactory:
         )
         return Geom_SurfaceOfRevolution(profile, axis)
 
+    def blend_surface(
+        self, surface: BlendedEdgeSurface, resolve_curve: Callable[[int], object] | None
+    ) -> object:
+        """Rolling-ball blend as the pipe of the blend radius around its spine (XT p. 62).
+
+        The blend is the envelope of balls of radius |range| centred on the
+        spine, i.e. the canal surface around the spine. OCCT approximates that
+        surface as a B-spline within a hundredth of the validation tolerance;
+        the result is a surface only, its parameters are not the source's.
+        """
+        from OCP.Geom import Geom_BSplineSurface, Geom_RectangularTrimmedSurface
+        from OCP.GeomFill import GeomFill_Pipe
+
+        if resolve_curve is None:
+            raise ValueError("blend surface requires a spine curve resolver")
+        if surface.blend_type is not BlendType.ROLLING_BALL:
+            raise ValueError("cliff-edge blends are unsupported")
+        first, second = surface.ranges
+        if not all(isfinite(value) for value in (first, second)) or first == 0.0:
+            raise ValueError("rolling-ball blend offsets must be finite and non-zero")
+        if abs(abs(first) - abs(second)) > 1.0e-12 * abs(first):
+            raise ValueError("rolling-ball blend offsets must have equal magnitude")
+        if surface.thumb_weights != (1.0, 1.0):
+            raise ValueError("rolling-ball blend thumb weights must be (1, 1)")
+        pipe = GeomFill_Pipe(resolve_curve(surface.spine_curve), abs(first) * self.scale)
+        pipe.Perform(max(1.0e-9, self.options.validation.linear_absolute * 1.0e-2), False)
+        if not pipe.IsDone():
+            raise ValueError("rolling-ball blend pipe construction failed")
+        result = pipe.Surface()
+        # An exact pipe (a cylinder around a line, a torus around a circle)
+        # comes back trimmed to the spine; the face loops trim it instead, and
+        # the seam fixes need the untrimmed periodic basis.
+        if isinstance(result, Geom_RectangularTrimmedSurface):
+            result = result.BasisSurface()
+        # A B-spline pipe's circular section (and a closed spine) come back
+        # closed but not periodic; the seam fixes need the periodic form.
+        if isinstance(result, Geom_BSplineSurface):
+            if result.IsUClosed() and not result.IsUPeriodic():
+                result.SetUPeriodic()
+            if result.IsVClosed() and not result.IsVPeriodic():
+                result.SetVPeriodic()
+        return result
+
     def nurbs_surface(self, surface: NurbsSurface) -> object:
         from OCP.Geom import Geom_BSplineSurface
         from OCP.TColgp import TColgp_Array2OfPnt
+        from OCP.TColStd import TColStd_Array2OfReal
 
         self._validate_nurbs_surface(surface)
         poles = TColgp_Array2OfPnt(
+            1,
+            surface.u_control_vertex_count,
+            1,
+            surface.v_control_vertex_count,
+        )
+        weights = TColStd_Array2OfReal(
             1,
             surface.u_control_vertex_count,
             1,
@@ -571,38 +643,71 @@ class GeometryFactory:
                 values = surface.control_vertices[
                     u_index * surface.v_control_vertex_count + v_index
                 ]
-                poles.SetValue(u_index + 1, v_index + 1, self.point(Vector3(*values)))
-        return Geom_BSplineSurface(
-            poles,
+                weight = values[3] if surface.rational else 1.0
+                poles.SetValue(
+                    u_index + 1,
+                    v_index + 1,
+                    self.point(Vector3(*(value / weight for value in values[:3]))),
+                )
+                weights.SetValue(u_index + 1, v_index + 1, weight)
+        arguments = (
             _real_array(surface.u_knots),
             _real_array(surface.v_knots),
             _integer_array(surface.u_knot_multiplicities),
             _integer_array(surface.v_knot_multiplicities),
             surface.u_degree,
             surface.v_degree,
-            surface.u_periodic,
-            surface.v_periodic,
+            False,
+            False,
         )
+        # Periodic and closed XT surfaces store their full knot vectors and
+        # poles, so the non-periodic B-spline over the stored ranges is the
+        # same surface (p. 38); OCCT evaluates it as such.
+        if surface.rational:
+            result = Geom_BSplineSurface(poles, weights, *arguments)
+        else:
+            result = Geom_BSplineSurface(poles, *arguments)
+        u1, u2, v1, v2 = result.Bounds()
+        tolerance = self.options.validation.linear_absolute
+        for closed, samples in (
+            (
+                surface.u_closed or surface.u_periodic,
+                [(u1, v1 + (v2 - v1) * k / 4, u2, v1 + (v2 - v1) * k / 4) for k in range(5)],
+            ),
+            (
+                surface.v_closed or surface.v_periodic,
+                [(u1 + (u2 - u1) * k / 4, v1, u1 + (u2 - u1) * k / 4, v2) for k in range(5)],
+            ),
+        ):
+            if closed and any(
+                result.Value(a, b).Distance(result.Value(c, d)) > tolerance
+                for a, b, c, d in samples
+            ):
+                raise ValueError("NURBS surface is flagged closed but its boundaries do not meet")
+        return result
 
-    def _validate_nurbs_curve(self, curve: NurbsCurve) -> None:
-        if curve.rational or curve.vertex_dimension != 3:
-            raise ValueError("I7 supports only non-rational three-dimensional NURBS curves")
-        if curve.periodic or curve.closed:
-            raise ValueError("I7 supports only open non-periodic NURBS curves")
+    def _validate_nurbs_curve(self, curve: NurbsCurve, *, parameter: bool = False) -> None:
+        expected = (3 if curve.rational else 2) if parameter else (4 if curve.rational else 3)
+        if curve.vertex_dimension != expected:
+            raise ValueError("NURBS curve vertex dimension does not match its rational flag")
+        if curve.rational and any(values[-1] <= 0 for values in curve.control_vertices):
+            raise ValueError("NURBS curve weights must be positive")
         if curve.control_vertex_count != len(curve.control_vertices):
             raise ValueError("NURBS curve control vertex count does not match its payload")
         if curve.degree < 1 or curve.degree >= curve.control_vertex_count:
             raise ValueError("NURBS curve degree is outside its valid control-point range")
         if len(curve.knots) != len(curve.knot_multiplicities) or not curve.knots:
             raise ValueError("NURBS curve knots and multiplicities must have equal non-zero length")
-        self._validate_control_vertices(curve.control_vertices, role="NURBS curve")
+        self._validate_control_vertices(
+            curve.control_vertices, role="NURBS curve", dimension=curve.vertex_dimension
+        )
         _validate_knot_vector(curve.knots, curve.knot_multiplicities, role="NURBS curve")
 
     def _validate_nurbs_surface(self, surface: NurbsSurface) -> None:
-        if surface.rational or surface.vertex_dimension != 3:
-            raise ValueError("I7 supports only non-rational three-dimensional NURBS surfaces")
-        if surface.u_periodic or surface.v_periodic or surface.u_closed or surface.v_closed:
-            raise ValueError("I7 supports only open non-periodic NURBS surfaces")
+        if surface.vertex_dimension != (4 if surface.rational else 3):
+            raise ValueError("NURBS surface vertex dimension does not match its rational flag")
+        if surface.rational and any(values[-1] <= 0 for values in surface.control_vertices):
+            raise ValueError("NURBS surface weights must be positive")
         expected = surface.u_control_vertex_count * surface.v_control_vertex_count
         if expected != len(surface.control_vertices):
             raise ValueError("NURBS surface control grid dimensions do not match its payload")
@@ -620,7 +725,9 @@ class GeometryFactory:
             or not surface.v_knots
         ):
             raise ValueError("NURBS surface knot and multiplicity arrays must be non-empty pairs")
-        self._validate_control_vertices(surface.control_vertices, role="NURBS surface")
+        self._validate_control_vertices(
+            surface.control_vertices, role="NURBS surface", dimension=surface.vertex_dimension
+        )
         _validate_knot_vector(
             surface.u_knots,
             surface.u_knot_multiplicities,
@@ -637,9 +744,10 @@ class GeometryFactory:
         vertices: tuple[tuple[float, ...], ...],
         *,
         role: str,
+        dimension: int = 3,
     ) -> None:
-        if any(len(values) != 3 for values in vertices):
-            raise ValueError(f"{role} control vertices must contain exactly three coordinates")
+        if any(len(values) != dimension for values in vertices):
+            raise ValueError(f"{role} control vertices must contain exactly {dimension} values")
         if any(not isfinite(value) for values in vertices for value in values):
             raise ValueError(f"{role} control vertices must be finite")
 

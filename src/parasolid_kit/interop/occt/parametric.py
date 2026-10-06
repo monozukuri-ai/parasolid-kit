@@ -8,6 +8,7 @@ move, or discard source faces. Every source boundary remains mapped.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from itertools import pairwise
 from math import isfinite
 
 from OCP.BRep import BRep_Builder, BRep_Tool
@@ -32,11 +33,18 @@ from OCP.TopoDS import TopoDS, TopoDS_Face, TopoDS_Shell
 from OCP.TopTools import TopTools_IndexedMapOfShape
 
 from ...brep.geometry import (
+    BlendBoundarySurface,
+    BlendedEdgeSurface,
+    ConeSurface,
+    CylinderSurface,
     IntersectionCurve,
     LineCurve,
     NurbsCurve,
+    OffsetSurface,
     PlaneSurface,
+    SphereSurface,
     SurfaceParametricCurve,
+    TorusSurface,
     TrimmedCurve,
 )
 from ...brep.topology import BodyKind, RegionKind, Sense
@@ -75,6 +83,8 @@ class ParametricTopologyBuilder(TopologyBuilder):
                     (geometry.point(d.start_point), geometry.point(d.end_point))
                 )
         self.geometry_checks = Counter()
+        # Curves built by approximation and the deviation each one may carry.
+        self.approximated_curves: dict[int, float] = {}
         self.diagnostics = []
 
     def build(self) -> BuiltTopology:
@@ -144,8 +154,30 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 definition.end_points[0],
             )
         ]
+        boundaries = [
+            i
+            for i in definition.surfaces
+            if isinstance(self.surfaces[i].definition, BlendBoundarySurface)
+        ]
+        if boundaries:
+            result = self._blend_contact_curve(definition, points, boundaries[0])
+            self.operations.append("blend_contact_curve")
+            self.approximated_curves[curve_id] = max(
+                self.precision, self.geometry_checks.get("blend_contact_deviation", 0.0)
+            )
+            self.curve_geometries[curve_id] = result
+            return result
         surfaces = [self._surface_geometry(i) for i in definition.surfaces]
-        if any(isinstance(self.surfaces[i].definition, PlaneSurface) for i in definition.surfaces):
+        analytic = all(
+            isinstance(
+                self.surfaces[i].definition,
+                (PlaneSurface, CylinderSurface, ConeSurface, SphereSurface, TorusSurface),
+            )
+            for i in definition.surfaces
+        )
+        if analytic and any(
+            isinstance(self.surfaces[i].definition, PlaneSurface) for i in definition.surfaces
+        ):
             result = intersect_analytic(
                 surfaces, points, max(self.precision, Precision.Confusion_s())
             )
@@ -155,14 +187,106 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 surfaces, points, self.curve_anchors[curve_id], self.precision
             )
             self.operations.append("intersection_curve_numerical_approximation")
+            self.approximated_curves[curve_id] = self.precision
         self.curve_geometries[curve_id] = result
         return result
+
+    def _blend_contact_curve(self, definition, points, boundary_id):
+        """The curve where a rolling-ball blend touches one support.
+
+        A blend boundary surface is the construction surface whose
+        intersection with a support is that contact curve; its support is
+        ``surface[1 - boundary]`` of the blend (XT p. 65). The contact point
+        for a spine point is the foot of the ball on the support, at the
+        blend radius. The source CHART points fix the spine range; the curve
+        is interpolated through contact points between them and must pass
+        through every chart point within the precision.
+        """
+        from OCP.GeomAPI import GeomAPI_Interpolate, GeomAPI_ProjectPointOnSurf
+        from OCP.TColgp import TColgp_HArray1OfPnt
+
+        boundary = self.surfaces[boundary_id].definition
+        blend = self.surfaces[boundary.blend_surface].definition
+        if not isinstance(blend, BlendedEdgeSurface):
+            raise ValueError("blend boundary does not reference a blend surface")
+        support = self._surface_geometry(blend.supporting_surfaces[1 - boundary.boundary_index])
+        spine = self._curve_geometry(blend.spine_curve)
+        radius = abs(blend.ranges[0]) * self.geometry.scale
+        parameters = [project_curve(spine, p)[0] for p in points]
+        if spine.IsPeriodic() or spine.IsClosed():
+            period = (
+                spine.Period()
+                if spine.IsPeriodic()
+                else spine.LastParameter() - spine.FirstParameter()
+            )
+            for index in range(1, len(parameters)):
+                step = parameters[index] - parameters[index - 1]
+                parameters[index] = (
+                    parameters[index - 1] + (step + period / 2) % period - period / 2
+                )
+        numerical = max(1e-14, self.precision * 1e-3)
+
+        def contact(parameter):
+            centre = spine.Value(parameter)
+            projection = GeomAPI_ProjectPointOnSurf(centre, support, numerical)
+            if not projection.NbPoints():
+                raise ValueError("blend contact projection failed")
+            point = projection.NearestPoint()
+            if abs(point.Distance(centre) - radius) > self.precision:
+                raise ValueError("blend contact point is not at the blend radius")
+            return point
+
+        samples = []
+        for a, b in pairwise(parameters):
+            if abs(b - a) <= numerical:
+                continue
+            for k in range(8):
+                sample = contact(a + (b - a) * k / 8)
+                if not samples or sample.Distance(samples[-1]) > numerical:
+                    samples.append(sample)
+        last = contact(parameters[-1])
+        if not samples or last.Distance(samples[-1]) > numerical:
+            samples.append(last)
+        closed = points[0].Distance(points[-1]) <= numerical
+        if closed and len(samples) > 2 and samples[0].Distance(samples[-1]) <= numerical:
+            samples.pop()
+        if len(samples) < 2:
+            raise ValueError("blend contact curve has fewer than two distinct points")
+        array = TColgp_HArray1OfPnt(1, len(samples))
+        for index, point in enumerate(samples, 1):
+            array.SetValue(index, point)
+        fit = GeomAPI_Interpolate(array, closed, numerical)
+        fit.Perform()
+        if not fit.IsDone():
+            raise ValueError("blend contact curve interpolation failed")
+        curve = fit.Curve()
+        # The spine is itself an approximation within the precision and the
+        # chart points carry the source resolution, so the contact curve may
+        # differ from a chart point by both.
+        worst = max(project_curve(curve, p)[1] for p in points)
+        if worst > 4 * self.precision:
+            raise ValueError(
+                f"blend contact curve misses a source chart point by {worst:g} "
+                f"(limit {4 * self.precision:g})"
+            )
+        self.geometry_checks["blend_contact_deviation"] = max(
+            self.geometry_checks.get("blend_contact_deviation", 0.0), worst
+        )
+        return curve
 
     def _parameter_curve(self, definition):
         curve = self.curves[definition.parameter_curve].definition
         if not isinstance(curve, NurbsCurve):
             raise ValueError("surface parameter curve must reference NURBS")
-        return self.geometry.parameter_curve(curve, self.surfaces[definition.surface].definition)
+        support = self.surfaces[definition.surface].definition
+        # An offset surface keeps the parameters of its basis (XT p. 71).
+        seen = set()
+        while isinstance(support, OffsetSurface):
+            if support.basis_surface in seen:
+                raise ValueError("offset surface basis chain is circular")
+            seen.add(support.basis_surface)
+            support = self.surfaces[support.basis_surface].definition
+        return self.geometry.parameter_curve(curve, support)
 
     def _surface_trim(self, curve_id):
         definition = None if curve_id is None else self.curves[curve_id].definition
@@ -174,6 +298,15 @@ class ParametricTopologyBuilder(TopologyBuilder):
 
     def _build_edge(self, edge):
         tolerance = self._edge_tolerance(edge)
+        if edge.curve is not None:
+            # An edge on an approximated branch carries that approximation:
+            # the branch is built first so that its deviation is known.
+            basis = self.curves[edge.curve].definition
+            geometry_id = basis.basis_curve if isinstance(basis, TrimmedCurve) else edge.curve
+            if isinstance(self.curves[geometry_id].definition, IntersectionCurve):
+                self._curve_geometry(geometry_id)
+            if geometry_id in self.approximated_curves:
+                tolerance = max(tolerance, 2 * self.approximated_curves[geometry_id])
         vs = None if edge.start_vertex is None else self.vertex_shapes[edge.start_vertex]
         ve = None if edge.end_vertex is None else self.vertex_shapes[edge.end_vertex]
         if (vs is None) != (ve is None):
@@ -212,8 +345,9 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 if point.Distance(self.geometry.point(source)) > tolerance:
                     raise ValueError(f"edge {edge.id} UV trim disagrees with its source point")
             # A trim stored against the parameter direction keeps its end
-            # points; the edge range is the same interval.
-            endpoints(q1, q2)
+            # points; the edge range is the same interval, so the vertex at
+            # the lower parameter comes first.
+            endpoints(q1, q2) if a < b else endpoints(q2, q1)
             builder = BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, min(a, b), max(a, b))
             self.operations.append("surface_parametric_curve_3d_approximation")
         else:
@@ -230,7 +364,42 @@ class ParametricTopologyBuilder(TopologyBuilder):
                     self.points[self.vertices[edge.end_vertex].point].position,
                 )
                 return
-            if isinstance(definition, TrimmedCurve):
+            trimmed_parameter = self._surface_trim(edge.curve)
+            if isinstance(definition, SurfaceParametricCurve) or trimmed_parameter:
+                # An edge whose own geometry is a surface parameter curve, or a
+                # trim of one: the 3D edge is the image of the 2D curve on its
+                # surface over the stored interval.
+                if trimmed_parameter:
+                    trim, definition = trimmed_parameter
+                    a, b = sorted((trim.start_parameter, trim.end_parameter))
+                    if a == b:
+                        raise ValueError(f"edge {edge.id} requires distinct UV trim parameters")
+                    curve = self._parameter_curve(definition)
+                    surface = self._surface_geometry(definition.surface)
+                    for parameter, source_point in (
+                        (trim.start_parameter, trim.start_point),
+                        (trim.end_parameter, trim.end_point),
+                    ):
+                        uv = curve.Value(parameter)
+                        point = surface.Value(uv.X(), uv.Y())
+                        if point.Distance(self.geometry.point(source_point)) > tolerance:
+                            raise ValueError(
+                                f"edge {edge.id} UV trim disagrees with its source point"
+                            )
+                else:
+                    curve = self._parameter_curve(definition)
+                    surface = self._surface_geometry(definition.surface)
+                    a, b = curve.FirstParameter(), curve.LastParameter()
+                q1, q2 = (surface.Value(curve.Value(t).X(), curve.Value(t).Y()) for t in (a, b))
+                if vs is None:
+                    if q1.Distance(q2) > tolerance:
+                        raise ValueError(f"edge {edge.id} on a surface parameter curve is open")
+                    builder = BRepBuilderAPI_MakeEdge(curve, surface, a, b)
+                else:
+                    endpoints(q1, q2)
+                    builder = BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, a, b)
+                self.operations.append("surface_parametric_curve_3d_approximation")
+            elif isinstance(definition, TrimmedCurve):
                 basis = self.curves[definition.basis_curve]
                 curve = self._curve_geometry(basis.id)
                 a, b = definition.start_parameter, definition.end_parameter
@@ -276,6 +445,11 @@ class ParametricTopologyBuilder(TopologyBuilder):
                         tolerance, BRep_Tool.Tolerance_s(vs), BRep_Tool.Tolerance_s(ve)
                     ):
                         raise ValueError(f"edge {edge.id} cannot project its source vertices")
+                    # A vertex on an approximated branch must enclose its
+                    # distance to that branch for the edge to be built on it.
+                    for vertex, distance in ((vs, da), (ve, db)):
+                        if distance > BRep_Tool.Tolerance_s(vertex):
+                            BRep_Builder().UpdateVertex(vertex, distance + Precision.Confusion_s())
                     if curve.IsPeriodic():
                         if source.sense is Sense.POSITIVE and b <= a:
                             b += curve.Period()

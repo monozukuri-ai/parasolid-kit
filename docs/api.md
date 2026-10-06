@@ -288,12 +288,15 @@ a vertex-free Parasolid circle can acquire an OCCT seam vertex, so edge and
 vertex counts are validation evidence rather than identity claims.
 
 The default is `require_complete=True, heal=False`; healing remains unavailable.
-Rational, closed, or periodic NURBS, unsupported UV/intersection variants,
-blend construction, invalid loop topology, unknown orientation, invalid OCCT
-shapes, and metric mismatches raise `OcctConversionError`. Two-dimensional NURBS
-are accepted only as parameter curves used by `SP_CURVE`. The analytic path
-requires explicit trims for circular/elliptical arcs; the parametric path can
-resolve bounded conics from source orientation and endpoints.
+Unsupported UV/intersection variants, cliff-edge blends, invalid loop topology,
+unknown orientation, invalid OCCT shapes, and metric mismatches raise
+`OcctConversionError`. In the released packages rational, closed or periodic
+NURBS and rolling-ball blends raise it too; the unreleased source builds them
+(stored-form NURBS as non-periodic B-splines, blends as the pipe of the blend
+radius around the spine). Two-dimensional NURBS are accepted as parameter
+curves used by `SP_CURVE`. The analytic path requires explicit trims for
+circular/elliptical arcs; the parametric path can resolve bounded conics from
+source orientation and endpoints.
 Explicit `TrimmedCurve` is supported because it
 retains the basis, endpoint positions, and parameter interval needed to choose
 one arc. `.report` contains the partial `ConversionReport` available at failure

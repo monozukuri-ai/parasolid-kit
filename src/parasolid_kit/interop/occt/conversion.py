@@ -9,6 +9,8 @@ from math import isfinite
 
 from ... import __version__
 from ...brep.geometry import (
+    BlendBoundarySurface,
+    BlendedEdgeSurface,
     CircleCurve,
     ConeSurface,
     CurveKind,
@@ -707,6 +709,8 @@ def _supported_surface_definition(kind: SurfaceKind, definition: object) -> bool
                 (SurfaceKind.SPUN, SpunSurface),
                 (SurfaceKind.NURBS, NurbsSurface),
                 (SurfaceKind.OFFSET, OffsetSurface),
+                (SurfaceKind.BLENDED_EDGE, BlendedEdgeSurface),
+                (SurfaceKind.BLEND_BOUNDARY, BlendBoundarySurface),
             )
         )
     )
@@ -721,9 +725,10 @@ def _conditional_geometry_diagnostics(context: _ConversionContext) -> list[Diagn
     }
     for curve in context.brep.curves:
         definition = curve.definition
-        if isinstance(definition, NurbsCurve) and (
-            definition.rational
-            or definition.vertex_dimension != (2 if curve.id in parameter_ids else 3)
+        if isinstance(definition, NurbsCurve) and definition.vertex_dimension != (
+            (3 if definition.rational else 2)
+            if curve.id in parameter_ids
+            else (4 if definition.rational else 3)
         ):
             result.append(
                 _diagnostic(
@@ -731,8 +736,8 @@ def _conditional_geometry_diagnostics(context: _ConversionContext) -> list[Diagn
                     code="occt.unsupported_curve",
                     kind=DiagnosticKind.UNSUPPORTED,
                     message=(
-                        f"NURBS curve {curve.id} requires a rational or non-3D control-vertex "
-                        "interpretation that is not established by I7"
+                        f"NURBS curve {curve.id} has a control-vertex dimension that does not "
+                        "match its rational flag and use"
                     ),
                     source=curve.source,
                     details={
@@ -741,27 +746,6 @@ def _conditional_geometry_diagnostics(context: _ConversionContext) -> list[Diagn
                         "geometry_kind": CurveKind.NURBS.value,
                         "rational": definition.rational,
                         "vertex_dimension": definition.vertex_dimension,
-                    },
-                )
-            )
-            continue
-        if isinstance(definition, NurbsCurve) and (definition.periodic or definition.closed):
-            result.append(
-                _diagnostic(
-                    context,
-                    code="occt.unsupported_curve",
-                    kind=DiagnosticKind.UNSUPPORTED,
-                    message=(
-                        f"NURBS curve {curve.id} is closed or periodic; I7 has not established "
-                        "the exact source-to-OCCT pole and knot relationship"
-                    ),
-                    source=curve.source,
-                    details={
-                        "entity_kind": "curve",
-                        "entity_id": curve.id,
-                        "geometry_kind": CurveKind.NURBS.value,
-                        "closed": definition.closed,
-                        "periodic": definition.periodic,
                     },
                 )
             )
@@ -786,8 +770,8 @@ def _conditional_geometry_diagnostics(context: _ConversionContext) -> list[Diagn
                 )
     for surface in context.brep.surfaces:
         definition = surface.definition
-        if isinstance(definition, NurbsSurface) and (
-            definition.rational or definition.vertex_dimension != 3
+        if isinstance(definition, NurbsSurface) and definition.vertex_dimension != (
+            4 if definition.rational else 3
         ):
             result.append(
                 _diagnostic(
@@ -795,8 +779,8 @@ def _conditional_geometry_diagnostics(context: _ConversionContext) -> list[Diagn
                     code="occt.unsupported_surface",
                     kind=DiagnosticKind.UNSUPPORTED,
                     message=(
-                        f"NURBS surface {surface.id} requires a rational or non-3D control-grid "
-                        "interpretation that is not established by I7"
+                        f"NURBS surface {surface.id} has a control-grid dimension that does not "
+                        "match its rational flag"
                     ),
                     source=surface.source,
                     details={
@@ -805,34 +789,6 @@ def _conditional_geometry_diagnostics(context: _ConversionContext) -> list[Diagn
                         "geometry_kind": SurfaceKind.NURBS.value,
                         "rational": definition.rational,
                         "vertex_dimension": definition.vertex_dimension,
-                    },
-                )
-            )
-            continue
-        if isinstance(definition, NurbsSurface) and (
-            definition.u_periodic
-            or definition.v_periodic
-            or definition.u_closed
-            or definition.v_closed
-        ):
-            result.append(
-                _diagnostic(
-                    context,
-                    code="occt.unsupported_surface",
-                    kind=DiagnosticKind.UNSUPPORTED,
-                    message=(
-                        f"NURBS surface {surface.id} is closed or periodic; I7 has not "
-                        "established the exact source-to-OCCT pole and knot relationship"
-                    ),
-                    source=surface.source,
-                    details={
-                        "entity_kind": "surface",
-                        "entity_id": surface.id,
-                        "geometry_kind": SurfaceKind.NURBS.value,
-                        "u_closed": definition.u_closed,
-                        "v_closed": definition.v_closed,
-                        "u_periodic": definition.u_periodic,
-                        "v_periodic": definition.v_periodic,
                     },
                 )
             )

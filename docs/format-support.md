@@ -317,7 +317,6 @@ checks follow construction. UV/intersection approximations are explicitly
 recorded, while unsupported variants remain rejected.
 
 <!-- BEGIN GENERATED I7 GEOMETRY COVERAGE -->
-
 | Category | Geometry kind | Parser | OCCT | STEP | Exact constraints |
 |---|---|---:|---:|---:|---|
 | curve | `line` | exact | exact | exact | two vertices |
@@ -326,8 +325,8 @@ recorded, while unsupported variants remain rejected.
 | curve | `parabola` | exact | exact | exact | two vertices on one exact branch |
 | curve | `hyperbola` | exact | exact | exact | two vertices on one exact branch |
 | curve | `trimmed` | exact | exact | exact | explicit basis, parameters, endpoint positions, and two vertices |
-| curve | `nurbs` | exact | conditional | conditional | open nonrational nonperiodic 3D curves, or 2D curves used only by SP_CURVE |
-| curve | `surface_parametric` | exact | conditional | conditional | open nonrational 2D NURBS on a supported surface; bounded 3D approximation and source FIN checks |
+| curve | `nurbs` | exact | conditional | conditional | nonrational or rational 3D curves, open or in the stored periodic form, or 2D curves used by SP_CURVE |
+| curve | `surface_parametric` | exact | conditional | conditional | nonrational or rational 2D NURBS on a supported surface, as FIN or edge curve; bounded 3D approximation and source FIN checks |
 | curve | `intersection` | exact | conditional | conditional | source-identified CHART/LIMIT branch on two supports, open or closed; bounded numerical fitting |
 | curve | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
 | surface | `plane` | exact | exact | exact | explicit trim loops |
@@ -336,12 +335,11 @@ recorded, while unsupported variants remain rejected.
 | surface | `sphere` | exact | exact | exact | untrimmed closed face, or explicitly trimmed face in parametric topology; OCCT seam and pole topology is generated |
 | surface | `torus` | exact | exact | exact | closed ring torus, or explicitly trimmed ring, horn, apple or lemon torus in parametric topology |
 | surface | `spun` | exact | conditional | conditional | revolution of a mapped profile curve about the spin axis; explicitly trimmed faces in parametric topology |
-| surface | `nurbs` | exact | conditional | conditional | open nonrational nonperiodic 3D row-major grid; multiple loops in parametric topology |
+| surface | `nurbs` | exact | conditional | conditional | nonrational or rational 3D row-major grid, open or in the stored periodic form; multiple loops in parametric topology |
 | surface | `offset` | exact | conditional | conditional | supported exact basis surface; I7 verifies a non-periodic NURBS basis |
-| surface | `blended_edge` | exact | unsupported | unsupported | blend construction records are retained but not reverse engineered |
-| surface | `blend_boundary` | exact | unsupported | unsupported | depends on unsupported blend reconstruction |
+| surface | `blended_edge` | exact | conditional | conditional | rolling-ball blends of equal offsets as the B-spline pipe of the blend radius around the spine, within the validation tolerance; cliff-edge blends unsupported |
+| surface | `blend_boundary` | exact | conditional | conditional | construction surface only: its intersection with a support is the blend's contact curve, interpolated from the spine within the validation tolerance |
 | surface | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
-
 <!-- END GENERATED I7 GEOMETRY COVERAGE -->
 
 ## Derived metrics

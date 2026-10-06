@@ -81,7 +81,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "open nonrational nonperiodic 3D curves, or 2D curves used only by SP_CURVE",
+        "nonrational or rational 3D curves, open or in the stored periodic form, "
+        "or 2D curves used by SP_CURVE",
     ),
     GeometryCoverage(
         "curve",
@@ -89,7 +90,7 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "open nonrational 2D NURBS on a supported surface; "
+        "nonrational or rational 2D NURBS on a supported surface, as FIN or edge curve; "
         "bounded 3D approximation and source FIN checks",
     ),
     GeometryCoverage(
@@ -161,7 +162,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "open nonrational nonperiodic 3D row-major grid; multiple loops in parametric topology",
+        "nonrational or rational 3D row-major grid, open or in the stored periodic form; "
+        "multiple loops in parametric topology",
     ),
     GeometryCoverage(
         "surface",
@@ -175,17 +177,19 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "surface",
         SurfaceKind.BLENDED_EDGE.value,
         "exact",
-        "unsupported",
-        "unsupported",
-        "blend construction records are retained but not reverse engineered",
+        "conditional",
+        "conditional",
+        "rolling-ball blends of equal offsets as the B-spline pipe of the blend radius "
+        "around the spine, within the validation tolerance; cliff-edge blends unsupported",
     ),
     GeometryCoverage(
         "surface",
         SurfaceKind.BLEND_BOUNDARY.value,
         "exact",
-        "unsupported",
-        "unsupported",
-        "depends on unsupported blend reconstruction",
+        "conditional",
+        "conditional",
+        "construction surface only: its intersection with a support is the blend's "
+        "contact curve, interpolated from the spine within the validation tolerance",
     ),
     GeometryCoverage(
         "surface",

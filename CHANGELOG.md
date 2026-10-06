@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- OCCT parametric topology: an edge whose own geometry is a surface
+  parameter curve, or a trim of one, is built from that curve on its surface;
+  a parameter curve on an offset surface uses the parameters of the offset's
+  basis; and a FIN trim stored against its parameter direction pairs the
+  vertex at the lower parameter first.
+- NURBS geometry: rational curves and surfaces (XT weights stored as the last
+  vertex component) and curves or surfaces stored in their periodic or closed
+  form are built; the stored knot vector and poles define the same B-spline
+  as a non-periodic OCCT curve or surface over the stored range, which is how
+  it is evaluated. Rational 2D parameter curves are accepted too.
+- Rolling-ball blends (BLENDED_EDGE with equal offset magnitudes) convert in
+  the OCCT interop: the blend surface is the pipe of the blend radius around
+  the spine, a B-spline within a hundredth of the validation tolerance, and
+  an intersection curve with a BLEND_BOUND construction surface is the blend's
+  contact curve on that support, interpolated from the spine and checked
+  against the source chart points (`blend_contact_curve`). The pipe is made
+  periodic in its closed directions, and edges on approximated branches carry
+  that approximation in their tolerance. Cliff-edge blends and unequal
+  offsets remain unsupported.
+
 - OCCT parametric topology: a face that opposes its surface now has its source
   loops reversed before the periodic seam and orientation fixes, so the face
   keeps its source region instead of the complement, and the whole face is

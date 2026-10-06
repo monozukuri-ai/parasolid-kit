@@ -139,7 +139,7 @@ def test_i7_supported_geometry_reaches_the_guarded_optional_runtime(
     assert captured.value.diagnostic.code == "interop.missing_dependency"
 
 
-def test_incomplete_pcurve_intersection_and_rational_nurbs_remain_unsupported() -> None:
+def test_incomplete_pcurve_and_intersection_stay_unsupported_and_rational_nurbs_convert() -> None:
     model = make_analytic_curve_sheet_model(CurveKind.NURBS)
     primary = model.curves[0]
     pcurve = replace(
@@ -175,6 +175,7 @@ def test_incomplete_pcurve_intersection_and_rational_nurbs_remain_unsupported() 
 
     definition = primary.definition
     assert isinstance(definition, NurbsCurve)
+    # Unit weights give the same curve; rational NURBS now convert.
     rational = replace(
         primary,
         definition=replace(
@@ -184,10 +185,14 @@ def test_incomplete_pcurve_intersection_and_rational_nurbs_remain_unsupported() 
             control_vertices=tuple((*values, 1.0) for values in definition.control_vertices),
         ),
     )
-    with pytest.raises(OcctConversionError) as rational_error:
-        to_occt(replace(model, curves=(rational, *model.curves[1:])), source_unit="mm")
-    assert rational_error.value.diagnostic.code == "occt.unsupported_curve"
-    assert rational_error.value.diagnostic.details["rational"] is True
+    result = to_occt(replace(model, curves=(rational, *model.curves[1:])), source_unit="mm")
+    assert result.report.conversion_complete is True and result.report.occt_valid is True
+    # A rational flag without the weight component stays rejected.
+    mismatched = replace(primary, definition=replace(definition, rational=True))
+    with pytest.raises(OcctConversionError) as mismatch_error:
+        to_occt(replace(model, curves=(mismatched, *model.curves[1:])), source_unit="mm")
+    assert mismatch_error.value.diagnostic.code == "occt.unsupported_curve"
+    assert mismatch_error.value.diagnostic.details["rational"] is True
 
 
 def test_trimmed_basis_missing_and_cycles_are_rejected_before_occt_import() -> None:
@@ -247,7 +252,11 @@ def test_malformed_nurbs_is_rejected_before_occt_import() -> None:
     assert "strictly increasing" in surface_error.value.diagnostic.details["reason"]
 
 
-def test_periodic_nurbs_is_an_explicit_conditional_coverage_failure() -> None:
+def test_periodic_flags_must_agree_with_topology_and_geometry() -> None:
+    # A periodic or closed NURBS is built from its stored knots and poles. The
+    # flags must agree with the edge topology (no end vertices) and with the
+    # geometry (the ends meet), so an open curve flagged closed is rejected
+    # instead of being wrapped.
     model = make_analytic_curve_sheet_model(CurveKind.NURBS)
     curve = model.curves[0]
     definition = curve.definition
@@ -256,10 +265,15 @@ def test_periodic_nurbs_is_an_explicit_conditional_coverage_failure() -> None:
 
     with pytest.raises(OcctConversionError) as captured:
         to_occt(replace(model, curves=(periodic, *model.curves[1:])), source_unit="mm")
-
     assert captured.value.diagnostic.code == "occt.unsupported_curve"
-    assert captured.value.diagnostic.details["periodic"] is True
-    assert captured.value.diagnostic.details["closed"] is True
+    assert "closed/periodic flags" in captured.value.diagnostic.message
+
+    from parasolid_kit.interop.occt.geometry import GeometryFactory
+    from parasolid_kit.interop.occt.options import OcctConversionOptions
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="mm"))
+    with pytest.raises(ValueError, match="flagged closed"):
+        factory.curve3d(periodic.definition, resolve_basis=lambda _: None)
 
 
 @pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")

@@ -374,6 +374,59 @@ def test_unbounded_analytic_branch_keeps_the_source_order():
         assert project_curve(curve, point)[1] < 1e-6
 
 
+def test_rolling_ball_blend_is_the_pipe_of_its_radius_around_the_spine():
+    from OCP.Geom import Geom_Circle, Geom_Line
+    from OCP.GeomAPI import GeomAPI_ProjectPointOnCurve
+    from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
+
+    from parasolid_kit import BlendedEdgeSurface, BlendType
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="mm"))
+    resolve = {"resolve_basis": lambda _: None}
+    # Around a straight spine the blend is a cylinder of the blend radius; the
+    # two offsets may carry opposite signs.
+    line = Geom_Line(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1))
+    blend = BlendedEdgeSurface(
+        BlendType.ROLLING_BALL, (1, 2), 7, (2.0, -2.0), (1.0, 1.0), (None, None), None, None
+    )
+    surface = factory.surface3d(blend, resolve_curve=lambda _: line, **resolve)
+    u1, u2, v1, v2 = surface.Bounds()
+    for u, v in ((u1, v1), (0.3, 0.7), (u2, v2)):
+        point = surface.Value(u, v)
+        assert point.X() ** 2 + point.Y() ** 2 == pytest.approx(4.0, abs=1e-9)
+    # The circular section is periodic, so seam fixes can place its seam.
+    assert surface.IsUPeriodic() or surface.IsVPeriodic()
+    # Around a circular spine every surface point is at the blend radius.
+    circle = Geom_Circle(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1), gp_Dir(1, 0, 0)), 5.0)
+    torus = factory.surface3d(
+        replace_blend(blend, ranges=(0.5, 0.5)), resolve_curve=lambda _: circle, **resolve
+    )
+    assert torus.IsUPeriodic() and torus.IsVPeriodic()
+    u1, u2, v1, v2 = torus.Bounds()
+    for i in range(5):
+        for j in range(5):
+            point = torus.Value(u1 + (u2 - u1) * i / 4, v1 + (v2 - v1) * j / 4)
+            assert GeomAPI_ProjectPointOnCurve(point, circle).LowerDistance() == pytest.approx(
+                0.5, abs=1e-6
+            )
+    for bad, message in (
+        (replace_blend(blend, blend_type=BlendType.CLIFF_EDGE), "cliff-edge"),
+        (replace_blend(blend, ranges=(2.0, 1.0)), "equal magnitude"),
+        (replace_blend(blend, ranges=(0.0, 0.0)), "non-zero"),
+        (replace_blend(blend, thumb_weights=(1.0, 0.5)), "thumb weights"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            factory.surface3d(bad, resolve_curve=lambda _: line, **resolve)
+    with pytest.raises(ValueError, match="spine curve resolver"):
+        factory.surface3d(blend, **resolve)
+
+
+def replace_blend(blend, **changes):
+    from dataclasses import replace
+
+    return replace(blend, **changes)
+
+
 def test_spun_surface_revolves_its_profile_about_the_spin_axis():
     from OCP.Geom import Geom_Circle
     from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
