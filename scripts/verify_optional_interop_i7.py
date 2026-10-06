@@ -76,14 +76,20 @@ def _coverage_gate() -> dict[str, object]:
         raise RuntimeError("coverage import eagerly loaded an optional runtime")
     unsupported = {(item.category, item.kind) for item in rows if item.occt == "unsupported"}
     required_unsupported = {
-        ("surface", "blended_edge"),
-        ("surface", "blend_boundary"),
+        ("curve", CurveKind.UNSUPPORTED.value),
+        ("surface", SurfaceKind.UNSUPPORTED.value),
     }
     if not required_unsupported <= unsupported:
-        raise RuntimeError("geometry coverage inferred unsupported blend construction")
+        raise RuntimeError("geometry coverage inferred unknown source semantics")
     conditional = {(item.category, item.kind) for item in rows if item.occt == "conditional"}
-    if not {("curve", "surface_parametric"), ("curve", "intersection")} <= conditional:
-        raise RuntimeError("parametric geometry must retain its conditional conversion gates")
+    required_conditional = {
+        ("curve", CurveKind.SURFACE_PARAMETRIC.value),
+        ("curve", CurveKind.INTERSECTION.value),
+        ("surface", SurfaceKind.BLENDED_EDGE.value),
+        ("surface", SurfaceKind.BLEND_BOUNDARY.value),
+    }
+    if not required_conditional <= conditional:
+        raise RuntimeError("parametric and blend geometry must retain conditional conversion gates")
     return {
         "status": "passed",
         "row_count": len(rows),
@@ -108,15 +114,24 @@ def _rational_gate(fixtures: dict[str, Any]) -> dict[str, object]:
             control_vertices=tuple((*values, 1.0) for values in definition.control_vertices),
         ),
     )
+    converted = to_occt(replace(model, curves=(rational, *model.curves[1:])), source_unit="mm")
+    if not converted.report.conversion_complete or not converted.report.occt_valid:
+        raise RuntimeError("rational NURBS did not convert as a complete valid shape")
+    mismatched = replace(primary, definition=replace(definition, rational=True))
     try:
-        to_occt(replace(model, curves=(rational, *model.curves[1:])), source_unit="mm")
+        to_occt(replace(model, curves=(mismatched, *model.curves[1:])), source_unit="mm")
     except OcctConversionError as error:
         if error.diagnostic.code != "occt.unsupported_curve":
             raise RuntimeError("rational NURBS failed with the wrong diagnostic") from error
         if error.diagnostic.details.get("rational") is not True:
             raise RuntimeError("rational NURBS diagnostic omitted its exact reason") from error
-        return {"status": "rejected_before_construction", "diagnostic": error.diagnostic.to_dict()}
-    raise RuntimeError("rational NURBS was accepted without an established storage contract")
+        return {
+            "status": "passed",
+            "conversion_complete": converted.report.conversion_complete,
+            "occt_valid": converted.report.occt_valid,
+            "invalid_storage_diagnostic": error.diagnostic.to_dict(),
+        }
+    raise RuntimeError("rational NURBS was accepted without its stored weight component")
 
 
 def main() -> int:

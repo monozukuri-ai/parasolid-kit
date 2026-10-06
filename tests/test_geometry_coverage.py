@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from dataclasses import replace
 from functools import partial
@@ -123,6 +124,21 @@ def test_format_support_embeds_the_machine_rendered_coverage_table() -> None:
     embedded = text.split(DOC_BEGIN, 1)[1].split(DOC_END, 1)[0].strip()
 
     assert embedded == render_geometry_coverage_markdown()
+
+
+def test_i7_cold_install_coverage_gate_passes_without_loading_optional_runtime() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import runpy, sys; runpy.run_path(sys.argv[1])['_coverage_gate']()",
+            str(ROOT / "scripts" / "verify_optional_interop_i7.py"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.skipif(HAS_OCP, reason="exercises dispatch before the optional runtime is installed")
