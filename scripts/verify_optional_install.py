@@ -23,6 +23,22 @@ I6_PREVIEW = ROOT / "scripts" / "verify_optional_interop_i6.py"
 I7_GEOMETRY = ROOT / "scripts" / "verify_optional_interop_i7.py"
 I3_FIXTURES = ROOT / "tests" / "_occt_fixtures.py"
 
+# The quality job runs the full Python suite. Cold optional installs repeat only
+# tests affected by the installed OCCT/CadQuery runtime, including their CLI and
+# import boundaries. Keep new optional-runtime test files in this list.
+OPTIONAL_TEST_FILES = (
+    "test_interop.py",
+    "test_import_isolation.py",
+    "test_occt_conversion.py",
+    "test_occt_parametric.py",
+    "test_step_export.py",
+    "test_geometry_coverage.py",
+    "test_preview.py",
+    "test_cadquery_adapter.py",
+    "test_cli.py",
+    "test_release_corpus_oracle.py",
+)
+
 PROFILE_SMOKE_CODE = r"""
 import json
 import math
@@ -368,7 +384,14 @@ def verify_profile(
             environment=environment,
         )
         test_suite = _run(
-            [str(environment_python), "-I", "-m", "pytest", "-q", str(ROOT / "tests")],
+            [
+                str(environment_python),
+                "-I",
+                "-m",
+                "pytest",
+                "-q",
+                *(str(ROOT / "tests" / name) for name in OPTIONAL_TEST_FILES),
+            ],
             cwd=work_dir,
             environment=environment,
         )
@@ -404,6 +427,7 @@ def verify_profile(
         "i5_adapter": i5_adapter,
         "i6_preview": i6_preview,
         "i7_geometry": i7_geometry,
+        "test_files": list(OPTIONAL_TEST_FILES),
         "test_suite": test_suite,
         "conflict": conflict,
     }

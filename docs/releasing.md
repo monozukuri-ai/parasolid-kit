@@ -63,6 +63,21 @@ The release workflow always:
 A missing platform, failed check or changed artifact blocks publication. The
 publish job does not rebuild packages. Artifact retention is 30 days.
 
+### Scope of required checks
+
+The quality job runs the full Python suite and checks geometry coverage against
+the public enums. Cold wheel/sdist checks verify installation, public API calls,
+parser/CLI behavior, versions and independence from checkout files and optional
+dependencies. They do not pin geometry row counts or the implementation modules
+of public classes.
+
+Each cold OCCT/CadQuery environment runs conversion, STEP, preview, adapter, CLI
+and import-boundary tests rather than repeating unrelated parser and release-tool
+tests. The files are listed in `OPTIONAL_TEST_FILES` in
+`scripts/verify_optional_install.py`; add new optional-runtime test files there.
+Archive contents, licenses, platform compatibility and the same-run artifact
+hashes remain required publication checks.
+
 ## Build without publishing
 
 Push a `release/*` branch, or run `release.yml` manually with `release_tag` left

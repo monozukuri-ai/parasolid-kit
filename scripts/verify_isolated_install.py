@@ -121,14 +121,13 @@ from parasolid_kit import (
 )
 assert Path(parasolid_kit.__file__).resolve().is_relative_to(installed_environment)
 assert callable(read_brep)
-assert BrepSummary.__module__ == "parasolid_kit.summary"
-assert ParsedBrep.__module__ == "parasolid_kit.summary"
-assert DirectorySchemaProvider.__module__ == "parasolid_kit.schema.provider"
+assert all(callable(api) for api in (BrepSummary, ParsedBrep, DirectorySchemaProvider))
 assert callable(occt.to_occt)
 assert callable(occt.write_step)
-assert len(occt.geometry_coverage()) == 20
-assert occt.geometry_coverage() is occt.GEOMETRY_COVERAGE
-assert "surface_parametric" in occt.render_geometry_coverage_markdown()
+# Coverage contents and enum completeness are checked by test_geometry_coverage.py.
+# The installed-package smoke only needs these public APIs to return usable data.
+assert occt.geometry_coverage()
+assert occt.render_geometry_coverage_markdown()
 assert callable(cadquery_interop.to_cadquery)
 assert callable(cadquery_interop.to_cadquery_shapes)
 assert callable(preview.write_preview)
@@ -198,7 +197,7 @@ print(json.dumps({
     "api": "imported",
     "interop_base": "missing_extras_actionable",
     "viewer_assets": sorted(preview.STATIC_ASSET_SHA256),
-    "geometry_coverage_rows": len(occt.GEOMETRY_COVERAGE),
+    "geometry_coverage_rows": len(occt.geometry_coverage()),
     "native_inspect_schema": header.schema_key,
     "schema_resolution": text.schema_resolution.to_dict(),
     "synthetic_pair_equivalent": True,
