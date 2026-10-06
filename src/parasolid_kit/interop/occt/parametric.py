@@ -19,7 +19,14 @@ from OCP.BSplCLib import BSplCLib
 from OCP.Precision import Precision
 from OCP.ShapeBuild import ShapeBuild_ReShape
 from OCP.ShapeFix import ShapeFix_Edge, ShapeFix_Face, ShapeFix_Wire
-from OCP.TopAbs import TopAbs_EDGE, TopAbs_FORWARD, TopAbs_REVERSED, TopAbs_VERTEX, TopAbs_WIRE
+from OCP.TopAbs import (
+    TopAbs_EDGE,
+    TopAbs_FACE,
+    TopAbs_FORWARD,
+    TopAbs_REVERSED,
+    TopAbs_VERTEX,
+    TopAbs_WIRE,
+)
 from OCP.TopExp import TopExp
 from OCP.TopoDS import TopoDS, TopoDS_Face, TopoDS_Shell
 from OCP.TopTools import TopTools_IndexedMapOfShape
@@ -36,7 +43,7 @@ from ...brep.topology import BodyKind, RegionKind, Sense
 from ...diagnostics import Diagnostic, DiagnosticKind, DiagnosticSeverity, SourceLocation
 from .intersection import fit_intersection, intersect_analytic, project_curve
 from .model import ShapeRelationKind, SourceEntityKind
-from .topology import BuiltTopology, TopologyBuilder
+from .topology import BuiltTopology, TopologyBuilder, _sense_sign
 
 
 def subshapes(shape: object, kind: object) -> list:
@@ -198,14 +205,16 @@ class ParametricTopologyBuilder(TopologyBuilder):
             curve = self._parameter_curve(support)
             surface = self._surface_geometry(support.surface)
             a, b = definition.start_parameter, definition.end_parameter
-            if a >= b:
-                raise ValueError(f"edge {edge.id} requires increasing UV trim parameters")
+            if a == b:
+                raise ValueError(f"edge {edge.id} requires distinct UV trim parameters")
             q1, q2 = (surface.Value(curve.Value(t).X(), curve.Value(t).Y()) for t in (a, b))
             for point, source in ((q1, definition.start_point), (q2, definition.end_point)):
                 if point.Distance(self.geometry.point(source)) > tolerance:
                     raise ValueError(f"edge {edge.id} UV trim disagrees with its source point")
+            # A trim stored against the parameter direction keeps its end
+            # points; the edge range is the same interval.
             endpoints(q1, q2)
-            builder = BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, a, b)
+            builder = BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, min(a, b), max(a, b))
             self.operations.append("surface_parametric_curve_3d_approximation")
         else:
             source = self.curves[edge.curve]
@@ -239,7 +248,15 @@ class ParametricTopologyBuilder(TopologyBuilder):
                         raise ValueError(
                             f"trimmed edge {edge.id} parameter disagrees with its source point"
                         )
-                a, b = sorted((a, b))
+                if curve.IsPeriodic():
+                    # On a closed basis the trim is the arc that follows the
+                    # source parameter direction from start to end.
+                    if definition.start_parameter > definition.end_parameter:
+                        a, b = b, a
+                    if b <= a:
+                        b += curve.Period()
+                else:
+                    a, b = sorted((a, b))
                 endpoints(curve.Value(a), curve.Value(b))
                 builder = (
                     BRepBuilderAPI_MakeEdge(curve, a, b)
@@ -331,6 +348,14 @@ class ParametricTopologyBuilder(TopologyBuilder):
             self._surface_geometry(face.surface),
             max(self.precision, Precision.Confusion_s()),
         )
+        # Source loops run counterclockwise about the face normal, while the
+        # seam and orientation fixes assume the surface normal. A face that
+        # opposes its surface keeps its source region on a periodic surface
+        # only when its wires are reversed here; _finish_face then reverses
+        # the whole face, so the final boundary direction is unchanged.
+        opposed = _sense_sign(face.sense) * _sense_sign(self.surfaces[face.surface].sense) < 0
+        if opposed:
+            self.operations.append("reverse_opposed_face_loops")
         for loop_id in face.loops:
             for half_edge_id in self.loops[loop_id].half_edges:
                 self._add_pcurve(self.half_edges[half_edge_id], shape)
@@ -338,7 +363,12 @@ class ParametricTopologyBuilder(TopologyBuilder):
             shift = ShapeFix_Wire(wire, shape, self.precision)
             if shift.FixShifted():
                 self.operations.append("unwrap_periodic_surface_parameters")
-            builder.Add(shape, shift.Wire())
+            # A loop through a sphere pole or a cone apex needs the degenerated
+            # edge of that singularity; the seam fix alone leaves it unorientable.
+            if shift.FixDegenerated():
+                self.operations.append("insert_degenerated_singularity_edges")
+            fixed = shift.Wire()
+            builder.Add(shape, TopoDS.Wire_s(fixed.Reversed()) if opposed else fixed)
         self.face_shapes[face.id] = shape
 
     def _finish_face(self, face):
@@ -352,6 +382,13 @@ class ParametricTopologyBuilder(TopologyBuilder):
         if operation.FixOrientation():
             self.operations.append("orient_surface_boundary_wires")
         shape = operation.Face()
+        if shape.IsNull():
+            # The seam fix can hand back its single face inside a shell.
+            faces = subshapes(operation.Result(), TopAbs_FACE)
+            if len(faces) != 1:
+                raise ValueError(f"OCCT face {face.id} was split into {len(faces)} faces")
+            shape = TopoDS.Face_s(faces[0])
+            self.operations.append("unwrap_single_face_fix_result")
         for candidate in subshapes(shape, TopAbs_EDGE):
             edge = TopoDS.Edge_s(candidate)
             if not BRep_Tool.SameRange_s(edge):

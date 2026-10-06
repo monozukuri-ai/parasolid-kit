@@ -32,6 +32,7 @@ class SurfaceKind(str, Enum):
     CONE = "cone"
     SPHERE = "sphere"
     TORUS = "torus"
+    SPUN = "spun"
     BLENDED_EDGE = "blended_edge"
     BLEND_BOUNDARY = "blend_boundary"
     OFFSET = "offset"
@@ -217,6 +218,20 @@ class TorusSurface:
 
 
 @dataclass(frozen=True, slots=True)
+class SpunSurface:
+    """Surface of revolution of a profile curve about an axis (XT SPUN_SURF)."""
+
+    profile: int
+    base: Vector3
+    axis: Vector3
+    start: Vector3 | None
+    end: Vector3 | None
+    start_parameter: float | None
+    end_parameter: float | None
+    x_axis: Vector3 | None
+
+
+@dataclass(frozen=True, slots=True)
 class BlendedEdgeSurface:
     """Exact rolling-ball or cliff-edge blend surface."""
 
@@ -273,6 +288,7 @@ SurfaceDefinition: TypeAlias = (
     | ConeSurface
     | SphereSurface
     | TorusSurface
+    | SpunSurface
     | BlendedEdgeSurface
     | BlendBoundarySurface
     | OffsetSurface

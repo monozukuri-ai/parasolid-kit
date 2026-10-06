@@ -573,6 +573,16 @@ impl<'a> Mapper<'a> {
                     )?,
                 }
             }
+            "SPUN_SURF" => SurfaceKind::Spun {
+                profile: self.required_id(node, "profile", "curve geometry", &self.ids.curves)?,
+                base: self.vector(node, "base")?,
+                axis: self.vector(node, "axis")?,
+                start: self.optional_vector(node, "start")?,
+                end: self.optional_vector(node, "end")?,
+                start_parameter: self.optional_double(node, "start_param")?,
+                end_parameter: self.optional_double(node, "end_param")?,
+                x_axis: self.optional_vector(node, "x_axis")?,
+            },
             "OFFSET_SURF" => SurfaceKind::Offset {
                 basis_surface: self.required_id(
                     node,
@@ -1823,6 +1833,33 @@ impl<'a> Mapper<'a> {
         }
     }
 
+    fn optional_vector(
+        &self,
+        node: &RawNode,
+        field: &'static str,
+    ) -> Result<Option<Vector3>, ParseError> {
+        let (FieldValue::Vector(values) | FieldValue::IntersectionPoint(values)) =
+            self.value(node, field)?
+        else {
+            return Err(self.invalid_field(node, field, "optional field is not a vector"));
+        };
+        match values {
+            [None, None, None] => Ok(None),
+            [Some(x), Some(y), Some(z)] if x.is_finite() && y.is_finite() && z.is_finite() => {
+                Ok(Some(Vector3 {
+                    x: *x,
+                    y: *y,
+                    z: *z,
+                }))
+            }
+            _ => Err(self.invalid_geometry(
+                node,
+                field,
+                "optional vector is partly null or not finite",
+            )),
+        }
+    }
+
     fn positive_double(&self, node: &RawNode, field: &'static str) -> Result<f64, ParseError> {
         let value = self.double(node, field)?;
         if value <= 0.0 {
@@ -2685,6 +2722,56 @@ mod tests {
                 "plane", "cylinder", "cone", "sphere", "torus", "offset", "nurbs",
             ])
         );
+        // A spun surface revolves a mapped curve; a null end point stays None.
+        let mut spun = common_surface_fields(0);
+        spun.extend([
+            field("profile", 1008, vec![FieldValue::PointerIndex(2)]),
+            vector("base", [0.0, 0.0, 0.0]),
+            vector("axis", [0.0, 0.0, 1.0]),
+            vector("start", [0.0, 0.0, 5.0]),
+            field("end", 0, vec![FieldValue::Vector([None, None, None])]),
+            double("start_param", 0.5),
+            field("end_param", 0, vec![FieldValue::Double(None)]),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+            field("scale", 0, vec![FieldValue::Double(None)]),
+        ]);
+        let spun_index = u32::try_from(nodes.len()).unwrap_or(u32::MAX) + 1;
+        nodes.push(node(spun_index, 68, "SPUN_SURF", spun));
+        let mut mapper = Mapper::new(
+            BrepSourceFormat::Text,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        for index in 1..=6 {
+            assert!(mapper.map_curve(index).is_ok());
+        }
+        let spun = mapper.map_surface(spun_index).map(|surface| surface.kind);
+        assert!(matches!(
+            spun,
+            Ok(SurfaceKind::Spun {
+                base: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0
+                },
+                start: Some(Vector3 { z: 5.0, .. }),
+                end: None,
+                start_parameter: Some(0.5),
+                end_parameter: None,
+                x_axis: Some(Vector3 { x: 1.0, .. }),
+                ..
+            })
+        ));
+        if let Ok(SurfaceKind::Spun { profile, .. }) = spun {
+            assert_eq!(
+                profile,
+                mapper
+                    .map_curve(2)
+                    .map(|curve| curve.id)
+                    .unwrap_or(u32::MAX)
+            );
+        }
         let nurbs = mapper.map_surface(13);
         assert!(matches!(
             nurbs.map(|surface| surface.kind),

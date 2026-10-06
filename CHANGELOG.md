@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- OCCT parametric topology: a face that opposes its surface now has its source
+  loops reversed before the periodic seam and orientation fixes, so the face
+  keeps its source region instead of the complement, and the whole face is
+  reversed afterwards as before (`reverse_opposed_face_loops`). Closed
+  source-identified intersection branches become periodic curves, and the trim
+  of such a branch follows the source parameter direction. Horn and apple tori
+  (major radius not above the minor radius) are exact for explicitly trimmed
+  faces; untrimmed closed torus faces still require a ring torus. A seam fix
+  that returns its single face inside a shell is unwrapped instead of leaving
+  a null face, and a loop through a sphere pole or a cone apex receives the
+  degenerated edge of that singularity before the seam fix
+  (`insert_degenerated_singularity_edges`). A closed analytic intersection
+  branch now follows the source point order across its parameter origin and
+  is made periodic, so an edge on it takes the source arc rather than the
+  complementary one.
 - Add OFFSET_SURF (60) to the reviewed 13006 declarations and admit it under
   the iCAD keys where it was observed. Add exact profiles for two further
   embedded keys and six further standard keys (13006, 15003, 16100, 19008 and
@@ -11,6 +26,14 @@
   that pin the earlier IDs or hashes must update them. Of 18,634 distinct
   sampled iCAD resources, 18,610 now parse without a catalog and match the
   catalog path. See [format support](docs/format-support.md#supported-profiles).
+- Map SPUN_SURF (68) as a surface of revolution: the profile curve, the spin
+  axis point and direction, the optional degeneracy points and parameters and
+  the optional x axis (`SpunSurface`). The OCCT interop revolves the mapped
+  profile about the axis (`Geom_SurfaceOfRevolution`), trimmed to the stored
+  profile parameters when both are present, with stored end points checked
+  against the profile; explicitly trimmed faces are supported in parametric
+  topology. The iCAD keys that declared the type no longer retain it as
+  unsupported geometry.
 - Map a trimmed curve on a LINE whose two parameters are both unset: they are
   the parameters of the stored end points under `R(t) = P + tD`. The points
   must lie on the line and the order rule still applies; raw fields stay null.

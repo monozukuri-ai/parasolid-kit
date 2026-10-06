@@ -725,6 +725,7 @@ class TopologyBuilder:
             result = self.geometry.surface3d(
                 surface.definition,
                 resolve_basis=self._surface_geometry,
+                resolve_curve=self._curve_geometry,
             )
         finally:
             self._resolving_surfaces.remove(surface_id)

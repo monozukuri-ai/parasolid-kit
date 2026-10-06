@@ -2,7 +2,7 @@
 
 CHART points identify a branch; they are not themselves an exact 3D curve.
 The fit is constrained by both support surfaces and by source trim endpoints.
-Closed branches and unresolved/singular refinement are rejected.
+Closed branches become periodic curves; unresolved/singular refinement is rejected.
 """
 
 from __future__ import annotations
@@ -93,8 +93,13 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
             raise ValueError("intersection branch contains a non-finite point")
         if not points or point.Distance(points[-1]) > numerical:
             points.append(point)
-    if len(points) < 2 or points[0].Distance(points[-1]) <= numerical:
-        raise ValueError("intersection requires a finite open branch")
+    # A branch whose chart returns to its first point is a closed loop; the
+    # periodic interpolation closes it, so the repeated point is dropped.
+    closed = len(points) >= 3 and points[0].Distance(points[-1]) <= numerical
+    if closed:
+        points.pop()
+    if len(points) < 2 or (not closed and points[0].Distance(points[-1]) <= numerical):
+        raise ValueError("intersection branch has fewer than two distinct points")
     for point in [*points, *anchors]:
         if max(project(point, surface)[2] for surface in surfaces) > tolerance:
             raise ValueError("source intersection point is outside its support-surface tolerance")
@@ -102,7 +107,7 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
         array = TColgp_HArray1OfPnt(1, len(points))
         for index, point in enumerate(points, 1):
             array.SetValue(index, point)
-        fit = GeomAPI_Interpolate(array, False, numerical)
+        fit = GeomAPI_Interpolate(array, closed, numerical)
         fit.Perform()
         if not fit.IsDone():
             raise ValueError("intersection interpolation failed")
@@ -119,9 +124,14 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
             continue
         refined = []
         worst = 0.0
-        for left, right in pairwise(points):
+        spans = list(pairwise(points))
+        if closed:
+            spans.append((points[-1], points[0]))
+        for left, right in spans:
             a, _ = project_curve(curve, left)
             b, _ = project_curve(curve, right)
+            if closed and b <= a:
+                b += curve.Period()
             refined.append(left)
             for fraction in (0.25, 0.5, 0.75):
                 point = curve.Value(a + (b - a) * fraction)
@@ -138,11 +148,44 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
                     refined.append(refine(seed, tuple(x / magnitude for x in chord)))
         if worst <= tolerance:
             return curve
-        refined.append(points[-1])
+        if not closed:
+            refined.append(points[-1])
         points = refined
         if len(points) > 10_000:
             raise ValueError("intersection refinement exceeds 10000 points")
     raise ValueError("intersection refinement exceeds 12 rounds")
+
+
+def _closed(curve: object, tolerance: float) -> bool:
+    """Whether a branch returns to its start within the conversion tolerance.
+
+    OCCT's own closure test uses its confusion tolerance, which an approximated
+    branch of a plane and a surface of revolution does not always meet.
+    """
+    first, last = curve.FirstParameter(), curve.LastParameter()
+    # OCCT bounds an unbounded branch, such as a hyperbola, by a huge finite
+    # parameter; evaluating there overflows.
+    if any(not isfinite(value) or abs(value) >= 1e99 for value in (first, last)):
+        return False
+    return curve.IsClosed() or curve.Value(first).Distance(curve.Value(last)) <= tolerance
+
+
+def _follows_source_order(curve: object, points: list, tolerance: float) -> bool:
+    """Whether the curve parameter rises along the ordered source points.
+
+    The parameters of a closed branch are unwrapped across its range, so an
+    arc that crosses the parameter origin of the branch keeps its source
+    direction instead of being judged by its two end parameters alone.
+    """
+    parameters = [project_curve(curve, point)[0] for point in points]
+    if _closed(curve, tolerance):
+        period = (
+            curve.Period() if curve.IsPeriodic() else curve.LastParameter() - curve.FirstParameter()
+        )
+        for index in range(1, len(parameters)):
+            step = parameters[index] - parameters[index - 1]
+            parameters[index] = parameters[index - 1] + (step + period / 2) % period - period / 2
+    return parameters[-1] >= parameters[0]
 
 
 def intersect_analytic(surfaces: list, samples: list, tolerance: float) -> object:
@@ -172,16 +215,25 @@ def intersect_analytic(surfaces: list, samples: list, tolerance: float) -> objec
     for index in dict.fromkeys(assignments):
         curve = curves[index].Copy()
         subset = [p for p, which in zip(samples, assignments, strict=True) if which == index]
-        if (
-            len(subset) > 1
-            and project_curve(curve, subset[0])[0] > project_curve(curve, subset[-1])[0]
-        ):
+        if len(subset) > 1 and not _follows_source_order(curve, subset, tolerance):
             curve.Reverse()
         pieces.append(curve)
     if len(pieces) == 1:
-        return pieces[0]
-    result = GeomConvert_CompCurveToBSplineCurve(GeomConvert.CurveToBSplineCurve_s(pieces[0]))
-    for piece in pieces[1:]:
-        if not result.Add(piece, tolerance, True, True, 100):
-            raise ValueError("disconnected OCCT intersection pieces")
-    return result.BSplineCurve()
+        result = pieces[0]
+    else:
+        joined = GeomConvert_CompCurveToBSplineCurve(GeomConvert.CurveToBSplineCurve_s(pieces[0]))
+        for piece in pieces[1:]:
+            if not joined.Add(piece, tolerance, True, True, 100):
+                raise ValueError("disconnected OCCT intersection pieces")
+        result = joined.BSplineCurve()
+    if _closed(result, tolerance) and not result.IsPeriodic():
+        # A closed branch must admit the arc across its parameter origin.
+        # Joining the ends moves the junction by at most the closure gap,
+        # which the source boundary validation still measures.
+        result = GeomConvert.CurveToBSplineCurve_s(result)
+        result.SetPeriodic()
+    # The whole branch follows the source order: a piece judged on its own
+    # subset of points can run against the arc that crosses into its neighbour.
+    if not _follows_source_order(result, samples, tolerance):
+        result.Reverse()
+    return result

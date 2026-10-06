@@ -98,7 +98,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "open source-identified CHART/LIMIT branch on two supports; bounded numerical fitting",
+        "source-identified CHART/LIMIT branch on two supports, open or closed; "
+        "bounded numerical fitting",
     ),
     GeometryCoverage(
         "curve",
@@ -133,7 +134,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "untrimmed closed face; OCCT seam topology is generated",
+        "untrimmed closed face, or explicitly trimmed face in parametric topology; "
+        "OCCT seam and pole topology is generated",
     ),
     GeometryCoverage(
         "surface",
@@ -141,7 +143,17 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "closed ring torus, or explicitly trimmed lemon torus in parametric topology",
+        "closed ring torus, or explicitly trimmed ring, horn, apple or lemon torus "
+        "in parametric topology",
+    ),
+    GeometryCoverage(
+        "surface",
+        SurfaceKind.SPUN.value,
+        "exact",
+        "conditional",
+        "conditional",
+        "revolution of a mapped profile curve about the spin axis; explicitly "
+        "trimmed faces in parametric topology",
     ),
     GeometryCoverage(
         "surface",

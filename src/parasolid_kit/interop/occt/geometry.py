@@ -20,6 +20,7 @@ from ...brep.geometry import (
     ParabolaCurve,
     PlaneSurface,
     SphereSurface,
+    SpunSurface,
     SurfaceDefinition,
     TorusSurface,
     TrimmedCurve,
@@ -379,15 +380,16 @@ class GeometryFactory:
             radius,
         )
 
-    def torus(self, surface: TorusSurface) -> object:
+    def torus(self, surface: TorusSurface, *, ring_only: bool = True) -> object:
+        """Exact torus; horn and apple tori only where a source trim bounds the face."""
         from OCP.gp import gp_Torus
 
         major = surface.major_radius * self.scale
         minor = surface.minor_radius * self.scale
         if not all(isfinite(value) for value in (major, minor)) or min(major, minor) <= 0.0:
             raise ValueError("torus radii must be finite and positive")
-        if major <= minor:
-            raise ValueError("I7 supports ring tori with major radius greater than minor radius")
+        if ring_only and major <= minor:
+            raise ValueError("an untrimmed closed torus face requires a ring torus")
         return gp_Torus(
             self.axis3(surface.center, surface.axis, surface.x_axis, role="torus"),
             major,
@@ -461,6 +463,7 @@ class GeometryFactory:
         definition: SurfaceDefinition,
         *,
         resolve_basis: Callable[[int], object],
+        resolve_curve: Callable[[int], object] | None = None,
     ) -> object:
         """Return an exact ``Geom_Surface`` for one supported source definition."""
 
@@ -484,9 +487,13 @@ class GeometryFactory:
         if isinstance(definition, TorusSurface):
             if definition.major_radius < 0:
                 return self.lemon_torus(definition)
-            return Geom_ToroidalSurface(self.torus(definition))
+            # Source loops trim the face, so the self-intersecting inner part of
+            # a horn or apple torus is never part of the result.
+            return Geom_ToroidalSurface(self.torus(definition, ring_only=False))
         if isinstance(definition, NurbsSurface):
             return self.nurbs_surface(definition)
+        if isinstance(definition, SpunSurface):
+            return self.spun_surface(definition, resolve_curve)
         if isinstance(definition, OffsetSurface):
             if not isfinite(definition.offset):
                 raise ValueError("offset surface distance must be finite")
@@ -495,6 +502,58 @@ class GeometryFactory:
                 definition.offset * self.scale,
             )
         raise ValueError(f"unsupported exact surface definition: {type(definition).__name__}")
+
+    def spun_surface(
+        self, surface: SpunSurface, resolve_curve: Callable[[int], object] | None
+    ) -> object:
+        """Revolve the mapped profile curve about the spin axis (XT p. 74).
+
+        The source parameterises the surface by profile parameter and then
+        angle; OCCT puts the angle first, which reverses the normal of the
+        same geometry. The axis is therefore reversed, so the OCCT normal
+        agrees with the source normal and the stored senses apply unchanged.
+        When both profile parameters are stored, the profile is trimmed to
+        them, so a closed profile is not revolved twice; a stored start or end
+        point must then lie on the profile at its parameter. No parameter
+        convention is assumed by callers.
+        """
+        from OCP.Geom import Geom_SurfaceOfRevolution, Geom_TrimmedCurve
+        from OCP.gp import gp_Ax1
+
+        if resolve_curve is None:
+            raise ValueError("spun surface requires a profile curve resolver")
+        if surface.x_axis is not None:
+            self._validate_frame(surface.axis, surface.x_axis, role="spun")
+        profile = resolve_curve(surface.profile)
+        first, last = surface.start_parameter, surface.end_parameter
+        if (first is None) != (last is None):
+            # XT allows a range that is infinite on one side; OCCT cannot trim
+            # a profile to a half-infinite range, so that case fails closed.
+            raise ValueError("spun surface with a one-sided profile parameter range is unsupported")
+        if first is not None and last is not None:
+            if not (isfinite(first) and isfinite(last)) or first == last:
+                raise ValueError("spun surface profile parameters must be finite and distinct")
+            if last < first:
+                if not profile.IsPeriodic():
+                    raise ValueError("spun surface profile parameters are reversed")
+                last += profile.Period()
+            profile = Geom_TrimmedCurve(profile, first, last, True, True)
+        tolerance = self.options.validation.linear_absolute
+        for point, parameter, role in (
+            (surface.start, first, "start"),
+            (surface.end, last, "end"),
+        ):
+            if point is None or parameter is None:
+                continue
+            if profile.Value(parameter).Distance(self.point(point)) > tolerance:
+                raise ValueError(
+                    f"spun surface {role} point is not on the profile at its parameter"
+                )
+        axis = gp_Ax1(
+            self.point(surface.base),
+            self.direction(surface.axis, role="spun axis").Reversed(),
+        )
+        return Geom_SurfaceOfRevolution(profile, axis)
 
     def nurbs_surface(self, surface: NurbsSurface) -> object:
         from OCP.Geom import Geom_BSplineSurface

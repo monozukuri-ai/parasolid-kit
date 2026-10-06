@@ -1,7 +1,8 @@
 """Analytic oracles for the bounded UV/intersection conversion path."""
 
 from dataclasses import replace
-from math import cos, sin
+from itertools import pairwise
+from math import cos, pi, sin
 
 import pytest
 
@@ -16,7 +17,12 @@ from parasolid_kit import (
 from parasolid_kit.interop import OcctConversionError
 from parasolid_kit.interop.occt import OcctConversionOptions, SourceEntityKind, to_occt
 from parasolid_kit.interop.occt.geometry import GeometryFactory
-from tests._occt_fixtures import _Sources, make_box_model
+from tests._occt_fixtures import (
+    _Sources,
+    make_box_model,
+    make_sphere_octant_model,
+    make_torus_elbow_model,
+)
 
 pytest.importorskip("OCP")
 
@@ -219,3 +225,209 @@ def test_bounded_approximation_is_visible_in_conversion_and_preview_reports():
         in preview.manifest["conversion"]["topology_operations"]
     )
     assert preview.missing_face_count == preview.missing_edge_count == 0
+
+
+def test_opposed_periodic_face_keeps_its_source_region():
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+
+    from parasolid_kit.interop.occt.parametric import ParametricTopologyBuilder
+
+    # The elbow's inner wall opposes its torus; its two end circles bound the
+    # quarter turn, not the complementary three quarters.
+    major, outer, inner = 8.0, 6.75, 5.5
+    model = make_torus_elbow_model(major, outer, inner)
+    factory = GeometryFactory(OcctConversionOptions(source_unit="mm"))
+    built = ParametricTopologyBuilder(model, factory).build()
+    assert BRepCheck_Analyzer(built.shape).IsValid()
+    assert "reverse_opposed_face_loops" in built.operations
+    volume, area = GProp_GProps(), GProp_GProps()
+    BRepGProp.VolumeProperties_s(built.shape, volume)
+    BRepGProp.SurfaceProperties_s(built.shape, area)
+    quarter = pi / 2
+    assert volume.Mass() == pytest.approx(pi * (outer**2 - inner**2) * major * quarter)
+    assert area.Mass() == pytest.approx(
+        2 * pi * major * quarter * (outer + inner) + 2 * pi * (outer**2 - inner**2)
+    )
+
+
+def test_closed_intersection_branch_becomes_a_periodic_curve():
+    from OCP.Geom import Geom_CylindricalSurface
+    from OCP.gp import gp_Ax3, gp_Dir, gp_Pnt
+
+    from parasolid_kit.interop.occt.intersection import fit_intersection
+
+    # A unit cylinder on Z pierces a radius-2 cylinder on X: one closed branch.
+    surfaces = [
+        Geom_CylindricalSurface(gp_Ax3(), 1.0),
+        Geom_CylindricalSurface(gp_Ax3(gp_Pnt(), gp_Dir(1, 0, 0), gp_Dir(0, 1, 0)), 2.0),
+    ]
+    angles = [2 * pi * i / 24 for i in range(24)]
+    points = [gp_Pnt(cos(a), sin(a), (4 - sin(a) ** 2) ** 0.5) for a in angles]
+    curve = fit_intersection(surfaces, [*points, points[0]], [], 1e-7)
+    assert curve.IsPeriodic()
+    first, last = curve.FirstParameter(), curve.LastParameter()
+    for i in range(241):
+        x, y, z = curve.Value(first + (last - first) * i / 240).Coord()
+        assert abs((x * x + y * y) ** 0.5 - 1.0) < 2e-7
+        assert abs((y * y + z * z) ** 0.5 - 2.0) < 2e-7
+    with pytest.raises(ValueError, match="fewer than two distinct points"):
+        fit_intersection(surfaces, [points[0], points[0]], [], 1e-7)
+
+
+@pytest.mark.parametrize("major,minor", [(5.0, 5.0), (3.0, 5.0)])
+def test_horn_and_apple_tori_are_exact_only_for_trimmed_faces(major, minor):
+    from parasolid_kit import TorusSurface
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="mm"))
+    torus = TorusSurface(
+        Vector3(1.0, 2.0, 3.0), Vector3(0.0, 0.0, 1.0), major, minor, Vector3(1.0, 0.0, 0.0)
+    )
+    surface = factory.surface3d(torus, resolve_basis=lambda _: None)
+    for u, v in ((0.1, 0.2), (1.3, -0.5), (2.0, 0.7)):
+        expected = (
+            1 + (major + minor * cos(v)) * cos(u),
+            2 + (major + minor * cos(v)) * sin(u),
+            3 + minor * sin(v),
+        )
+        assert surface.Value(u, v).Coord() == pytest.approx(expected, abs=1e-12)
+    with pytest.raises(ValueError, match="ring torus"):
+        factory.torus(torus)
+
+
+def test_loop_through_a_sphere_pole_gets_its_degenerated_edge():
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+
+    from parasolid_kit.interop.occt.parametric import ParametricTopologyBuilder
+
+    radius = 2.0
+    factory = GeometryFactory(OcctConversionOptions(source_unit="mm"))
+    built = ParametricTopologyBuilder(make_sphere_octant_model(radius), factory).build()
+    assert BRepCheck_Analyzer(built.shape).IsValid()
+    assert "insert_degenerated_singularity_edges" in built.operations
+    volume, area = GProp_GProps(), GProp_GProps()
+    BRepGProp.VolumeProperties_s(built.shape, volume)
+    BRepGProp.SurfaceProperties_s(built.shape, area)
+    assert volume.Mass() == pytest.approx(pi * radius**3 / 6)
+    assert area.Mass() == pytest.approx(5 * pi * radius**2 / 4)
+
+
+@pytest.mark.parametrize("cut", ["z", "x"])
+def test_closed_analytic_branch_follows_the_source_order_across_its_origin(cut):
+    from OCP.Geom import Geom_Circle, Geom_Plane, Geom_SurfaceOfRevolution, Geom_TrimmedCurve
+    from OCP.gp import gp_Ax1, gp_Ax2, gp_Ax3, gp_Dir, gp_Pnt
+
+    from parasolid_kit.interop.occt.intersection import intersect_analytic, project_curve
+
+    # A unit sphere as a revolved half circle meets the plane z = 0.3, or the
+    # plane x = 0.3 through its seam, in a closed branch that OCCT may return
+    # in pieces. The source points run clockwise and cross the parameter
+    # origin of that branch.
+    meridian = Geom_TrimmedCurve(
+        Geom_Circle(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0), gp_Dir(0, 0, 1)), 1.0), 0.0, pi
+    )
+    sphere = Geom_SurfaceOfRevolution(meridian, gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)))
+    radius = (1 - 0.3**2) ** 0.5
+    angles = [0.5, 0.2, -0.1, -0.4, -0.7, -1.0]
+    if cut == "z":
+        plane = Geom_Plane(gp_Ax3(gp_Pnt(0, 0, 0.3), gp_Dir(0, 0, 1)))
+        samples = [gp_Pnt(radius * cos(a), radius * sin(a), 0.3) for a in angles]
+    else:
+        plane = Geom_Plane(gp_Ax3(gp_Pnt(0.3, 0, 0), gp_Dir(1, 0, 0)))
+        samples = [gp_Pnt(0.3, radius * sin(a), radius * cos(a)) for a in angles]
+    curve = intersect_analytic([plane, sphere], samples, 1e-7)
+    assert curve.IsPeriodic()
+    parameters = [project_curve(curve, p)[0] for p in samples]
+    period = curve.Period()
+    unwrapped = [parameters[0]]
+    for value in parameters[1:]:
+        step = value - unwrapped[-1]
+        unwrapped.append(unwrapped[-1] + (step + period / 2) % period - period / 2)
+    assert all(b > a for a, b in pairwise(unwrapped))
+    for point in samples:
+        assert project_curve(curve, point)[1] < 1e-6
+
+
+def test_unbounded_analytic_branch_keeps_the_source_order():
+    from OCP.Geom import Geom_ConicalSurface, Geom_Plane
+    from OCP.gp import gp_Ax3, gp_Dir, gp_Pnt
+
+    from parasolid_kit.interop.occt.intersection import intersect_analytic, project_curve
+
+    # A plane parallel to the axis of a cone cuts it in a hyperbola, whose
+    # OCCT parameter range is unbounded. The source points run against the
+    # branch parameter and must simply be reversed.
+    cone = Geom_ConicalSurface(gp_Ax3(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), pi / 4, 1.0)
+    plane = Geom_Plane(gp_Ax3(gp_Pnt(0.5, 0, 0), gp_Dir(1, 0, 0)))
+    samples = []
+    for z in (2.0, 1.5, 1.0, 0.5, 0.0):
+        radius = 1.0 + z
+        samples.append(gp_Pnt(0.5, (radius**2 - 0.25) ** 0.5, z))
+    curve = intersect_analytic([plane, cone], samples, 1e-7)
+    assert not curve.IsClosed()
+    parameters = [project_curve(curve, p)[0] for p in samples]
+    assert all(b > a for a, b in pairwise(parameters))
+    for point in samples:
+        assert project_curve(curve, point)[1] < 1e-6
+
+
+def test_spun_surface_revolves_its_profile_about_the_spin_axis():
+    from OCP.Geom import Geom_Circle
+    from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
+
+    from parasolid_kit import SpunSurface
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="mm"))
+    # A unit circle in the xz plane centred 3 mm from the z axis: a ring torus.
+    circle = Geom_Circle(gp_Ax2(gp_Pnt(3, 0, 0), gp_Dir(0, 1, 0), gp_Dir(1, 0, 0)), 1.0)
+    spun = SpunSurface(
+        1, Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), None, None, None, None, None
+    )
+    surface = factory.surface3d(spun, resolve_basis=lambda _: None, resolve_curve=lambda _: circle)
+    # The source normal is d/d(profile) x d/d(angle): outward on this torus.
+    # OCCT orders the parameters (angle, profile), so the axis is reversed and
+    # the angle runs clockwise about +z; the normal then agrees with the source.
+    point, du, dv = gp_Pnt(), gp_Vec(), gp_Vec()
+    for u, v in ((0.0, 0.0), (0.7, 1.1), (2.5, -0.4), (4.0, 2.9)):
+        radius = 3 + cos(v)
+        expected = (radius * cos(u), -radius * sin(u), -sin(v))
+        assert surface.Value(u, v).Coord() == pytest.approx(expected, abs=1e-12)
+        surface.D1(u, v, point, du, dv)
+        normal = du.Crossed(dv).Normalized()
+        assert normal.Coord() == pytest.approx(
+            (cos(v) * cos(u), -cos(v) * sin(u), -sin(v)), abs=1e-12
+        )
+    with pytest.raises(ValueError, match="profile curve resolver"):
+        factory.surface3d(spun, resolve_basis=lambda _: None)
+    # Stored profile parameters trim the profile: the half circle from (4, 0, 0)
+    # at 0 to (2, 0, 0) at pi is revolved once, and the stored end points must
+    # lie on the profile at those parameters.
+    resolve = {"resolve_basis": lambda _: None, "resolve_curve": lambda _: circle}
+    half = SpunSurface(
+        1,
+        Vector3(0.0, 0.0, 0.0),
+        Vector3(0.0, 0.0, 1.0),
+        Vector3(4.0, 0.0, 0.0),
+        Vector3(2.0, 0.0, 0.0),
+        0.0,
+        pi,
+        None,
+    )
+    trimmed = factory.surface3d(half, **resolve)
+    assert trimmed.Bounds()[2:] == pytest.approx((0.0, pi))
+    assert trimmed.Value(1.0, pi).Coord() == pytest.approx((2 * cos(1.0), -2 * sin(1.0), 0.0))
+    reversed_ = SpunSurface(1, half.base, half.axis, half.end, half.start, pi, 0.0, None)
+    assert factory.surface3d(reversed_, **resolve).Bounds()[2:] == pytest.approx((pi, 2 * pi))
+    for bad, message in (
+        (SpunSurface(1, half.base, half.axis, None, None, 0.0, None, None), "one-sided"),
+        (SpunSurface(1, half.base, half.axis, None, None, 1.0, 1.0, None), "finite and distinct"),
+        (
+            SpunSurface(1, half.base, half.axis, Vector3(4.0, 0.0, 0.5), None, 0.0, pi, None),
+            "start point is not on the profile",
+        ),
+    ):
+        with pytest.raises(ValueError, match=message):
+            factory.surface3d(bad, **resolve)

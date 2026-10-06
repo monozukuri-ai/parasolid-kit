@@ -28,6 +28,7 @@ from .geometry import (
     PlaneSurface,
     PointGeometry,
     SphereSurface,
+    SpunSurface,
     SurfaceDefinition,
     SurfaceGeometry,
     SurfaceKind,
@@ -377,6 +378,17 @@ def _surface_definition(kind: SurfaceKind, value: Mapping[str, Any]) -> SurfaceD
             minor_radius=_float(value, "minor_radius"),
             x_axis=_vector(value, "x_axis"),
         )
+    if kind is SurfaceKind.SPUN:
+        return SpunSurface(
+            profile=_int(value, "profile"),
+            base=_vector(value, "base"),
+            axis=_vector(value, "axis"),
+            start=_optional_vector(value, "start"),
+            end=_optional_vector(value, "end"),
+            start_parameter=_optional_float(value, "start_parameter"),
+            end_parameter=_optional_float(value, "end_parameter"),
+            x_axis=_optional_vector(value, "x_axis"),
+        )
     if kind is SurfaceKind.BLENDED_EDGE:
         supporting_surfaces = _int_tuple(value, "supporting_surfaces")
         if len(supporting_surfaces) != 2:
@@ -481,6 +493,12 @@ def _vector(value: Mapping[str, Any], key: str) -> Vector3:
     ):
         raise RuntimeError(f"native B-Rep field {key!r} is not a three-float tuple")
     return Vector3(item[0], item[1], item[2])
+
+
+def _optional_vector(value: Mapping[str, Any], key: str) -> Vector3 | None:
+    if value.get(key) is None:
+        return None
+    return _vector(value, key)
 
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:

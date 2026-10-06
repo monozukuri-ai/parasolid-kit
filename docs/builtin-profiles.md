@@ -802,9 +802,9 @@ V34 revision-2 profile. Additional definitions are scoped independently:
 | Exact key | Extra base types beyond the 31-type subset | Raw / source B-Rep boundary |
 |---|---|---|
 | `SCH_1500137_15003_13006` | None | Existing analytic / topology subset |
-| `SCH_1500245_15003_13006` | 56, 59, 68 | Blend and blend-boundary semantics; spun surface remains unsupported |
+| `SCH_1500245_15003_13006` | 56, 59, 68 | Blend and blend-boundary semantics; spun surface unsupported in the released packages (mapped in unreleased source) |
 | `SCH_1700223_16100_13006` | None | Existing analytic / topology subset |
-| `SCH_1700256_16100_13006` | 45, 68, 127, 128, 134, 135, 136, 137 | Surface-parametric and NURBS curve dependencies; spun surface remains unsupported |
+| `SCH_1700256_16100_13006` | 45, 68, 127, 128, 134, 135, 136, 137 | Surface-parametric and NURBS curve dependencies; spun surface unsupported in the released packages (mapped in unreleased source) |
 | `SCH_1901315_19008_13006` | None | Existing analytic / topology subset |
 
 The new 56/59/68 declarations follow the
@@ -848,10 +848,12 @@ source node/type/range mappings. Only provider-specific type labels and raw
 field names/pointer classes are excluded. Original-byte reconstruction also
 matches, but is not used as a substitute for value comparison.
 
-The four partial resources contain SPUN_SURF. Their source surfaces remain
-explicit `UnsupportedGeometry` with `geometry.unsupported_surface` and
-`complete=False`, matching the catalog path. No approximate replacement surface
-is created. BLENDED_EDGE / BLEND_BOUND and SP_CURVE use the existing typed
+The four partial resources contain SPUN_SURF. In the released packages their
+source surfaces remain explicit `UnsupportedGeometry` with
+`geometry.unsupported_surface` and `complete=False`, matching the catalog path.
+No approximate replacement surface is created. In the unreleased source the
+four map completely to `SpunSurface`, and the built-in and catalog paths still
+agree. BLENDED_EDGE / BLEND_BOUND and SP_CURVE use the existing typed
 source model. Neither successful mapping nor this comparison proves OCCT,
 STEP or preview conversion.
 
@@ -990,7 +992,8 @@ lengths, user fields and terminators, and original-byte reconstruction
 matches. B-Rep comparison includes topology, geometry parameters, metrics,
 diagnostics and source node/type/range mappings; only provider-specific type
 labels are excluded. Every mapped topology is valid. The 15 partial resources
-contain SPUN_SURF and keep `geometry.unsupported_surface`. Twenty resources
+contain SPUN_SURF and keep `geometry.unsupported_surface` in the released
+packages; the unreleased source maps them completely with the same parity. Twenty resources
 fail in both paths with `geometry.invalid_parameter`: a trimmed curve on a line
 stores both parameters as null beside valid end points. No value is
 substituted. Neither successful mapping nor this comparison
@@ -1092,6 +1095,11 @@ All iCAD keys of the sample were compared again with a separate catalog parse:
 | Raw parity, same B-Rep error in both paths | 11 | 11 |
 | No profile: schema 8008 or 12103 key | 22 | 22 |
 | Uncovered type under the V30 standard key | 2 | 6 |
+
+The partial row is the released behaviour. The unreleased source maps those 32
+payloads completely: the comparison was repeated on them alone, and the
+built-in profile and catalog paths agree in raw parsing and in the mapped
+B-Rep with no diagnostics.
 
 The 8,668,707 nodes and 67,991,664 field groups of the parsed payloads match
 in values, byte ranges, variable lengths, user fields and terminators. Ten of

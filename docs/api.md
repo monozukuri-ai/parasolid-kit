@@ -25,9 +25,10 @@ Complete parsing selects by the internal stream key. Omitting `schema_provider`
 the source for exact keys, revisions, hashes, and stage-specific evidence.
 
 The five [legacy iCAD profiles](builtin-profiles.md#legacy-icad-embedded-keys)
-use this same default path in Python and Rust. SPUN_SURF records parse, but
-`map_brep` reports `geometry.unsupported_surface` and `complete=False` for
-documents containing them. Raw success alone does not establish conversion.
+use this same default path in Python and Rust. In the released packages,
+SPUN_SURF records parse, but `map_brep` reports `geometry.unsupported_surface`
+and `complete=False` for documents containing them; the unreleased source maps
+them to `SpunSurface`. Raw success alone does not establish conversion.
 
 The [SolidWorks profile](solidworks-partitions.md) does not apply delta streams
 or determine final configuration state. Unsupported delta records fail explicitly.

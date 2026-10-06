@@ -20,7 +20,7 @@ from parasolid_kit import (
     parse_xt,
     write_xb,
 )
-from parasolid_kit.brep import NurbsSurface, OffsetSurface, Vector3
+from parasolid_kit.brep import NurbsSurface, OffsetSurface, SpunSurface, Vector3
 from tests.support.parasolid_binary import SyntheticXbBuilder
 from tests.support.parasolid_schema import positive_integer
 from tests.support.parasolid_text import text_header
@@ -188,7 +188,7 @@ def test_blend_and_boundary_map_existing_exact_semantics(encoding):
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 @pytest.mark.parametrize("key", [KEYS[1], KEYS[3]])
-def test_spun_surface_preserves_raw_parameters_and_stays_partial(encoding, key):
+def test_spun_surface_maps_its_profile_axis_and_degeneracies(encoding, key):
     values = {
         7: 11,
         8: (1, 2, 3),
@@ -205,9 +205,14 @@ def test_spun_surface_preserves_raw_parameters_and_stays_partial(encoding, key):
     node = doc.nodes[-1]
     assert [node.fields[i].values[0].value for i in range(7, 16)] == list(values.values())
     model = map_brep(doc)
-    assert not model.complete and model.topology.valid
-    assert model.surfaces[0].definition.type_name == "SPUN_SURF"
-    assert [d.code for d in model.diagnostics] == ["geometry.unsupported_surface"]
+    assert model.complete and model.topology.valid and not model.diagnostics
+    surface = model.surfaces[0].definition
+    assert isinstance(surface, SpunSurface)
+    assert surface.profile == model.curves[0].id
+    assert (surface.base, surface.axis) == (Vector3(1.0, 2.0, 3.0), Vector3(0.0, 0.0, 1.0))
+    assert (surface.start, surface.end) == (Vector3(1.0, 2.0, 5.0), Vector3(1.0, 2.0, 9.0))
+    assert (surface.start_parameter, surface.end_parameter) == (-0.5, 2.5)
+    assert surface.x_axis == Vector3(1.0, 0.0, 0.0)
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])

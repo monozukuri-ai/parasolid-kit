@@ -566,6 +566,17 @@ pub enum SurfaceKind {
         boundary_index: u8,
         blend_surface: BrepId,
     },
+    /// Surface of revolution of a mapped profile curve about an axis.
+    Spun {
+        profile: BrepId,
+        base: Vector3,
+        axis: Vector3,
+        start: Option<Vector3>,
+        end: Option<Vector3>,
+        start_parameter: Option<f64>,
+        end_parameter: Option<f64>,
+        x_axis: Option<Vector3>,
+    },
     /// Offset of another mapped surface.
     Offset { basis_surface: BrepId, offset: f64 },
     /// Exact NURBS definition assembled from auxiliary nodes.
@@ -586,6 +597,7 @@ impl SurfaceKind {
             Self::Torus { .. } => "torus",
             Self::BlendedEdge { .. } => "blended_edge",
             Self::BlendBoundary { .. } => "blend_boundary",
+            Self::Spun { .. } => "spun",
             Self::Offset { .. } => "offset",
             Self::Nurbs(_) => "nurbs",
             Self::Unsupported { .. } => "unsupported",

@@ -23,6 +23,7 @@ from ...brep.geometry import (
     ParabolaCurve,
     PlaneSurface,
     SphereSurface,
+    SpunSurface,
     SurfaceKind,
     SurfaceParametricCurve,
     TorusSurface,
@@ -703,6 +704,7 @@ def _supported_surface_definition(kind: SurfaceKind, definition: object) -> bool
                 (SurfaceKind.CONE, ConeSurface),
                 (SurfaceKind.SPHERE, SphereSurface),
                 (SurfaceKind.TORUS, TorusSurface),
+                (SurfaceKind.SPUN, SpunSurface),
                 (SurfaceKind.NURBS, NurbsSurface),
                 (SurfaceKind.OFFSET, OffsetSurface),
             )
