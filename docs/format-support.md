@@ -44,7 +44,21 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r6` / 6 | 43 / 366 | `29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e` |
 | `SCH_3401212_34101_13006` | `icad-sch34101-13006-r3` / 3 | 40 / 320 | `595a8848c2b7730367bb41bbe75332c79c9038eb56accc7ee785ca9742a37de7` |
 | `SCH_3701212_37102_13006` | `onshape-sch37102-13006-r3` / 3 | 41 / 339 | `3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa` |
-| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r1` / 1 | 41 / 338 | `5e05a32681cfa8bf4a3fb029124eb6fb2cf6e34e021f7ed7b60c3df654a9c480` |
+| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r2` / 2 | 47 / 412 | `e019ad9eb369789e1c0a64704b0a3beaae55e9e7e254e7bf08538a737d4bc83c` |
+| `SCH_2700199_26105_13006` | `solidworks-2700199-26105-13006-r1` / 1 | 47 / 412 | `65531d74c0e96e760414414a1df7065affa26c316f918617307158c491aa27d8` |
+| `SCH_2800191_28002_13006` | `solidworks-2800191-28002-13006-r1` / 1 | 47 / 412 | `24524d4cca8bfe316cdf936de6f440dc83199384981132308603e792e662fe97` |
+| `SCH_2800209_28002_13006` | `solidworks-2800209-28002-13006-r1` / 1 | 47 / 412 | `e65c8ddf1bf2876923b6e12f7b284750f2518a0f799d7696d10c74323a8cfc76` |
+| `SCH_2900166_28101_13006` | `solidworks-2900166-28101-13006-r1` / 1 | 47 / 412 | `728d84812ee3cc63072085effa633b320ec4e41d3bdb1dafda3ff0d0be91655c` |
+| `SCH_2900190_28101_13006` | `solidworks-2900190-28101-13006-r1` / 1 | 47 / 412 | `789a8804c22fbf038d9bcbedd8ce02d16731c9840e049b3b13bebf6951a9b250` |
+| `SCH_2900195_28101_13006` | `solidworks-2900195-28101-13006-r1` / 1 | 47 / 412 | `f8cc88a32e3af19961aec053b1d341a7bc9934a780d63945e91908dca2ba95fb` |
+| `SCH_3000226_30000_13006` | `solidworks-3000226-30000-13006-r1` / 1 | 47 / 412 | `14354ebf3830d1141ed4c61e3a9ce99f78f5216c381aa994f99de067903068a8` |
+| `SCH_3000298_30000_13006` | `solidworks-3000298-30000-13006-r1` / 1 | 47 / 412 | `0d3a628fb09fb47a23701c2c99159bbd8d7c1bb0f96a2b33fa48cd4f4f21f8fa` |
+| `SCH_3100203_31001_13006` | `solidworks-3100203-31001-13006-r1` / 1 | 47 / 412 | `314b947f7a8cebfb6ed382206065594ce6d7acc79a1d78765dac8dccf56a26f7` |
+| `SCH_3101290_31100_13006` | `solidworks-3101290-31100-13006-r1` / 1 | 47 / 412 | `4a6bbe2db4b7b605447cbe5b13b79ff2fd215b182ed68b7e79a58b8a525e553d` |
+| `SCH_3401254_34101_13006` | `solidworks-3401254-34101-13006-r1` / 1 | 47 / 412 | `aa746d6cbea446ca37593e5cdbc9b7ff9fbf5b0bd4096152823740a5f65191da` |
+| `SCH_3501210_35102_13006` | `solidworks-3501210-35102-13006-r1` / 1 | 47 / 412 | `a99c8793ea67bebaf50d2dd7b5e61f842cb5fce6c563840df94a2182bdf18dc0` |
+| `SCH_3501256_35102_13006` | `solidworks-3501256-35102-13006-r1` / 1 | 47 / 412 | `b4c382da97bead88b8065fa913a72c65d0e1e0f6999e01894fa9ecee2bf21ef6` |
+| `SCH_3601228_36001_13006` | `solidworks-3601228-36001-13006-r1` / 1 | 47 / 412 | `1117b129bcb099219a8c61dc813b0a06cdf76daa85d3f567cf37dc0a156593f2` |
 | `SCH_1500137_15003_13006` | `icad-1500137-15003-13006-r1` / 1 | 31 / 252 | `dcb4bb70654e9d1bf091b1310b2068872b56304f0b820435a3910bcec366a9e8` |
 | `SCH_1500245_15003_13006` | `icad-1500245-15003-13006-r1` / 1 | 34 / 292 | `4179d5785e61e89926dfb54e0bc5eed7f0fb7cdec7300de0936ef678ba4d0f4c` |
 | `SCH_1700223_16100_13006` | `icad-1700223-16100-13006-r1` / 1 | 31 / 252 | `a27d8216055fe16425438c854482ec8dfac5e6f2e0aea1e1b7ce3605bc6ac633` |
@@ -88,7 +102,7 @@ public CI. The detailed evidence and its retained failures are in
 | [iCAD legacy five exact keys](builtin-profiles.md#legacy-icad-embedded-keys) (unreleased) | 539 sampled neutral X_B resource occurrences match catalog values, ranges and terminators; public X_T/X_B fixtures are authored | 535 complete, four explicitly partial SPUN_SURF cases; all topology valid; catalog parity including source references | Authored wire coordinates, blend references/parameters and UV spline coefficients; no independent legacy CAD measurement campaign | No new conversion qualification; SPUN_SURF remains unsupported | Native ICD framing, ownership, transforms, extrusion and feature history remain downstream responsibilities |
 | [iCAD later exact keys](builtin-profiles.md#later-icad-keys) (unreleased): eight embedded and five standard | 17,082 of 17,099 distinct sampled X_B resources match catalog values, ranges and terminators; 17 with OFFSET_SURF (60) fail closed; public X_T/X_B fixtures are authored | 17,047 complete, 15 explicitly partial SPUN_SURF cases and 20 null-parameter errors, each identical to the catalog path | Authored wire coordinates, per-ordinal record values and B-spline surface coefficients; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
 | [Further iCAD keys and revisions](builtin-profiles.md#further-icad-keys-and-revisions) (unreleased): two embedded and six standard keys, four revised profiles, OFFSET_SURF | 18,610 of 18,634 distinct sampled X_B resources of all iCAD keys match catalog values, ranges and terminators; schema 8008 and 12103 keys and two V30 standard resources still fail closed | 18,567 complete, 32 explicitly partial SPUN_SURF cases and 11 errors, each identical to the catalog path | Authored offset-surface and unset-trim-parameter records with independent values; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
-| SolidWorks 2026 partitions | Four neutral X_B partitions; associated deltas stop at unknown base type 3 | Four complete partition B-Reps, including one three-body partition | Existing sldkit point/FIN/NURBS parity; no independent CAD/STEP evaluation repeated for this profile | No real partition conversion validation | Delta application and final saved configuration reconstruction remain unsupported |
+| SolidWorks partitions (15 exact keys, SolidWorks 2015-2026) | 75 partition, 58 ghost-partition and 811 local-body X_B streams from 63 Parts; four partition streams fail closed (HELIX_CU_FORM, base type 184, NURBS padding); deltas stop at unknown base type 3 | 902 complete B-Reps; 26 explicitly partial with a retained SWEPT_SURF; 12 bodiless partitions | sldkit point/FIN/NURBS parity for the 2026 key; display-outline comparison after OCCT conversion is recorded in sldkit, not here | No partition conversion validation in this repository | Delta application and final saved configuration reconstruction remain unsupported; see [SolidWorks partitions](solidworks-partitions.md) |
 
 Runtime, build, and installation of the built-in parser require no external
 schema catalog or CAD installation. Normal build/package dependencies are
@@ -117,6 +131,15 @@ absence from base 13006. Multi-body B-Rep does not establish assembly semantics.
 See the [compound-geometry evidence and retained accuracy failures](onshape-composite.md)
 and the earlier [direct NURBS evidence](onshape-current-parametric.md).
 
+
+The source tree compiles fifteen exact `SolidWorks` partition keys, from
+`SCH_2700199_26105_13006` (SolidWorks 2015) to `SCH_3701229_37102_13006`
+(SolidWorks 2026, now `solidworks-sch37102-13006-r2`). All share one reviewed
+declaration set of 47 base types / 412 field groups: the 13006 subset, WORLD,
+the reviewed TORUS, blend, offset and spun surfaces, and the public-reference
+SWEPT_SURF (67), which the B-Rep mapper retains as an explicitly partial
+surface. Delta streams remain unsupported. See
+[SolidWorks partitions](solidworks-partitions.md) for the local evidence.
 
 For V30, default parsing uses `onshape-sch30000-r3` revision 3 only for the exact internal
 key `SCH_3000000_30000`. Its coverage is `verified_subset`: Onshape V30 text and
@@ -211,8 +234,8 @@ linked campaigns. It does not extend the V30 or iCAD profiles, establish arbitra
 NURBS compatibility, or add a public evaluator or rational/periodic OCCT path.
 Other producers/keys or embedded bases, nonzero built-in user fields, and
 assembly semantics remain outside these verified subsets. Onshape/iCAD evidence
-does not establish general multiple-body support. The four SolidWorks partitions
-include a three-body example, without establishing arbitrary multi-body or
+does not establish general multiple-body support. The SolidWorks partitions
+include multi-body examples, without establishing arbitrary multi-body or
 configuration compatibility. Structural checks
 control parsing; matching a key is not a guarantee that every shape emitted
 under that key has been verified.

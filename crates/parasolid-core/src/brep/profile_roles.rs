@@ -63,8 +63,8 @@ impl RoleAccess {
                         && *profile_revision == 3
                         && key == "SCH_3401212_34101_13006"
                         && profile_sha256 == crate::schema::profiles::ICAD_V34_PROFILE_SHA256)
-                    || (profile_id == "solidworks-sch37102-13006-r1"
-                        && *profile_revision == 1
+                    || (profile_id == "solidworks-sch37102-13006-r2"
+                        && *profile_revision == 2
                         && key == "SCH_3701229_37102_13006"
                         && profile_sha256
                             == crate::schema::profiles::SOLIDWORKS_PROFILE_SHA256)
@@ -80,26 +80,17 @@ impl RoleAccess {
                                 && profile_id == spec.id
                                 && *profile_revision == spec.revision
                                 && profile_sha256 == spec.sha256
+                        })
+                    || crate::schema::profiles::solidworks::PROFILES
+                        .iter()
+                        .any(|spec| {
+                            key == spec.key
+                                && profile_id == spec.id
+                                && *profile_revision == spec.revision
+                                && profile_sha256 == spec.sha256
                         })) =>
             {
-                let base = if let Some(spec) = crate::schema::profiles::icad_legacy::PROFILES
-                    .iter()
-                    .find(|spec| key == spec.key)
-                {
-                    spec.definitions()
-                } else if key == "SCH_3701212_37102_13006" {
-                    crate::schema::profiles::onshape_current_definitions()
-                } else if key == "SCH_3000310_30000_13006" {
-                    crate::schema::profiles::icad_sch30000_13006_definitions()
-                } else if key == "SCH_3401212_34101_13006" {
-                    crate::schema::profiles::icad_v34_definitions()
-                } else {
-                    let mut base = crate::schema::profiles::sch13006_definitions();
-                    base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
-                    base.extend(crate::schema::profiles::sch13006_bspline_surface_definitions());
-                    base
-                };
-                validate_base_roles(schemas, &base)?;
+                validate_base_roles(schemas, &reviewed_base_definitions(key))?;
                 Ok(Self::Sch13006)
             }
             SchemaProviderResolution::Builtin {
@@ -155,6 +146,7 @@ impl RoleAccess {
                 56 => "BLENDED_EDGE",
                 59 => "BLEND_BOUND",
                 60 => "OFFSET_SURF",
+                67 => "SWEPT_SURF",
                 68 => "SPUN_SURF",
                 133 => "TRIMMED_CURVE",
                 204 => "INTERSECTION_DATA",
@@ -206,7 +198,9 @@ impl RoleAccess {
     pub(super) fn is_surface(self, node: &RawNode) -> bool {
         match self {
             Self::OnshapeSch30000 => matches!(node.node_type, 50..=54 | 124),
-            Self::Sch13006 => matches!(node.node_type, 50..=54 | 56 | 59 | 60 | 68 | 124),
+            Self::Sch13006 => {
+                matches!(node.node_type, 50..=54 | 56 | 59 | 60 | 67 | 68 | 124)
+            }
             Self::Named => {
                 self.has_common_geometry(node)
                     && self
@@ -220,6 +214,33 @@ impl RoleAccess {
         ["owner", "next", "previous", "geometric_owner", "sense"]
             .into_iter()
             .all(|role| self.field(node, role).is_some())
+    }
+}
+
+/// The reviewed base definitions behind one exact embedded 13006 key.
+fn reviewed_base_definitions(key: &str) -> Vec<crate::TypeDefinition> {
+    if let Some(spec) = crate::schema::profiles::icad_legacy::PROFILES
+        .iter()
+        .find(|spec| key == spec.key)
+    {
+        spec.definitions()
+    } else if key == "SCH_3701229_37102_13006"
+        || crate::schema::profiles::solidworks::PROFILES
+            .iter()
+            .any(|spec| key == spec.key)
+    {
+        crate::schema::profiles::solidworks::solidworks_definitions()
+    } else if key == "SCH_3701212_37102_13006" {
+        crate::schema::profiles::onshape_current_definitions()
+    } else if key == "SCH_3000310_30000_13006" {
+        crate::schema::profiles::icad_sch30000_13006_definitions()
+    } else if key == "SCH_3401212_34101_13006" {
+        crate::schema::profiles::icad_v34_definitions()
+    } else {
+        let mut base = crate::schema::profiles::sch13006_definitions();
+        base.extend(crate::schema::profiles::sch13006_sp_curve_definitions());
+        base.extend(crate::schema::profiles::sch13006_bspline_surface_definitions());
+        base
     }
 }
 
@@ -635,6 +656,13 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
             ("sense", 6, "orientation", "c"),
             ("surface", 9, "basis_surface", "p"),
             ("offset", 10, "offset", "f"),
+        ],
+        // Retain the source surface and report unsupported geometry. The sweep
+        // section, direction and scale are not assigned geometry semantics.
+        67 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("owner", 2, "owner_ref", "p"),
+            ("sense", 6, "orientation", "c"),
         ],
         // Retain the source surface and report unsupported geometry. No spun
         // surface parameters are assigned geometry semantics by this mapper.

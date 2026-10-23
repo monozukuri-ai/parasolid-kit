@@ -151,6 +151,15 @@ pub(super) fn base_definitions(extra_types: &[u16]) -> Vec<TypeDefinition> {
     definitions
 }
 
+/// TORUS (54) and the reviewed blend, boundary, offset and spun surfaces.
+pub(super) fn reviewed_extra_definitions() -> Vec<TypeDefinition> {
+    super::onshape_current_definitions()
+        .into_iter()
+        .filter(|d| d.node_type == 54)
+        .chain(surface_definitions())
+        .collect()
+}
+
 /// Construct the reviewed iCAD embedded profiles, one per exact key.
 ///
 /// Each profile claims one exact key and its separately qualified base subset.

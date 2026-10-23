@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- SolidWorks partitions: fourteen exact earlier keys (SolidWorks 2015-2025)
+  join the 2026 key, each as its own `verified_subset` profile with the shared
+  declaration set; the 2026 profile becomes `solidworks-sch37102-13006-r2`.
+  The set adds the public-reference SWEPT_SURF (67) layout, retained by the
+  B-Rep mapper as an explicitly partial surface, and records base type 204 as
+  absent. Deltas still stop at unknown base type 3. The ignored
+  `solidworks_partition_evidence` test replays extracted partition, ghost and
+  local-body streams from a directory. The Python check that a TORUS record
+  does not parse under the SolidWorks key is retired, since every compiled
+  embedded profile now declares TORUS. See `docs/solidworks-partitions.md`.
 - OCCT parametric topology: an edge whose own geometry is a surface
   parameter curve, or a trim of one, is built from that curve on its surface;
   a parameter curve on an offset surface uses the parameters of the offset's

@@ -5,7 +5,7 @@ pub(crate) mod icad_standard;
 mod onshape_current;
 mod sch13006;
 mod sch30000;
-mod solidworks;
+pub(crate) mod solidworks;
 pub use icad_legacy::icad_legacy_13006;
 pub use icad_standard::icad_legacy_standard;
 
@@ -14,7 +14,7 @@ pub(crate) use onshape_current::definitions as onshape_current_definitions;
 pub use onshape_current::onshape_sch37102_13006;
 
 pub(crate) use solidworks::PROFILE_SHA256 as SOLIDWORKS_PROFILE_SHA256;
-pub use solidworks::solidworks_sch37102_13006;
+pub use solidworks::{solidworks_partitions_13006, solidworks_sch37102_13006};
 
 pub(crate) use sch13006::bspline_surface_definitions as sch13006_bspline_surface_definitions;
 pub(crate) use sch13006::definitions as sch13006_definitions;
