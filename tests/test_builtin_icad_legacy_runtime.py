@@ -229,7 +229,7 @@ def test_surface_parameter_curve_and_all_dependencies(encoding):
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 @pytest.mark.parametrize("key", KEYS)
-def test_offset_surface_is_scoped_to_observed_keys(encoding, key):
+def test_offset_surface_is_completed_by_the_family_under_every_key(encoding, key):
     records = [
         *wire_records(),
         (51, 20, {7: (1, 2, 3), 8: (0, 0, 1), 9: 7, 10: (1, 0, 0)}),
@@ -237,12 +237,13 @@ def test_offset_surface_is_scoped_to_observed_keys(encoding, key):
         (60, 21, {7: "V", 8: 1, 9: 20, 10: -0.25}),
     ]
     data = fixture(encoding, key, records)
-    if key not in OFFSET_KEYS:
-        with pytest.raises(SchemaError) as exc:
-            parse(encoding, data)
-        assert exc.value.diagnostic.code == "schema.unknown_base_type"
-        return
+    # OFFSET_SURF (60) was observed under OFFSET_KEYS only; the other exact
+    # profiles are completed by the family of the shared 13006 base while the
+    # provenance still names the exact profile.
     doc = parse(encoding, data)
+    assert doc.schema_resolution.schema_key == key
+    assert doc.schema_resolution.coverage == "verified_subset"
+    assert doc.schema_resolution.profile_id.startswith("icad-")
     assert [f.values[0].value for f in doc.nodes[-1].fields[7:]] == [
         ord("V"),
         True,
@@ -265,19 +266,16 @@ def test_offset_surface_is_scoped_to_observed_keys(encoding, key):
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 @pytest.mark.parametrize("key", KEYS)
-def test_bspline_surface_dependencies_are_scoped_to_observed_keys(encoding, key):
+def test_bspline_surface_dependencies_reach_every_key_through_the_family(encoding, key):
     vertices = (0, 0, 0, 0, 0.03, 0, 0.02, 0, 0, 0.02, 0.03, 0.002)
     patch = dict(rational=False, dimension=3, vertices=vertices)
-    # SP_CURVE (137) was not observed under the 28101 key and stays unknown there.
-    data = spcurve(
-        encoding, embedded=True, patch=patch, include_surface_curves=key != KEYS[9]
-    ).replace(EMBEDDED.encode(), key.encode())
-    if key not in SURFACE_KEYS:
-        with pytest.raises(SchemaError) as exc:
-            parse(encoding, data)
-        assert exc.value.diagnostic.code == "schema.unknown_base_type"
-        return
-    model = map_brep(parse(encoding, data))
+    # B-spline surfaces (124-126) were observed under SURFACE_KEYS only and
+    # SP_CURVE (137) not under the 28101 key. The family of the shared 13006
+    # base completes the exact profile, so every key maps the same surface.
+    data = spcurve(encoding, embedded=True, patch=patch).replace(EMBEDDED.encode(), key.encode())
+    doc = parse(encoding, data)
+    assert doc.schema_resolution.profile_id.startswith("icad-")
+    model = map_brep(doc)
     assert model.complete and model.topology.valid
     surface = model.surfaces[0].definition
     assert isinstance(surface, NurbsSurface)
@@ -307,9 +305,10 @@ def test_malformed_references_and_limits(encoding, key):
     data = fixture(encoding, key, wire_records())
     with pytest.raises(ParseError):
         parse(encoding, data, limits=ParseLimits(max_nodes=2))
-    with pytest.raises(ParseError) as exc:
+    # The header declares one user word per PK-visible node, but the records
+    # carry none, so the stream desynchronises and fails.
+    with pytest.raises(ParseError):
         parse(encoding, fixture(encoding, key, wire_records(), user_fields=1))
-    assert exc.value.diagnostic.code == "node.unsupported_user_fields"
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
@@ -335,19 +334,27 @@ def test_spline_arrays_truncation_limits_and_bad_links(encoding):
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 @pytest.mark.parametrize("key", KEYS)
 def test_nearby_keys_and_unreviewed_types_fail_closed(encoding, key):
-    for part in range(1, 4):
+    # Another build of the same schema resolves through the derived family;
+    # another schema or base has no family and fails closed.
+    parts = key.split("_")
+    other_build = "_".join([parts[0], str(int(parts[1]) + 1), parts[2], parts[3]])
+    document = parse(encoding, fixture(encoding, other_build, wire_records()))
+    assert document.schema_resolution.coverage == "family_inferred"
+    assert document.schema_resolution.profile_id == f"family-{parts[2]}-{parts[3]}"
+    for part in (2, 3):
         parts = key.split("_")
         parts[part] = str(int(parts[part]) + 1)
         with pytest.raises(SchemaError) as exc:
             parse(encoding, fixture(encoding, "_".join(parts), wire_records()))
         assert exc.value.diagnostic.code == "schema.missing_base_schema"
-    # A swept surface (67) was not observed under any of these keys.
+    # A foreign surface (69) is declared by no 13006 profile, so its base
+    # membership stays unknown under every key of the base.
     if encoding == "x_t":
-        data = text_header(key, schema_max_type=205) + b"67 255 1 0 "
+        data = text_header(key, schema_max_type=205) + b"69 255 1 0 "
     else:
         data = (
             SyntheticXbBuilder(schema_name=key, schema_max_type=205)
-            .add_raw_node(67, b"\xff" + positive_integer(1))
+            .add_raw_node(69, b"\xff" + positive_integer(1))
             .build()
         )
     with pytest.raises(SchemaError) as exc:

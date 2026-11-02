@@ -22,7 +22,10 @@ println!("{}: nodes start at {}", header.schema_key, header.header_range.end);
 # }
 ```
 
-For a supported exact key, select its compiled provider before parsing:
+For a supported key, select its compiled provider before parsing. An exact
+profile is selected when one accepts the complete key; otherwise the provider
+derived for the key's schema family (the key without its modeller build) is
+selected and the document reports `family_inferred` coverage:
 
 ```rust
 use parasolid_core::{
@@ -34,7 +37,7 @@ use parasolid_core::{
 let header = inspect_xb(bytes, InspectionLimits::default())?;
 let key = SchemaKey::parse(&header.schema_key)?;
 let registry = BuiltinProfileRegistry::compiled()?;
-let provider = registry.provider_for_key(&key).ok_or("unsupported exact schema key")?;
+let provider = registry.provider_for_key(&key).ok_or("unsupported schema key")?;
 let document = parse_xb(bytes, &provider, DocumentLimits::default())?;
 let brep = map_xb_brep(&document)?;
 println!("{} bodies; complete={}", brep.bodies.len(), brep.complete);
@@ -47,8 +50,9 @@ The compiled profiles are listed in the
 with exact keys, revisions, hashes, and separate raw/B-Rep/geometry evidence.
 A supported header, schema key, or raw record does not imply complete
 geometric support. An explicit
-`SchemaProvider` can supply an exact external catalog; no nearby-version
-fallback is performed. `SolidWorks` containers and configuration selection belong
+`SchemaProvider` can supply an exact external catalog. Within the built-in
+registry, only the modeller build may differ from a reviewed key: another
+schema revision or base is never substituted. `SolidWorks` containers and configuration selection belong
 to the caller. `SolidWorks` deltas are unsupported even when their header uses
 the same supported partition key; no final saved configuration is reconstructed.
 `BrepModel.complete` describes source mapping for that document. It does not

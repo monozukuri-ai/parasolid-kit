@@ -1,4 +1,5 @@
-//! Validated project-owned built-in schema profiles and exact-key selection.
+//! Validated project-owned built-in schema profiles, exact-key selection and
+//! the schema families derived from them.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -6,7 +7,7 @@ use crate::{ErrorDetails, ErrorKind, ParseError};
 
 use super::{
     FieldType, SchemaKey, SchemaProvider, SchemaProviderProvenance, SchemaSource, SchemaTypeLookup,
-    TypeDefinition, WireDecodeClass,
+    TypeDefinition, WireDecodeClass, digest::sha256_hex,
 };
 
 const MAX_PROFILE_ID_BYTES: usize = 128;
@@ -18,6 +19,9 @@ const MAX_FIELDS_PER_TYPE: usize = 4_096;
 pub enum BuiltinProfileCoverage {
     /// Only node types proven by the recorded evidence are supplied.
     VerifiedSubset,
+    /// The reviewed declarations shared by the exact profiles of one schema
+    /// family, selected for a key whose modeller build has no exact profile.
+    FamilyInferred,
 }
 
 impl BuiltinProfileCoverage {
@@ -26,8 +30,20 @@ impl BuiltinProfileCoverage {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::VerifiedSubset => "verified_subset",
+            Self::FamilyInferred => "family_inferred",
         }
     }
+}
+
+/// One reviewed exact profile contributing to a derived schema family.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FamilyMember {
+    /// Stable identifier of the exact profile.
+    pub profile_id: String,
+    /// Revision of the exact profile.
+    pub revision: u32,
+    /// Declared digest of the exact profile.
+    pub profile_sha256: String,
 }
 
 /// Reviewed provenance declared by one compiled built-in profile.
@@ -50,6 +66,10 @@ pub struct BuiltinProfileMetadata {
 }
 
 /// One validated built-in profile, independent of caller-owned schema catalogs.
+///
+/// An exact profile accepts complete transmit keys. A family profile, built by
+/// [`BuiltinSchemaProfile::new_family`], accepts every key of one schema family
+/// and carries the members it was merged from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuiltinSchemaProfile {
     metadata: BuiltinProfileMetadata,
@@ -57,6 +77,10 @@ pub struct BuiltinSchemaProfile {
     definitions: BTreeMap<u16, TypeDefinition>,
     unsupported_base_types: BTreeSet<u16>,
     absent_base_types: BTreeSet<u16>,
+    family_id: Option<String>,
+    members: Vec<FamilyMember>,
+    base_members: Vec<FamilyMember>,
+    conflicting_types: BTreeSet<u16>,
 }
 
 impl BuiltinSchemaProfile {
@@ -84,6 +108,10 @@ impl BuiltinSchemaProfile {
             definitions,
             unsupported_base_types: BTreeSet::new(),
             absent_base_types: BTreeSet::new(),
+            family_id: None,
+            members: Vec::new(),
+            base_members: Vec::new(),
+            conflicting_types: BTreeSet::new(),
         })
     }
 
@@ -124,6 +152,165 @@ impl BuiltinSchemaProfile {
             definitions,
             unsupported_base_types: unsupported_base_types.into_iter().collect(),
             absent_base_types: absent_base_types.into_iter().collect(),
+            family_id: None,
+            members: Vec::new(),
+            base_members: Vec::new(),
+            conflicting_types: BTreeSet::new(),
+        })
+    }
+
+    /// Derive the profile of one schema family from the exact profiles of its
+    /// provider schema.
+    ///
+    /// A transmit key is `SCH_<modeller>_<effective>[_<base>]`. The effective
+    /// schema and the base fix the node layouts; the modeller component is the
+    /// producer's Parasolid build number, so a family profile covers builds that
+    /// have no exact profile. `contributors` are every exact profile whose
+    /// provider schema is the family's: the ones accepting a key of this family
+    /// are its members (at least one is required), the others are base members
+    /// whose declarations describe the same provider schema (for an embedded
+    /// family, the shared base; version differences arrive as each stream's
+    /// embedded edits). Definitions shared by two contributors must have one
+    /// layout, and a type declared by one cannot be recorded as absent or
+    /// unsupported by another. A type that violates either rule is excluded from
+    /// the family and stays unknown, so it still fails closed. The profile ID is
+    /// `family-<family id>`; its digest hashes the sorted member and base-member
+    /// identities.
+    ///
+    /// # Errors
+    ///
+    /// Returns `schema.invalid_builtin_profile` when no contributor accepts a key
+    /// of the family, the contributors span more than one provider schema, a
+    /// contributor is itself a family, or no reviewed definition remains.
+    #[allow(clippy::too_many_lines)]
+    pub fn new_family(family_id: &str, contributors: &[&Self]) -> Result<Self, ParseError> {
+        let mut provider_schemas = BTreeSet::new();
+        let mut members = Vec::new();
+        let mut base_members = Vec::new();
+        for contributor in contributors {
+            if contributor.family_id.is_some() {
+                return Err(invalid_profile(
+                    "family",
+                    &contributor.metadata.profile_id,
+                    "a family profile cannot contribute to another family",
+                ));
+            }
+            provider_schemas.insert(contributor.metadata.provider_schema.clone());
+            let keys = contributor
+                .accepted_schema_keys
+                .iter()
+                .filter(|key| key.family_id() == family_id)
+                .collect::<Vec<_>>();
+            if keys.is_empty() {
+                base_members.push(*contributor);
+            } else {
+                if keys
+                    .iter()
+                    .any(|key| key.provider_schema() != contributor.metadata.provider_schema)
+                {
+                    return Err(invalid_profile(
+                        "family",
+                        family_id,
+                        "family keys must use the contributor's provider schema",
+                    ));
+                }
+                members.push(*contributor);
+            }
+        }
+        if members.is_empty() || provider_schemas.len() != 1 {
+            return Err(invalid_profile(
+                "family",
+                family_id,
+                "a schema family needs exact profiles of that family sharing one provider schema",
+            ));
+        }
+        let provider_schema = provider_schemas.into_iter().next().unwrap_or_default();
+
+        let sort = |profiles: &mut Vec<&Self>| {
+            profiles
+                .sort_by(|left, right| left.metadata.profile_id.cmp(&right.metadata.profile_id));
+            profiles.dedup_by(|left, right| left.metadata.profile_id == right.metadata.profile_id);
+        };
+        sort(&mut members);
+        sort(&mut base_members);
+
+        let mut definitions: BTreeMap<u16, TypeDefinition> = BTreeMap::new();
+        let mut unsupported = BTreeSet::new();
+        let mut absent = BTreeSet::new();
+        let mut conflicting = BTreeSet::new();
+        for member in members.iter().chain(&base_members) {
+            for definition in member.definitions.values() {
+                match definitions.get(&definition.node_type) {
+                    None => {
+                        definitions.insert(definition.node_type, definition.clone());
+                    }
+                    Some(existing)
+                        if existing.fields == definition.fields
+                            && existing.variable == definition.variable => {}
+                    Some(_) => {
+                        conflicting.insert(definition.node_type);
+                    }
+                }
+            }
+            unsupported.extend(member.unsupported_base_types.iter().copied());
+            absent.extend(member.absent_base_types.iter().copied());
+        }
+        conflicting.extend(
+            definitions
+                .keys()
+                .filter(|node_type| unsupported.contains(node_type) || absent.contains(node_type))
+                .copied(),
+        );
+        conflicting.extend(unsupported.intersection(&absent).copied());
+        for node_type in &conflicting {
+            definitions.remove(node_type);
+            unsupported.remove(node_type);
+            absent.remove(node_type);
+        }
+        if definitions.is_empty() {
+            return Err(invalid_profile(
+                "definitions",
+                "0",
+                "schema family has no shared reviewed definition",
+            ));
+        }
+
+        let identities = |profiles: &[&Self]| {
+            profiles
+                .iter()
+                .map(|profile| FamilyMember {
+                    profile_id: profile.metadata.profile_id.clone(),
+                    revision: profile.metadata.revision,
+                    profile_sha256: profile.metadata.profile_sha256.clone(),
+                })
+                .collect::<Vec<_>>()
+        };
+        let family_members = identities(&members);
+        let family_base_members = identities(&base_members);
+        let metadata = BuiltinProfileMetadata {
+            profile_id: format!("family-{family_id}"),
+            revision: 1,
+            provider_schema,
+            producer_scope: format!(
+                "schema family {family_id}: {} reviewed profiles, {} base profiles",
+                family_members.len(),
+                family_base_members.len()
+            ),
+            coverage: BuiltinProfileCoverage::FamilyInferred,
+            evidence_manifest_sha256: None,
+            profile_sha256: family_digest(family_id, &family_members, &family_base_members),
+        };
+        validate_metadata(&metadata)?;
+        Ok(Self {
+            metadata,
+            accepted_schema_keys: Vec::new(),
+            definitions,
+            unsupported_base_types: unsupported,
+            absent_base_types: absent,
+            family_id: Some(family_id.to_owned()),
+            members: family_members,
+            base_members: family_base_members,
+            conflicting_types: conflicting,
         })
     }
 
@@ -134,9 +321,36 @@ impl BuiltinSchemaProfile {
     }
 
     /// Iterate over exact accepted transmit schema keys in lexical order.
+    ///
+    /// A family profile accepts keys by family instead and returns no exact key.
     #[must_use]
     pub fn accepted_schema_keys(&self) -> impl ExactSizeIterator<Item = &SchemaKey> {
         self.accepted_schema_keys.iter()
+    }
+
+    /// Return the schema family this profile was derived for, if it is a family profile.
+    #[must_use]
+    pub fn family_id(&self) -> Option<&str> {
+        self.family_id.as_deref()
+    }
+
+    /// Return the exact profiles of this family merged into the family profile, sorted by ID.
+    #[must_use]
+    pub fn members(&self) -> &[FamilyMember] {
+        &self.members
+    }
+
+    /// Return the exact profiles of other families that contributed declarations
+    /// of the same provider schema, sorted by ID.
+    #[must_use]
+    pub fn base_members(&self) -> &[FamilyMember] {
+        &self.base_members
+    }
+
+    /// Iterate over node types excluded from a family because its members disagree.
+    #[must_use]
+    pub fn conflicting_types(&self) -> impl ExactSizeIterator<Item = u16> + '_ {
+        self.conflicting_types.iter().copied()
     }
 
     /// Iterate over reviewed definitions in ascending node-type order.
@@ -163,21 +377,66 @@ impl BuiltinSchemaProfile {
         self.absent_base_types.iter().copied()
     }
 
-    /// Return whether the complete key is explicitly allowlisted.
+    /// Return whether the complete key is explicitly allowlisted, or belongs to
+    /// this profile's schema family for a family profile.
     #[must_use]
     pub fn accepts_schema_key(&self, schema_key: &SchemaKey) -> bool {
-        self.accepted_schema_keys
-            .binary_search_by(|candidate| candidate.raw().cmp(schema_key.raw()))
-            .is_ok()
+        match &self.family_id {
+            Some(family_id) => {
+                *family_id == schema_key.family_id()
+                    && self.metadata.provider_schema == schema_key.provider_schema()
+            }
+            None => self
+                .accepted_schema_keys
+                .binary_search_by(|candidate| candidate.raw().cmp(schema_key.raw()))
+                .is_ok(),
+        }
     }
 }
 
-/// Registry of reviewed profiles indexed only by stable ID and exact schema key.
+/// SHA-256 of the canonical contributor lists of one schema family:
+/// `{"base_members":[["<profile_id>",<revision>,"<sha256>"],...],"family":"<id>",
+/// "members":[...]}`, each list sorted by profile ID.
+fn family_digest(
+    family_id: &str,
+    members: &[FamilyMember],
+    base_members: &[FamilyMember],
+) -> String {
+    fn push_list(canonical: &mut String, members: &[FamilyMember]) {
+        canonical.push('[');
+        for (index, member) in members.iter().enumerate() {
+            if index > 0 {
+                canonical.push(',');
+            }
+            canonical.push_str("[\"");
+            canonical.push_str(&member.profile_id);
+            canonical.push_str("\",");
+            canonical.push_str(&member.revision.to_string());
+            canonical.push_str(",\"");
+            canonical.push_str(&member.profile_sha256);
+            canonical.push_str("\"]");
+        }
+        canonical.push(']');
+    }
+    let mut canonical = String::from("{\"base_members\":");
+    push_list(&mut canonical, base_members);
+    canonical.push_str(",\"family\":\"");
+    canonical.push_str(family_id);
+    canonical.push_str("\",\"members\":");
+    push_list(&mut canonical, members);
+    canonical.push('}');
+    sha256_hex(canonical.as_bytes())
+}
+
+/// Registry of reviewed profiles indexed by stable ID and exact schema key,
+/// with one derived family profile per schema family of the exact keys.
 #[derive(Debug, Clone, Default)]
 pub struct BuiltinProfileRegistry {
     profiles: Vec<BuiltinSchemaProfile>,
     profile_indices: BTreeMap<String, usize>,
     schema_key_indices: BTreeMap<String, usize>,
+    families: Vec<BuiltinSchemaProfile>,
+    family_indices: BTreeMap<String, usize>,
 }
 
 impl BuiltinProfileRegistry {
@@ -205,6 +464,7 @@ impl BuiltinProfileRegistry {
                 profiles.extend(super::profiles::icad_legacy_13006()?);
                 profiles.extend(super::profiles::icad_legacy_standard()?);
                 profiles.extend(super::profiles::solidworks_partitions_13006()?);
+                profiles.extend(super::profiles::transmit_13006()?);
                 Self::new(profiles)
             })
             .as_ref()
@@ -225,13 +485,22 @@ impl BuiltinProfileRegistry {
         Ok(registry)
     }
 
-    /// Insert one validated profile without replacing an existing claim.
+    /// Insert one validated exact profile without replacing an existing claim,
+    /// then rebuild the derived family profiles.
     ///
     /// # Errors
     ///
-    /// Returns `schema.invalid_builtin_profile` for duplicate IDs or keys.
+    /// Returns `schema.invalid_builtin_profile` for duplicate IDs or keys, a
+    /// family profile, or a family that cannot be derived from its members.
     pub fn insert(&mut self, profile: BuiltinSchemaProfile) -> Result<(), ParseError> {
         let profile_id = &profile.metadata.profile_id;
+        if profile.family_id.is_some() {
+            return Err(invalid_profile(
+                "profile_id",
+                profile_id,
+                "family profiles are derived by the registry and cannot be inserted",
+            ));
+        }
         if self.profile_indices.contains_key(profile_id) {
             return Err(invalid_profile(
                 "profile_id",
@@ -256,36 +525,86 @@ impl BuiltinProfileRegistry {
                 .insert(schema_key.raw().to_owned(), index);
         }
         self.profiles.push(profile);
+        self.rebuild_families()
+    }
+
+    fn rebuild_families(&mut self) -> Result<(), ParseError> {
+        // Family id -> provider schema of its keys.
+        let mut grouped: BTreeMap<String, String> = BTreeMap::new();
+        for profile in &self.profiles {
+            for schema_key in &profile.accepted_schema_keys {
+                grouped
+                    .entry(schema_key.family_id())
+                    .or_insert_with(|| schema_key.provider_schema().to_owned());
+            }
+        }
+        let mut families = Vec::with_capacity(grouped.len());
+        let mut family_indices = BTreeMap::new();
+        for (family_id, provider_schema) in grouped {
+            // Every exact profile of the provider schema contributes its reviewed
+            // declarations; the ones accepting a key of this family are its members.
+            let contributors = self
+                .profiles
+                .iter()
+                .filter(|profile| profile.metadata.provider_schema == provider_schema)
+                .collect::<Vec<_>>();
+            let family = BuiltinSchemaProfile::new_family(&family_id, &contributors)?;
+            if self
+                .profile_indices
+                .contains_key(&family.metadata.profile_id)
+            {
+                return Err(invalid_profile(
+                    "profile_id",
+                    &family.metadata.profile_id,
+                    "schema family identifier collides with a registered profile",
+                ));
+            }
+            family_indices.insert(family_id, families.len());
+            families.push(family);
+        }
+        self.families = families;
+        self.family_indices = family_indices;
         Ok(())
     }
 
-    /// Return the number of registered profiles.
+    /// Return the number of registered exact profiles.
     #[must_use]
     pub fn len(&self) -> usize {
         self.profiles.len()
     }
 
-    /// Return whether no real profile has been registered.
+    /// Return whether no exact profile has been registered.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.profiles.is_empty()
     }
 
-    /// Iterate over profiles in insertion order.
+    /// Iterate over exact profiles in insertion order.
     #[must_use]
     pub fn profiles(&self) -> impl ExactSizeIterator<Item = &BuiltinSchemaProfile> {
         self.profiles.iter()
     }
 
-    /// Return one profile by stable ID.
+    /// Iterate over derived family profiles in family-ID order.
+    #[must_use]
+    pub fn families(&self) -> impl ExactSizeIterator<Item = &BuiltinSchemaProfile> {
+        self.families.iter()
+    }
+
+    /// Return one exact or family profile by stable ID.
     #[must_use]
     pub fn profile(&self, profile_id: &str) -> Option<&BuiltinSchemaProfile> {
         self.profile_indices
             .get(profile_id)
             .and_then(|index| self.profiles.get(*index))
+            .or_else(|| {
+                self.families
+                    .iter()
+                    .find(|family| family.metadata.profile_id == profile_id)
+            })
     }
 
-    /// Return the profile which explicitly accepts the complete schema key.
+    /// Return the exact profile which explicitly accepts the complete schema key.
     #[must_use]
     pub fn profile_for_key(&self, schema_key: &SchemaKey) -> Option<&BuiltinSchemaProfile> {
         self.schema_key_indices
@@ -293,27 +612,44 @@ impl BuiltinProfileRegistry {
             .and_then(|index| self.profiles.get(*index))
     }
 
-    /// Return an exact-key provider for one allowlisted schema key.
+    /// Return the family profile derived for the key's schema family, when any
+    /// exact profile of that family is registered.
+    #[must_use]
+    pub fn family_for_key(&self, schema_key: &SchemaKey) -> Option<&BuiltinSchemaProfile> {
+        self.family_indices
+            .get(&schema_key.family_id())
+            .and_then(|index| self.families.get(*index))
+            .filter(|family| family.accepts_schema_key(schema_key))
+    }
+
+    /// Return a provider for one complete schema key: its exact profile when one
+    /// is allowlisted, otherwise the profile derived for its schema family.
+    ///
+    /// The provider accepts only the requested key. Its provenance reports
+    /// `verified_subset` coverage for an exact profile and `family_inferred`
+    /// for a family profile. An exact profile is completed by its family: a
+    /// node type the exact profile neither declares nor classifies is looked
+    /// up in the family profile, so the same schema knowledge serves a reviewed
+    /// build and its neighbours.
     #[must_use]
     pub fn provider_for_key(&self, schema_key: &SchemaKey) -> Option<BuiltinSchemaProvider<'_>> {
-        let profile = self.profile_for_key(schema_key)?;
-        let selected_schema_key = profile
-            .accepted_schema_keys
-            .iter()
-            .find(|candidate| candidate.raw() == schema_key.raw())?
-            .raw();
+        let family = self.family_for_key(schema_key);
+        let profile = self.profile_for_key(schema_key).or(family)?;
         Some(BuiltinSchemaProvider {
             profile,
-            selected_schema_key,
+            family: family.filter(|family| !std::ptr::eq(*family, profile)),
+            selected_schema_key: schema_key.raw().to_owned(),
         })
     }
 }
 
-/// Borrowed provider selected from one exact built-in profile allowlist entry.
-#[derive(Debug, Clone, Copy)]
+/// Borrowed provider selected for one complete schema key from an exact or
+/// family built-in profile.
+#[derive(Debug, Clone)]
 pub struct BuiltinSchemaProvider<'a> {
     profile: &'a BuiltinSchemaProfile,
-    selected_schema_key: &'a str,
+    family: Option<&'a BuiltinSchemaProfile>,
+    selected_schema_key: String,
 }
 
 impl BuiltinSchemaProvider<'_> {
@@ -323,10 +659,29 @@ impl BuiltinSchemaProvider<'_> {
         self.profile
     }
 
-    /// Return the exact complete key selected from the profile allowlist.
+    /// Return the family profile that completes an exact profile's declarations,
+    /// or `None` when the selected profile is the family itself.
     #[must_use]
-    pub const fn selected_schema_key(&self) -> &str {
-        self.selected_schema_key
+    pub const fn family(&self) -> Option<&BuiltinSchemaProfile> {
+        self.family
+    }
+
+    /// Return the complete key this provider was selected for.
+    #[must_use]
+    pub fn selected_schema_key(&self) -> &str {
+        &self.selected_schema_key
+    }
+}
+
+fn lookup_in(profile: &BuiltinSchemaProfile, node_type: u16) -> SchemaTypeLookup<'_> {
+    if let Some(definition) = profile.definition(node_type) {
+        SchemaTypeLookup::Defined(definition)
+    } else if profile.unsupported_base_types.contains(&node_type) {
+        SchemaTypeLookup::PresentUnsupported
+    } else if profile.absent_base_types.contains(&node_type) {
+        SchemaTypeLookup::Absent
+    } else {
+        SchemaTypeLookup::Unknown
     }
 }
 
@@ -336,28 +691,28 @@ impl SchemaProvider for BuiltinSchemaProvider<'_> {
     }
 
     fn type_definition(&self, schema: &str, node_type: u16) -> Option<&TypeDefinition> {
-        (schema == self.profile.metadata.provider_schema)
-            .then(|| self.profile.definition(node_type))
-            .flatten()
+        if !self.contains_schema(schema) {
+            return None;
+        }
+        self.profile
+            .definition(node_type)
+            .or_else(|| self.family.and_then(|family| family.definition(node_type)))
     }
 
     fn lookup_type(&self, schema: &str, node_type: u16) -> SchemaTypeLookup<'_> {
         if !self.contains_schema(schema) {
             return SchemaTypeLookup::Unknown;
         }
-        if let Some(definition) = self.profile.definition(node_type) {
-            SchemaTypeLookup::Defined(definition)
-        } else if self.profile.unsupported_base_types.contains(&node_type) {
-            SchemaTypeLookup::PresentUnsupported
-        } else if self.profile.absent_base_types.contains(&node_type) {
-            SchemaTypeLookup::Absent
-        } else {
-            SchemaTypeLookup::Unknown
+        match lookup_in(self.profile, node_type) {
+            SchemaTypeLookup::Unknown => self.family.map_or(SchemaTypeLookup::Unknown, |family| {
+                lookup_in(family, node_type)
+            }),
+            known => known,
         }
     }
 
     fn supports_schema_key(&self, schema_key: &SchemaKey) -> bool {
-        schema_key.raw() == self.selected_schema_key
+        self.selected_schema_key == schema_key.raw()
             && self.profile.accepts_schema_key(schema_key)
             && self.contains_schema(schema_key.provider_schema())
     }
@@ -366,7 +721,7 @@ impl SchemaProvider for BuiltinSchemaProvider<'_> {
         SchemaProviderProvenance::Builtin {
             profile_id: &self.profile.metadata.profile_id,
             profile_revision: self.profile.metadata.revision,
-            schema_key: self.selected_schema_key,
+            schema_key: &self.selected_schema_key,
             coverage: self.profile.metadata.coverage,
             profile_sha256: &self.profile.metadata.profile_sha256,
         }
@@ -738,13 +1093,302 @@ mod tests {
                 }
             }
 
+            // Another modeller build of the same schema has no exact profile and
+            // resolves through the derived family; another schema resolves to nothing.
             let near = SchemaKey::parse(NEAR_SCHEMA_KEY);
             assert!(near.is_ok(), "{near:?}");
             if let Ok(near) = near {
                 assert!(registry.profile_for_key(&near).is_none());
-                assert!(registry.provider_for_key(&near).is_none());
+                let family = registry.provider_for_key(&near);
+                assert!(family.is_some());
+                if let Some(family) = family {
+                    assert_eq!(family.profile().metadata().profile_id, "family-90000");
+                    assert_eq!(
+                        family.profile().metadata().coverage,
+                        BuiltinProfileCoverage::FamilyInferred
+                    );
+                    assert_eq!(family.selected_schema_key(), NEAR_SCHEMA_KEY);
+                    assert!(family.supports_schema_key(&near));
+                }
+            }
+            let other_schema = SchemaKey::parse("SCH_1000000_90001");
+            assert!(other_schema.is_ok(), "{other_schema:?}");
+            if let Ok(other_schema) = other_schema {
+                assert!(registry.provider_for_key(&other_schema).is_none());
             }
         }
+    }
+
+    /// Three builds of schema 90000: the first declares type 42, the second
+    /// agrees on 42 and adds 43 and 44, the third declares another layout for 44.
+    fn family_registry() -> Result<BuiltinProfileRegistry, ParseError> {
+        let shared = profile_with("synthetic-sch90000-r1", SCHEMA_KEY, 42)?;
+        let second = BuiltinSchemaProfile::new(
+            metadata("synthetic-sch90000-build2-r1"),
+            vec![NEAR_SCHEMA_KEY.to_owned()],
+            vec![definition(42), definition(43), definition(44)],
+        )?;
+        let mut other_44 = definition(44);
+        other_44.fields.push(FieldDefinition {
+            name: "field_1".to_owned(),
+            field_type: FieldType::Integer,
+            pointer_class: 0,
+            element_count: 0,
+            transmitted: true,
+        });
+        let third = BuiltinSchemaProfile::new(
+            metadata("synthetic-sch90000-build3-r1"),
+            vec!["SCH_1000002_90000".to_owned()],
+            vec![other_44],
+        )?;
+        BuiltinProfileRegistry::new(vec![shared, second, third])
+    }
+
+    #[test]
+    fn family_merges_members_and_excludes_disagreements() {
+        let registry = family_registry();
+        assert!(registry.is_ok(), "{registry:?}");
+        let Ok(registry) = registry else {
+            return;
+        };
+        assert_eq!(registry.len(), 3);
+        assert_eq!(registry.families().len(), 1);
+        let family = registry.profile("family-90000");
+        assert!(family.is_some());
+        let Some(family) = family else {
+            return;
+        };
+        assert_eq!(family.family_id(), Some("90000"));
+        assert_eq!(family.metadata().revision, 1);
+        assert_eq!(family.metadata().provider_schema, "90000");
+        assert_eq!(
+            family
+                .members()
+                .iter()
+                .map(|member| member.profile_id.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "synthetic-sch90000-build2-r1",
+                "synthetic-sch90000-build3-r1",
+                "synthetic-sch90000-r1",
+            ]
+        );
+        assert_eq!(family.definitions().len(), 2);
+        assert!(family.definition(42).is_some() && family.definition(43).is_some());
+        assert_eq!(family.conflicting_types().collect::<Vec<_>>(), [44]);
+        assert_eq!(family.accepted_schema_keys().len(), 0);
+        assert_eq!(family.metadata().profile_sha256.len(), 64);
+        assert_eq!(
+            family.metadata().profile_sha256,
+            family_digest("90000", family.members(), family.base_members())
+        );
+        assert!(family.base_members().is_empty());
+    }
+
+    #[test]
+    fn families_take_every_reviewed_declaration_of_their_provider_schema() {
+        // A standard profile of schema 90000 and an embedded profile over base
+        // 90000 describe the same provider schema: the standard family gains the
+        // embedded profile's type 12 and the embedded family gains type 42.
+        let standard = profile_with("synthetic-sch90000-r1", SCHEMA_KEY, 42);
+        let mut embedded_metadata = metadata("synthetic-embedded-r1");
+        embedded_metadata.provider_schema = "90000".to_owned();
+        let embedded = BuiltinSchemaProfile::new_embedded(
+            embedded_metadata,
+            vec!["SCH_1000000_90001_90000".to_owned()],
+            vec![definition(12)],
+            vec![],
+            vec![204],
+        );
+        assert!(standard.is_ok() && embedded.is_ok());
+        let (Ok(standard), Ok(embedded)) = (standard, embedded) else {
+            return;
+        };
+        let registry = BuiltinProfileRegistry::new(vec![standard, embedded]);
+        assert!(registry.is_ok(), "{registry:?}");
+        let Ok(registry) = registry else {
+            return;
+        };
+        assert_eq!(registry.families().len(), 2);
+        let standard_family = registry.profile("family-90000");
+        let embedded_family = registry.profile("family-90001-90000");
+        assert!(standard_family.is_some() && embedded_family.is_some());
+        let (Some(standard_family), Some(embedded_family)) = (standard_family, embedded_family)
+        else {
+            return;
+        };
+        for family in [standard_family, embedded_family] {
+            assert!(family.definition(12).is_some() && family.definition(42).is_some());
+            assert_eq!(family.absent_base_types().collect::<Vec<_>>(), [204]);
+            assert_eq!(family.members().len(), 1);
+            assert_eq!(family.base_members().len(), 1);
+        }
+        assert_eq!(
+            standard_family.base_members()[0].profile_id,
+            "synthetic-embedded-r1"
+        );
+        assert_eq!(
+            embedded_family.base_members()[0].profile_id,
+            "synthetic-sch90000-r1"
+        );
+        assert_ne!(
+            standard_family.metadata().profile_sha256,
+            embedded_family.metadata().profile_sha256
+        );
+    }
+
+    #[test]
+    fn family_provider_parses_other_builds_and_fails_closed_on_disputed_types() {
+        let registry = family_registry();
+        assert!(registry.is_ok(), "{registry:?}");
+        let Ok(registry) = registry else {
+            return;
+        };
+        let unseen = SchemaKey::parse("SCH_1000003_90000");
+        assert!(unseen.is_ok(), "{unseen:?}");
+        let Ok(unseen) = unseen else {
+            return;
+        };
+        let provider = registry.provider_for_key(&unseen);
+        assert!(provider.is_some());
+        let Some(provider) = provider else {
+            return;
+        };
+        assert_eq!(provider.lookup_type("90000", 44), SchemaTypeLookup::Unknown);
+        let parsed = parse_xt(
+            &xt_payload("SCH_1000003_90000", 43, 9),
+            &provider,
+            DocumentLimits::default(),
+        );
+        assert!(parsed.is_ok(), "{parsed:?}");
+        if let Ok(parsed) = parsed {
+            assert!(matches!(
+                &parsed.schema_provider,
+                SchemaProviderResolution::Builtin {
+                    profile_id,
+                    profile_revision: 1,
+                    schema_key,
+                    coverage: BuiltinProfileCoverage::FamilyInferred,
+                    ..
+                } if profile_id == "family-90000" && schema_key == "SCH_1000003_90000"
+            ));
+        }
+        let conflicting = parse_xb(
+            &xb_payload("SCH_1000003_90000", 44, 9),
+            &provider,
+            DocumentLimits::default(),
+        );
+        assert_eq!(
+            conflicting.as_ref().err().map(ParseError::kind),
+            Some(ErrorKind::BuiltinProfileUncoveredType)
+        );
+        // The family provider is pinned to the key it was selected for.
+        let exact = SchemaKey::parse(SCHEMA_KEY);
+        if let Ok(exact) = exact {
+            assert!(!provider.supports_schema_key(&exact));
+        }
+    }
+
+    #[test]
+    fn embedded_family_merges_membership_and_rejects_contradictions() {
+        let embedded = |id: &str, key: &str, types: Vec<u16>, absent: Vec<u16>| {
+            let mut meta = metadata(id);
+            meta.provider_schema = "13006".to_owned();
+            BuiltinSchemaProfile::new_embedded(
+                meta,
+                vec![key.to_owned()],
+                types.into_iter().map(definition).collect(),
+                vec![],
+                absent,
+            )
+        };
+        let first = embedded(
+            "synthetic-a-r1",
+            "SCH_1000000_90000_13006",
+            vec![12],
+            vec![204],
+        );
+        // Type 45 is declared here but recorded absent by the other member.
+        let second = embedded(
+            "synthetic-b-r1",
+            "SCH_1000001_90000_13006",
+            vec![12, 45],
+            vec![176],
+        );
+        let third = embedded(
+            "synthetic-c-r1",
+            "SCH_1000002_90000_13006",
+            vec![12],
+            vec![45],
+        );
+        assert!(first.is_ok() && second.is_ok() && third.is_ok());
+        let (Ok(first), Ok(second), Ok(third)) = (first, second, third) else {
+            return;
+        };
+        let registry = BuiltinProfileRegistry::new(vec![first, second, third]);
+        assert!(registry.is_ok(), "{registry:?}");
+        let Ok(registry) = registry else {
+            return;
+        };
+        let key = SchemaKey::parse("SCH_1000009_90000_13006");
+        assert!(key.is_ok(), "{key:?}");
+        let Ok(key) = key else {
+            return;
+        };
+        let provider = registry.provider_for_key(&key);
+        assert!(provider.is_some());
+        let Some(provider) = provider else {
+            return;
+        };
+        let family = provider.profile();
+        assert_eq!(family.metadata().profile_id, "family-90000-13006");
+        assert_eq!(family.metadata().provider_schema, "13006");
+        assert_eq!(family.absent_base_types().collect::<Vec<_>>(), [176, 204]);
+        assert_eq!(family.conflicting_types().collect::<Vec<_>>(), [45]);
+        assert!(matches!(
+            provider.lookup_type("13006", 12),
+            SchemaTypeLookup::Defined(_)
+        ));
+        assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
+        assert_eq!(provider.lookup_type("13006", 45), SchemaTypeLookup::Unknown);
+        // A standard key of the same effective schema belongs to another family.
+        let standard = SchemaKey::parse("SCH_1000009_90000");
+        if let Ok(standard) = standard {
+            assert!(registry.provider_for_key(&standard).is_none());
+        }
+    }
+
+    #[test]
+    fn family_profiles_cannot_be_inserted_or_nested() {
+        let registry = registry();
+        assert!(registry.is_ok(), "{registry:?}");
+        let Ok(mut registry) = registry else {
+            return;
+        };
+        let family = registry.profile("family-90000").cloned();
+        assert!(family.is_some());
+        let Some(family) = family else {
+            return;
+        };
+        assert_eq!(
+            registry
+                .insert(family.clone())
+                .err()
+                .map(|error| error.kind()),
+            Some(ErrorKind::InvalidBuiltinProfile)
+        );
+        assert_eq!(
+            BuiltinSchemaProfile::new_family("90000", &[&family])
+                .err()
+                .map(|error| error.kind()),
+            Some(ErrorKind::InvalidBuiltinProfile)
+        );
+        assert_eq!(
+            BuiltinSchemaProfile::new_family("90000", &[])
+                .err()
+                .map(|error| error.kind()),
+            Some(ErrorKind::InvalidBuiltinProfile)
+        );
     }
 
     #[test]

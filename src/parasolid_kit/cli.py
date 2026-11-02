@@ -18,7 +18,7 @@ from .binary.document import ParasolidDocument
 from .brep import BrepModel, Vector3
 from .diagnostics import Diagnostic
 from .errors import ParasolidError
-from .schema import DirectorySchemaProvider, SchemaKey
+from .schema import DirectorySchemaProvider, SchemaKey, builtin_profiles
 from .summary import BrepSummary
 
 SourceFormat = Literal["binary", "text"]
@@ -290,6 +290,8 @@ def _brep_summary(model: BrepModel) -> dict[str, object]:
         "points",
         "curves",
         "surfaces",
+        "assemblies",
+        "instances",
     )
     return {
         "complete": model.complete,
@@ -330,6 +332,19 @@ def _write_check_summary(
                 file=output,
             )
             print(f"  Profile SHA-256: {resolution.profile_sha256}", file=output)
+            if resolution.coverage == "family_inferred":
+                family = next(
+                    (p for p in builtin_profiles() if p.profile_id == resolution.profile_id),
+                    None,
+                )
+                if family is not None:
+                    members = ", ".join(member.profile_id for member in family.members)
+                    print(
+                        f"  Schema family: {family.family_id} "
+                        f"(no exact profile for this modeller build; "
+                        f"reviewed profiles: {members})",
+                        file=output,
+                    )
     print(f"  Modeller: {summary.modeller_version}", file=output)
     print(f"  File size: {summary.file_size} bytes", file=output)
     print(f"  Nodes: {summary.node_count}", file=output)

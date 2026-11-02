@@ -12,7 +12,6 @@ from parasolid_kit import (
     DEFAULT_PARSE_LIMITS,
     InMemorySchemaProvider,
     ParasolidDocument,
-    ParseError,
     SchemaCatalog,
     SchemaError,
     SchemaProviderResolution,
@@ -149,17 +148,30 @@ def test_explicit_catalog_controls_layout_and_provenance(encoding):
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
-@pytest.mark.parametrize(
-    "key", ["SCH_3000001_30000", "SCH_3000000_30001", "SCH_3000000_30000_13006"]
-)
+@pytest.mark.parametrize("key", ["SCH_3000000_30001", "SCH_3000000_30001_13006"])
 @pytest.mark.parametrize("node_type", [82, None])
-def test_unsupported_and_embedded_keys_do_not_fall_back(encoding, key, node_type):
+def test_keys_outside_every_family_do_not_fall_back(encoding, key, node_type):
     with pytest.raises(SchemaError) as captured:
         parser(encoding)(payload(encoding, key=key, node_type=node_type))
     diagnostic = captured.value.diagnostic
     assert diagnostic.code == "schema.missing_base_schema"
-    assert "no built-in profile supports this exact schema key" in diagnostic.message
+    assert "no built-in profile supports this schema key or its schema family" in diagnostic.message
     assert diagnostic.details["schema"] == key.split("_")[-1]
+
+
+@pytest.mark.parametrize("encoding", ["x_t", "x_b"])
+@pytest.mark.parametrize("node_type", [82, None])
+def test_other_builds_of_the_v30_schema_parse_through_the_family(encoding, node_type):
+    key = "SCH_3000001_30000"
+    document = parser(encoding)(payload(encoding, key=key, node_type=node_type))
+    resolution = document.schema_resolution.to_dict()
+    assert resolution["profile_id"] == "family-30000"
+    assert resolution["profile_revision"] == 1
+    assert resolution["schema_key"] == key
+    assert resolution["coverage"] == "family_inferred"
+    assert resolution["profile_sha256"] != PROVENANCE["profile_sha256"]
+    if node_type is not None:
+        assert [v.value for v in document.nodes[0].fields[0].values] == [7, None]
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
@@ -173,10 +185,23 @@ def test_uncovered_type_has_profile_diagnostic(encoding):
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
-def test_user_fields_rejected_before_record_payload(encoding):
-    with pytest.raises(ParseError) as captured:
-        parser(encoding)(payload(encoding, user_fields=1))
-    assert captured.value.diagnostic.code == "node.unsupported_user_fields"
+def test_user_fields_are_read_after_every_node(encoding):
+    # One declared user word follows the INT_VALUES node's two values.
+    if encoding == "x_t":
+        data = text_header(KEY, common_header=True, user_field_size=1) + b"82 2 1 7 ?9 1 0 "
+    else:
+        data = (
+            SyntheticXbBuilder(schema_name=KEY, schema_max_type=None, user_field_size=1)
+            .add_raw_node(
+                82, struct.pack(">i", 2) + positive_integer(1) + struct.pack(">iii", 7, -32764, 9)
+            )
+            .build()
+        )
+    document = parser(encoding)(data)
+    assert document.header.user_field_size == 1
+    assert [v.value for v in document.nodes[0].fields[0].values] == [7, None]
+    assert document.nodes[0].user_fields == (9,)
+    assert document.schema_resolution.to_dict() == PROVENANCE
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
@@ -231,7 +256,7 @@ def test_cli_compare_resolves_each_key_and_rejects_uncovered_type(tmp_path, caps
     right.write_bytes(payload("x_b"))
     assert main(["compare", str(left), str(right)]) == 0
     assert json.loads(capsys.readouterr().out)["comparison"]["equivalent"]
-    right.write_bytes(payload("x_b", key="SCH_3000001_30000"))
+    right.write_bytes(payload("x_b", key="SCH_3000000_30001"))
     assert main(["compare", str(left), str(right)]) == 2
     assert "schema.missing_base_schema" in capsys.readouterr().err
     left.write_bytes(payload("x_t", node_type=110))

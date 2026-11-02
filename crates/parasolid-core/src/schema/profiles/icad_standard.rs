@@ -148,6 +148,7 @@ const POINTER_BLOCK: &[Edit] = &[Keep(1), integer("index_origin"), Keep(2)];
 pub(crate) struct ProfileSpec {
     pub key: &'static str,
     pub id: &'static str,
+    pub revision: u32,
     pub sha256: &'static str,
     schema: &'static str,
     types: &'static [u16],
@@ -158,6 +159,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_1300218_13006",
         id: "icad-1300218-13006-r1",
+        revision: 1,
         sha256: "928962c3f7f5a87013f6af6e45a443d040ff9a967b0887f959366b9bd2774b82",
         schema: "13006",
         types: &[
@@ -169,6 +171,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_1302234_13006",
         id: "icad-1302234-13006-r1",
+        revision: 1,
         sha256: "29708f25ceea002ff57f2ebcada3a8bd25ffb6ef1f908ff678b45c3c7abc9f54",
         schema: "13006",
         types: &[
@@ -179,6 +182,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_1500000_15003",
         id: "icad-1500000-15003-r1",
+        revision: 1,
         sha256: "d3f7b3909050da2834e34c7f1ccf6b17f2f9cf16048053634dd7fc61506ad313",
         schema: "15003",
         types: &[
@@ -187,19 +191,29 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         ],
         edits: &[(70, LIST)],
     },
+    // Revision 2 adds the types observed in a public NX 7 part written under
+    // the same exact key: INTERSECTION (38), CHART (40), LIMIT (41), CONE (52),
+    // SPHERE (53), TORUS (54), BLENDED_EDGE (56), BLEND_BOUND (59), REAL_VALUES
+    // (83), CHAR_VALUES (84), TRIMMED_CURVE (133), the SP_CURVE dependencies
+    // (45, 127, 128, 134-137) and the shared-geometry owner (141); their
+    // reviewed 13006 layouts read the part to the terminator and map a complete
+    // B-Rep.
     ProfileSpec {
         key: "SCH_1700000_16100",
-        id: "icad-1700000-16100-r1",
-        sha256: "e9b55fd29420174f205353b6171c40140d70c067d25e9ea5854b014c468c5580",
+        id: "icad-1700000-16100-r2",
+        revision: 2,
+        sha256: "695d4a8c31c1a187dd07d475b4a28af97f800d68c1d1b99650322cef368e9f9c",
         schema: "16100",
         types: &[
-            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 50, 51, 70, 74, 79, 80, 81, 82,
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53, 54, 56,
+            59, 70, 74, 79, 80, 81, 82, 83, 84, 127, 128, 133, 134, 135, 136, 137, 141,
         ],
         edits: &[(70, LIST)],
     },
     ProfileSpec {
         key: "SCH_1901000_19008",
         id: "icad-1901000-19008-r1",
+        revision: 1,
         sha256: "c273c545b4b69f176457113d9bb1e158f170a39a4cd8babfbd687e9e0c325ba0",
         schema: "19008",
         types: &[
@@ -207,19 +221,29 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         ],
         edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
     },
+    // Revision 2 adds REAL_VALUES (83) and CHAR_VALUES (84), observed in a public
+    // Autodesk Inventor 2012 part of schema 20000, and the types observed in a
+    // public NX assembly written under another build of the same standard key:
+    // ASSEMBLY (10), INSTANCE (11), TRANSFORM (100), INTERSECTION (38), CHART
+    // (40), LIMIT (41), OFFSET_SURF (60), SWEPT_SURF (67), TRIMMED_CURVE (133),
+    // the SP_CURVE dependencies (45, 127, 128, 134-137) and the shared-geometry
+    // owner (141); all keep their reviewed 13006 layouts.
     ProfileSpec {
         key: "SCH_2401000_20000",
-        id: "icad-2401000-20000-r1",
-        sha256: "002dcea4ae6ff5bf1a817744ce4e83c06f58f8955f7a100c011048484a865a04",
+        id: "icad-2401000-20000-r2",
+        revision: 2,
+        sha256: "183e902263c1294d6dfe8a24e3e7113b1253c255c5b8218eac395078dfa0cba0",
         schema: "20000",
         types: &[
-            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 50, 51, 70, 74, 79, 80, 81, 82,
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 38, 40, 41, 45, 50, 51, 60, 67, 70,
+            74, 79, 80, 81, 82, 83, 84, 100, 127, 128, 133, 134, 135, 136, 137, 141,
         ],
         edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
     },
     ProfileSpec {
         key: "SCH_2601000_26105",
         id: "icad-2601000-26105-r1",
+        revision: 1,
         sha256: "f2717a3ccb97d6e836bb36e981671974b0d2fd0a586c9b42e3fcbe77fe36976d",
         schema: "26105",
         types: &[
@@ -236,6 +260,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_2800000_28002",
         id: "icad-2800000-28002-r1",
+        revision: 1,
         sha256: "a1693181a2af88fd8456155296f7ffefca2a71fdf14366a9866ab9c88e6531b7",
         schema: "28002",
         types: &[
@@ -253,6 +278,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_2901000_28101",
         id: "icad-2901000-28101-r1",
+        revision: 1,
         sha256: "3e62cae9a159faf2364f85206fcc2bf1580eb68b4763b446fed1864010df19de",
         schema: "28101",
         types: &[
@@ -270,6 +296,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_3200000_32001",
         id: "icad-3200000-32001-r1",
+        revision: 1,
         sha256: "5911102568cc1e2215b3bc93e0e43146a382b747394aca8661527557b3220edf",
         schema: "32001",
         types: &[
@@ -288,6 +315,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_3301000_33103",
         id: "icad-3301000-33103-r1",
+        revision: 1,
         sha256: "29c38621bc5d937dddd0550bc52a4f3fcbc71616a5dd8774881b66aa5bcf030f",
         schema: "33103",
         types: &[
@@ -309,6 +337,13 @@ impl ProfileSpec {
     pub(crate) fn definitions(&self) -> Result<Vec<TypeDefinition>, ParseError> {
         let mut pool = super::icad_legacy::base_definitions(self.types);
         pool.push(intersection_data());
+        pool.extend(super::assembly_definitions());
+        // SWEPT_SURF (67) keeps the public-reference layout of the SolidWorks set.
+        pool.extend(
+            super::solidworks::solidworks_definitions()
+                .into_iter()
+                .filter(|d| d.node_type == 67),
+        );
         self.types
             .iter()
             .map(|node_type| {
@@ -411,7 +446,7 @@ pub fn icad_legacy_standard() -> Result<Vec<BuiltinSchemaProfile>, ParseError> {
             BuiltinSchemaProfile::new(
                 BuiltinProfileMetadata {
                     profile_id: spec.id.into(),
-                    revision: 1,
+                    revision: spec.revision,
                     provider_schema: spec.schema.into(),
                     producer_scope: "Legacy iCAD extracted Parasolid streams".into(),
                     coverage: BuiltinProfileCoverage::VerifiedSubset,

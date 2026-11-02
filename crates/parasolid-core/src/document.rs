@@ -197,12 +197,7 @@ pub fn parse_xb<P: SchemaProvider>(
     validate_limits(limits)?;
     let header = inspect_xb(data, limits.inspection())?;
     let schema_key = SchemaKey::parse(&header.schema_key)?;
-    validate_builtin_input(
-        provider,
-        &schema_key,
-        header.user_field_size,
-        header.header_range.end,
-    )?;
+    validate_builtin_input(provider, &schema_key, header.header_range.end)?;
     let schema_provider = SchemaProviderResolution::from(provider.provenance());
     let mut reader = BinaryReader::with_position(data, header.header_range.end)?;
     let mut registry = EffectiveSchemaRegistry::new(limits.max_schema_types);
@@ -349,12 +344,8 @@ fn read_raw_node<P: SchemaProvider>(
     node_start: usize,
     user_field_size: u8,
 ) -> Result<RawNode, ParseError> {
-    let user_word_count = crate::user_fields::word_count(
-        node_type,
-        user_field_size,
-        node_start,
-        limits.max_variable_elements,
-    )?;
+    let user_word_count =
+        crate::user_fields::word_count(user_field_size, node_start, limits.max_variable_elements)?;
     let (definition, first_schema) = resolve_node_definition(
         data, reader, schema_key, provider, registry, limits, node_type,
     )?;
@@ -829,14 +820,6 @@ mod tests {
         assert_eq!(
             error.as_ref().map(ParseError::kind),
             Some(ErrorKind::TrailingBytes)
-        );
-
-        let mut user_fields = header("SCH_3000000_30000", None, 1);
-        append_i16(&mut user_fields, 110); // Visibility is absent from the public table.
-        let error = parse_xb(&user_fields, &provider, DocumentLimits::default()).err();
-        assert_eq!(
-            error.as_ref().map(ParseError::kind),
-            Some(ErrorKind::UnsupportedUserFields)
         );
 
         let mut limited = header("SCH_3000000_30000", None, 0);

@@ -2,15 +2,17 @@
 //!
 //! Every observed `SolidWorks` key carries the `13006` base suffix, so all
 //! profiles share one reviewed declaration set: the 13006 subset with the
-//! `SP_CURVE` and B-spline surface layouts, `WORLD`, and the reviewed `TORUS`,
-//! blend, offset, swept and spun surfaces. Version differences arrive as each
-//! stream's embedded edits; a nearby key is never selected.
+//! `SP_CURVE` and B-spline surface layouts, `WORLD`, the reviewed `TORUS`,
+//! blend, offset, swept and spun surfaces, and the assembly structure
+//! (`ASSEMBLY`, `INSTANCE`, `TRANSFORM`) seen in a `SolidWorks` 2020 assembly
+//! export. Version differences arrive as each stream's embedded edits; a
+//! nearby key is never selected.
 
 use crate::schema::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
 use crate::{BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, ParseError};
 
 pub(crate) const PROFILE_SHA256: &str =
-    "e019ad9eb369789e1c0a64704b0a3beaae55e9e7e254e7bf08538a737d4bc83c";
+    "3662056f554683d81869f7144eaa797a8b7ea0796b66a561cf295f372111e929";
 
 /// Construct the exact `SolidWorks` 2026 partition subset.
 ///
@@ -50,85 +52,85 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         key: "SCH_2700199_26105_13006",
         id: "solidworks-2700199-26105-13006-r1",
         revision: 1,
-        sha256: "65531d74c0e96e760414414a1df7065affa26c316f918617307158c491aa27d8",
+        sha256: "bbba6676a2bee41fb369fe4dca51f1b700a657996aa6f0cd6adfee1e19df5563",
     },
     ProfileSpec {
         key: "SCH_2800191_28002_13006",
         id: "solidworks-2800191-28002-13006-r1",
         revision: 1,
-        sha256: "24524d4cca8bfe316cdf936de6f440dc83199384981132308603e792e662fe97",
+        sha256: "417f6f1f870b3fe7386535c4409a99061428eb3da11bbbdccc5b75ec69475abb",
     },
     ProfileSpec {
         key: "SCH_2800209_28002_13006",
         id: "solidworks-2800209-28002-13006-r1",
         revision: 1,
-        sha256: "e65c8ddf1bf2876923b6e12f7b284750f2518a0f799d7696d10c74323a8cfc76",
+        sha256: "bc2163693dffb4270bd06c9edd9d834410c27d1211339c19292b97f9f445048c",
     },
     ProfileSpec {
         key: "SCH_2900166_28101_13006",
         id: "solidworks-2900166-28101-13006-r1",
         revision: 1,
-        sha256: "728d84812ee3cc63072085effa633b320ec4e41d3bdb1dafda3ff0d0be91655c",
+        sha256: "7de8374557028af2fc7f017362e61879b35b31dcb4acfc165d42aeea4abe535f",
     },
     ProfileSpec {
         key: "SCH_2900190_28101_13006",
         id: "solidworks-2900190-28101-13006-r1",
         revision: 1,
-        sha256: "789a8804c22fbf038d9bcbedd8ce02d16731c9840e049b3b13bebf6951a9b250",
+        sha256: "77cb32a1ae557a3a2566ceac1be1ce22294dd428c2d811ad402695d437bb48e8",
     },
     ProfileSpec {
         key: "SCH_2900195_28101_13006",
         id: "solidworks-2900195-28101-13006-r1",
         revision: 1,
-        sha256: "f8cc88a32e3af19961aec053b1d341a7bc9934a780d63945e91908dca2ba95fb",
+        sha256: "6359eb168a9562e96ffa45cf749a19cd98a7749e5f4f99dd5a5c549a9521afec",
     },
     ProfileSpec {
         key: "SCH_3000226_30000_13006",
         id: "solidworks-3000226-30000-13006-r1",
         revision: 1,
-        sha256: "14354ebf3830d1141ed4c61e3a9ce99f78f5216c381aa994f99de067903068a8",
+        sha256: "405a4a8bcf11eb533f9cd34617c9d2246298793701fe9dbb5df2bc348c63d0ac",
     },
     ProfileSpec {
         key: "SCH_3000298_30000_13006",
         id: "solidworks-3000298-30000-13006-r1",
         revision: 1,
-        sha256: "0d3a628fb09fb47a23701c2c99159bbd8d7c1bb0f96a2b33fa48cd4f4f21f8fa",
+        sha256: "cde79502920b95e8af30b25eeeef83c7fb747eeb2801dba53ccb3d4d99c0c22f",
     },
     ProfileSpec {
         key: "SCH_3100203_31001_13006",
         id: "solidworks-3100203-31001-13006-r1",
         revision: 1,
-        sha256: "314b947f7a8cebfb6ed382206065594ce6d7acc79a1d78765dac8dccf56a26f7",
+        sha256: "cbc193e45f9e8bf6d0c2bcac9e1ca355641dc03072db7de4c6d069be356b648f",
     },
     ProfileSpec {
         key: "SCH_3101290_31100_13006",
         id: "solidworks-3101290-31100-13006-r1",
         revision: 1,
-        sha256: "4a6bbe2db4b7b605447cbe5b13b79ff2fd215b182ed68b7e79a58b8a525e553d",
+        sha256: "4ae0a021932e228b45fd12fdb798d19c30559e5a8ca8d483812cf234db81547a",
     },
     ProfileSpec {
         key: "SCH_3401254_34101_13006",
         id: "solidworks-3401254-34101-13006-r1",
         revision: 1,
-        sha256: "aa746d6cbea446ca37593e5cdbc9b7ff9fbf5b0bd4096152823740a5f65191da",
+        sha256: "94f2e2471cbff5cf7ae07798b86e4c4d999b9cfe4cd38460e53a41b3d2732a42",
     },
     ProfileSpec {
         key: "SCH_3501210_35102_13006",
         id: "solidworks-3501210-35102-13006-r1",
         revision: 1,
-        sha256: "a99c8793ea67bebaf50d2dd7b5e61f842cb5fce6c563840df94a2182bdf18dc0",
+        sha256: "cffec6bfa46c75b6ccacf2551b73376fcba98e593fb50e611e81b2dd06ebc75f",
     },
     ProfileSpec {
         key: "SCH_3501256_35102_13006",
         id: "solidworks-3501256-35102-13006-r1",
         revision: 1,
-        sha256: "b4c382da97bead88b8065fa913a72c65d0e1e0f6999e01894fa9ecee2bf21ef6",
+        sha256: "f6e593910d16624cec2562bdf6913c85bd5533204380f8694fcd5adb3cd96308",
     },
     ProfileSpec {
         key: "SCH_3601228_36001_13006",
         id: "solidworks-3601228-36001-13006-r1",
         revision: 1,
-        sha256: "1117b129bcb099219a8c61dc813b0a06cdf76daa85d3f567cf37dc0a156593f2",
+        sha256: "2de76830bea2f0e7fe32030bd8c0105164283b5420c64bc471ce7b225ab78679",
     },
 ];
 
@@ -142,6 +144,7 @@ pub(crate) fn solidworks_definitions() -> Vec<TypeDefinition> {
     definitions.push(world());
     definitions.extend(super::icad_legacy::reviewed_extra_definitions());
     definitions.push(swept_surface());
+    definitions.extend(super::assembly_definitions());
     definitions
 }
 

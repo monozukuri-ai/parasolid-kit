@@ -224,7 +224,9 @@ but only preserved copies of reviewed base fields acquire semantic roles.
 Deleting a required field and inserting another with the same name fails
 B-Rep mapping. Unknown base types remain unknown even when an input supplies
 a full declaration; the profile has no declared-absent or unsupported-base
-exceptions. Nonzero user fields and neighboring keys are rejected.
+exceptions. Neighboring keys are not accepted by this profile; they resolve
+through the derived schema family, and user fields are read like caller
+catalogs (see [transmit-file keys and user fields](#transmit-file-keys-and-user-fields)).
 
 Development used five producer pairs: a box, a cylinder with a coaxial
 through-hole, a sphere, and the earlier frustum and torus current exports.
@@ -276,7 +278,7 @@ The additional profiles are implemented in
 Their current exact keys, revisions and canonical hashes are in the
 [shared support matrix](format-support.md#supported-profiles).
 
-Both have `verified_subset` coverage and require zero user fields. They share
+Both have `verified_subset` coverage and read user fields. They share
 30 reviewed types: the 24 listed above plus cone (52), intersection (38),
 chart (40), limit (41), trimmed curve (133) and shared geometry owner (141),
 with 240 base field groups. The iCAD revision 5 first added the trim layout;
@@ -641,7 +643,16 @@ Embedded profiles additionally include sorted `unsupported_base_types` and
 `absent_base_types` arrays in this canonical object. Changing membership claims
 therefore changes the profile hash even when its known definitions stay equal.
 
-The Rust integration test recomputes this hash. The distribution gate checks
+A [schema family](format-support.md#schema-families) profile is derived from
+its members and base contributors at registry construction, so its digest is
+computed in the core rather than declared: SHA-256 of the compact JSON object
+`{"base_members":[["<profile_id>",<revision>,"<sha256>"],...],"family":"<family>","members":[...]}`
+with both arrays sorted by profile ID; `base_members` is empty for a standard
+family. Because every contributor digest pins that contributor's definitions,
+the family digest changes whenever a member's or base contributor's
+definitions, revision or membership change. Family profiles use revision 1.
+
+The Rust integration test recomputes this hash, and the family digests. The distribution gate checks
 that the reviewed profile, registry, and role source files are present unchanged
 in the sdist; isolated wheel and sdist installs verify the reported ID, revision,
 exact key, coverage, and hash. Runtime provenance is distinct from per-type
@@ -1115,3 +1126,127 @@ with its basis reference and signed distance in X_T and X_B, the per-revision
 LIST and pointer-block layouts with a distinct value at every ordinal, and
 unset trim parameters on lines of both senses together with the cases that
 stay rejected.
+
+## Schema families and base contributors
+
+The [schema families](format-support.md#schema-families) of the support matrix
+are derived at registry construction, not declared. Their members are the
+exact profiles whose keys share the effective schema and base. An embedded
+family additionally takes every other reviewed profile of the same base as a
+base contributor: base 13006 declarations describe the same base whichever
+effective schema a key names, so the TORUS, OFFSET_SURF, SWEPT_SURF, WORLD and
+B-spline surface layouts reviewed under one 13006 key hold under all of them.
+The compiled 13006 families therefore all merge the same 49 base definitions
+and record types 176 and 204 as absent. A type whose layout or membership two
+contributors state differently would be excluded; none is today, and a Rust
+test asserts it.
+
+An exact profile is completed by its family. Earlier, a type observed under
+one key of a schema stayed unknown under its other keys (OFFSET_SURF under
+`SCH_1901315_19008_13006`, the B-spline surfaces under `SCH_3401212_34101_13006`,
+WORLD under `SCH_3701212_37102_13006`); a public Inventor part under the
+`SCH_1901315_19008_13006` key failed on its first BLEND_BOUND (59). The exact
+profile is still selected and still names the provenance, and B-Rep role
+selection validates its reviewed roles against the family's definitions. The
+per-key membership tables above remain the record of what each key's own
+sample showed.
+
+## Transmit-file keys and user fields
+
+Three exact profiles cover keys of complete transmit files rather than
+extracted CAD streams. Their declarations are the reviewed 13006 set of the
+SolidWorks profiles; nothing is taken from a catalog, and the keys come from
+the files' own headers.
+
+| Exact key | Profile | Source of the key |
+|---|---|---|
+| `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r1` | Parasolid 24.0.164 acceptance-test transmit files |
+| `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r1` | NX transmit files, Parasolid 26.0.169 |
+| `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r1` | Parasolid 26.0.217 acceptance-test transmit files |
+
+### GROUP and MEMBER_OF_GROUP
+
+The Parasolid 24 profile also declares GROUP (90) and MEMBER_OF_GROUP (91)
+after the public XT reference, printed pages 112-114: a group carries its
+annotations, owner, kind and first member; a member record links its entity to
+the owning group and to the next and previous members. Project field labels
+are independently assigned. The B-Rep mapper does not use groups; the records
+are kept raw, and the family of schema 20000 and base 13006 carries them to
+its other keys.
+
+### User fields
+
+`USFLD_SIZE` in the header declares the number of integer words that follow
+every node. Built-in profiles used to reject a nonzero size because the
+authored fixtures carried none. The Siemens example transmit files of
+Parasolid 26 and 27 (`disk_nat.x_t`, `sphere.x_t`, `Kova.x_t`,
+`3DKovaGeom.xmt_txt`) declare one word, and the word follows every node,
+including POINTER_LIS_BLOCK (79), INT_VALUES (82), REAL_VALUES (83) and
+CHAR_VALUES (84), which the 2008 reference marks as not visible at the PK
+interface; a profile that skipped the word there read the next record out of
+step. Built-in profiles now read the declared words after every node exactly
+like caller catalogs and keep them in `RawNode.user_fields`;
+`validate_builtin_input` no longer rejects them. The four files reach a
+complete source B-Rep.
+
+## Standard-key revision 2: schemas 16100 and 20000
+
+Public transmit files under the standard schemas 16100 (an NX 7 part under
+the exact key `SCH_1700000_16100`) and 20000 (an Autodesk Inventor 2012 part
+under `SCH_2300208_20000` and an NX assembly under `SCH_2400000_20000`, both
+other builds read through the family) carry node types that the revision-1
+profiles, which listed only the types seen in extracted iCAD streams, did not
+declare. `icad-1700000-16100-r2` adds INTERSECTION (38), CHART (40), LIMIT
+(41), CONE (52), SPHERE (53), TORUS (54), BLENDED_EDGE (56), BLEND_BOUND (59),
+REAL_VALUES (83), CHAR_VALUES (84), TRIMMED_CURVE (133), the SP_CURVE
+dependencies 45, 127, 128 and 134-137 and the shared-geometry owner (141), 39
+types in all. `icad-2401000-20000-r2` adds REAL_VALUES (83) and CHAR_VALUES
+(84) from the Inventor part and, from the NX assembly, ASSEMBLY (10), INSTANCE
+(11), TRANSFORM (100), INTERSECTION (38), CHART (40), LIMIT (41), OFFSET_SURF
+(60), SWEPT_SURF (67), TRIMMED_CURVE (133), the SP_CURVE dependencies 45, 127,
+128 and 134-137 and the shared-geometry owner (141), 38 types in all. Each
+added layout is the reviewed 13006 declaration of that type, which these
+schemas do not edit; SWEPT_SURF keeps the public-reference layout of the
+`SolidWorks` set. The NX 7 part (99 faces with blends, cones, spheres and tori)
+and the Inventor part (28 faces) map complete B-Reps; the NX assembly (86
+faces, one placed body) maps with its two swept surfaces explicitly
+unsupported. The revised profiles change identity and digest; their previous
+definitions are unchanged.
+
+## Assembly structure: ASSEMBLY, INSTANCE and TRANSFORM
+
+Three public transmit files are assemblies: a `SolidWorks` 2020 export under
+`SCH_3101290_31100_13006`, an NX export under `SCH_2600169_25001_13006` and an
+NX part under the standard key `SCH_2400000_20000`. Each failed closed at its
+first node, an `ASSEMBLY` (10) whose 13006 membership no profile claimed. The
+layouts follow the public XT Format Reference, April 2008: `ASSEMBLY` (printed
+pages 83-84) shares the part header of `BODY` and adds the assembly kind and
+the head of its instance chain, 17 fields; `INSTANCE` (pages 85-86) names the
+positioned part (a `BODY` or an `ASSEMBLY`), its transform, its assembly and
+the two chains it belongs to, 10 fields; `TRANSFORM` (type 100, pages 78-79)
+stores a 3 × 3 rotation matrix, a translation, a scale, the component flags
+and the null perspective vector, 9 fields. Project field labels are assigned
+independently after the `BODY` declaration. `KEY` (102) is referenced by no
+observed file and stays undeclared.
+
+The three files confirm the layouts: the NX export and the standard-key part
+carry both record kinds with the unchanged base layouts and read to the
+terminator; the `SolidWorks` export's embedded schema copies the first seven
+and the last ten base fields of `ASSEMBLY` around inserted `mesh` and
+`polyline` pointers and appends `mesh_offset_data`. The declarations join the
+shared `SolidWorks` set (50 types, 448 field groups), hence every 13006 family
+through its base contributors, and the standard `icad-2401000-20000-r2`
+profile. Schema 16100 keeps them undeclared.
+
+The B-Rep mapper returns the structure beside the topology:
+`BrepModel.assemblies` (kind, precisions, the instances positioned in the
+assembly and the instances that reference it) and `BrepModel.instances` (the
+part as a body or assembly identifier, the sign, the owning assembly and the
+transform as stored, with `Transform::apply` evaluating
+`(rotation · x + translation) · scale`). Transforms are not applied to the
+bodies' geometry, and OCCT, STEP and preview conversion still handle the
+bodies unplaced. An instance whose part is neither a body nor an assembly, an
+unknown instance or assembly kind, a zero scale or a cycle in an instance chain
+fails the mapping. Public Rust and Python tests author the three record kinds
+in X_T and X_B under the `SolidWorks`, NX, family, iCAD and standard keys and
+check the mapped structure, the transform evaluation and the failures.

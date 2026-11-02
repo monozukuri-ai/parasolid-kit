@@ -3,11 +3,13 @@
 Fifteen exact `SolidWorks` partition keys are compiled, one profile per key.
 `solidworks-sch37102-13006-r2` accepts `SCH_3701229_37102_13006` (SolidWorks
 2026); the fourteen earlier keys use `solidworks-<modeller>-<schema>-13006-r1`
-identities. Their revisions, canonical hashes and the shared count of 47 base
-types / 412 field groups are listed in the
+identities. Their revisions, canonical hashes and the shared count of 50 base
+types / 448 field groups are listed in the
 [shared support matrix](format-support.md#supported-profiles). Every profile has
-zero user fields, `verified_subset` coverage and exact-key admission; a nearby
-key is never selected.
+`verified_subset` coverage and exact-key admission; another SolidWorks build of
+the same schema is read through the derived
+[schema family](format-support.md#schema-families), never through a nearby
+exact profile.
 
 ## Declarations
 
@@ -15,7 +17,10 @@ All fifteen profiles share one declaration set. Every observed `SolidWorks` key
 carries the `13006` base suffix, so the reviewed 13006 subset, its SP_CURVE and
 B-spline surface layouts, WORLD (101) and the reviewed surfaces TORUS (54),
 BLENDED_EDGE (56), BLEND_BOUND (59), OFFSET_SURF (60) and SPUN_SURF (68) are
-reused unchanged from the Onshape and iCAD profiles. Base type 204 is recorded
+reused unchanged from the Onshape and iCAD profiles. The
+[assembly structure](builtin-profiles.md#assembly-structure-assembly-instance-and-transform)
+ASSEMBLY (10), INSTANCE (11) and TRANSFORM (100), observed in a `SolidWorks`
+2020 assembly export, follows the public reference. Base type 204 is recorded
 as absent, reusing the existing 13006 membership audit. Version differences
 arrive as each stream's embedded schema edits; no definition is guessed from a
 nearby key.

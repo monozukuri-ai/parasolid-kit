@@ -166,12 +166,7 @@ fn read_xt_stream<const RETAIN_FIELDS: bool, P: SchemaProvider>(
     validate_limits(limits)?;
     let (header, mut reader) = read_header(data, limits.inspection())?;
     let schema_key = SchemaKey::parse(&header.schema_key)?;
-    validate_builtin_input(
-        provider,
-        &schema_key,
-        header.user_field_size,
-        header.header_range.end,
-    )?;
+    validate_builtin_input(provider, &schema_key, header.header_range.end)?;
     let schema_provider = SchemaProviderResolution::from(provider.provenance());
     let mut registry = EffectiveSchemaRegistry::new(limits.max_schema_types);
     let mut indices = BTreeSet::new();
@@ -385,12 +380,8 @@ fn read_raw_node<const RETAIN_FIELDS: bool, P: SchemaProvider>(
     node_start: usize,
     user_field_size: u8,
 ) -> Result<RawNode, ParseError> {
-    let user_word_count = crate::user_fields::word_count(
-        node_type,
-        user_field_size,
-        node_start,
-        limits.max_variable_elements,
-    )?;
+    let user_word_count =
+        crate::user_fields::word_count(user_field_size, node_start, limits.max_variable_elements)?;
     let (definition, first_schema) = resolve_node_definition(
         data, reader, schema_key, provider, registry, limits, node_type,
     )?;

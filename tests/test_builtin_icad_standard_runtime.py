@@ -125,8 +125,11 @@ def test_exact_keys_map_authored_wire_with_source_values(encoding, key):
     data = fixture(encoding, key, wire_records(key))
     doc = parse(encoding, data)
     assert doc.schema_resolution.schema_key == key
-    assert doc.schema_resolution.profile_id == "icad-" + key[4:].replace("_", "-") + "-r1"
-    assert doc.schema_resolution.profile_revision == 1
+    # Revision 2 of the 16100 and 20000 profiles added types observed in public
+    # NX and Inventor parts written under the same schemas.
+    revision = 2 if key in ("SCH_1700000_16100", "SCH_2401000_20000") else 1
+    assert doc.schema_resolution.profile_id == f"icad-{key[4:].replace('_', '-')}-r{revision}"
+    assert doc.schema_resolution.profile_revision == revision
     assert all(s.definition.source.value == "base" and not s.edits for s in doc.schemas)
     model = map_brep(doc)
     assert model.complete and model.topology.valid
@@ -195,14 +198,23 @@ def test_malformed_references_limits_and_user_fields(encoding, key):
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 @pytest.mark.parametrize("key", KEYS)
 def test_nearby_keys_and_unreviewed_types_fail_closed(encoding, key):
-    for part in (1, 2):
-        parts = key.split("_")
-        parts[part] = str(int(parts[part]) + 1)
-        with pytest.raises(SchemaError) as exc:
-            parse(encoding, fixture(encoding, "_".join(parts), []))
-        assert exc.value.diagnostic.code == "schema.missing_base_schema"
-    # Swept and foreign surfaces were not seen under any of these keys.
-    for kind in (67, 69):
+    # Another build of the same schema resolves through the derived family;
+    # another schema has no family and fails closed.
+    parts = key.split("_")
+    other_build = "_".join([parts[0], str(int(parts[1]) + 1), parts[2]])
+    document = parse(encoding, fixture(encoding, other_build, []))
+    assert document.schema_resolution.coverage == "family_inferred"
+    assert document.schema_resolution.profile_id == f"family-{parts[2]}"
+    other_schema = "_".join([parts[0], parts[1], str(int(parts[2]) + 1)])
+    with pytest.raises(SchemaError) as exc:
+        parse(encoding, fixture(encoding, other_schema, []))
+    assert exc.value.diagnostic.code == "schema.missing_base_schema"
+    # A foreign surface (69) is declared by no profile; a swept surface (67) is
+    # declared by the embedded 13006 profiles, which reach the standard 13006
+    # keys through their family, and by the 20000 profile (a public NX assembly
+    # carries it), but not by the other schema revisions.
+    swept = key.endswith("_13006") or key == "SCH_2401000_20000"
+    for kind in (69,) if swept else (67, 69):
         if encoding == "x_t":
             data = text_header(key) + f"{kind} 1 0 ".encode()
         else:

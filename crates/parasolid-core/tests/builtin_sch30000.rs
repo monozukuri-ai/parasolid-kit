@@ -158,7 +158,7 @@ fn variable_example(node_type: u16, count: usize) -> Result<(Vec<u8>, Vec<u8>, V
 #[test]
 fn compiled_registry_preserves_the_verified_v30_exact_key() -> Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
-    assert_eq!(registry.len(), 46);
+    assert_eq!(registry.len(), 49);
     let key = SchemaKey::parse(KEY)?;
     let provider = registry
         .provider_for_key(&key)
@@ -171,13 +171,24 @@ fn compiled_registry_preserves_the_verified_v30_exact_key() -> Result<()> {
     let left = parse_xt(&xt, &provider, DocumentLimits::default())?;
     let right = parse_xb(&xb, &provider, DocumentLimits::default())?;
     assert!(compare_xt_xb_documents(&left, &right, ComparisonOptions::default())?.equivalent);
-    for raw in [
-        "SCH_3000001_30000",
-        "SCH_3000000_30001",
-        "SCH_3000000_30000_13006",
+    // The exact V30 provider rejects every other key. Other builds of schema
+    // 30000, standard or over the 13006 base, resolve through derived families;
+    // another schema resolves to nothing.
+    for (raw, family) in [
+        ("SCH_3000001_30000", Some("family-30000")),
+        ("SCH_3000000_30001", None),
+        ("SCH_3000000_30000_13006", Some("family-30000-13006")),
     ] {
         let near = SchemaKey::parse(raw)?;
-        assert!(registry.provider_for_key(&near).is_none());
+        assert!(registry.profile_for_key(&near).is_none());
+        assert_eq!(
+            registry.provider_for_key(&near).map(|provider| provider
+                .profile()
+                .metadata()
+                .profile_id
+                .clone()),
+            family.map(str::to_owned)
+        );
         let mut bytes = support::xt_header(raw, 0);
         bytes.extend_from_slice(b"1 0 ");
         assert_eq!(
@@ -445,7 +456,13 @@ fn near_and_embedded_keys_are_rejected_even_without_data_records() -> Result<()>
         "SCH_3000000_30001",
         "SCH_3000000_30000_30000",
     ] {
-        assert!(registry.provider_for_key(&SchemaKey::parse(key)?).is_none());
+        // Only the same-schema build resolves, through the registry's derived family.
+        assert_eq!(
+            registry
+                .provider_for_key(&SchemaKey::parse(key)?)
+                .map(|family| family.profile().metadata().profile_id.clone()),
+            (key == "SCH_3000001_30000").then(|| "family-30000".to_owned())
+        );
         let mut xt = xt_header(key, 0);
         let mut xb = xb_header(key, 0)?;
         xt.extend(b"1 0");
@@ -481,7 +498,7 @@ fn uncovered_types_are_not_inferred_from_payloads() -> Result<()> {
 }
 
 #[test]
-fn builtin_rejects_user_fields_without_restricting_caller_providers() -> Result<()> {
+fn builtin_reads_user_fields_like_caller_providers() -> Result<()> {
     let mut xt = xt_header(KEY, 1);
     let mut xb = xb_header(KEY, 1)?;
     // Point: local id, four references, coordinates, then one user integer.
@@ -493,12 +510,16 @@ fn builtin_rejects_user_fields_without_restricting_caller_providers() -> Result<
     xb.extend([1.0_f64, 2.0, 3.0].into_iter().flat_map(f64::to_be_bytes));
     xb.extend(777_i32.to_be_bytes());
     terminate(&mut xb);
-    reject_pair(
-        &xt,
-        &xb,
-        DocumentLimits::default(),
-        Some([ErrorKind::UnsupportedUserFields; 2]),
-    )?;
+    // The compiled profile frames user words from the public PK-visibility
+    // table exactly as a caller-supplied catalog does.
+    let registry = registry()?;
+    let builtin = registry
+        .provider_for_key(&SchemaKey::parse(KEY)?)
+        .ok_or("missing profile")?;
+    let built_left = parse_xt(&xt, &builtin, DocumentLimits::default())?;
+    let built_right = parse_xb(&xb, &builtin, DocumentLimits::default())?;
+    assert_eq!(built_left.nodes[0].user_fields, [Some(777)]);
+    assert_eq!(built_right.nodes[0].user_fields, [Some(777)]);
     let mut caller = InMemorySchemaProvider::new();
     for definition in onshape_sch30000()?.definitions() {
         caller.insert("30000", definition.clone());
@@ -507,6 +528,7 @@ fn builtin_rejects_user_fields_without_restricting_caller_providers() -> Result<
     let right = parse_xb(&xb, &caller, DocumentLimits::default())?;
     assert_eq!(left.nodes[0].user_fields, right.nodes[0].user_fields);
     assert_eq!(left.nodes[0].user_fields.len(), 1);
+    assert_eq!(left.nodes[0].user_fields, built_left.nodes[0].user_fields);
     let limits = DocumentLimits {
         max_fields_per_type: 5,
         ..DocumentLimits::default()

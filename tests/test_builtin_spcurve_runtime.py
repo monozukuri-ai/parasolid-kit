@@ -373,7 +373,8 @@ def test_nonfinite_spcurve_tolerance(value):
 
 
 def test_spcurve_scope_truncation_and_array_limits():
-    # An embedded key under which SP_CURVE was not observed.
+    # An embedded key under which SP_CURVE was not observed: the family of the
+    # shared 13006 base completes it, so a truncated record fails on its payload.
     for key in ("SCH_2401260_20000_13006",):
         for data, parser in [
             (header(EMBEDDED) + b"137 1 ", parse_xt),
@@ -382,16 +383,14 @@ def test_spcurve_scope_truncation_and_array_limits():
             data = data.replace(EMBEDDED.encode(), key.encode())
             with pytest.raises(ParseError) as error:
                 parser(data)
-            assert error.value.diagnostic.code in (
-                "schema.unknown_base_type",
-                "schema.builtin_profile_uncovered_type",
-            )
+            assert not error.value.diagnostic.code.startswith("schema.")
     data = spcurve("x_b")
     for end in range(parse_xb(data).nodes[1].byte_range.start + 2, len(data)):
         with pytest.raises(ParseError):
             parse_xb(data[:end])
+    # Schema 13007 has neither an exact profile nor a family.
     with pytest.raises(ParseError):
-        parse_xb(data.replace(BASE.encode(), b"SCH_1300001_13006"))
+        parse_xb(data.replace(BASE.encode(), b"SCH_1300001_13007"))
     for encoding, parser in [("x_t", parse_xt), ("x_b", parse_xb)]:
         with pytest.raises(ParseError) as error:
             parser(spcurve(encoding), limits=ParseLimits(max_variable_elements=3))

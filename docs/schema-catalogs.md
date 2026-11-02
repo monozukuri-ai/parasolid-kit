@@ -1,16 +1,19 @@
 # Schema catalogs
 
 Header inspection needs no catalog. Default parsing selects an exact-key
-built-in profile from the [supported profiles](format-support.md#supported-profiles).
-These profiles cover verified subsets with zero user fields and require no
-external catalog or CAD installation at runtime or build time. See
+built-in profile from the [supported profiles](format-support.md#supported-profiles),
+or, for another Parasolid build of a reviewed schema, the derived
+[schema family](format-support.md#schema-families) profile (`family_inferred`
+coverage). These profiles cover verified subsets, read application user fields
+and require no external catalog or CAD installation at runtime or build time. See
 [profile provenance](builtin-profiles.md) for sources and validation limits.
 
-For another key or a type outside those subsets, supply an explicit catalog.
-That provider is authoritative: a missing exact catalog or an empty provider
-fails without switching to a built-in profile. `schema_provider=None` selects
-the default built-in path. Nearby versions and the human-readable X_T
-common-header `SCH` value are never substitutes.
+For a schema outside every family or a type outside those subsets, supply an
+explicit catalog. That provider is authoritative: a missing exact catalog or an
+empty provider fails without switching to a built-in profile.
+`schema_provider=None` selects the default built-in path. Other schema
+revisions and the human-readable X_T common-header `SCH` value are never
+substitutes.
 
 Siemens catalogs are not included in this repository or its packages. Obtain
 the matching catalog from a Parasolid SDK or a Parasolid-based product available

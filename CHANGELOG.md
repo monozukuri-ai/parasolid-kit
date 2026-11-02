@@ -2,6 +2,67 @@
 
 ## Unreleased
 
+- Schema families: a key that no exact profile accepts is read with the
+  profile derived for its schema family, the key without its modeller build
+  (`<effective>[-<base>]`). The registry merges the reviewed definitions and
+  base-membership claims of the exact profiles that share the family and
+  excludes any type they dispute; `provider_for_key` selects an exact profile
+  first and the family profile otherwise. Such documents report
+  `coverage: family_inferred`, `profile_id: family-<family>` and the requested
+  key. Uncovered types still fail closed; a key with no family still fails
+  with `schema.missing_base_schema`, whose default message now names the
+  family. `SchemaKey::family_id`, `BuiltinSchemaProfile::new_family`,
+  `BuiltinProfileRegistry::families`/`family_for_key`, `FamilyMember` and the
+  Python `builtin_profiles()` / `SchemaKey.family_id` are new;
+  `BuiltinSchemaProvider` owns its selected key and is no longer `Copy`. The
+  28 derived families are listed in the support matrix. Motivation: of 22
+  public X_T files from SolidWorks, NX, Inventor, ANSYS, MicroStation and
+  Onshape, 18 carried distinct keys and 17 had no exact profile, 14 of them
+  under schema families that are already reviewed.
+- Base contributors and exact-profile completion: an embedded family takes
+  every reviewed profile of its base, the profiles of the same family as
+  members and the other profiles of the same base as base contributors, since
+  base 13006 declarations describe the same base under every effective schema.
+  An exact profile is completed by its family: a type it does not declare
+  itself (OFFSET_SURF or the B-spline surfaces under keys where they were not
+  observed, WORLD under the Onshape current key) is read with the family's
+  declaration while the provenance still names the exact profile, and B-Rep
+  role selection validates the exact profile against the family's
+  definitions. The family digest hashes `base_members` as well as `members`;
+  `BuiltinSchemaProfile::base_members` and the Python
+  `BuiltinProfileInfo.base_members` expose them.
+- User fields: the `USFLD_SIZE` words follow every node, value nodes
+  included, as the Siemens Parasolid 26 and 27 example transmit files show.
+  Built-in profiles read them like caller catalogs into `RawNode.user_fields`
+  instead of failing with `node.unsupported_user_fields`.
+- Transmit-file profiles: `parasolid-2400164-20000-13006-r1`
+  (`SCH_2400164_20000_13006`, the Parasolid 24 acceptance-test files, with
+  GROUP (90) and MEMBER_OF_GROUP (91) after the public XT reference),
+  `nx-2600169-25001-13006-r1` (`SCH_2600169_25001_13006`, NX) and
+  `parasolid-2600217-25001-13006-r1` (`SCH_2600217_25001_13006`, the Parasolid
+  26 acceptance-test files) reuse the reviewed 13006 declaration set; schema
+  25001 gains its first family.
+- Standard profiles `icad-1700000-16100-r2` (adds the 19 types seen in a
+  public NX 7 part: INTERSECTION, CHART, LIMIT, CONE, SPHERE, TORUS,
+  BLENDED_EDGE, BLEND_BOUND, REAL_VALUES, CHAR_VALUES, TRIMMED_CURVE, the
+  SP_CURVE dependencies and the shared-geometry owner) and
+  `icad-2401000-20000-r2` (adds REAL_VALUES and CHAR_VALUES seen in a public
+  Inventor 2012 part and the 17 types seen in a public NX assembly: ASSEMBLY,
+  INSTANCE, TRANSFORM, INTERSECTION, CHART, LIMIT, OFFSET_SURF, SWEPT_SURF,
+  TRIMMED_CURVE, the SP_CURVE dependencies and the shared-geometry owner)
+  replace the revision-1 identities.
+- Assembly structure: `ASSEMBLY` (10), `INSTANCE` (11) and `TRANSFORM` (100)
+  are declared from the public XT reference (printed pages 78-79 and 83-86)
+  in the shared `SolidWorks` set, hence in every 13006 family, and in the
+  standard `icad-2401000-20000-r2` profile, after public `SolidWorks` 2020 and
+  NX assembly exports failed closed on their first node. `map_brep` returns
+  the structure beside the topology as `BrepModel.assemblies` and
+  `BrepModel.instances` (part, sign, owning assembly and the stored transform;
+  `Transform::apply` evaluates `(rotation · x + translation) · scale`), with
+  the Python `Assembly`, `Instance`, `Transform`, `AssemblyKind` and
+  `InstancePartKind` types, the `assemblies` and `instances` entity counts and
+  the `check` output. Transforms are not applied to geometry or conversion.
+  The `SolidWorks` and transmit profile digests change.
 - SolidWorks partitions: fourteen exact earlier keys (SolidWorks 2015-2025)
   join the 2026 key, each as its own `verified_subset` profile with the shared
   declaration set; the 2026 profile becomes `solidworks-sch37102-13006-r2`.

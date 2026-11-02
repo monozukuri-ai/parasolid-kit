@@ -21,23 +21,46 @@ fn exact_v34_profile_pins_reviewed_base_and_rejects_nearby_keys() -> support::Re
     for kind in [45, 56, 68, 127, 128, 134, 135, 136, 137] {
         assert!(profile.definition(kind).is_some());
     }
-    for kind in [59, 60, 124, 125, 126] {
-        assert_eq!(
+    // The exact profile declares only the types observed under its key; the
+    // provider completes it with the reviewed 13006 declarations of its family
+    // (blend boundary, offset and B-surface types from other profiles).
+    for kind in [59, 60, 124, 125, 126, 101] {
+        assert!(profile.definition(kind).is_none());
+        assert!(matches!(
             provider.lookup_type("13006", kind),
-            SchemaTypeLookup::Unknown
-        );
+            SchemaTypeLookup::Defined(_)
+        ));
     }
     assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
     assert_eq!(
-        provider.lookup_type("13006", 101),
+        provider.lookup_type("13006", 163),
         SchemaTypeLookup::Unknown
     );
+    // The exact provider never accepts another key. Another build of the same
+    // schema resolves through the derived family; another schema or base does not.
     for nearby in [
         "SCH_3401213_34101_13006",
         "SCH_3401212_34100_13006",
         "SCH_3401212_34101_13007",
     ] {
         assert!(!provider.supports_schema_key(&SchemaKey::parse(nearby)?));
+    }
+    let family = registry
+        .provider_for_key(&SchemaKey::parse("SCH_3401213_34101_13006")?)
+        .ok_or("same-schema build must resolve through its family")?;
+    assert_eq!(family.profile().metadata().profile_id, "family-34101-13006");
+    assert_eq!(
+        family.profile().metadata().coverage.as_str(),
+        "family_inferred"
+    );
+    assert!(
+        family
+            .profile()
+            .members()
+            .iter()
+            .any(|member| member.profile_id == "icad-sch34101-13006-r3")
+    );
+    for nearby in ["SCH_3401212_34100_13006", "SCH_3401212_34101_13007"] {
         assert!(
             registry
                 .provider_for_key(&SchemaKey::parse(nearby)?)

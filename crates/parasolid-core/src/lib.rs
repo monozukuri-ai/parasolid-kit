@@ -26,7 +26,7 @@ pub use header::{InspectionLimits, XbBinaryFormat, XbHeader, inspect_xb};
 pub use reader::BinaryReader;
 pub use schema::{
     BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinProfileRegistry, BuiltinSchemaProfile,
-    BuiltinSchemaProvider, EffectiveSchemaRegistry, FieldDefinition, FieldType,
+    BuiltinSchemaProvider, EffectiveSchemaRegistry, FamilyMember, FieldDefinition, FieldType,
     InMemorySchemaProvider, ParsedSchemaCatalog, SchemaCatalogLimits, SchemaCoverageReport,
     SchemaEdit, SchemaKey, SchemaLimits, SchemaProvider, SchemaProviderProvenance,
     SchemaProviderResolution, SchemaResolution, SchemaSource, SchemaTypeLookup, TypeDefinition,

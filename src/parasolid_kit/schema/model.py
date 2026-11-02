@@ -49,6 +49,17 @@ class SchemaKey:
 
         return self.base if self.base is not None else self.effective
 
+    @property
+    def family_id(self) -> str:
+        """Return the schema family: the key without its modeller (build) component.
+
+        The effective schema and the base fix the node layouts, so a family is
+        ``<effective>`` for a standard key and ``<effective>-<base>`` for an
+        embedded key, for example ``35102-13006``.
+        """
+
+        return self.effective if self.base is None else f"{self.effective}-{self.base}"
+
     def to_dict(self) -> dict[str, str | None]:
         """Return a JSON-compatible representation."""
 
@@ -69,7 +80,10 @@ class SchemaProviderResolution:
     profile_id: str | None = None
     profile_revision: int | None = None
     schema_key: str | None = None
-    coverage: Literal["verified_subset"] | None = None
+    # ``verified_subset``: an exact profile for this key. ``family_inferred``: the
+    # key's modeller build has no exact profile, so the reviewed declarations
+    # shared by the exact profiles of its schema family were used.
+    coverage: Literal["verified_subset", "family_inferred"] | None = None
     profile_sha256: str | None = None
 
     def __post_init__(self) -> None:
@@ -89,8 +103,8 @@ class SchemaProviderResolution:
             ):
                 raise ValueError("profile_revision must be a positive unsigned 32-bit integer")
             SchemaKey.parse(self.schema_key)
-            if self.coverage != "verified_subset":
-                raise ValueError("built-in coverage must be verified_subset")
+            if self.coverage not in ("verified_subset", "family_inferred"):
+                raise ValueError("built-in coverage must be verified_subset or family_inferred")
             digest = self.profile_sha256
             if (
                 not isinstance(digest, str)
@@ -107,6 +121,88 @@ class SchemaProviderResolution:
         if self.kind == "caller_supplied":
             return {"kind": self.kind}
         return {name: getattr(self, name) for name in self.__dataclass_fields__}
+
+
+@dataclass(frozen=True, slots=True)
+class BuiltinFamilyMember:
+    """One exact profile merged into a derived schema family."""
+
+    profile_id: str
+    profile_revision: int
+    profile_sha256: str
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible representation."""
+
+        return {name: getattr(self, name) for name in self.__dataclass_fields__}
+
+
+@dataclass(frozen=True, slots=True)
+class BuiltinProfileInfo:
+    """One compiled exact profile, or one schema-family profile derived from them.
+
+    An exact profile lists the complete keys it accepts in ``schema_keys``. A
+    family profile (``coverage == "family_inferred"``) accepts every key of
+    ``family_id``, lists the exact profiles of that family in ``members`` and the
+    exact profiles of other families that contributed declarations of the same
+    provider schema in ``base_members``, and keeps node types whose layouts the
+    contributors dispute in ``conflicting_types``; those types stay unknown and
+    fail closed.
+    """
+
+    profile_id: str
+    profile_revision: int
+    provider_schema: str
+    producer_scope: str
+    coverage: Literal["verified_subset", "family_inferred"]
+    profile_sha256: str
+    schema_keys: tuple[str, ...]
+    family_id: str | None
+    members: tuple[BuiltinFamilyMember, ...]
+    base_members: tuple[BuiltinFamilyMember, ...]
+    type_count: int
+    field_count: int
+    unsupported_base_types: tuple[int, ...]
+    absent_base_types: tuple[int, ...]
+    conflicting_types: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if self.coverage not in ("verified_subset", "family_inferred"):
+            raise ValueError("coverage must be verified_subset or family_inferred")
+        if (self.coverage == "family_inferred") != (self.family_id is not None):
+            raise ValueError("family_inferred coverage requires a family_id and vice versa")
+        for name in (
+            "schema_keys",
+            "members",
+            "base_members",
+            "unsupported_base_types",
+            "absent_base_types",
+            "conflicting_types",
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, tuple):
+                object.__setattr__(self, name, tuple(value))
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible representation."""
+
+        return {
+            "profile_id": self.profile_id,
+            "profile_revision": self.profile_revision,
+            "provider_schema": self.provider_schema,
+            "producer_scope": self.producer_scope,
+            "coverage": self.coverage,
+            "profile_sha256": self.profile_sha256,
+            "schema_keys": list(self.schema_keys),
+            "family_id": self.family_id,
+            "members": [member.to_dict() for member in self.members],
+            "base_members": [member.to_dict() for member in self.base_members],
+            "type_count": self.type_count,
+            "field_count": self.field_count,
+            "unsupported_base_types": list(self.unsupported_base_types),
+            "absent_base_types": list(self.absent_base_types),
+            "conflicting_types": list(self.conflicting_types),
+        }
 
 
 class FieldType(str, Enum):

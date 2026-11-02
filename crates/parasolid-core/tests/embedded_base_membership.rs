@@ -122,11 +122,19 @@ fn membership_is_explicit_and_scoped_to_the_exact_base() -> Result<()> {
         provider.profile().absent_base_types().collect::<Vec<_>>(),
         [204]
     );
-    for other in [
-        "SCH_3000311_30000_13006",
-        "SCH_3000310_30100_13006",
-        "SCH_3000310_30000_13007",
-    ] {
+    // Another build of the same schema resolves through the derived family, which
+    // merges the iCAD and SolidWorks 30000/13006 declarations; another schema or
+    // base resolves to nothing.
+    let family = registry
+        .provider_for_key(&SchemaKey::parse("SCH_3000311_30000_13006")?)
+        .ok_or("same-schema build must resolve through its family")?;
+    assert_eq!(family.profile().metadata().profile_id, "family-30000-13006");
+    assert_eq!(
+        family.profile().metadata().coverage,
+        BuiltinProfileCoverage::FamilyInferred
+    );
+    assert_eq!(family.lookup_type("13006", 204), SchemaTypeLookup::Absent);
+    for other in ["SCH_3000310_30100_13006", "SCH_3000310_30000_13007"] {
         assert!(
             registry
                 .provider_for_key(&SchemaKey::parse(other)?)

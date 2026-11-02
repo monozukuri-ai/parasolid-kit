@@ -39,18 +39,23 @@ from .geometry import (
 )
 from .model import BrepMetrics, BrepModel, BrepSourceFormat, TopologyValidation
 from .topology import (
+    Assembly,
+    AssemblyKind,
     Body,
     BodyKind,
     BoundingBox,
     Edge,
     Face,
     HalfEdge,
+    Instance,
+    InstancePartKind,
     Loop,
     Region,
     RegionKind,
     Sense,
     Shell,
     SourceNodeRef,
+    Transform,
     Vector3,
     Vertex,
 )
@@ -76,6 +81,8 @@ def brep_from_native(value: Mapping[str, Any]) -> BrepModel:
         source_format=cast(BrepSourceFormat, source_format),
         schema_key=_str(value, "schema_key"),
         complete=_bool(value, "complete"),
+        assemblies=tuple(_assembly(item) for item in _list(value, "assemblies")),
+        instances=tuple(_instance(item) for item in _list(value, "instances")),
         bodies=tuple(_body(item) for item in _list(value, "bodies")),
         regions=tuple(_region(item) for item in _list(value, "regions")),
         shells=tuple(_shell(item) for item in _list(value, "shells")),
@@ -101,6 +108,53 @@ def brep_from_native(value: Mapping[str, Any]) -> BrepModel:
         diagnostics=tuple(
             _diagnostic(item, _str(value, "schema_key")) for item in _list(value, "diagnostics")
         ),
+    )
+
+
+def _assembly(value: object) -> Assembly:
+    item = _mapping(value, "assembly")
+    return Assembly(
+        id=_int(item, "id"),
+        kind=AssemblyKind(_str(item, "kind")),
+        size_resolution=_float(item, "size_resolution"),
+        linear_resolution=_float(item, "linear_resolution"),
+        instances=_int_tuple(item, "instances"),
+        referencing_instances=_int_tuple(item, "referencing_instances"),
+        source=_source(item.get("source")),
+    )
+
+
+def _instance(value: object) -> Instance:
+    item = _mapping(value, "instance")
+    transform = item.get("transform")
+    return Instance(
+        id=_int(item, "id"),
+        negative=_bool(item, "negative"),
+        part_kind=InstancePartKind(_str(item, "part_kind")),
+        part=_int(item, "part"),
+        transform=None if transform is None else _transform(transform),
+        assembly=_int(item, "assembly"),
+        source=_source(item.get("source")),
+    )
+
+
+def _transform(value: object) -> Transform:
+    item = _mapping(value, "transform")
+    rows = _float_matrix(item, "rotation")
+    if len(rows) != 3 or any(len(row) != 3 for row in rows):
+        raise RuntimeError("native transform rotation is not a 3x3 matrix")
+    first, second, third = rows
+    return Transform(
+        rotation=(
+            (first[0], first[1], first[2]),
+            (second[0], second[1], second[2]),
+            (third[0], third[1], third[2]),
+        ),
+        translation=_vector(item, "translation"),
+        scale=_float(item, "scale"),
+        flags=_int(item, "flags"),
+        perspective=_vector(item, "perspective"),
+        source=_source(item.get("source")),
     )
 
 

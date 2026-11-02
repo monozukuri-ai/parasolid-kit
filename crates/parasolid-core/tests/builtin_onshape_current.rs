@@ -28,12 +28,19 @@ fn current_profile_has_bounded_membership_and_exact_identity() -> support::Resul
         profile.definition(54).ok_or("missing TORUS")?.fields.len(),
         12
     );
-    for kind in [3, 101, 110, 177, 205] {
+    for kind in [3, 110, 177, 205] {
         assert_eq!(
             provider.lookup_type("13006", kind),
             SchemaTypeLookup::Unknown
         );
     }
+    // WORLD (101) is not part of this exact profile; the family of the shared
+    // 13006 base (the SolidWorks profiles declare it) completes the provider.
+    assert!(profile.definition(101).is_none());
+    assert!(matches!(
+        provider.lookup_type("13006", 101),
+        SchemaTypeLookup::Defined(_)
+    ));
     for key in [
         "SCH_3701213_37102_13006",
         "SCH_3700000_36001",

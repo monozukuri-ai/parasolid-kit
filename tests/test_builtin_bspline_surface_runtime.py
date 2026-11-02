@@ -145,10 +145,18 @@ def test_invalid_surface_dependencies_remain_raw(encoding, parser, patch):
         read_brep(data)
 
 
-# The iCAD V34 key admits no B-spline surface type; the V30 key now does.
+# The iCAD V34 profile declares no B-spline surface type itself; the family of
+# the shared 13006 base (the V30 and SolidWorks profiles) completes it, so a
+# truncated record now fails on its payload rather than on an unknown type.
 @pytest.mark.parametrize("key", ["SCH_3401212_34101_13006"])
 @pytest.mark.parametrize("kind", [124, 125, 126])
-def test_bspline_surface_layouts_do_not_leak_to_other_profiles(key, kind):
+def test_bspline_surface_layouts_reach_other_keys_through_the_family(key, kind):
+    from parasolid_kit import builtin_profiles
+
+    profiles = {p.profile_id: p for p in builtin_profiles()}
+    exact = profiles["icad-sch34101-13006-r3"]
+    assert key in exact.schema_keys and exact.type_count == 40
+    assert profiles["family-34101-13006"].type_count > exact.type_count
     for data, parser in [
         (header(EMBEDDED) + f"{kind} 1 ".encode(), parse_xt),
         (builder(EMBEDDED).build()[:-4] + struct.pack(">H", kind), parse_xb),
@@ -156,7 +164,4 @@ def test_bspline_surface_layouts_do_not_leak_to_other_profiles(key, kind):
         data = data.replace(EMBEDDED.encode(), key.encode())
         with pytest.raises(ParseError) as error:
             parser(data)
-        assert error.value.diagnostic.code in (
-            "schema.unknown_base_type",
-            "schema.builtin_profile_uncovered_type",
-        )
+        assert not error.value.diagnostic.code.startswith("schema.")

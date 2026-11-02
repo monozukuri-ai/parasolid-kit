@@ -1,7 +1,9 @@
 """Parasolid base, delta, and embedded schema models."""
 
-from .api import load_schema_catalog, resolve_schema_blob, schema_coverage
+from .api import builtin_profiles, load_schema_catalog, resolve_schema_blob, schema_coverage
 from .model import (
+    BuiltinFamilyMember,
+    BuiltinProfileInfo,
     FieldDefinition,
     FieldType,
     SchemaCoverageReport,
@@ -16,6 +18,8 @@ from .model import (
 from .provider import DirectorySchemaProvider, InMemorySchemaProvider, SchemaCatalog, SchemaProvider
 
 __all__ = [
+    "BuiltinFamilyMember",
+    "BuiltinProfileInfo",
     "DirectorySchemaProvider",
     "FieldDefinition",
     "FieldType",
@@ -30,6 +34,7 @@ __all__ = [
     "SchemaResolution",
     "SchemaSource",
     "TypeDefinition",
+    "builtin_profiles",
     "load_schema_catalog",
     "resolve_schema_blob",
     "schema_coverage",

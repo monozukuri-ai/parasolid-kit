@@ -178,6 +178,130 @@ pub struct Body {
     pub source: SourceNodeRef,
 }
 
+/// Parasolid assembly classification from `type`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssemblyKind {
+    /// Collective assembly (`1`).
+    Collective,
+    /// Conjunctive assembly (`2`).
+    Conjunctive,
+    /// Disjunctive assembly (`3`).
+    Disjunctive,
+}
+
+impl AssemblyKind {
+    /// Stable public string.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Collective => "collective",
+            Self::Conjunctive => "conjunctive",
+            Self::Disjunctive => "disjunctive",
+        }
+    }
+}
+
+/// One assembly root: a part which positions instances of bodies and assemblies.
+///
+/// The structure sits beside the B-Rep topology; instance transforms are not
+/// applied to the bodies' geometry.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assembly {
+    /// Document-local B-Rep identifier.
+    pub id: BrepId,
+    /// Assembly classification.
+    pub kind: AssemblyKind,
+    /// Size resolution stored on the assembly.
+    pub size_resolution: f64,
+    /// Linear modeller resolution stored on the assembly.
+    pub linear_resolution: f64,
+    /// Instances positioned in this assembly, in `sub_instance` chain order.
+    pub instances: Vec<BrepId>,
+    /// Instances elsewhere whose part is this assembly, in `ref_instance` chain order.
+    pub referencing_instances: Vec<BrepId>,
+    /// Raw-node provenance.
+    pub source: SourceNodeRef,
+}
+
+/// The part positioned by an instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstancePart {
+    /// A body of this document.
+    Body(BrepId),
+    /// A sub-assembly of this document.
+    Assembly(BrepId),
+}
+
+/// One placement of a body or sub-assembly within an assembly.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Instance {
+    /// Document-local B-Rep identifier.
+    pub id: BrepId,
+    /// Negative instances (`type` 2) subtract their part from the assembly.
+    pub negative: bool,
+    /// The positioned part.
+    pub part: InstancePart,
+    /// Placement of the part; `None` is the identity.
+    pub transform: Option<Transform>,
+    /// Assembly which owns this instance.
+    pub assembly: BrepId,
+    /// Raw-node provenance.
+    pub source: SourceNodeRef,
+}
+
+/// Placement stored on a `TRANSFORM` node.
+///
+/// A part point `x` maps into the assembly as
+/// `(rotation · x + translation) · scale`, with `rotation` holding the stored
+/// rows (public XT Format Reference, April 2008, printed pages 78-79).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Transform {
+    /// Rotation (or general affine) matrix rows as stored.
+    pub rotation: [[f64; 3]; 3],
+    /// Translation applied after the rotation.
+    pub translation: Vector3,
+    /// Scale applied last.
+    pub scale: f64,
+    /// Stored component flags; see the associated constants.
+    pub flags: u32,
+    /// Perspective vector, the null vector in Parasolid output.
+    pub perspective: Vector3,
+    /// Raw-node provenance.
+    pub source: SourceNodeRef,
+}
+
+impl Transform {
+    /// The translation vector is non-zero.
+    pub const TRANSLATION: u32 = 0b00001;
+    /// The rotation matrix is not the identity.
+    pub const ROTATION: u32 = 0b00010;
+    /// The scale is not 1.
+    pub const SCALING: u32 = 0b00100;
+    /// The rotation matrix has a negative determinant.
+    pub const REFLECTION: u32 = 0b01000;
+    /// The rotation matrix is not a rigid rotation.
+    pub const GENERAL_AFFINE: u32 = 0b10000;
+
+    /// Whether a component flag is set.
+    #[must_use]
+    pub const fn has(&self, flag: u32) -> bool {
+        self.flags & flag != 0
+    }
+
+    /// Map a point of the part into the assembly.
+    #[must_use]
+    pub fn apply(&self, point: Vector3) -> Vector3 {
+        let rotated = self
+            .rotation
+            .map(|row| row[0] * point.x + row[1] * point.y + row[2] * point.z);
+        Vector3 {
+            x: (rotated[0] + self.translation.x) * self.scale,
+            y: (rotated[1] + self.translation.y) * self.scale,
+            z: (rotated[2] + self.translation.z) * self.scale,
+        }
+    }
+}
+
 /// One material or void region.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Region {
@@ -666,6 +790,9 @@ pub struct BrepModel {
     pub schema_key: String,
     /// Whether topology is valid and all encountered boundary geometry is supported.
     pub complete: bool,
+    /// Assembly structure beside the topology; transforms are not applied.
+    pub assemblies: Vec<Assembly>,
+    pub instances: Vec<Instance>,
     /// Topology entities.
     pub bodies: Vec<Body>,
     pub regions: Vec<Region>,

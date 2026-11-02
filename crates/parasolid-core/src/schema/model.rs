@@ -84,6 +84,20 @@ impl SchemaKey {
     pub fn provider_schema(&self) -> &str {
         self.base.as_deref().unwrap_or(&self.effective)
     }
+
+    /// Return the schema family: the key without its modeller component.
+    ///
+    /// Node layouts are fixed by the effective schema and, for embedded keys,
+    /// the base schema; the modeller component is the producer's Parasolid
+    /// build number. The family is `<effective>` for a standard key and
+    /// `<effective>-<base>` for an embedded key, for example `35102-13006`.
+    #[must_use]
+    pub fn family_id(&self) -> String {
+        match &self.base {
+            Some(base) => format!("{}-{base}", self.effective),
+            None => self.effective.clone(),
+        }
+    }
 }
 
 fn is_numeric_component(value: &str) -> bool {
@@ -358,6 +372,16 @@ mod tests {
             assert_eq!(key.base(), Some("13006"));
             assert_eq!(key.provider_schema(), "13006");
         }
+    }
+
+    #[test]
+    fn family_drops_only_the_modeller_component() {
+        let standard = SchemaKey::parse("SCH_3700000_36001").map(|key| key.family_id());
+        assert_eq!(standard.as_deref(), Ok("36001"));
+        let embedded = SchemaKey::parse("SCH_3501251_35102_13006").map(|key| key.family_id());
+        assert_eq!(embedded.as_deref(), Ok("35102-13006"));
+        let other_build = SchemaKey::parse("SCH_3501256_35102_13006").map(|key| key.family_id());
+        assert_eq!(other_build, embedded);
     }
 
     #[test]

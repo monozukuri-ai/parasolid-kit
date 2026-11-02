@@ -32,23 +32,30 @@ from .geometry import (
 )
 from .model import BrepMetrics, BrepModel, TopologyValidation
 from .topology import (
+    Assembly,
+    AssemblyKind,
     Body,
     BodyKind,
     BoundingBox,
     Edge,
     Face,
     HalfEdge,
+    Instance,
+    InstancePartKind,
     Loop,
     Region,
     RegionKind,
     Sense,
     Shell,
     SourceNodeRef,
+    Transform,
     Vector3,
     Vertex,
 )
 
 __all__ = [
+    "Assembly",
+    "AssemblyKind",
     "BlendBoundarySurface",
     "BlendType",
     "BlendedEdgeSurface",
@@ -68,6 +75,8 @@ __all__ = [
     "Face",
     "HalfEdge",
     "HyperbolaCurve",
+    "Instance",
+    "InstancePartKind",
     "IntersectionCurve",
     "LineCurve",
     "Loop",
@@ -90,6 +99,7 @@ __all__ = [
     "SurfaceParametricCurve",
     "TopologyValidation",
     "TorusSurface",
+    "Transform",
     "TrimmedCurve",
     "UnsupportedGeometry",
     "Vector3",

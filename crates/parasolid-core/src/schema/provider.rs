@@ -158,32 +158,22 @@ pub(crate) fn embedded_base_definition<'a, P: SchemaProvider>(
 }
 
 /// Validate the current built-in scope even for streams with no data records.
-/// User-field layouts have not yet been verified for compiled profiles.
+///
+/// Application user fields (`USFLD_SIZE` integer words after every node) are
+/// read by compiled profiles exactly as for a caller-supplied catalog; see
+/// `user_fields::word_count` for the framing evidence.
 pub(crate) fn validate_builtin_input<P: SchemaProvider>(
     provider: &P,
     schema_key: &SchemaKey,
-    user_field_size: u8,
     offset: usize,
 ) -> Result<(), ParseError> {
     if matches!(
         provider.provenance(),
         SchemaProviderProvenance::Builtin { .. }
-    ) {
-        if !provider.supports_schema_key(schema_key) {
-            // No node has been read at this header-time check.
-            return Err(unavailable_schema_error(provider, schema_key, 0, offset));
-        }
-        if user_field_size != 0 {
-            return Err(ParseError::new(
-                ErrorKind::UnsupportedUserFields,
-                offset,
-                "built-in profiles currently require zero user fields",
-                ErrorDetails::InvalidLength {
-                    field: "user_field_size",
-                    value: i64::from(user_field_size),
-                },
-            ));
-        }
+    ) && !provider.supports_schema_key(schema_key)
+    {
+        // No node has been read at this header-time check.
+        return Err(unavailable_schema_error(provider, schema_key, 0, offset));
     }
     Ok(())
 }

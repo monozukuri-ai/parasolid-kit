@@ -141,8 +141,12 @@ def test_absence_is_scoped_to_type_204_of_the_exact_embedded_profile(encoding, p
         parser(data, limits=ParseLimits(max_variable_elements=2))
     with pytest.raises(ParseError):
         parser(data, limits=ParseLimits(max_fields_per_type=1))
+    # Another build of schema 30000 resolves through the family, whose members
+    # all record 204 as absent; another schema has no family and fails closed.
+    other_build = parser(data.replace(b"SCH_3000310_30000_13006", b"SCH_3000311_30000_13006"))
+    assert other_build.schema_resolution.profile_id == "family-30000-13006"
     with pytest.raises(ParseError):
-        parser(data.replace(b"SCH_3000310_30000_13006", b"SCH_3000311_30000_13006"))
+        parser(data.replace(b"SCH_3000310_30000_13006", b"SCH_3000311_30100_13006"))
 
 
 @pytest.mark.parametrize("shifted", [False, True])

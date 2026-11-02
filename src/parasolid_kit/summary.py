@@ -31,6 +31,8 @@ class BrepEntityCounts:
     points: int
     curves: int
     surfaces: int
+    assemblies: int
+    instances: int
 
     def __post_init__(self) -> None:
         for name in self.__dataclass_fields__:
@@ -56,6 +58,8 @@ class BrepEntityCounts:
             points=len(model.points),
             curves=len(model.curves),
             surfaces=len(model.surfaces),
+            assemblies=len(model.assemblies),
+            instances=len(model.instances),
         )
 
     def to_dict(self) -> dict[str, int]:

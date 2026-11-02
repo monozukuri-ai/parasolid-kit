@@ -3,6 +3,7 @@
 mod catalog;
 mod coverage;
 mod decoder;
+mod digest;
 mod model;
 mod profile;
 pub mod profiles;
@@ -19,7 +20,7 @@ pub use model::{
 };
 pub use profile::{
     BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinProfileRegistry, BuiltinSchemaProfile,
-    BuiltinSchemaProvider,
+    BuiltinSchemaProvider, FamilyMember,
 };
 pub use provider::{
     InMemorySchemaProvider, SchemaProvider, SchemaProviderProvenance, SchemaProviderResolution,

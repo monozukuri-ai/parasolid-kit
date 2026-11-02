@@ -166,8 +166,17 @@ def test_parse_xb_accepts_a_path_and_rejects_missing_catalog(tmp_path: Path) -> 
 
     assert parse_xb(path, schema_provider=_provider()).nodes[0].index == 1
 
+    # The fixture's build of schema 30000 has no exact profile; the family derived
+    # from the iCAD and SolidWorks 30000/13006 profiles records type 204 as absent,
+    # so its complete embedded definition decodes without a catalog.
+    document = parse_xb(payload)
+    assert document.schema_resolution.profile_id == "family-30000-13006"
+    assert document.schema_resolution.coverage == "family_inferred"
+    assert document.nodes[0].index == 1
+
+    unknown_schema = payload.replace(b"SCH_3000000_30000_13006", b"SCH_3000000_30100_13006")
     with pytest.raises(SchemaError) as captured:
-        parse_xb(payload)
+        parse_xb(unknown_schema)
 
     diagnostic = captured.value.diagnostic
     assert diagnostic.code == "schema.missing_base_schema"

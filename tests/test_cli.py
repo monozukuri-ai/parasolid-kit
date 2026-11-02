@@ -60,6 +60,8 @@ def _check_summary(*, complete: bool) -> BrepSummary:
             points=8,
             curves=12,
             surfaces=6,
+            assemblies=0,
+            instances=0,
         ),
         body_kind_counts=(("solid", 1),),
         curve_kind_counts=(("line", 12),),

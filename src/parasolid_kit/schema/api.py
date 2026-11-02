@@ -17,6 +17,8 @@ from ..diagnostics import Diagnostic, DiagnosticKind, DiagnosticSeverity, Source
 from ..errors import SchemaError
 from ..limits import DEFAULT_PARSE_LIMITS, ParseLimits
 from .model import (
+    BuiltinFamilyMember,
+    BuiltinProfileInfo,
     FieldDefinition,
     FieldType,
     SchemaCoverageReport,
@@ -213,6 +215,67 @@ def schema_coverage(resolutions: Iterable[SchemaResolution]) -> SchemaCoverageRe
     if not isinstance(value, Mapping):
         raise RuntimeError("native schema coverage is not a mapping")
     return _coverage_from_native(value)
+
+
+def builtin_profiles() -> tuple[BuiltinProfileInfo, ...]:
+    """Return the compiled exact profiles followed by the derived schema families.
+
+    Default parsing selects the exact profile of a complete key when one exists.
+    Otherwise it selects the family profile of the key's schema family, whose
+    declarations are the merged reviewed definitions of the exact profiles in
+    that family; the document then reports ``family_inferred`` coverage.
+    """
+
+    value = _core._builtin_profiles()
+    if not isinstance(value, list):
+        raise RuntimeError("native built-in profile listing is not a list")
+    return tuple(
+        _builtin_profile_from_native(_require_mapping(item, "built-in profile")) for item in value
+    )
+
+
+def _builtin_profile_from_native(value: Mapping[str, Any]) -> BuiltinProfileInfo:
+    keys = value.get("schema_keys")
+    if not isinstance(keys, list) or not all(isinstance(key, str) for key in keys):
+        raise RuntimeError("native built-in profile keys are not a string list")
+    members = value.get("members")
+    base_members = value.get("base_members")
+    if not isinstance(members, list) or not isinstance(base_members, list):
+        raise RuntimeError("native built-in profile members are not a list")
+    family_id = value.get("family_id")
+    if family_id is not None and not isinstance(family_id, str):
+        raise RuntimeError("native built-in profile family is not a string")
+    coverage = _str_value(value, "coverage")
+    if coverage not in ("verified_subset", "family_inferred"):
+        raise RuntimeError("native built-in profile coverage is unknown")
+    return BuiltinProfileInfo(
+        profile_id=_str_value(value, "profile_id"),
+        profile_revision=_int_value(value, "profile_revision"),
+        provider_schema=_str_value(value, "provider_schema"),
+        producer_scope=_str_value(value, "producer_scope"),
+        coverage=coverage,
+        profile_sha256=_str_value(value, "profile_sha256"),
+        schema_keys=tuple(keys),
+        family_id=family_id,
+        members=_family_members_from_native(members),
+        base_members=_family_members_from_native(base_members),
+        type_count=_int_value(value, "type_count"),
+        field_count=_int_value(value, "field_count"),
+        unsupported_base_types=tuple(_int_list(value, "unsupported_base_types")),
+        absent_base_types=tuple(_int_list(value, "absent_base_types")),
+        conflicting_types=tuple(_int_list(value, "conflicting_types")),
+    )
+
+
+def _family_members_from_native(items: list[object]) -> tuple[BuiltinFamilyMember, ...]:
+    return tuple(
+        BuiltinFamilyMember(
+            profile_id=_str_value(member, "profile_id"),
+            profile_revision=_int_value(member, "profile_revision"),
+            profile_sha256=_str_value(member, "profile_sha256"),
+        )
+        for member in (_require_mapping(item, "family member") for item in items)
+    )
 
 
 def _coverage_from_native(value: Mapping[str, Any]) -> SchemaCoverageReport:

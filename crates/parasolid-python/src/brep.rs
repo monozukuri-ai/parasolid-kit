@@ -3,10 +3,10 @@
 #![allow(clippy::too_many_lines)]
 
 use parasolid_core::brep::{
-    Body, BrepDiagnostic, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind, Edge, Face,
-    HalfEdge, Loop, NurbsCurve, NurbsSurface, PointGeometry, Region, Shell, SourceNodeRef,
-    SurfaceGeometry, SurfaceKind, Vector3, Vertex, map_xb_brep_with_diagnostic_limit,
-    map_xt_brep_with_diagnostic_limit,
+    Assembly, Body, BrepDiagnostic, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind, Edge,
+    Face, HalfEdge, Instance, InstancePart, Loop, NurbsCurve, NurbsSurface, PointGeometry, Region,
+    Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind, Transform, Vector3, Vertex,
+    map_xb_brep_with_diagnostic_limit, map_xt_brep_with_diagnostic_limit,
 };
 use pyo3::{
     Bound, PyRef, PyResult, Python, pyfunction,
@@ -70,6 +70,8 @@ fn model_to_python<'py>(py: Python<'py>, model: &BrepModel) -> PyResult<Bound<'p
     )?;
     value.set_item("schema_key", &model.schema_key)?;
     value.set_item("complete", model.complete)?;
+    value.set_item("assemblies", assemblies_to_python(py, &model.assemblies)?)?;
+    value.set_item("instances", instances_to_python(py, &model.instances)?)?;
     value.set_item("bodies", bodies_to_python(py, &model.bodies)?)?;
     value.set_item("regions", regions_to_python(py, &model.regions)?)?;
     value.set_item("shells", shells_to_python(py, &model.shells)?)?;
@@ -115,6 +117,63 @@ fn model_to_python<'py>(py: Python<'py>, model: &BrepModel) -> PyResult<Bound<'p
         diagnostics.append(diagnostic_to_python(py, diagnostic)?)?;
     }
     value.set_item("diagnostics", diagnostics)?;
+    Ok(value)
+}
+
+fn assemblies_to_python<'py>(py: Python<'py>, values: &[Assembly]) -> PyResult<Bound<'py, PyList>> {
+    let result = PyList::empty(py);
+    for assembly in values {
+        let value = PyDict::new(py);
+        value.set_item("id", assembly.id)?;
+        value.set_item("kind", assembly.kind.as_str())?;
+        value.set_item("size_resolution", assembly.size_resolution)?;
+        value.set_item("linear_resolution", assembly.linear_resolution)?;
+        value.set_item("instances", &assembly.instances)?;
+        value.set_item("referencing_instances", &assembly.referencing_instances)?;
+        value.set_item("source", source_to_python(py, &assembly.source)?)?;
+        result.append(value)?;
+    }
+    Ok(result)
+}
+
+fn instances_to_python<'py>(py: Python<'py>, values: &[Instance]) -> PyResult<Bound<'py, PyList>> {
+    let result = PyList::empty(py);
+    for instance in values {
+        let value = PyDict::new(py);
+        value.set_item("id", instance.id)?;
+        value.set_item("negative", instance.negative)?;
+        let (part_kind, part) = match instance.part {
+            InstancePart::Body(id) => ("body", id),
+            InstancePart::Assembly(id) => ("assembly", id),
+        };
+        value.set_item("part_kind", part_kind)?;
+        value.set_item("part", part)?;
+        value.set_item(
+            "transform",
+            instance
+                .transform
+                .as_ref()
+                .map(|transform| transform_to_python(py, transform))
+                .transpose()?,
+        )?;
+        value.set_item("assembly", instance.assembly)?;
+        value.set_item("source", source_to_python(py, &instance.source)?)?;
+        result.append(value)?;
+    }
+    Ok(result)
+}
+
+fn transform_to_python<'py>(
+    py: Python<'py>,
+    transform: &Transform,
+) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    value.set_item("rotation", transform.rotation)?;
+    value.set_item("translation", vector_tuple(transform.translation))?;
+    value.set_item("scale", transform.scale)?;
+    value.set_item("flags", transform.flags)?;
+    value.set_item("perspective", vector_tuple(transform.perspective))?;
+    value.set_item("source", source_to_python(py, &transform.source)?)?;
     Ok(value)
 }
 

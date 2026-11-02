@@ -209,10 +209,11 @@ def test_unset_parameters_do_not_relax_point_or_order_rules(encoding, parser, ch
 def test_trim_scope_and_binary_truncation():
     from tests.test_builtin_embedded_runtime import builder, header
 
+    # Schema 30001 has neither an exact profile nor a family.
     for data, parser in [
-        (header("SCH_3000001_30000") + b"133 1 0 ", parse_xt),
+        (header("SCH_3000001_30001") + b"133 1 0 ", parse_xt),
         (
-            builder("SCH_3000001_30000").build()[:-4]
+            builder("SCH_3000001_30001").build()[:-4]
             + struct.pack(">H", 133)
             + positive_integer(1),
             parse_xb,
@@ -226,7 +227,7 @@ def test_trim_scope_and_binary_truncation():
         with pytest.raises(ParseError):
             parse_xb(data[:end])
     with pytest.raises(ParseError):
-        parse_xb(data.replace(EMBEDDED.encode(), b"SCH_3000311_30000_13006"))
+        parse_xb(data.replace(EMBEDDED.encode(), b"SCH_3000311_30100_13006"))
 
 
 @pytest.mark.parametrize("basis_sense", ["+", "-"])

@@ -70,14 +70,18 @@ const EXPECTED: [Expected; 11] = [
     },
     Expected {
         key: "SCH_1700000_16100",
-        types: 20,
-        fields: 176,
+        // Revision 2 adds the types observed in a public NX 7 part: 38, 40, 41,
+        // 52, 53, 54, 56, 59, 83, 84, TRIMMED_CURVE (133), the SP_CURVE
+        // dependencies (45, 127, 128, 134-137) and the shared-geometry owner
+        // (141), all with their reviewed layouts.
+        types: 39,
+        fields: 311,
         body: "dppppppffpppupuuppppppp",
         body_references: &[],
         region_head: 20,
         region: "dpppppc",
-        intersection: None,
-        limit: None,
+        intersection: Some("dpppppcpppp"),
+        limit: Some("ch"),
         list: "dulpppdddpp",
         block: "dpp",
     },
@@ -96,14 +100,17 @@ const EXPECTED: [Expected; 11] = [
     },
     Expected {
         key: "SCH_2401000_20000",
-        types: 19,
-        fields: 169,
+        // Revision 2 adds REAL_VALUES (83) and CHAR_VALUES (84), one field each,
+        // and the types of a public NX assembly: 10, 11, 100, 38, 40, 41, 60,
+        // 67, 133, the SP_CURVE dependencies and the shared-geometry owner.
+        types: 38,
+        fields: 302,
         body: "dppppppffpppupuupppppppdppp",
         body_references: &[(24, 82), (25, 82), (26, 82)],
         region_head: 20,
         region: "dpppppc",
-        intersection: None,
-        limit: None,
+        intersection: Some("dpppppcpppp"),
+        limit: Some("ch"),
         list: "dulpppdddpp",
         block: "ddpp",
     },
@@ -240,10 +247,18 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
         let key = profile.accepted_schema_keys().next().ok_or("key")?;
         assert_eq!(key.raw(), expected.key);
         assert_eq!(profile.accepted_schema_keys().len(), 1);
-        assert_eq!(profile.metadata().revision, 1);
+        let revision = profile.metadata().revision;
+        assert_eq!(
+            revision,
+            if matches!(expected.key, "SCH_1700000_16100" | "SCH_2401000_20000") {
+                2
+            } else {
+                1
+            }
+        );
         assert_eq!(
             profile.metadata().profile_id,
-            format!("icad-{}-r1", expected.key[4..].replace('_', "-"))
+            format!("icad-{}-r{revision}", expected.key[4..].replace('_', "-"))
         );
         assert_eq!(
             profile.metadata().profile_sha256,
@@ -256,19 +271,45 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
         );
         let provider = registry.provider_for_key(key).ok_or("provider")?;
         let schema = key.provider_schema();
-        for kind in [55, 57, 58, 67, 69, 110, 138] {
+        for kind in [55, 57, 58, 69, 110, 138] {
             assert_eq!(
                 provider.lookup_type(schema, kind),
                 SchemaTypeLookup::Unknown
             );
         }
+        // SWEPT_SURF (67) reaches the standard 13006 keys through the family of
+        // the embedded profiles and is declared by the 20000 profile itself,
+        // where a public NX assembly carries it; other schemas keep it unknown.
+        assert_eq!(
+            matches!(
+                provider.lookup_type(schema, 67),
+                SchemaTypeLookup::Defined(_)
+            ),
+            schema == "13006" || expected.key == "SCH_2401000_20000"
+        );
         assert_eq!(provider.lookup_type("99999", 29), SchemaTypeLookup::Unknown);
+        // The exact provider never accepts another key. Another build of the same
+        // schema resolves through the derived family; another schema does not.
         for component in 1..=2 {
             let mut parts = key.raw().split('_').map(str::to_owned).collect::<Vec<_>>();
             parts[component].push('9');
             let nearby = SchemaKey::parse(&parts.join("_"))?;
             assert!(!provider.supports_schema_key(&nearby));
-            assert!(registry.provider_for_key(&nearby).is_none());
+            assert!(registry.profile_for_key(&nearby).is_none());
+            let family = registry.provider_for_key(&nearby);
+            if component == 1 {
+                let family = family.ok_or("same-schema build must resolve through its family")?;
+                assert_eq!(
+                    family.profile().metadata().profile_id,
+                    format!("family-{}", key.provider_schema())
+                );
+                assert_eq!(
+                    family.profile().metadata().coverage.as_str(),
+                    "family_inferred"
+                );
+            } else {
+                assert!(family.is_none());
+            }
         }
         let embedded = SchemaKey::parse(&format!("{}_13006", key.raw()))?;
         assert!(!provider.supports_schema_key(&embedded));
@@ -508,9 +549,9 @@ fn independent_point_values_roles_and_uncovered_types() -> Result<()> {
                 .kind(),
             ErrorKind::MissingBrepBody
         );
-        // A swept surface was not seen under any of these keys.
+        // A foreign surface (69) is declared by no profile of any provider schema.
         let mut uncovered = support::xb_header(expected.key, 0)?;
-        uncovered.extend([0, 67]);
+        uncovered.extend([0, 69]);
         assert_eq!(
             parse_xb(&uncovered, &provider, DocumentLimits::default())
                 .err()

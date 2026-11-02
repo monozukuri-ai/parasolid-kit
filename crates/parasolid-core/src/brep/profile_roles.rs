@@ -21,6 +21,7 @@ pub(super) enum RoleAccess {
 }
 
 impl RoleAccess {
+    #[allow(clippy::too_many_lines)]
     pub(super) fn select(
         provenance: &SchemaProviderResolution,
         key: &str,
@@ -88,9 +89,21 @@ impl RoleAccess {
                                 && profile_id == spec.id
                                 && *profile_revision == spec.revision
                                 && profile_sha256 == spec.sha256
+                        })
+                    || crate::schema::profiles::transmit::PROFILES
+                        .iter()
+                        .any(|spec| {
+                            key == spec.key
+                                && profile_id == spec.id
+                                && *profile_revision == spec.revision
+                                && profile_sha256 == spec.sha256
                         })) =>
             {
-                validate_base_roles(schemas, &reviewed_base_definitions(key))?;
+                // The exact profile is completed by its schema family, so the
+                // reviewed layouts are the family's when the registry has one.
+                let reviewed =
+                    family_definitions(key).unwrap_or_else(|| reviewed_base_definitions(key));
+                validate_base_roles(schemas, &reviewed)?;
                 Ok(Self::Sch13006)
             }
             SchemaProviderResolution::Builtin {
@@ -101,10 +114,50 @@ impl RoleAccess {
                 profile_sha256,
             } if schema_key == key && *coverage == BuiltinProfileCoverage::VerifiedSubset => {
                 // Standard iCAD layouts keep the reviewed 13006 field names.
-                let reviewed =
-                    standard_definitions(key, profile_id, *profile_revision, profile_sha256)
-                        .ok_or_else(|| unreviewed(provenance))??;
+                let own = standard_definitions(key, profile_id, *profile_revision, profile_sha256)
+                    .ok_or_else(|| unreviewed(provenance))??;
+                let reviewed = family_definitions(key).unwrap_or(own);
                 validate_standard_roles(schemas, &reviewed)?;
+                Ok(Self::Sch13006)
+            }
+            SchemaProviderResolution::Builtin {
+                profile_id,
+                profile_revision,
+                schema_key,
+                coverage: BuiltinProfileCoverage::FamilyInferred,
+                profile_sha256,
+            } if schema_key == key => {
+                // A family profile merges the reviewed declarations of exact
+                // profiles whose digests pin the roles below; the registry
+                // recomputes the family digest from those members.
+                let requested = crate::SchemaKey::parse(key)?;
+                let family = crate::BuiltinProfileRegistry::compiled()?
+                    .profile(profile_id)
+                    .filter(|family| {
+                        let metadata = family.metadata();
+                        metadata.coverage == BuiltinProfileCoverage::FamilyInferred
+                            && metadata.revision == *profile_revision
+                            && metadata.profile_sha256 == *profile_sha256
+                            && family.accepts_schema_key(&requested)
+                    })
+                    .ok_or_else(|| unreviewed(provenance))?;
+                if family
+                    .members()
+                    .iter()
+                    .any(|member| member.profile_id == "onshape-sch30000-r3")
+                {
+                    // V30 roles are wire ordinals of that single reviewed layout set.
+                    if family.members().len() != 1 {
+                        return Err(unreviewed(provenance));
+                    }
+                    return Ok(Self::OnshapeSch30000);
+                }
+                let reviewed = family.definitions().cloned().collect::<Vec<_>>();
+                if requested.base().is_some() {
+                    validate_base_roles(schemas, &reviewed)?;
+                } else {
+                    validate_standard_roles(schemas, &reviewed)?;
+                }
                 Ok(Self::Sch13006)
             }
             SchemaProviderResolution::Builtin { .. } => Err(unreviewed(provenance)),
@@ -115,6 +168,8 @@ impl RoleAccess {
         match self {
             Self::Named => &node.definition.name,
             Self::OnshapeSch30000 | Self::Sch13006 => match node.node_type {
+                10 => "ASSEMBLY",
+                11 => "INSTANCE",
                 12 => "BODY",
                 13 => "SHELL",
                 14 => "FACE",
@@ -149,6 +204,7 @@ impl RoleAccess {
                 67 => "SWEPT_SURF",
                 68 => "SPUN_SURF",
                 133 => "TRIMMED_CURVE",
+                100 => "TRANSFORM",
                 204 => "INTERSECTION_DATA",
                 _ => "", // List/attribute types cannot acquire roles from their names.
             },
@@ -228,6 +284,9 @@ fn reviewed_base_definitions(key: &str) -> Vec<crate::TypeDefinition> {
         || crate::schema::profiles::solidworks::PROFILES
             .iter()
             .any(|spec| key == spec.key)
+        || crate::schema::profiles::transmit::PROFILES
+            .iter()
+            .any(|spec| key == spec.key)
     {
         crate::schema::profiles::solidworks::solidworks_definitions()
     } else if key == "SCH_3701212_37102_13006" {
@@ -244,6 +303,16 @@ fn reviewed_base_definitions(key: &str) -> Vec<crate::TypeDefinition> {
     }
 }
 
+/// The merged reviewed declarations of the key's schema family in the compiled
+/// registry: every exact profile of the key's provider schema contributes.
+fn family_definitions(key: &str) -> Option<Vec<crate::TypeDefinition>> {
+    let requested = crate::SchemaKey::parse(key).ok()?;
+    let family = crate::BuiltinProfileRegistry::compiled()
+        .ok()?
+        .family_for_key(&requested)?;
+    Some(family.definitions().cloned().collect())
+}
+
 fn standard_definitions(
     key: &str,
     profile_id: &str,
@@ -253,7 +322,10 @@ fn standard_definitions(
     crate::schema::profiles::icad_standard::PROFILES
         .iter()
         .find(|spec| {
-            key == spec.key && profile_id == spec.id && revision == 1 && sha256 == spec.sha256
+            key == spec.key
+                && profile_id == spec.id
+                && revision == spec.revision
+                && sha256 == spec.sha256
         })
         .map(crate::schema::profiles::icad_standard::ProfileSpec::definitions)
 }
@@ -411,6 +483,22 @@ fn validate_base_roles(
 #[allow(clippy::too_many_lines)]
 fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, &'static str)] {
     match node_type {
+        10 => &[
+            ("res_size", 8, "size_precision", "f"),
+            ("res_linear", 9, "linear_precision", "f"),
+            ("ref_instance", 10, "instances", "p"),
+            ("type", 15, "assembly_kind", "u"),
+            ("sub_instance", 16, "sub_instances", "p"),
+        ],
+        11 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("type", 2, "instance_kind", "u"),
+            ("part", 3, "part_ref", "p"),
+            ("transform", 4, "transform_ref", "p"),
+            ("assembly", 5, "assembly_ref", "p"),
+            ("next_in_part", 6, "next_in_assembly", "p"),
+            ("next_of_part", 8, "next_of_part", "p"),
+        ],
         12 => &[
             ("res_size", 9, "size_precision", "f"),
             ("res_linear", 10, "linear_precision", "f"),
@@ -687,6 +775,14 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
             ("radius", 8, "radius", "f"),
             ("axis", 9, "axis", "v"),
             ("x_axis", 10, "x_direction", "v"),
+        ],
+        100 => &[
+            ("node_id", 0, "local_id", "d"),
+            ("rotation_matrix", 4, "rotation_matrix", "f"),
+            ("translation_vector", 5, "translation", "v"),
+            ("scale", 6, "scale", "f"),
+            ("flag", 7, "flag", "d"),
+            ("perspective_vector", 8, "perspective", "v"),
         ],
         _ => &[],
     }

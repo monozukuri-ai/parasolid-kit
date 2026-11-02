@@ -21,6 +21,8 @@ use pyo3::{
 type BaseField = (String, String, u16, u32, bool);
 type CatalogType = (u16, String, String, Vec<BaseField>);
 
+const MISSING_BUILTIN_MESSAGE: &str = "no built-in profile supports this schema key or its schema family; supply an explicit schema provider with the required catalog";
+
 #[pyclass(name = "_NativeXbDocument", frozen)]
 pub(crate) struct NativeXbDocument {
     pub(crate) document: XbDocument,
@@ -190,7 +192,7 @@ fn parse_xb<'py>(
             response.set_item("ok", false)?;
             let detail = error_to_python(py, &error)?;
             if use_builtin && error.kind() == parasolid_core::ErrorKind::MissingBaseSchema {
-                detail.set_item("message", "no built-in profile supports this exact schema key; supply an explicit schema provider with the required catalog")?;
+                detail.set_item("message", MISSING_BUILTIN_MESSAGE)?;
             }
             response.set_item("error", detail)?;
         }
@@ -267,7 +269,7 @@ fn parse_xt<'py>(
             response.set_item("ok", false)?;
             let detail = error_to_python(py, &error)?;
             if use_builtin && error.kind() == parasolid_core::ErrorKind::MissingBaseSchema {
-                detail.set_item("message", "no built-in profile supports this exact schema key; supply an explicit schema provider with the required catalog")?;
+                detail.set_item("message", MISSING_BUILTIN_MESSAGE)?;
             }
             response.set_item("error", detail)?;
         }
@@ -1024,6 +1026,78 @@ fn schema_edit_to_python<'py>(py: Python<'py>, edit: &SchemaEdit) -> PyResult<Bo
     Ok(value)
 }
 
+#[pyfunction(name = "_builtin_profiles")]
+fn builtin_profiles(py: Python<'_>) -> PyResult<Bound<'_, PyList>> {
+    let registry = BuiltinProfileRegistry::compiled()
+        .map_err(|error| PyValueError::new_err(format!("{error:?}")))?;
+    let list = PyList::empty(py);
+    for profile in registry.profiles().chain(registry.families()) {
+        list.append(builtin_profile_to_python(py, profile)?)?;
+    }
+    Ok(list)
+}
+
+fn builtin_profile_to_python<'py>(
+    py: Python<'py>,
+    profile: &parasolid_core::BuiltinSchemaProfile,
+) -> PyResult<Bound<'py, PyDict>> {
+    let metadata = profile.metadata();
+    let value = PyDict::new(py);
+    value.set_item("profile_id", &metadata.profile_id)?;
+    value.set_item("profile_revision", metadata.revision)?;
+    value.set_item("provider_schema", &metadata.provider_schema)?;
+    value.set_item("producer_scope", &metadata.producer_scope)?;
+    value.set_item("coverage", metadata.coverage.as_str())?;
+    value.set_item("profile_sha256", &metadata.profile_sha256)?;
+    value.set_item(
+        "schema_keys",
+        profile
+            .accepted_schema_keys()
+            .map(SchemaKey::raw)
+            .collect::<Vec<_>>(),
+    )?;
+    value.set_item("family_id", profile.family_id())?;
+    let members = PyList::empty(py);
+    for member in profile.members() {
+        let item = PyDict::new(py);
+        item.set_item("profile_id", &member.profile_id)?;
+        item.set_item("profile_revision", member.revision)?;
+        item.set_item("profile_sha256", &member.profile_sha256)?;
+        members.append(item)?;
+    }
+    value.set_item("members", members)?;
+    let base_members = PyList::empty(py);
+    for member in profile.base_members() {
+        let item = PyDict::new(py);
+        item.set_item("profile_id", &member.profile_id)?;
+        item.set_item("profile_revision", member.revision)?;
+        item.set_item("profile_sha256", &member.profile_sha256)?;
+        base_members.append(item)?;
+    }
+    value.set_item("base_members", base_members)?;
+    value.set_item("type_count", profile.definitions().len())?;
+    value.set_item(
+        "field_count",
+        profile
+            .definitions()
+            .map(|definition| definition.fields.len())
+            .sum::<usize>(),
+    )?;
+    value.set_item(
+        "unsupported_base_types",
+        profile.unsupported_base_types().collect::<Vec<_>>(),
+    )?;
+    value.set_item(
+        "absent_base_types",
+        profile.absent_base_types().collect::<Vec<_>>(),
+    )?;
+    value.set_item(
+        "conflicting_types",
+        profile.conflicting_types().collect::<Vec<_>>(),
+    )?;
+    Ok(value)
+}
+
 fn missing_builtin_to_python<'py>(
     py: Python<'py>,
     key: &SchemaKey,
@@ -1031,7 +1105,7 @@ fn missing_builtin_to_python<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let value = PyDict::new(py);
     value.set_item("code", "schema.missing_base_schema")?;
-    value.set_item("message", "no built-in profile supports this exact schema key; supply an explicit schema provider with the required catalog")?;
+    value.set_item("message", MISSING_BUILTIN_MESSAGE)?;
     value.set_item("offset", offset)?;
     value.set_item(
         "details",
@@ -1165,6 +1239,7 @@ fn _core(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(brep::map_xt_brep_native, module)?)?;
     module.add_function(wrap_pyfunction!(resolve_schema_blob, module)?)?;
     module.add_function(wrap_pyfunction!(schema_coverage, module)?)?;
+    module.add_function(wrap_pyfunction!(builtin_profiles, module)?)?;
     module.add("CORE_VERSION", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }

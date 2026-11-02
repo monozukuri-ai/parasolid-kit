@@ -100,18 +100,41 @@ fn exact_profiles_and_canonical_hashes() -> support::Result<()> {
             fields
         );
         assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
-        for kind in [55, 57, 58, 67, 69, 110, 138] {
+        // SWEPT_SURF (67) comes from the SolidWorks profiles of the same base
+        // through the family; types no 13006 profile declares stay unknown.
+        assert!(profile.definition(67).is_none());
+        assert!(matches!(
+            provider.lookup_type("13006", 67),
+            SchemaTypeLookup::Defined(_)
+        ));
+        for kind in [55, 57, 58, 69, 110, 138] {
             assert_eq!(
                 provider.lookup_type("13006", kind),
                 SchemaTypeLookup::Unknown
             );
         }
+        // The exact provider never accepts another key. Another build of the same
+        // schema resolves through the derived family; another schema or base does not.
         for component in 1..=3 {
             let mut parts = key.raw().split('_').map(str::to_owned).collect::<Vec<_>>();
             parts[component].push('9');
             let nearby = SchemaKey::parse(&parts.join("_"))?;
             assert!(!provider.supports_schema_key(&nearby));
-            assert!(registry.provider_for_key(&nearby).is_none());
+            assert!(registry.profile_for_key(&nearby).is_none());
+            let family = registry.provider_for_key(&nearby);
+            if component == 1 {
+                let family = family.ok_or("same-schema build must resolve through its family")?;
+                assert_eq!(
+                    family.profile().metadata().profile_id,
+                    format!("family-{}", nearby.family_id())
+                );
+                assert_eq!(
+                    family.profile().metadata().coverage.as_str(),
+                    "family_inferred"
+                );
+            } else {
+                assert!(family.is_none());
+            }
         }
     }
     Ok(())
@@ -171,8 +194,10 @@ fn independent_point_values_roles_truncation_and_unknown_membership() -> support
         for end in 0..binary.len() {
             assert!(parse_xb(&binary[..end], &provider, DocumentLimits::default()).is_err());
         }
+        // A foreign surface (69) is declared by no 13006 profile, so neither the
+        // exact profile nor its family knows its base membership.
         let mut unknown = support::xb_header(key.raw(), 0)?;
-        unknown.extend([0, 67, 255]);
+        unknown.extend([0, 69, 255]);
         let error = parse_xb(&unknown, &provider, DocumentLimits::default())
             .err()
             .ok_or("unknown type")?;

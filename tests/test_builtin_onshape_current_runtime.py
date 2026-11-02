@@ -101,21 +101,27 @@ def test_replacement_fields_cannot_acquire_semantic_roles(encoding, control):
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
-def test_explicit_empty_provider_and_neighbor_keys_do_not_fallback(encoding):
+def test_explicit_empty_provider_and_other_schemas_do_not_fallback(encoding):
     parser = parse_xt if encoding == "x_t" else parse_xb
     data = torus(encoding)
     with pytest.raises(SchemaError):
         parser(data, schema_provider=InMemorySchemaProvider())
-    for key in ["SCH_3701213_37102_13006", "SCH_3701212_37103_13006"]:
-        with pytest.raises(SchemaError) as captured:
-            parser(data.replace(KEY.encode(), key.encode()))
-        assert captured.value.diagnostic.code == "schema.missing_base_schema"
+    # Another build of schema 37102 resolves through the family shared with the
+    # SolidWorks 2026 profile; another schema has no family and fails closed.
+    other_build = parser(data.replace(KEY.encode(), b"SCH_3701213_37102_13006"))
+    assert other_build.schema_resolution.profile_id == "family-37102-13006"
+    assert other_build.schema_resolution.coverage == "family_inferred"
+    with pytest.raises(SchemaError) as captured:
+        parser(data.replace(KEY.encode(), b"SCH_3701212_37103_13006"))
+    assert captured.value.diagnostic.code == "schema.missing_base_schema"
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
-@pytest.mark.parametrize("kind", [3, 101, 110, 177, 205])
+@pytest.mark.parametrize("kind", [3, 110, 177, 205])
 def test_types_outside_reviewed_subset_fail_even_with_full_declarations(encoding, kind):
     # Zero-field full declaration cannot establish unknown base membership.
+    # WORLD (101) is not probed here: the SolidWorks profiles of the same 13006
+    # base declare it, so the family completes this profile with it.
     if encoding == "x_t":
         data = text_header(KEY, schema_max_type=205) + f"{kind} 0 1 X1 X1 1 0 ".encode()
     else:
@@ -139,17 +145,21 @@ def test_every_truncated_binary_torus_record_is_rejected():
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 def test_nonzero_user_fields_remain_outside_profile(encoding):
+    # One declared user word follows every node, an empty INT_VALUES included.
     if encoding == "x_t":
-        data = text_header(KEY, schema_max_type=205, user_field_size=1) + b"82 255 0 1 1 0 "
+        data = text_header(KEY, schema_max_type=205, user_field_size=1) + b"82 255 0 1 7 1 0 "
     else:
         data = (
             SyntheticXbBuilder(schema_name=KEY, schema_max_type=205, user_field_size=1)
-            .add_raw_node(82, b"\xff" + struct.pack(">i", 0) + positive_integer(1))
+            .add_raw_node(
+                82, b"\xff" + struct.pack(">i", 0) + positive_integer(1) + struct.pack(">i", 7)
+            )
             .build()
         )
-    with pytest.raises(ParseError) as captured:
-        (parse_xt if encoding == "x_t" else parse_xb)(data)
-    assert captured.value.diagnostic.code == "node.unsupported_user_fields"
+    document = (parse_xt if encoding == "x_t" else parse_xb)(data)
+    assert document.header.user_field_size == 1
+    assert document.nodes[0].user_fields == (7,)
+    assert document.schema_resolution.to_dict() == PROFILE
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])

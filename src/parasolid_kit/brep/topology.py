@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
+from typing import ClassVar
 
 from ..binary.header import ByteRange
 
@@ -113,6 +114,91 @@ class Body:
     regions: tuple[int, ...]
     edges: tuple[int, ...]
     vertices: tuple[int, ...]
+    source: SourceNodeRef
+
+
+class AssemblyKind(str, Enum):
+    """Parasolid assembly ``type`` classification."""
+
+    COLLECTIVE = "collective"
+    CONJUNCTIVE = "conjunctive"
+    DISJUNCTIVE = "disjunctive"
+
+
+class InstancePartKind(str, Enum):
+    """Which model collection holds the part positioned by an instance."""
+
+    BODY = "body"
+    ASSEMBLY = "assembly"
+
+
+@dataclass(frozen=True, slots=True)
+class Transform:
+    """Placement stored on a ``TRANSFORM`` node.
+
+    A part point ``x`` maps into the assembly as
+    ``(rotation · x + translation) · scale``; ``rotation`` holds the stored rows
+    and ``flags`` the stored component bits named by the class constants.
+    """
+
+    TRANSLATION: ClassVar[int] = 0b00001
+    ROTATION: ClassVar[int] = 0b00010
+    SCALING: ClassVar[int] = 0b00100
+    REFLECTION: ClassVar[int] = 0b01000
+    GENERAL_AFFINE: ClassVar[int] = 0b10000
+
+    rotation: tuple[
+        tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]
+    ]
+    translation: Vector3
+    scale: float
+    flags: int
+    perspective: Vector3
+    source: SourceNodeRef
+
+    def has(self, flag: int) -> bool:
+        """Return whether a component flag is set."""
+
+        return bool(self.flags & flag)
+
+    def apply(self, point: Vector3) -> Vector3:
+        """Map a point of the part into the assembly."""
+
+        rotated = [row[0] * point.x + row[1] * point.y + row[2] * point.z for row in self.rotation]
+        return Vector3(
+            (rotated[0] + self.translation.x) * self.scale,
+            (rotated[1] + self.translation.y) * self.scale,
+            (rotated[2] + self.translation.z) * self.scale,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class Assembly:
+    """One assembly root: a part which positions instances of bodies and assemblies.
+
+    The structure sits beside the B-Rep topology; instance transforms are not
+    applied to the bodies' geometry.
+    """
+
+    id: int
+    kind: AssemblyKind
+    size_resolution: float
+    linear_resolution: float
+    instances: tuple[int, ...]
+    referencing_instances: tuple[int, ...]
+    source: SourceNodeRef
+
+
+@dataclass(frozen=True, slots=True)
+class Instance:
+    """One placement of a body or sub-assembly within an assembly."""
+
+    id: int
+    negative: bool
+    part_kind: InstancePartKind
+    part: int
+    transform: Transform | None
+    assembly: int
     source: SourceNodeRef
 
 

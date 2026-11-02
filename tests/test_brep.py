@@ -39,6 +39,8 @@ def _native_model() -> dict[str, object]:
         "source_format": "binary",
         "schema_key": "SCH_3000000_30000",
         "complete": False,
+        "assemblies": [],
+        "instances": [],
         "bodies": [],
         "regions": [],
         "shells": [],

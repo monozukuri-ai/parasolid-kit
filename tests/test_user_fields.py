@@ -83,7 +83,8 @@ def _pair(words: tuple[int | None, ...]) -> tuple[bytes, bytes]:
             payload.extend(struct.pack(">i", len(values)))
         text.extend(f"{index} ".encode())
         payload.extend(positive_integer(index))
-        for value in (*values, *(words if kind in (12, 17, 70) else ())):
+        # The declared user words follow every node, whatever its type.
+        for value in (*values, *words):
             text.extend(b"?" if value is None else f"{value} ".encode())
             payload.extend(struct.pack(">i", -32764 if value is None else value))
         binary.add_raw_node(kind, bytes(payload))
@@ -105,7 +106,7 @@ def test_user_fields_are_retained_separately_and_match_binary(words) -> None:
         assert document.terminator.byte_range.end == len(document.raw_bytes)
         for node in document.nodes:
             assert len(node.fields) == 1
-            assert node.user_fields == (words if node.node_type in (12, 17, 70) else ())
+            assert node.user_fields == words
             assert node.to_dict()["user_fields"] == list(node.user_fields)
             assert node.byte_range.end >= node.fields[-1].byte_range.end
     assert text.raw_bytes == text_data
@@ -167,7 +168,10 @@ def test_bad_user_field_streams_fail_without_partial_counts(body: bytes) -> None
 
 
 @pytest.mark.parametrize("kind", [110, 111, 112])
-def test_unknown_visibility_is_rejected_in_both_encodings(kind: int) -> None:
+def test_every_node_type_carries_the_declared_words(kind: int) -> None:
+    # Parasolid 26/27 transmit files append the user words to every node,
+    # including types the 2008 reference lists as not visible at PK; the parser
+    # frames them uniformly rather than per node type.
     text = text_header(user_field_size=1) + f"{kind} 1 0 23 1 0 ".encode()
     binary = (
         SyntheticXbBuilder(schema_name="SCH_3000000_30000", schema_max_type=None, user_field_size=1)
@@ -175,11 +179,10 @@ def test_unknown_visibility_is_rejected_in_both_encodings(kind: int) -> None:
         .build()
     )
     for parse, data in ((parse_xt, text), (parse_xb, binary)):
-        with pytest.raises(ParseError) as captured:
-            parse(data, schema_provider=_provider())
-        assert captured.value.diagnostic.code == "node.unsupported_user_fields"
-        assert captured.value.diagnostic.details["node_type"] == kind
-    assert _scan(text)["ok"] is False
+        document = parse(data, schema_provider=_provider())
+        assert document.nodes[0].node_type == kind
+        assert document.nodes[0].user_fields == (23,)
+    assert _scan(text)["value"]["target_type_counts"][kind] == 1
     # A synthetic node with no user fields remains a valid parser control, not real evidence.
     normal = text_header() + f"{kind} 1 110 1 0 ".encode()
     counts = Counter(n.node_type for n in parse_xt(normal, schema_provider=_provider()).nodes)

@@ -8,10 +8,10 @@ use crate::{
 
 use super::metrics::derive_metrics;
 use super::model::{
-    BlendType, Body, BodyKind, BrepDiagnostic, BrepId, BrepMetrics, BrepModel, BrepSourceFormat,
-    CurveGeometry, CurveKind, Edge, Face, HalfEdge, Loop, NurbsCurve, NurbsSurface, PointGeometry,
-    Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind,
-    TopologyValidation, Vector3, Vertex,
+    Assembly, AssemblyKind, BlendType, Body, BodyKind, BrepDiagnostic, BrepId, BrepMetrics,
+    BrepModel, BrepSourceFormat, CurveGeometry, CurveKind, Edge, Face, HalfEdge, Instance,
+    InstancePart, Loop, NurbsCurve, NurbsSurface, PointGeometry, Region, RegionKind, Sense, Shell,
+    SourceNodeRef, SurfaceGeometry, SurfaceKind, TopologyValidation, Transform, Vector3, Vertex,
 };
 use super::profile_roles::RoleAccess;
 
@@ -98,6 +98,8 @@ fn validate_diagnostic_limit(max_diagnostics: usize) -> Result<(), ParseError> {
 
 #[derive(Default)]
 struct IdMaps {
+    assemblies: BTreeMap<u32, BrepId>,
+    instances: BTreeMap<u32, BrepId>,
     bodies: BTreeMap<u32, BrepId>,
     regions: BTreeMap<u32, BrepId>,
     shells: BTreeMap<u32, BrepId>,
@@ -114,6 +116,8 @@ struct IdMaps {
 impl IdMaps {
     fn new(nodes: &[RawNode], roles: RoleAccess) -> Self {
         Self {
+            assemblies: assign_ids(nodes, |node| roles.type_name(node) == "ASSEMBLY"),
+            instances: assign_ids(nodes, |node| roles.type_name(node) == "INSTANCE"),
             bodies: assign_ids(nodes, |node| roles.type_name(node) == "BODY"),
             regions: assign_ids(nodes, |node| roles.type_name(node) == "REGION"),
             shells: assign_ids(nodes, |node| roles.type_name(node) == "SHELL"),
@@ -182,6 +186,16 @@ impl<'a> Mapper<'a> {
             ));
         }
 
+        let assemblies = self
+            .ordered_indices(&self.ids.assemblies)
+            .into_iter()
+            .map(|index| self.map_assembly(index))
+            .collect::<Result<Vec<_>, _>>()?;
+        let instances = self
+            .ordered_indices(&self.ids.instances)
+            .into_iter()
+            .map(|index| self.map_instance(index))
+            .collect::<Result<Vec<_>, _>>()?;
         let bodies = self
             .ordered_indices(&self.ids.bodies)
             .into_iter()
@@ -251,6 +265,8 @@ impl<'a> Mapper<'a> {
             source_format: self.source_format,
             schema_key: self.schema_key.to_owned(),
             complete: false,
+            assemblies,
+            instances,
             bodies,
             regions,
             shells,
@@ -308,6 +324,156 @@ impl<'a> Mapper<'a> {
             regions: self.null_chain(node, "region", "REGION", "next", &self.ids.regions)?,
             edges: self.null_chain(node, "edge", "EDGE", "next", &self.ids.edges)?,
             vertices: self.null_chain(node, "vertex", "VERTEX", "next", &self.ids.vertices)?,
+            source: self.source(node),
+        })
+    }
+
+    fn map_assembly(&self, index: u32) -> Result<Assembly, ParseError> {
+        let node = self.node(index)?;
+        let kind = match self.byte(node, "type")? {
+            1 => AssemblyKind::Collective,
+            2 => AssemblyKind::Conjunctive,
+            3 => AssemblyKind::Disjunctive,
+            value => {
+                return Err(self.invalid_field(
+                    node,
+                    "type",
+                    format!("unknown assembly type {value}"),
+                ));
+            }
+        };
+        Ok(Assembly {
+            id: self.id(&self.ids.assemblies, node, "ASSEMBLY")?,
+            kind,
+            size_resolution: self.double(node, "res_size")?,
+            linear_resolution: self.double(node, "res_linear")?,
+            instances: self.null_chain(
+                node,
+                "sub_instance",
+                "INSTANCE",
+                "next_in_part",
+                &self.ids.instances,
+            )?,
+            referencing_instances: self.null_chain(
+                node,
+                "ref_instance",
+                "INSTANCE",
+                "next_of_part",
+                &self.ids.instances,
+            )?,
+            source: self.source(node),
+        })
+    }
+
+    fn map_instance(&self, index: u32) -> Result<Instance, ParseError> {
+        let node = self.node(index)?;
+        let negative = match self.byte(node, "type")? {
+            1 => false,
+            2 => true,
+            value => {
+                return Err(self.invalid_field(
+                    node,
+                    "type",
+                    format!("unknown instance type {value}"),
+                ));
+            }
+        };
+        let part_index = self.required_pointer(node, "part")?;
+        let part_node = self.nodes.get(&part_index).copied().ok_or_else(|| {
+            self.invalid_reference(
+                node,
+                "part",
+                part_index,
+                "PART",
+                "required B-Rep pointer is unresolved",
+            )
+        })?;
+        let part = match self.roles.type_name(part_node) {
+            "BODY" => InstancePart::Body(self.id_from_target(
+                node,
+                "part",
+                part_index,
+                "BODY",
+                &self.ids.bodies,
+            )?),
+            "ASSEMBLY" => InstancePart::Assembly(self.id_from_target(
+                node,
+                "part",
+                part_index,
+                "ASSEMBLY",
+                &self.ids.assemblies,
+            )?),
+            _ => {
+                return Err(self.invalid_reference(
+                    node,
+                    "part",
+                    part_index,
+                    "PART",
+                    format!(
+                        "pointer targets {} rather than a BODY or ASSEMBLY",
+                        part_node.definition.name
+                    ),
+                ));
+            }
+        };
+        let transform = match self.pointer(node, "transform")? {
+            0 => None,
+            target => Some(self.map_transform(node, target)?),
+        };
+        Ok(Instance {
+            id: self.id(&self.ids.instances, node, "INSTANCE")?,
+            negative,
+            part,
+            transform,
+            assembly: self.required_id(node, "assembly", "ASSEMBLY", &self.ids.assemblies)?,
+            source: self.source(node),
+        })
+    }
+
+    fn map_transform(&self, owner: &RawNode, target: u32) -> Result<Transform, ParseError> {
+        let node = self.nodes.get(&target).copied().ok_or_else(|| {
+            self.invalid_reference(
+                owner,
+                "transform",
+                target,
+                "TRANSFORM",
+                "required B-Rep pointer is unresolved",
+            )
+        })?;
+        if self.roles.type_name(node) != "TRANSFORM" {
+            return Err(self.invalid_reference(
+                owner,
+                "transform",
+                target,
+                "TRANSFORM",
+                format!(
+                    "pointer targets {} rather than TRANSFORM",
+                    node.definition.name
+                ),
+            ));
+        }
+        let values = self.double_array(node, "rotation_matrix")?;
+        self.validate_count(node, "rotation_matrix", 9, values.len())?;
+        let scale = self.double(node, "scale")?;
+        if scale == 0.0 {
+            return Err(self.invalid_geometry(node, "scale", "transform scale is zero"));
+        }
+        Ok(Transform {
+            rotation: [
+                [values[0], values[1], values[2]],
+                [values[3], values[4], values[5]],
+                [values[6], values[7], values[8]],
+            ],
+            translation: self.vector(node, "translation_vector")?,
+            scale,
+            flags: self.nonnegative_integer(node, "flag")?,
+            perspective: self
+                .optional_vector(node, "perspective_vector")?
+                .unwrap_or(Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                }),
             source: self.source(node),
         })
     }
@@ -2352,6 +2518,205 @@ mod tests {
                 ],
             ),
         ]
+    }
+
+    /// A root assembly (6) placing the body through a transform (7, 8) and a
+    /// negative instance (9) of a sub-assembly (10).
+    fn assembly_nodes(part: u32, instance_type: u8, transform: u32, scale: f64) -> Vec<RawNode> {
+        let pointer = |value: u32| vec![FieldValue::PointerIndex(value)];
+        let double = |value: f64| vec![FieldValue::Double(Some(value))];
+        let integer = |value: i32| vec![FieldValue::Integer(Some(value))];
+        vec![
+            node(
+                6,
+                10,
+                "ASSEMBLY",
+                vec![
+                    field("res_size", 0, double(1.0e3)),
+                    field("res_linear", 0, double(1.0e-8)),
+                    field("ref_instance", 11, pointer(0)),
+                    field("type", 0, vec![FieldValue::UnsignedByte(1)]),
+                    field("sub_instance", 11, pointer(7)),
+                ],
+            ),
+            node(
+                7,
+                11,
+                "INSTANCE",
+                vec![
+                    field("node_id", 0, integer(1)),
+                    field("type", 0, vec![FieldValue::UnsignedByte(instance_type)]),
+                    field("part", 1005, pointer(part)),
+                    field("transform", 100, pointer(transform)),
+                    field("assembly", 10, pointer(6)),
+                    field("next_in_part", 11, pointer(9)),
+                    field("next_of_part", 11, pointer(0)),
+                ],
+            ),
+            node(
+                8,
+                100,
+                "TRANSFORM",
+                vec![
+                    field("node_id", 0, integer(2)),
+                    field(
+                        "rotation_matrix",
+                        0,
+                        [0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+                            .into_iter()
+                            .map(|value| FieldValue::Double(Some(value)))
+                            .collect(),
+                    ),
+                    field(
+                        "translation_vector",
+                        0,
+                        vec![FieldValue::Vector([Some(1.0), Some(2.0), Some(3.0)])],
+                    ),
+                    field("scale", 0, double(scale)),
+                    field("flag", 0, integer(7)),
+                    field(
+                        "perspective_vector",
+                        0,
+                        vec![FieldValue::Vector([None, None, None])],
+                    ),
+                ],
+            ),
+            node(
+                9,
+                11,
+                "INSTANCE",
+                vec![
+                    field("node_id", 0, integer(3)),
+                    field("type", 0, vec![FieldValue::UnsignedByte(2)]),
+                    field("part", 1005, pointer(10)),
+                    field("transform", 100, pointer(0)),
+                    field("assembly", 10, pointer(6)),
+                    field("next_in_part", 11, pointer(0)),
+                    field("next_of_part", 11, pointer(0)),
+                ],
+            ),
+            node(
+                10,
+                10,
+                "ASSEMBLY",
+                vec![
+                    field("res_size", 0, double(1.0e3)),
+                    field("res_linear", 0, double(1.0e-8)),
+                    field("ref_instance", 11, pointer(9)),
+                    field("type", 0, vec![FieldValue::UnsignedByte(3)]),
+                    field("sub_instance", 11, pointer(0)),
+                ],
+            ),
+        ]
+    }
+
+    #[test]
+    fn maps_assembly_instances_and_transforms_beside_the_bodies() {
+        let mut nodes = wire_acorn_nodes();
+        nodes.extend(assembly_nodes(1, 1, 8, 2.0));
+        let model = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map();
+        assert!(model.is_ok());
+        if let Ok(model) = model {
+            assert!(model.topology.valid);
+            assert_eq!(model.assemblies.len(), 2);
+            assert_eq!(model.instances.len(), 2);
+            let root = &model.assemblies[0];
+            assert_eq!(root.kind, AssemblyKind::Collective);
+            assert_eq!(root.instances, [0, 1]);
+            assert!(root.referencing_instances.is_empty());
+            assert_eq!(root.source.node_id, None);
+            let sub = &model.assemblies[1];
+            assert_eq!(sub.kind, AssemblyKind::Disjunctive);
+            assert_eq!(sub.referencing_instances, [1]);
+            assert!(sub.instances.is_empty());
+            let placed = &model.instances[0];
+            assert!(!placed.negative);
+            assert_eq!(placed.part, InstancePart::Body(0));
+            assert_eq!(placed.assembly, 0);
+            assert_eq!(placed.source.node_id, Some(1));
+            assert!(placed.transform.is_some());
+            if let Some(transform) = &placed.transform {
+                assert_eq!(
+                    transform.translation,
+                    Vector3 {
+                        x: 1.0,
+                        y: 2.0,
+                        z: 3.0
+                    }
+                );
+                assert_eq!(
+                    transform.perspective,
+                    Vector3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0
+                    }
+                );
+                assert!(transform.has(Transform::TRANSLATION));
+                assert!(transform.has(Transform::ROTATION));
+                assert!(transform.has(Transform::SCALING));
+                assert!(!transform.has(Transform::REFLECTION));
+                assert_eq!(
+                    transform.apply(Vector3 {
+                        x: 1.0,
+                        y: 0.0,
+                        z: 0.0
+                    }),
+                    Vector3 {
+                        x: 2.0,
+                        y: 6.0,
+                        z: 6.0
+                    }
+                );
+                assert_eq!(transform.source.node_id, Some(2));
+            }
+            let negative = &model.instances[1];
+            assert!(negative.negative);
+            assert_eq!(negative.part, InstancePart::Assembly(1));
+            assert!(negative.transform.is_none());
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_instances_and_transforms() {
+        let cases = [
+            // The part is a POINT.
+            (
+                assembly_nodes(5, 1, 8, 2.0),
+                ErrorKind::InvalidBrepReference,
+            ),
+            // Unknown instance type.
+            (assembly_nodes(1, 3, 8, 2.0), ErrorKind::InvalidBrepField),
+            // The transform pointer targets the body.
+            (
+                assembly_nodes(1, 1, 1, 2.0),
+                ErrorKind::InvalidBrepReference,
+            ),
+            // A zero scale collapses the part.
+            (
+                assembly_nodes(1, 1, 8, 0.0),
+                ErrorKind::InvalidGeometryParameter,
+            ),
+        ];
+        for (extra, kind) in cases {
+            let mut nodes = wire_acorn_nodes();
+            nodes.extend(extra);
+            let error = Mapper::new(
+                BrepSourceFormat::Binary,
+                "SCH_TEST",
+                &nodes,
+                RoleAccess::Named,
+            )
+            .map()
+            .err();
+            assert_eq!(error.map(|error| error.kind()), Some(kind));
+        }
     }
 
     #[test]

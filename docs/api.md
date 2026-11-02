@@ -23,6 +23,13 @@ Complete parsing selects by the internal stream key. Omitting `schema_provider`
 (or passing `None`) selects a compiled profile from the
 [shared support matrix](format-support.md#supported-profiles). That table is
 the source for exact keys, revisions, hashes, and stage-specific evidence.
+A key that no exact profile accepts is read with the derived profile of its
+[schema family](format-support.md#schema-families) (`<effective>[-<base>]`,
+the key without its modeller build) when any exact profile shares that
+family. The document then reports `coverage="family_inferred"`,
+`profile_id="family-<family>"` and the requested key; uncovered node types
+still fail closed. `builtin_profiles()` lists the exact profiles and the
+derived families with their members and base contributors.
 
 The five [legacy iCAD profiles](builtin-profiles.md#legacy-icad-embedded-keys)
 use this same default path in Python and Rust. In the released packages,
@@ -33,8 +40,10 @@ them to `SpunSurface`. Raw success alone does not establish conversion.
 The [SolidWorks profile](solidworks-partitions.md) does not apply delta streams
 or determine final configuration state. Unsupported delta records fail explicitly.
 
-Each has `verified_subset` coverage and requires zero user fields. The embedded
-profiles supply the reviewed 13006 base before applying stream edits. Runtime,
+Each has `verified_subset` coverage; an exact profile's declarations are
+completed by its [schema family](format-support.md#schema-families), the other
+reviewed profiles of the same provider schema. The embedded profiles supply the
+reviewed 13006 base before applying stream edits. Runtime,
 build, and installation require no external catalog; the parser does not use
 the network. Development-only catalog comparisons and membership evidence
 remain documented. The current source tree adds the exact Onshape internal key
@@ -76,14 +85,15 @@ The repository and package do not contain Siemens catalogs. See
 
 | Condition | Diagnostic / error |
 |---|---|
-| Default selection with an unsupported key | `schema.missing_base_schema`, with an explanation of built-in scope |
+| Default selection with a key outside every exact profile and schema family | `schema.missing_base_schema`, with an explanation of built-in scope |
+| Default selection with an unregistered build of a reviewed schema family | No error; `schema_resolution.coverage == "family_inferred"` |
 | Explicit provider returns no catalog | `schema.missing_base_schema` |
 | Explicit catalog has no requested type | `schema.missing_type_definition` |
 | Standard built-in profile has no reviewed type | `schema.builtin_profile_uncovered_type`, including profile and node type |
 | Embedded base-type membership is unknown | `schema.unknown_base_type`, before embedded definition decoding |
 | Embedded base type exists but its definition is unavailable | `schema.unsupported_base_type`, before embedded definition decoding |
 | Embedded edits replace or remove a required B-Rep role | Raw decoding may succeed; mapping raises `brep.invalid_field` |
-| Built-in input has nonzero user fields | `node.unsupported_user_fields`, before record payload decoding |
+| Built-in input has nonzero user fields | No error; the `USFLD_SIZE` words after every node are kept in `RawNode.user_fields` |
 
 ## Entry points
 
@@ -98,6 +108,7 @@ The repository and package do not contain Siemens catalogs. See
 | `write_xb(document)` | `bytes` | Byte-exact reconstruction of an unmodified X_B document |
 | `compare_documents(left, right, *, absolute_tolerance=..., relative_tolerance=..., max_differences=...)` | `DocumentComparison` | Structural comparison after pointer-index remapping |
 | `map_brep(document, *, limits=...)` | `BrepModel` | Validated Parasolid-native topology and geometry model |
+| `builtin_profiles()` | `tuple[BuiltinProfileInfo, ...]` | The compiled exact profiles followed by the derived schema families with their members and base contributors |
 
 ## High-level B-Rep result
 
@@ -127,6 +138,15 @@ resolved-schema counts, B-Rep completeness, topology/geometry counts, body,
 curve and surface kinds, kernel-free metrics, and document/B-Rep diagnostics as
 separate lists. Bounding boxes, areas, and volumes remain in source transmit
 units; `unit_basis="source_transmit_units"` does not claim a physical unit.
+
+`BrepModel.assemblies` and `BrepModel.instances` return the assembly structure
+of a transmit file beside the topology. Each `Assembly` lists the instances it
+positions and the instances that reference it; each `Instance` names its part
+(a body or an assembly identifier with `part_kind`), its sign, its owning
+assembly and the stored `Transform` (rotation rows, translation, scale and the
+component flags), whose `apply` evaluates `(rotation · x + translation) · scale`.
+The transforms are not applied to the bodies' geometry; the entity counts and
+the `check` output include both collections.
 
 `ParsedBrep.complete`, `BrepSummary.complete`, and `BrepModel.complete` describe
 the same source-mapping stage. A complete model may still have unavailable
@@ -333,9 +353,10 @@ volume against the OCCT result before returning. CadQuery's `Shape.Volume()`
 reports a dimensional mass and therefore returns area for a sheet `Face`; the
 adapter instead sums `Volume()` only over `shape.Solids()` for this check.
 
-The source model contains no assembly or editable-operation semantics, so the
-adapter never infers `cadquery.Assembly`, `cadquery.Workplane`, or feature
-history. A CadQuery modeling operation can produce a new shape; the source
+The adapter converts bodies unplaced: it applies no instance transform from
+`BrepModel.instances` and never infers `cadquery.Assembly`,
+`cadquery.Workplane`, or feature history. A CadQuery modeling operation can
+produce a new shape; the source
 map describes only the original conversion and is not claimed to remain valid
 after that mutation. Wrapper-specific failures raise `CadQueryConversionError`
 and retain the underlying conversion as `.result`.

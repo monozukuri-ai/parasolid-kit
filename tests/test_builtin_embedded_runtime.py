@@ -155,8 +155,14 @@ def test_icad_v34_selects_exact_profile_and_maps_copied_body_roles(encoding):
     assert result.brep.complete and result.brep.topology.valid
     assert len(result.brep.bodies) == 1
     assert result.summary.schema_resolution == result.document.schema_resolution
-    with pytest.raises(SchemaError, match=r"schema\.missing_base_schema"):
-        read_brep(data.replace(key.encode(), b"SCH_3401213_34101_13006"))
+    # Another build of the same schema has no exact profile; the family derived
+    # from the iCAD V34 and SolidWorks 34101 profiles maps the same copied roles.
+    other_build = read_brep(data.replace(key.encode(), b"SCH_3401213_34101_13006"))
+    resolution = other_build.document.schema_resolution
+    assert resolution.profile_id == "family-34101-13006"
+    assert resolution.coverage == "family_inferred"
+    assert resolution.schema_key == "SCH_3401213_34101_13006"
+    assert other_build.brep.complete and other_build.brep.topology.valid
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
@@ -188,10 +194,22 @@ def test_unknown_membership_is_rejected_before_full_declaration(encoding):
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
 @pytest.mark.parametrize("key", [BASE, EMBEDDED])
-def test_user_fields_are_rejected_at_the_header(encoding, key):
+def test_user_fields_are_read_with_the_builtin_profiles(encoding, key):
+    # One declared user word follows every node, value nodes included.
     parser = parse_xt if encoding == "x_t" else parse_xb
-    with pytest.raises(ParseError, match=r"node\.unsupported_user_fields"):
-        parser(array(encoding, key, user_fields=1))
+    if encoding == "x_t":
+        marker = b"255 " if key == EMBEDDED else b""
+        data = header(key, 1) + b"82 " + marker + b"2 1 -7 ?5 1 0 "
+    else:
+        marker = b"\xff" if key == EMBEDDED else b""
+        record = marker + struct.pack(">i", 2) + positive_integer(1)
+        record += struct.pack(">iii", -7, -32764, 5)
+        data = builder(key, 1).add_raw_node(82, record).build()
+    document = parser(data)
+    assert document.header.user_field_size == 1
+    assert [v.value for v in document.nodes[0].fields[0].values] == [-7, None]
+    assert document.nodes[0].user_fields == (5,)
+    assert document.schema_resolution.profile_id == PROFILES[key][0]
 
 
 @pytest.mark.parametrize("key", [BASE, EMBEDDED])

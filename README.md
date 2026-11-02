@@ -85,15 +85,23 @@ See [preview controls and saving](docs/api.md#bounded-local-preview),
 ## Supported inputs
 
 Built-in profiles cover exact Onshape V30/V13/current, extracted iCAD and
-SolidWorks partition keys. Each has `verified_subset` coverage and requires
-zero user fields. Consult the [support matrix](docs/format-support.md#supported-profiles)
-for exact keys and geometry limits; matching a key does not guarantee that
-all records are supported. Other keys or uncovered types need an explicit
-[schema catalog](docs/schema-catalogs.md).
+SolidWorks partition keys and three transmit-file keys (NX and the Parasolid 24
+and 26 acceptance tests). Each has `verified_subset` coverage and is completed
+by its schema family; application user fields are read. A key with no exact profile is read with the
+[schema family](docs/format-support.md#schema-families) of its effective
+schema and base (another Parasolid build of a reviewed schema) and reports
+`family_inferred` coverage; its node types must still be covered by the
+family's merged declarations. Consult the
+[support matrix](docs/format-support.md#supported-profiles)
+for exact keys, families and geometry limits; matching a key does not
+guarantee that all records are supported. Other schemas or uncovered types need
+an explicit [schema catalog](docs/schema-catalogs.md).
 
-Native CAD containers, assemblies and SolidWorks delta application are outside
-the complete parser contract. Parsing, OCCT conversion, STEP export and preview
-have separate coverage. See [format support and limitations](docs/format-support.md).
+Native CAD containers and SolidWorks delta application are outside the
+complete parser contract. Assembly structure (instances and their transforms)
+is returned beside the B-Rep and is not applied to geometry or conversion.
+Parsing, OCCT conversion, STEP export and preview have separate coverage. See
+[format support and limitations](docs/format-support.md).
 
 ## Documentation
 

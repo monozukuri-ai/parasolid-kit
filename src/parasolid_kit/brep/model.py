@@ -9,11 +9,13 @@ from typing import Any, Literal, cast
 from ..diagnostics import Diagnostic
 from .geometry import CurveGeometry, PointGeometry, SurfaceGeometry
 from .topology import (
+    Assembly,
     Body,
     BoundingBox,
     Edge,
     Face,
     HalfEdge,
+    Instance,
     Loop,
     Region,
     Shell,
@@ -63,6 +65,9 @@ class BrepModel:
     topology: TopologyValidation
     metrics: BrepMetrics
     diagnostics: tuple[Diagnostic, ...]
+    # Assembly structure beside the topology; instance transforms are not applied.
+    assemblies: tuple[Assembly, ...] = ()
+    instances: tuple[Instance, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible semantic report."""

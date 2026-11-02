@@ -23,6 +23,8 @@ from .binary import (
     XbTermination,
 )
 from .brep import (
+    Assembly,
+    AssemblyKind,
     BlendBoundarySurface,
     BlendedEdgeSurface,
     BlendType,
@@ -41,6 +43,8 @@ from .brep import (
     Face,
     HalfEdge,
     HyperbolaCurve,
+    Instance,
+    InstancePartKind,
     IntersectionCurve,
     LineCurve,
     Loop,
@@ -62,6 +66,7 @@ from .brep import (
     SurfaceParametricCurve,
     TopologyValidation,
     TorusSurface,
+    Transform,
     TrimmedCurve,
     UnsupportedGeometry,
     Vector3,
@@ -76,12 +81,15 @@ from .diagnostics import (
 from .errors import LimitExceededError, ParasolidError, ParseError, SchemaError
 from .limits import DEFAULT_PARSE_LIMITS, ParseLimits
 from .schema import (
+    BuiltinFamilyMember,
+    BuiltinProfileInfo,
     DirectorySchemaProvider,
     InMemorySchemaProvider,
     SchemaCatalog,
     SchemaKey,
     SchemaProvider,
     SchemaProviderResolution,
+    builtin_profiles,
     load_schema_catalog,
 )
 from .summary import BrepEntityCounts, BrepSummary, ParsedBrep
@@ -90,6 +98,8 @@ from .validation import ComparisonDifference, DocumentComparison
 
 __all__ = [
     "DEFAULT_PARSE_LIMITS",
+    "Assembly",
+    "AssemblyKind",
     "BlendBoundarySurface",
     "BlendType",
     "BlendedEdgeSurface",
@@ -100,6 +110,8 @@ __all__ = [
     "BrepMetrics",
     "BrepModel",
     "BrepSummary",
+    "BuiltinFamilyMember",
+    "BuiltinProfileInfo",
     "ByteRange",
     "CircleCurve",
     "ComparisonDifference",
@@ -119,6 +131,8 @@ __all__ = [
     "HalfEdge",
     "HyperbolaCurve",
     "InMemorySchemaProvider",
+    "Instance",
+    "InstancePartKind",
     "IntersectionCurve",
     "LimitExceededError",
     "LineCurve",
@@ -154,6 +168,7 @@ __all__ = [
     "SurfaceParametricCurve",
     "TopologyValidation",
     "TorusSurface",
+    "Transform",
     "TrimmedCurve",
     "UnsupportedGeometry",
     "Vector3",
@@ -164,6 +179,7 @@ __all__ = [
     "XtHeader",
     "XtTermination",
     "__version__",
+    "builtin_profiles",
     "compare_documents",
     "inspect_xb",
     "inspect_xt",
