@@ -129,9 +129,18 @@ print(parsed.summary.to_dict())
 
 `ParsedBrep` contains:
 
-- `document`: the complete `ParasolidDocument` with raw nodes and source bytes;
+- `document`: the `ParasolidDocument` with the source bytes, whose raw nodes are
+  materialized from the native snapshot on first access;
 - `brep`: the complete or explicitly incomplete `BrepModel` source model; and
 - `summary`: a compact `BrepSummary` suitable for immediate inspection.
+
+`read_brep` parses and maps in one native call and never builds the Python
+node tree unless `document.nodes` is read, so the B-Rep of a large file costs
+the Rust snapshot and the model only. A 10.7 MB SolidWorks X_T with 161,585
+nodes and 2,949 faces reads in 3.2 s with a peak of 480 MB, against 42 s and
+3.5 GB when the node tree was built eagerly; materializing its nodes afterwards
+still takes about 44 s and 2.7 GB more. `parse_xt` and
+`parse_xb` return the same lazy document.
 
 The summary reports the format, modeller and schema identifiers, file/node and
 resolved-schema counts, B-Rep completeness, topology/geometry counts, body,
@@ -165,8 +174,10 @@ built-in profile; unregistered keys require an external provider.
 `ParasolidDocument.format` is `"binary"` or `"text"`. Its `nodes` remain in
 physical source order and retain node indices, effective definitions, decoded
 field values, exact byte ranges, schema-resolution provenance, terminator, raw
-bytes, diagnostics, and schema-coverage data. Public model objects provide
-`to_dict()` where a JSON-compatible report is required.
+bytes, diagnostics, and schema-coverage data. `nodes` is materialized on first
+access and then kept; `node_count` is available without materializing it.
+Public model objects provide `to_dict()` where a JSON-compatible report is
+required.
 
 `ParasolidDocument.schema_resolution` and `BrepSummary.schema_resolution` hold
 an immutable `SchemaProviderResolution`. Its `kind` is `"caller_supplied"` or

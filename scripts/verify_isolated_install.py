@@ -183,12 +183,17 @@ for parser, data in ((parse_xt, text_payload), (parse_xb, payload)):
         assert error.diagnostic.code == "schema.missing_base_schema"
     else:
         raise AssertionError("explicit empty provider fell back")
+    # Another build of the reviewed schema resolves through its family; a key
+    # outside every family still fails closed.
+    family = parser(data.replace(b"SCH_3000000_30000", b"SCH_3000001_30000"))
+    assert family.schema_resolution.profile_id == "family-30000"
+    assert family.schema_resolution.coverage == "family_inferred"
     try:
-        parser(data.replace(b"SCH_3000000_30000", b"SCH_3000001_30000"))
+        parser(data.replace(b"SCH_3000000_30000", b"SCH_3000000_30001"))
     except SchemaError as error:
         assert error.diagnostic.code == "schema.missing_base_schema"
     else:
-        raise AssertionError("near key selected a profile")
+        raise AssertionError("a key outside every family selected a profile")
 Path("synthetic.x_t").write_bytes(text_payload)
 Path("synthetic.x_b").write_bytes(payload)
 assert "OCP" not in sys.modules and "cadquery" not in sys.modules

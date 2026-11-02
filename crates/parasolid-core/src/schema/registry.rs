@@ -1,19 +1,42 @@
 //! Document-local effective schema registry.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::{ErrorDetails, ErrorKind, ParseError};
 
 use super::{
-    SchemaCoverageReport, SchemaKey, SchemaLimits, SchemaProvider, SchemaResolution, SchemaSource,
-    decode_embedded_schema, embedded_base_definition, missing_type_definition_error,
-    unavailable_schema_error,
+    FieldDefinition, SchemaCoverageReport, SchemaKey, SchemaLimits, SchemaProvider,
+    SchemaResolution, SchemaSource, TypeDefinition, decode_embedded_schema,
+    embedded_base_definition, missing_type_definition_error, unavailable_schema_error,
 };
+
+/// One resolved type's definition and field definitions, shared by its nodes.
+///
+/// Every node of a type references these handles instead of carrying its own
+/// copy of the declarations, which keeps the retained document small.
+#[derive(Debug, Clone)]
+pub struct SharedDefinition {
+    /// The effective type definition.
+    pub definition: Arc<TypeDefinition>,
+    /// The effective field definitions in the type's order.
+    pub fields: Vec<Arc<FieldDefinition>>,
+}
+
+impl SharedDefinition {
+    fn new(definition: &TypeDefinition) -> Self {
+        Self {
+            fields: definition.fields.iter().cloned().map(Arc::new).collect(),
+            definition: Arc::new(definition.clone()),
+        }
+    }
+}
 
 /// Effective definitions resolved at the first occurrence of each node type.
 #[derive(Debug, Clone)]
 pub struct EffectiveSchemaRegistry {
     entries: BTreeMap<u16, SchemaResolution>,
+    shared: BTreeMap<u16, SharedDefinition>,
     max_schema_types: usize,
 }
 
@@ -23,6 +46,7 @@ impl EffectiveSchemaRegistry {
     pub const fn new(max_schema_types: usize) -> Self {
         Self {
             entries: BTreeMap::new(),
+            shared: BTreeMap::new(),
             max_schema_types,
         }
     }
@@ -31,6 +55,12 @@ impl EffectiveSchemaRegistry {
     #[must_use]
     pub fn get(&self, node_type: u16) -> Option<&SchemaResolution> {
         self.entries.get(&node_type)
+    }
+
+    /// Return the shared definition handles of one resolved type.
+    #[must_use]
+    pub fn shared(&self, node_type: u16) -> Option<&SharedDefinition> {
+        self.shared.get(&node_type)
     }
 
     /// Return the number of resolved types.
@@ -77,6 +107,8 @@ impl EffectiveSchemaRegistry {
                 self.max_schema_types,
             ));
         }
+        self.shared
+            .insert(node_type, SharedDefinition::new(&resolution.definition));
         self.entries.insert(node_type, resolution);
         Ok(())
     }

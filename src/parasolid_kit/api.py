@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Mapping
+from functools import partial
 from math import isfinite
 from pathlib import Path
 from typing import Any, Literal, TypeAlias, cast
@@ -98,39 +99,15 @@ def parse_xb(
 
     data = _read_source(source, limits)
     header = inspect_xb(data, limits=limits)
-    schema_key = SchemaKey.parse(header.schema_key)
-    if schema_provider is not None and not isinstance(schema_provider, SchemaProvider):
-        raise TypeError("schema_provider must implement SchemaProvider")
-    catalog = (
-        None if schema_provider is None else schema_provider.get_schema(schema_key.provider_schema)
-    )
-    if catalog is not None and not isinstance(catalog, SchemaCatalog):
-        raise TypeError("schema_provider.get_schema() must return SchemaCatalog or None")
-    if catalog is not None and catalog.schema_id != schema_key.provider_schema:
-        raise ValueError("schema provider returned a catalog with the wrong schema_id")
-
-    schema_id, definitions = _catalog_to_native(catalog)
+    schema_id, definitions = _native_catalog(SchemaKey.parse(header.schema_key), schema_provider)
     response = _core._parse_xb(
         data,
         schema_id,
         definitions,
-        min(limits.max_file_size, sys.maxsize),
-        min(limits.max_nodes, sys.maxsize),
-        min(limits.max_schema_types, sys.maxsize),
-        min(limits.max_fields_per_type, sys.maxsize),
-        min(limits.max_string_bytes, sys.maxsize),
-        min(limits.max_variable_elements, sys.maxsize),
+        *_native_limits(limits),
         allow_builtin=schema_provider is None,
     )
-    if not isinstance(response, Mapping):
-        raise RuntimeError("native parse response is not a mapping")
-    if response.get("ok") is True:
-        return _document_from_native(_mapping_value(response, "value"))
-    if response.get("ok") is False:
-        error = _mapping_value(response, "error")
-        error_type = SchemaError if _str_value(error, "code").startswith("schema.") else ParseError
-        raise _parse_error_from_native(error, error_type=error_type)
-    raise RuntimeError("native parse response has no boolean 'ok' field")
+    return _document_from_native(_parse_response(response), raw_bytes=data)
 
 
 def parse_xt(
@@ -148,7 +125,22 @@ def parse_xt(
 
     data = _read_source(source, limits)
     header = inspect_xt(data, limits=limits)
-    schema_key = SchemaKey.parse(header.schema_key)
+    schema_id, definitions = _native_catalog(SchemaKey.parse(header.schema_key), schema_provider)
+    response = _core._parse_xt(
+        data,
+        schema_id,
+        definitions,
+        *_native_limits(limits),
+        allow_builtin=schema_provider is None,
+    )
+    return _document_from_native(_parse_response(response), raw_bytes=data)
+
+
+def _native_catalog(
+    schema_key: SchemaKey, schema_provider: SchemaProvider | None
+) -> tuple[str | None, list[Any] | None]:
+    """Resolve the caller's exact catalog for the key into native arguments."""
+
     if schema_provider is not None and not isinstance(schema_provider, SchemaProvider):
         raise TypeError("schema_provider must implement SchemaProvider")
     catalog = (
@@ -158,24 +150,25 @@ def parse_xt(
         raise TypeError("schema_provider.get_schema() must return SchemaCatalog or None")
     if catalog is not None and catalog.schema_id != schema_key.provider_schema:
         raise ValueError("schema provider returned a catalog with the wrong schema_id")
+    return _catalog_to_native(catalog)
 
-    schema_id, definitions = _catalog_to_native(catalog)
-    response = _core._parse_xt(
-        data,
-        schema_id,
-        definitions,
+
+def _native_limits(limits: ParseLimits) -> tuple[int, int, int, int, int, int]:
+    return (
         min(limits.max_file_size, sys.maxsize),
         min(limits.max_nodes, sys.maxsize),
         min(limits.max_schema_types, sys.maxsize),
         min(limits.max_fields_per_type, sys.maxsize),
         min(limits.max_string_bytes, sys.maxsize),
         min(limits.max_variable_elements, sys.maxsize),
-        allow_builtin=schema_provider is None,
     )
+
+
+def _parse_response(response: object) -> Mapping[str, Any]:
     if not isinstance(response, Mapping):
         raise RuntimeError("native parse response is not a mapping")
     if response.get("ok") is True:
-        return _document_from_native(_mapping_value(response, "value"))
+        return _mapping_value(response, "value")
     if response.get("ok") is False:
         error = _mapping_value(response, "error")
         error_type = SchemaError if _str_value(error, "code").startswith("schema.") else ParseError
@@ -243,6 +236,9 @@ def read_brep(
     A directory must contain the exact ``sch_<provider-schema>.sch_txt`` catalog
     selected by the internal stream key. Other keys, including embedded-base
     keys, require an external provider.
+
+    Parsing and mapping run in one native call; the returned document builds its
+    Python node tree only when ``document.nodes`` is read.
     """
 
     if not isinstance(limits, ParseLimits):
@@ -254,25 +250,47 @@ def read_brep(
 
     data = _read_source(source, limits)
     resolved_format = _read_source_format(source, data, source_format)
-    parser = parse_xb if resolved_format == "binary" else parse_xt
     inspector = inspect_xb if resolved_format == "binary" else inspect_xt
+    header = inspector(data, limits=limits)
+    schema_key = SchemaKey.parse(header.schema_key)
 
     provider = schema_provider
     if schema_dir is not None:
         directory_provider = DirectorySchemaProvider(schema_dir, limits=limits)
-        header = inspector(data, limits=limits)
-        required_schema = SchemaKey.parse(header.schema_key).provider_schema
-        if directory_provider.get_schema(required_schema) is None:
+        if directory_provider.get_schema(schema_key.provider_schema) is None:
             raise FileNotFoundError(
                 "required exact schema catalog does not exist: "
-                f"{directory_provider.catalog_path(required_schema)}"
+                f"{directory_provider.catalog_path(schema_key.provider_schema)}"
             )
         provider = directory_provider
 
-    document = parser(data, schema_provider=provider, limits=limits)
-    model = map_brep(document, limits=limits)
-    summary = BrepSummary.from_parsed(document, model)
-    return ParsedBrep(document=document, brep=model, summary=summary)
+    schema_id, definitions = _native_catalog(schema_key, provider)
+    native_read = _core._read_xb_brep if resolved_format == "binary" else _core._read_xt_brep
+    response = native_read(
+        data,
+        schema_id,
+        definitions,
+        *_native_limits(limits),
+        min(limits.max_diagnostics, sys.maxsize),
+        allow_builtin=provider is None,
+    )
+    if not isinstance(response, Mapping):
+        raise RuntimeError("native read response is not a mapping")
+    if response.get("ok") is True:
+        value = _mapping_value(response, "value")
+        document = _document_from_native(_mapping_value(value, "document"), raw_bytes=data)
+        model = _brep_from_native(_mapping_value(value, "brep"))
+        summary = BrepSummary.from_parsed(document, model)
+        return ParsedBrep(document=document, brep=model, summary=summary)
+    if response.get("ok") is False:
+        error = _mapping_value(response, "error")
+        schema_error = response.get("stage") == "parse" and _str_value(error, "code").startswith(
+            "schema."
+        )
+        raise _parse_error_from_native(
+            error, error_type=SchemaError if schema_error else ParseError
+        )
+    raise RuntimeError("native read response has no boolean 'ok' field")
 
 
 def compare_documents(
@@ -388,16 +406,10 @@ def _comparison_difference_from_native(value: object) -> ComparisonDifference:
     )
 
 
-def _document_from_native(value: Mapping[str, Any]) -> ParasolidDocument:
+def _document_from_native(value: Mapping[str, Any], *, raw_bytes: bytes) -> ParasolidDocument:
     schemas_value = value.get("schemas")
-    nodes_value = value.get("nodes")
-    raw_bytes = value.get("raw_bytes")
     if not isinstance(schemas_value, list):
         raise RuntimeError("native document schemas are not a list")
-    if not isinstance(nodes_value, list):
-        raise RuntimeError("native document nodes are not a list")
-    if not isinstance(raw_bytes, bytes):
-        raise RuntimeError("native document raw_bytes is not bytes")
     native_document = value.get("native_document")
     if native_document is None:
         raise RuntimeError("native document handle is missing")
@@ -420,13 +432,24 @@ def _document_from_native(value: Mapping[str, Any]) -> ParasolidDocument:
             _resolution_from_native(_require_mapping(item, "schema resolution"))
             for item in schemas_value
         ),
-        nodes=tuple(_node_from_native(item) for item in nodes_value),
         terminator=terminator,
         schema_coverage=_coverage_from_native(_mapping_value(value, "schema_coverage")),
         raw_bytes=raw_bytes,
+        node_count=_int_value(value, "node_count"),
         _native_document=native_document,
         schema_resolution=SchemaProviderResolution(**_mapping_value(value, "schema_resolution")),
+        _node_loader=partial(_load_nodes, native_document, document_format),
     )
+
+
+def _load_nodes(native_document: object, document_format: str) -> tuple[RawNode, ...]:
+    """Materialize the node tree from the native snapshot."""
+
+    native = _core._xb_document_nodes if document_format == "binary" else _core._xt_document_nodes
+    nodes_value = native(native_document)
+    if not isinstance(nodes_value, list):
+        raise RuntimeError("native document nodes are not a list")
+    return tuple(_node_from_native(item) for item in nodes_value)
 
 
 def _schema_key_from_native(value: Mapping[str, Any]) -> SchemaKey:

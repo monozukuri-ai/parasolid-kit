@@ -63,6 +63,18 @@
   `InstancePartKind` types, the `assemblies` and `instances` entity counts and
   the `check` output. Transforms are not applied to geometry or conversion.
   The `SolidWorks` and transmit profile digests change.
+- Light read path: `read_brep` parses and maps in one native call
+  (`_read_xb_brep` / `_read_xt_brep`) and no longer builds the Python node
+  tree. `ParasolidDocument.nodes` is materialized from the native snapshot on
+  first access and then kept; the new `node_count` field is available without
+  it, and `BrepSummary` uses it. In Rust, `RawNode.definition` and
+  `RawField.definition` are now `Arc<TypeDefinition>` and
+  `Arc<FieldDefinition>` shared by every node of a type
+  (`EffectiveSchemaRegistry::shared`, `SharedDefinition`), which shrinks the
+  retained document; field access is unchanged through `Deref`. A 10.7 MB
+  SolidWorks X_T with 161,585 nodes reads in 3.2 s with a peak of 480 MB
+  instead of 42 s and 3.5 GB. The isolated-install smoke test now
+  expects another build of a reviewed schema to resolve through its family.
 - SolidWorks partitions: fourteen exact earlier keys (SolidWorks 2015-2025)
   join the 2026 key, each as its own `verified_subset` profile with the shared
   declaration set; the 2026 profile becomes `solidworks-sch37102-13006-r2`.

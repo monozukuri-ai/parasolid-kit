@@ -148,7 +148,7 @@ class BrepSummary:
             modeller_version=document.header.modeller_version,
             schema_key=document.schema_key,
             file_size=len(document.raw_bytes),
-            node_count=len(document.nodes),
+            node_count=document.node_count,
             resolved_schema_type_count=document.schema_coverage.resolved_type_count,
             resolved_schema_field_count=document.schema_coverage.field_count,
             complete=model.complete,

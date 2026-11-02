@@ -9,11 +9,124 @@ use parasolid_core::brep::{
     map_xb_brep_with_diagnostic_limit, map_xt_brep_with_diagnostic_limit,
 };
 use pyo3::{
-    Bound, PyRef, PyResult, Python, pyfunction,
+    Bound, Py, PyRef, PyResult, Python, pyfunction,
     types::{PyDict, PyDictMethods, PyList, PyListMethods},
 };
 
-use super::{NativeXbDocument, NativeXtDocument, error_to_python};
+use super::{CatalogType, NativeXbDocument, NativeXtDocument, error_to_python};
+
+/// Parse and map an `X_B` stream in one call, without materializing its nodes.
+///
+/// The response carries the document summary (with the native handle), the
+/// B-Rep model and, on failure, the `stage` (`parse` or `brep`) of the error.
+#[pyfunction(name = "_read_xb_brep", signature = (data, schema_id, definitions, max_file_size, max_nodes, max_schema_types, max_fields_per_type, max_string_bytes, max_variable_elements, max_diagnostics, allow_builtin=false))]
+#[allow(clippy::too_many_arguments)]
+pub(super) fn read_xb_brep_native<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    schema_id: Option<String>,
+    definitions: Option<Vec<CatalogType>>,
+    max_file_size: usize,
+    max_nodes: usize,
+    max_schema_types: usize,
+    max_fields_per_type: usize,
+    max_string_bytes: usize,
+    max_variable_elements: usize,
+    max_diagnostics: usize,
+    allow_builtin: bool,
+) -> PyResult<Bound<'py, PyDict>> {
+    let limits = super::document_limits(
+        max_file_size,
+        max_nodes,
+        max_schema_types,
+        max_fields_per_type,
+        max_string_bytes,
+        max_variable_elements,
+    );
+    let response = PyDict::new(py);
+    match super::parse_xb_outcome(py, data, schema_id, definitions, limits, allow_builtin)? {
+        Ok(document) => match map_xb_brep_with_diagnostic_limit(&document, max_diagnostics) {
+            Ok(model) => {
+                let value = PyDict::new(py);
+                let summary = super::document_to_python(py, &document)?;
+                value.set_item("brep", model_to_python(py, &model)?)?;
+                summary.set_item(
+                    "native_document",
+                    Py::new(py, NativeXbDocument { document })?,
+                )?;
+                value.set_item("document", summary)?;
+                response.set_item("ok", true)?;
+                response.set_item("value", value)?;
+            }
+            Err(error) => {
+                response.set_item("ok", false)?;
+                response.set_item("stage", "brep")?;
+                response.set_item("error", error_to_python(py, &error)?)?;
+            }
+        },
+        Err(error) => {
+            response.set_item("ok", false)?;
+            response.set_item("stage", "parse")?;
+            response.set_item("error", error)?;
+        }
+    }
+    Ok(response)
+}
+
+/// Parse and map an `X_T` stream like [`read_xb_brep_native`].
+#[pyfunction(name = "_read_xt_brep", signature = (data, schema_id, definitions, max_file_size, max_nodes, max_schema_types, max_fields_per_type, max_string_bytes, max_variable_elements, max_diagnostics, allow_builtin=false))]
+#[allow(clippy::too_many_arguments)]
+pub(super) fn read_xt_brep_native<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    schema_id: Option<String>,
+    definitions: Option<Vec<CatalogType>>,
+    max_file_size: usize,
+    max_nodes: usize,
+    max_schema_types: usize,
+    max_fields_per_type: usize,
+    max_string_bytes: usize,
+    max_variable_elements: usize,
+    max_diagnostics: usize,
+    allow_builtin: bool,
+) -> PyResult<Bound<'py, PyDict>> {
+    let limits = super::document_limits(
+        max_file_size,
+        max_nodes,
+        max_schema_types,
+        max_fields_per_type,
+        max_string_bytes,
+        max_variable_elements,
+    );
+    let response = PyDict::new(py);
+    match super::parse_xt_outcome(py, data, schema_id, definitions, limits, allow_builtin)? {
+        Ok(document) => match map_xt_brep_with_diagnostic_limit(&document, max_diagnostics) {
+            Ok(model) => {
+                let value = PyDict::new(py);
+                let summary = super::xt_document_to_python(py, &document)?;
+                value.set_item("brep", model_to_python(py, &model)?)?;
+                summary.set_item(
+                    "native_document",
+                    Py::new(py, NativeXtDocument { document })?,
+                )?;
+                value.set_item("document", summary)?;
+                response.set_item("ok", true)?;
+                response.set_item("value", value)?;
+            }
+            Err(error) => {
+                response.set_item("ok", false)?;
+                response.set_item("stage", "brep")?;
+                response.set_item("error", error_to_python(py, &error)?)?;
+            }
+        },
+        Err(error) => {
+            response.set_item("ok", false)?;
+            response.set_item("stage", "parse")?;
+            response.set_item("error", error)?;
+        }
+    }
+    Ok(response)
+}
 
 #[pyfunction(name = "_map_xb_brep")]
 #[allow(clippy::needless_pass_by_value)]

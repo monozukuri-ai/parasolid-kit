@@ -22,7 +22,7 @@ from parasolid_kit import (
     InMemorySchemaProvider,
     LineCurve,
     ParasolidDocument,
-    ParsedBrep,
+    ParseError,
     PlaneSurface,
     PointGeometry,
     SchemaCatalog,
@@ -37,7 +37,6 @@ from parasolid_kit import (
     parse_xb,
     read_brep,
 )
-from parasolid_kit import api as api_module
 from tests.support.parasolid_binary import SyntheticXbBuilder
 from tests.test_schema_catalog import _catalog_bytes
 
@@ -194,7 +193,6 @@ def test_brep_summary_is_compact_deterministic_and_keeps_diagnostic_layers() -> 
 
 def test_read_brep_auto_detects_bytes_and_uses_the_exact_directory_catalog(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     schema_path = tmp_path / "sch_30000.sch_txt"
     schema_path.write_bytes(_catalog_bytes())
@@ -203,19 +201,19 @@ def test_read_brep_auto_detects_bytes_and_uses_the_exact_directory_catalog(
         schema_max_type=None,
     ).build()
 
-    def map_synthetic(document: ParasolidDocument, **_kwargs: object) -> BrepModel:
-        return _model(document)
+    # The bytes are detected as X_B and parsed with the directory catalog in
+    # the native read; the node-free stream then fails closed at the B-Rep
+    # stage rather than the parse.
+    with pytest.raises(ParseError) as error:
+        read_brep(source, schema_dir=tmp_path)
+    assert error.value.diagnostic.code == "brep.missing_body"
 
-    monkeypatch.setattr(api_module, "map_brep", map_synthetic)
-
-    result = read_brep(source, schema_dir=tmp_path)
-
-    assert isinstance(result, ParsedBrep)
-    assert result.document.format == "binary"
-    assert result.brep.source_format == "binary"
-    assert result.summary.schema_key.provider_schema == "30000"
-    assert result.summary.file_size == len(source)
-    assert result.complete is False
+    document = parse_xb(source, schema_provider=DirectorySchemaProvider(tmp_path))
+    assert document.format == "binary"
+    assert document.schema_key.provider_schema == "30000"
+    assert document.schema_resolution is not None
+    assert document.schema_resolution.kind == "caller_supplied"
+    assert (len(document.raw_bytes), document.node_count, document.nodes) == (len(source), 0, ())
 
 
 def test_read_brep_rejects_ambiguous_configuration_and_reports_the_exact_missing_path(

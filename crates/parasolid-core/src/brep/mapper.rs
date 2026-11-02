@@ -2414,12 +2414,12 @@ mod tests {
             index,
             user_fields: Vec::new(),
             variable_length,
-            definition,
+            definition: std::sync::Arc::new(definition),
             first_schema: None,
             fields: fields
                 .into_iter()
                 .map(|(definition, values)| RawField {
-                    definition,
+                    definition: std::sync::Arc::new(definition),
                     values,
                     byte_range: usize::try_from(index).unwrap_or(usize::MAX)
                         ..usize::try_from(index)

@@ -30,5 +30,5 @@ pub(crate) use provider::{
     embedded_base_definition, missing_type_definition_error, unavailable_schema_error,
     validate_builtin_input,
 };
-pub use registry::EffectiveSchemaRegistry;
+pub use registry::{EffectiveSchemaRegistry, SharedDefinition};
 pub(crate) use wire::WireDecodeClass;

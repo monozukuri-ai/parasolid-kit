@@ -904,16 +904,16 @@ mod tests {
             index,
             user_fields: Vec::new(),
             variable_length: None,
-            definition,
+            definition: std::sync::Arc::new(definition),
             first_schema: None,
             fields: vec![
                 crate::RawField {
-                    definition: fields[0].clone(),
+                    definition: std::sync::Arc::new(fields[0].clone()),
                     values: vec![FieldValue::PointerIndex(target)],
                     byte_range: 0..0,
                 },
                 crate::RawField {
-                    definition: fields[1].clone(),
+                    definition: std::sync::Arc::new(fields[1].clone()),
                     values: vec![FieldValue::Double(Some(value))],
                     byte_range: 0..0,
                 },

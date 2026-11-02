@@ -2,11 +2,12 @@
 
 use std::collections::BTreeSet;
 use std::ops::Range;
+use std::sync::Arc;
 
 use crate::schema::{
     EffectiveSchemaRegistry, FieldDefinition, FieldType, SchemaCoverageReport, SchemaKey,
-    SchemaLimits, SchemaProvider, SchemaProviderResolution, SchemaResolution, TypeDefinition,
-    validate_builtin_input,
+    SchemaLimits, SchemaProvider, SchemaProviderResolution, SchemaResolution, SharedDefinition,
+    TypeDefinition, validate_builtin_input,
 };
 use crate::{
     BinaryReader, ErrorDetails, ErrorKind, InspectionLimits, ParseError, XbHeader, inspect_xb,
@@ -115,8 +116,9 @@ impl FieldValue {
 /// One decoded effective field and its exact source range.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawField {
-    /// Effective schema definition used for this field.
-    pub definition: FieldDefinition,
+    /// Effective schema definition used for this field, shared by every node
+    /// of the type.
+    pub definition: Arc<FieldDefinition>,
     /// Scalar or array values in transmit order.
     pub values: Vec<FieldValue>,
     /// Half-open range containing only the transmitted field values.
@@ -132,8 +134,9 @@ pub struct RawNode {
     pub index: u32,
     /// Per-node final-field length for a variable type.
     pub variable_length: Option<u32>,
-    /// Effective definition used to frame this node.
-    pub definition: TypeDefinition,
+    /// Effective definition used to frame this node, shared by every node of
+    /// the type.
+    pub definition: Arc<TypeDefinition>,
     /// First-occurrence schema resolution; absent on subsequent nodes of the type.
     pub first_schema: Option<SchemaResolution>,
     /// Decoded effective fields.
@@ -346,12 +349,15 @@ fn read_raw_node<P: SchemaProvider>(
 ) -> Result<RawNode, ParseError> {
     let user_word_count =
         crate::user_fields::word_count(user_field_size, node_start, limits.max_variable_elements)?;
-    let (definition, first_schema) = resolve_node_definition(
+    let first_schema = resolve_node_definition(
         data, reader, schema_key, provider, registry, limits, node_type,
     )?;
-    let variable_length = read_variable_length(reader, &definition, limits)?;
+    let shared = registry
+        .shared(node_type)
+        .ok_or_else(|| missing_registry_type(reader.position(), node_type))?;
+    let variable_length = read_variable_length(reader, &shared.definition, limits)?;
     let index = read_node_index(reader, indices)?;
-    let fields = read_node_fields(reader, &definition, variable_length, limits)?;
+    let fields = read_node_fields(reader, shared, variable_length, limits)?;
     let user_fields = (0..user_word_count)
         .map(|_| reader.nullable_i32())
         .collect::<Result<Vec<_>, _>>()?;
@@ -359,7 +365,7 @@ fn read_raw_node<P: SchemaProvider>(
         node_type,
         index,
         variable_length,
-        definition,
+        definition: Arc::clone(&shared.definition),
         first_schema,
         fields,
         user_fields,
@@ -367,6 +373,16 @@ fn read_raw_node<P: SchemaProvider>(
     })
 }
 
+fn missing_registry_type(offset: usize, node_type: u16) -> ParseError {
+    ParseError::new(
+        ErrorKind::MissingSchemaType,
+        offset,
+        "effective schema registry did not retain the resolved node type",
+        ErrorDetails::NodeType { node_type },
+    )
+}
+
+/// Resolve the type on its first occurrence and return that resolution.
 #[allow(clippy::too_many_arguments)]
 fn resolve_node_definition<P: SchemaProvider>(
     data: &[u8],
@@ -376,7 +392,7 @@ fn resolve_node_definition<P: SchemaProvider>(
     registry: &mut EffectiveSchemaRegistry,
     limits: DocumentLimits,
     node_type: u16,
-) -> Result<(TypeDefinition, Option<SchemaResolution>), ParseError> {
+) -> Result<Option<SchemaResolution>, ParseError> {
     let is_first = registry.get(node_type).is_none();
     if is_first {
         let schema_offset = reader.position();
@@ -390,19 +406,11 @@ fn resolve_node_definition<P: SchemaProvider>(
         )?;
         reader.bytes(consumed)?;
     }
-    let resolution = registry.get(node_type).ok_or_else(|| {
-        ParseError::new(
-            ErrorKind::MissingSchemaType,
-            reader.position(),
-            "effective schema registry did not retain the resolved node type",
-            ErrorDetails::NodeType { node_type },
-        )
-    })?;
+    let resolution = registry
+        .get(node_type)
+        .ok_or_else(|| missing_registry_type(reader.position(), node_type))?;
     validate_effective_definition(&resolution.definition, reader.position())?;
-    Ok((
-        resolution.definition.clone(),
-        is_first.then(|| resolution.clone()),
-    ))
+    Ok(is_first.then(|| resolution.clone()))
 }
 
 fn read_variable_length(
@@ -457,21 +465,21 @@ fn read_node_index(
 
 fn read_node_fields(
     reader: &mut BinaryReader<'_>,
-    definition: &TypeDefinition,
+    shared: &SharedDefinition,
     variable_length: Option<u32>,
     limits: DocumentLimits,
 ) -> Result<Vec<RawField>, ParseError> {
-    let mut fields = Vec::with_capacity(definition.fields.len());
-    for field in &definition.fields {
+    let mut fields = Vec::with_capacity(shared.fields.len());
+    for field in &shared.fields {
         let count = field_value_count(field, variable_length);
         apply_element_limit(reader.position(), count, limits.max_variable_elements)?;
         let start = reader.position();
-        let mut values = Vec::new();
+        let mut values = Vec::with_capacity(count as usize);
         for _ in 0..count {
             values.push(read_field_value(reader, field.field_type)?);
         }
         fields.push(RawField {
-            definition: field.clone(),
+            definition: Arc::clone(field),
             values,
             byte_range: start..reader.position(),
         });

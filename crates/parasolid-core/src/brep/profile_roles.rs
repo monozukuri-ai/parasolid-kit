@@ -848,13 +848,13 @@ mod tests {
             std::slice::from_ref(&resolution),
             &crate::schema::profiles::sch13006_definitions(),
         )?;
-        let definition = resolution.definition;
+        let definition = std::sync::Arc::new(resolution.definition);
         let fields = definition
             .fields
             .iter()
             .enumerate()
             .map(|(i, field)| RawField {
-                definition: field.clone(),
+                definition: std::sync::Arc::new(field.clone()),
                 values: vec![],
                 byte_range: std::ops::Range {
                     start: i,

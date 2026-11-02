@@ -123,6 +123,123 @@ fn parse_schema_catalog_native<'py>(
     Ok(response)
 }
 
+const fn document_limits(
+    max_file_size: usize,
+    max_nodes: usize,
+    max_schema_types: usize,
+    max_fields_per_type: usize,
+    max_string_bytes: usize,
+    max_variable_elements: usize,
+) -> DocumentLimits {
+    DocumentLimits {
+        max_file_size,
+        max_nodes,
+        max_schema_types,
+        max_fields_per_type,
+        max_string_bytes,
+        max_variable_elements,
+    }
+}
+
+/// Finish a parse: the document, or the ready-made error dictionary.
+fn parse_outcome<D>(
+    py: Python<'_>,
+    use_builtin: bool,
+    parsed: Result<D, ParseError>,
+    provenance: impl FnOnce(&D) -> (&SchemaProviderResolution, &SchemaKey, usize),
+) -> PyResult<Result<D, Bound<'_, PyDict>>> {
+    match parsed {
+        Ok(document) => {
+            let (resolution, key, offset) = provenance(&document);
+            // Even a node-free stream must have a registered default key.
+            if use_builtin && *resolution == SchemaProviderResolution::CallerSupplied {
+                return Ok(Err(missing_builtin_to_python(py, key, offset)?));
+            }
+            Ok(Ok(document))
+        }
+        Err(error) => {
+            let detail = error_to_python(py, &error)?;
+            if use_builtin && error.kind() == parasolid_core::ErrorKind::MissingBaseSchema {
+                detail.set_item("message", MISSING_BUILTIN_MESSAGE)?;
+            }
+            Ok(Err(detail))
+        }
+    }
+}
+
+/// Parse an `X_B` stream with the caller catalog or, when allowed and no catalog
+/// is given, the compiled profile of its key.
+fn parse_xb_outcome<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    schema_id: Option<String>,
+    definitions: Option<Vec<CatalogType>>,
+    limits: DocumentLimits,
+    allow_builtin: bool,
+) -> PyResult<Result<XbDocument, Bound<'py, PyDict>>> {
+    let use_builtin = allow_builtin && schema_id.is_none() && definitions.is_none();
+    let provider = provider_from_python(schema_id, definitions)?;
+    let parsed = (|| {
+        if use_builtin {
+            let header = parasolid_core::inspect_xb(
+                data,
+                InspectionLimits {
+                    max_file_size: limits.max_file_size,
+                    max_string_bytes: limits.max_string_bytes,
+                },
+            )?;
+            let key = SchemaKey::parse(&header.schema_key)?;
+            if let Some(builtin) = BuiltinProfileRegistry::compiled()?.provider_for_key(&key) {
+                return parasolid_core::parse_xb(data, &builtin, limits);
+            }
+        }
+        parasolid_core::parse_xb(data, &provider, limits)
+    })();
+    parse_outcome(py, use_builtin, parsed, |document| {
+        (
+            &document.schema_provider,
+            &document.schema_key,
+            document.terminator.byte_range.start,
+        )
+    })
+}
+
+/// Parse an `X_T` stream like [`parse_xb_outcome`].
+fn parse_xt_outcome<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    schema_id: Option<String>,
+    definitions: Option<Vec<CatalogType>>,
+    limits: DocumentLimits,
+    allow_builtin: bool,
+) -> PyResult<Result<XtDocument, Bound<'py, PyDict>>> {
+    let use_builtin = allow_builtin && schema_id.is_none() && definitions.is_none();
+    let provider = provider_from_python(schema_id, definitions)?;
+    let parsed = (|| {
+        if use_builtin {
+            let header = parasolid_core::inspect_xt(
+                data,
+                InspectionLimits {
+                    max_file_size: limits.max_file_size,
+                    max_string_bytes: limits.max_string_bytes,
+                },
+            )?;
+            let key = SchemaKey::parse(&header.schema_key)?;
+            if let Some(builtin) = BuiltinProfileRegistry::compiled()?.provider_for_key(&key) {
+                return parasolid_core::parse_xt(data, &builtin, limits);
+            }
+        }
+        parasolid_core::parse_xt(data, &provider, limits)
+    })();
+    parse_outcome(py, use_builtin, parsed, |document| {
+        (
+            &document.schema_provider,
+            &document.schema_key,
+            document.terminator.byte_range.start,
+        )
+    })
+}
+
 #[pyfunction(name = "_parse_xb", signature = (data, schema_id, definitions, max_file_size, max_nodes, max_schema_types, max_fields_per_type, max_string_bytes, max_variable_elements, allow_builtin=false))]
 #[allow(clippy::too_many_arguments)]
 fn parse_xb<'py>(
@@ -138,48 +255,17 @@ fn parse_xb<'py>(
     max_variable_elements: usize,
     allow_builtin: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let use_builtin = allow_builtin && schema_id.is_none() && definitions.is_none();
-    let provider = provider_from_python(schema_id, definitions)?;
-    let response = PyDict::new(py);
-    let limits = DocumentLimits {
+    let limits = document_limits(
         max_file_size,
         max_nodes,
         max_schema_types,
         max_fields_per_type,
         max_string_bytes,
         max_variable_elements,
-    };
-    let parsed = (|| {
-        if use_builtin {
-            let header = parasolid_core::inspect_xb(
-                data,
-                InspectionLimits {
-                    max_file_size,
-                    max_string_bytes,
-                },
-            )?;
-            let key = SchemaKey::parse(&header.schema_key)?;
-            if let Some(builtin) = BuiltinProfileRegistry::compiled()?.provider_for_key(&key) {
-                return parasolid_core::parse_xb(data, &builtin, limits);
-            }
-        }
-        parasolid_core::parse_xb(data, &provider, limits)
-    })();
-    match parsed {
+    );
+    let response = PyDict::new(py);
+    match parse_xb_outcome(py, data, schema_id, definitions, limits, allow_builtin)? {
         Ok(document) => {
-            // Even a node-free stream must have a registered default key.
-            if use_builtin && document.schema_provider == SchemaProviderResolution::CallerSupplied {
-                response.set_item("ok", false)?;
-                response.set_item(
-                    "error",
-                    missing_builtin_to_python(
-                        py,
-                        &document.schema_key,
-                        document.terminator.byte_range.start,
-                    )?,
-                )?;
-                return Ok(response);
-            }
             let value = document_to_python(py, &document)?;
             value.set_item(
                 "native_document",
@@ -190,11 +276,7 @@ fn parse_xb<'py>(
         }
         Err(error) => {
             response.set_item("ok", false)?;
-            let detail = error_to_python(py, &error)?;
-            if use_builtin && error.kind() == parasolid_core::ErrorKind::MissingBaseSchema {
-                detail.set_item("message", MISSING_BUILTIN_MESSAGE)?;
-            }
-            response.set_item("error", detail)?;
+            response.set_item("error", error)?;
         }
     }
     Ok(response)
@@ -215,48 +297,17 @@ fn parse_xt<'py>(
     max_variable_elements: usize,
     allow_builtin: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let use_builtin = allow_builtin && schema_id.is_none() && definitions.is_none();
-    let provider = provider_from_python(schema_id, definitions)?;
-    let response = PyDict::new(py);
-    let limits = DocumentLimits {
+    let limits = document_limits(
         max_file_size,
         max_nodes,
         max_schema_types,
         max_fields_per_type,
         max_string_bytes,
         max_variable_elements,
-    };
-    let parsed = (|| {
-        if use_builtin {
-            let header = parasolid_core::inspect_xt(
-                data,
-                InspectionLimits {
-                    max_file_size,
-                    max_string_bytes,
-                },
-            )?;
-            let key = SchemaKey::parse(&header.schema_key)?;
-            if let Some(builtin) = BuiltinProfileRegistry::compiled()?.provider_for_key(&key) {
-                return parasolid_core::parse_xt(data, &builtin, limits);
-            }
-        }
-        parasolid_core::parse_xt(data, &provider, limits)
-    })();
-    match parsed {
+    );
+    let response = PyDict::new(py);
+    match parse_xt_outcome(py, data, schema_id, definitions, limits, allow_builtin)? {
         Ok(document) => {
-            // Even a node-free stream must have a registered default key.
-            if use_builtin && document.schema_provider == SchemaProviderResolution::CallerSupplied {
-                response.set_item("ok", false)?;
-                response.set_item(
-                    "error",
-                    missing_builtin_to_python(
-                        py,
-                        &document.schema_key,
-                        document.terminator.byte_range.start,
-                    )?,
-                )?;
-                return Ok(response);
-            }
             let value = xt_document_to_python(py, &document)?;
             value.set_item(
                 "native_document",
@@ -267,14 +318,38 @@ fn parse_xt<'py>(
         }
         Err(error) => {
             response.set_item("ok", false)?;
-            let detail = error_to_python(py, &error)?;
-            if use_builtin && error.kind() == parasolid_core::ErrorKind::MissingBaseSchema {
-                detail.set_item("message", MISSING_BUILTIN_MESSAGE)?;
-            }
-            response.set_item("error", detail)?;
+            response.set_item("error", error)?;
         }
     }
     Ok(response)
+}
+
+/// The raw nodes of a parsed `X_B` document, materialized on request.
+#[pyfunction(name = "_xb_document_nodes")]
+#[allow(clippy::needless_pass_by_value)]
+fn xb_document_nodes<'py>(
+    py: Python<'py>,
+    document: PyRef<'_, NativeXbDocument>,
+) -> PyResult<Bound<'py, PyList>> {
+    nodes_to_python(py, &document.document.nodes)
+}
+
+/// The raw nodes of a parsed `X_T` document, materialized on request.
+#[pyfunction(name = "_xt_document_nodes")]
+#[allow(clippy::needless_pass_by_value)]
+fn xt_document_nodes<'py>(
+    py: Python<'py>,
+    document: PyRef<'_, NativeXtDocument>,
+) -> PyResult<Bound<'py, PyList>> {
+    nodes_to_python(py, &document.document.nodes)
+}
+
+fn nodes_to_python<'py>(py: Python<'py>, nodes: &[RawNode]) -> PyResult<Bound<'py, PyList>> {
+    let result = PyList::empty(py);
+    for node in nodes {
+        result.append(raw_node_to_python(py, node)?)?;
+    }
+    Ok(result)
 }
 
 #[pyfunction(name = "_compile_schema_provider")]
@@ -726,12 +801,8 @@ fn document_to_python<'py>(py: Python<'py>, document: &XbDocument) -> PyResult<B
         schemas.append(schema_resolution_to_python(py, resolution)?)?;
     }
     value.set_item("schemas", schemas)?;
-
-    let nodes = PyList::empty(py);
-    for node in &document.nodes {
-        nodes.append(raw_node_to_python(py, node)?)?;
-    }
-    value.set_item("nodes", nodes)?;
+    // Nodes stay in the native document and are materialized on request.
+    value.set_item("node_count", document.nodes.len())?;
     value.set_item(
         "terminator",
         termination_to_python(py, &document.terminator)?,
@@ -744,7 +815,6 @@ fn document_to_python<'py>(py: Python<'py>, document: &XbDocument) -> PyResult<B
         "schema_resolution",
         provider_resolution_to_python(py, &document.schema_provider)?,
     )?;
-    value.set_item("raw_bytes", PyBytes::new(py, document.raw_bytes()))?;
     Ok(value)
 }
 
@@ -765,12 +835,8 @@ fn xt_document_to_python<'py>(
         schemas.append(schema_resolution_to_python(py, resolution)?)?;
     }
     value.set_item("schemas", schemas)?;
-
-    let nodes = PyList::empty(py);
-    for node in &document.nodes {
-        nodes.append(raw_node_to_python(py, node)?)?;
-    }
-    value.set_item("nodes", nodes)?;
+    // Nodes stay in the native document and are materialized on request.
+    value.set_item("node_count", document.nodes.len())?;
     value.set_item(
         "terminator",
         xt_termination_to_python(py, &document.terminator)?,
@@ -783,7 +849,6 @@ fn xt_document_to_python<'py>(
         "schema_resolution",
         provider_resolution_to_python(py, &document.schema_provider)?,
     )?;
-    value.set_item("raw_bytes", PyBytes::new(py, document.raw_bytes()))?;
     Ok(value)
 }
 
@@ -1228,6 +1293,10 @@ fn _core(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(parse_schema_catalog_native, module)?)?;
     module.add_function(wrap_pyfunction!(parse_xb, module)?)?;
     module.add_function(wrap_pyfunction!(parse_xt, module)?)?;
+    module.add_function(wrap_pyfunction!(xb_document_nodes, module)?)?;
+    module.add_function(wrap_pyfunction!(xt_document_nodes, module)?)?;
+    module.add_function(wrap_pyfunction!(brep::read_xb_brep_native, module)?)?;
+    module.add_function(wrap_pyfunction!(brep::read_xt_brep_native, module)?)?;
     module.add_function(wrap_pyfunction!(compile_schema_provider, module)?)?;
     module.add_function(wrap_pyfunction!(scan_xt_node_types, module)?)?;
     module.add_function(wrap_pyfunction!(write_xb, module)?)?;

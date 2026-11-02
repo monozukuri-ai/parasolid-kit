@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
@@ -205,18 +206,27 @@ class XbTermination:
 
 @dataclass(frozen=True, slots=True)
 class ParasolidDocument:
-    """Complete raw X_T/X_B document backed by an immutable native parse snapshot."""
+    """Complete raw X_T/X_B document backed by an immutable native parse snapshot.
+
+    ``nodes`` are materialized from the native snapshot on first access and then
+    kept, so a document whose nodes are never read builds no Python node tree;
+    ``node_count`` is known without materializing them.
+    """
 
     format: Literal["binary", "text"]
     header: XbHeader | XtHeader
     schema_key: SchemaKey
     schemas: tuple[SchemaResolution, ...]
-    nodes: tuple[RawNode, ...]
     terminator: XbTermination | XtTermination
     schema_coverage: SchemaCoverageReport
     raw_bytes: bytes
+    node_count: int
     _native_document: object = field(repr=False, compare=False)
     diagnostics: tuple[Diagnostic, ...] = ()
+    _node_loader: Callable[[], Sequence[RawNode]] | None = field(
+        default=None, repr=False, compare=False
+    )
+    _nodes: tuple[RawNode, ...] | None = field(default=None, repr=False, compare=False)
     schema_resolution: SchemaProviderResolution | None = None
 
     def __post_init__(self) -> None:
@@ -240,18 +250,22 @@ class ParasolidDocument:
             raise ValueError("header and parsed schema key must match")
         if not isinstance(self.schemas, tuple):
             object.__setattr__(self, "schemas", tuple(self.schemas))
-        if not isinstance(self.nodes, tuple):
-            object.__setattr__(self, "nodes", tuple(self.nodes))
         if not all(isinstance(item, SchemaResolution) for item in self.schemas):
             raise ValueError("schemas must contain SchemaResolution values")
-        if not all(isinstance(item, RawNode) for item in self.nodes):
-            raise ValueError("nodes must contain RawNode values")
         schema_types = tuple(item.definition.node_type for item in self.schemas)
         if schema_types != self.schema_coverage.node_types:
             raise ValueError("schemas must match schema_coverage node types")
-        indices = tuple(item.index for item in self.nodes)
-        if len(indices) != len(set(indices)):
-            raise ValueError("nodes must have unique non-zero indices")
+        if (
+            isinstance(self.node_count, bool)
+            or not isinstance(self.node_count, int)
+            or self.node_count < 0
+        ):
+            raise ValueError("node_count must be a non-negative integer")
+        if self._nodes is None:
+            if self._node_loader is None:
+                raise ValueError("nodes or a node loader must be present")
+        else:
+            object.__setattr__(self, "_nodes", self._validated_nodes(self._nodes))
         if not isinstance(self.raw_bytes, bytes):
             object.__setattr__(self, "raw_bytes", bytes(self.raw_bytes))
         if len(self.raw_bytes) != self.header.file_size:
@@ -264,6 +278,30 @@ class ParasolidDocument:
             object.__setattr__(self, "diagnostics", tuple(self.diagnostics))
         if not all(isinstance(item, Diagnostic) for item in self.diagnostics):
             raise ValueError("diagnostics must contain Diagnostic values")
+
+    @property
+    def nodes(self) -> tuple[RawNode, ...]:
+        """Return the nodes in physical source order, materializing them once."""
+
+        nodes = self._nodes
+        if nodes is None:
+            loader = self._node_loader
+            if loader is None:
+                raise ValueError("nodes or a node loader must be present")
+            nodes = self._validated_nodes(loader())
+            object.__setattr__(self, "_nodes", nodes)
+        return nodes
+
+    def _validated_nodes(self, nodes: Sequence[RawNode]) -> tuple[RawNode, ...]:
+        nodes = tuple(nodes)
+        if not all(isinstance(item, RawNode) for item in nodes):
+            raise ValueError("nodes must contain RawNode values")
+        if len(nodes) != self.node_count:
+            raise ValueError("nodes must match the parsed node count")
+        indices = tuple(item.index for item in nodes)
+        if len(indices) != len(set(indices)):
+            raise ValueError("nodes must have unique non-zero indices")
+        return nodes
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible report without duplicating the full source bytes."""

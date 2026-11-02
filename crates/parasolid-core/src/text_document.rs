@@ -2,13 +2,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
+use std::sync::Arc;
 
 use crate::header::locate_payload_start;
 use crate::schema::{
     EffectiveSchemaRegistry, FieldDefinition, FieldType, SchemaCoverageReport, SchemaEdit,
     SchemaKey, SchemaLimits, SchemaProvider, SchemaProviderResolution, SchemaResolution,
-    SchemaSource, TypeDefinition, embedded_base_definition, missing_type_definition_error,
-    unavailable_schema_error, validate_builtin_input,
+    SchemaSource, SharedDefinition, TypeDefinition, embedded_base_definition,
+    missing_type_definition_error, unavailable_schema_error, validate_builtin_input,
 };
 use crate::text_reader::TextReader;
 use crate::{DocumentLimits, ErrorDetails, ErrorKind, FieldValue, ParseError, RawField, RawNode};
@@ -382,10 +383,13 @@ fn read_raw_node<const RETAIN_FIELDS: bool, P: SchemaProvider>(
 ) -> Result<RawNode, ParseError> {
     let user_word_count =
         crate::user_fields::word_count(user_field_size, node_start, limits.max_variable_elements)?;
-    let (definition, first_schema) = resolve_node_definition(
+    let first_schema = resolve_node_definition(
         data, reader, schema_key, provider, registry, limits, node_type,
     )?;
-    let variable_length = if definition.variable {
+    let shared = registry
+        .shared(node_type)
+        .ok_or_else(|| missing_registry_type(reader.source_position(), node_type))?;
+    let variable_length = if shared.definition.variable {
         let offset = reader.source_position();
         let value = reader.positive_integer("variable_length")?;
         apply_element_limit(offset, value, limits.max_variable_elements)?;
@@ -394,7 +398,7 @@ fn read_raw_node<const RETAIN_FIELDS: bool, P: SchemaProvider>(
         None
     };
     let index = read_node_index(reader, indices)?;
-    let fields = read_node_fields::<RETAIN_FIELDS>(reader, &definition, variable_length, limits)?;
+    let fields = read_node_fields::<RETAIN_FIELDS>(reader, shared, variable_length, limits)?;
     let mut user_fields = Vec::new();
     for _ in 0..user_word_count {
         let word = reader.nullable_integer("user_field_word")?;
@@ -406,7 +410,7 @@ fn read_raw_node<const RETAIN_FIELDS: bool, P: SchemaProvider>(
         node_type,
         index,
         variable_length,
-        definition,
+        definition: Arc::clone(&shared.definition),
         first_schema,
         fields,
         user_fields,
@@ -414,6 +418,16 @@ fn read_raw_node<const RETAIN_FIELDS: bool, P: SchemaProvider>(
     })
 }
 
+fn missing_registry_type(offset: usize, node_type: u16) -> ParseError {
+    ParseError::new(
+        ErrorKind::MissingSchemaType,
+        offset,
+        "effective schema registry did not retain the resolved node type",
+        ErrorDetails::NodeType { node_type },
+    )
+}
+
+/// Resolve the type on its first occurrence and return that resolution.
 #[allow(clippy::too_many_arguments)]
 fn resolve_node_definition<P: SchemaProvider>(
     data: &[u8],
@@ -423,7 +437,7 @@ fn resolve_node_definition<P: SchemaProvider>(
     registry: &mut EffectiveSchemaRegistry,
     limits: DocumentLimits,
     node_type: u16,
-) -> Result<(TypeDefinition, Option<SchemaResolution>), ParseError> {
+) -> Result<Option<SchemaResolution>, ParseError> {
     let is_first = registry.get(node_type).is_none();
     if is_first {
         let offset = reader.source_position();
@@ -465,19 +479,11 @@ fn resolve_node_definition<P: SchemaProvider>(
         };
         registry.insert(resolution)?;
     }
-    let resolution = registry.get(node_type).ok_or_else(|| {
-        ParseError::new(
-            ErrorKind::MissingSchemaType,
-            reader.source_position(),
-            "effective schema registry did not retain the resolved node type",
-            ErrorDetails::NodeType { node_type },
-        )
-    })?;
+    let resolution = registry
+        .get(node_type)
+        .ok_or_else(|| missing_registry_type(reader.source_position(), node_type))?;
     validate_effective_definition(&resolution.definition, reader.source_position())?;
-    Ok((
-        resolution.definition.clone(),
-        is_first.then(|| resolution.clone()),
-    ))
+    Ok(is_first.then(|| resolution.clone()))
 }
 
 fn read_node_index(
@@ -507,16 +513,16 @@ fn read_node_index(
 
 fn read_node_fields<const RETAIN_FIELDS: bool>(
     reader: &mut TextReader,
-    definition: &TypeDefinition,
+    shared: &SharedDefinition,
     variable_length: Option<u32>,
     limits: DocumentLimits,
 ) -> Result<Vec<RawField>, ParseError> {
     let mut fields = if RETAIN_FIELDS {
-        Vec::with_capacity(definition.fields.len())
+        Vec::with_capacity(shared.fields.len())
     } else {
         Vec::new()
     };
-    for field in &definition.fields {
+    for field in &shared.fields {
         let count = field_value_count(field, variable_length);
         apply_element_limit(
             reader.source_position(),
@@ -524,7 +530,11 @@ fn read_node_fields<const RETAIN_FIELDS: bool>(
             limits.max_variable_elements,
         )?;
         let start = reader.source_position();
-        let mut values = Vec::new();
+        let mut values = if RETAIN_FIELDS {
+            Vec::with_capacity(count as usize)
+        } else {
+            Vec::new()
+        };
         for _ in 0..count {
             let value = read_field_value(reader, field.field_type)?;
             if RETAIN_FIELDS {
@@ -533,7 +543,7 @@ fn read_node_fields<const RETAIN_FIELDS: bool>(
         }
         if RETAIN_FIELDS {
             fields.push(RawField {
-                definition: field.clone(),
+                definition: Arc::clone(field),
                 values,
                 byte_range: start..reader.source_position(),
             });

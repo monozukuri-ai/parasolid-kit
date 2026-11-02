@@ -34,7 +34,7 @@ fn node(kind: u16, index: u32, overrides: Vec<(usize, FieldValue)>) -> Result<Ra
                 _ => return Err("unexpected synthetic field type"),
             };
             Ok(RawField {
-                definition: d.clone(),
+                definition: std::sync::Arc::new(d.clone()),
                 values: vec![value],
                 byte_range: 0..0,
             })
@@ -47,7 +47,7 @@ fn node(kind: u16, index: u32, overrides: Vec<(usize, FieldValue)>) -> Result<Ra
         node_type: kind,
         index,
         variable_length: None,
-        definition,
+        definition: std::sync::Arc::new(definition),
         fields,
         first_schema: None,
         byte_range: 0..0,
@@ -209,10 +209,11 @@ fn maps_analytic_roles_and_preserves_source_provenance() -> Result<()> {
 fn builtin_mapping_uses_ordinals_instead_of_names_or_classes() -> Result<()> {
     let mut doc = document()?;
     for node in &mut doc.nodes {
-        node.definition.name = "unrelated".to_owned();
+        std::sync::Arc::make_mut(&mut node.definition).name = "unrelated".to_owned();
         for field in &mut node.fields {
-            field.definition.name = "unrelated".to_owned();
-            field.definition.pointer_class = 0;
+            let definition = std::sync::Arc::make_mut(&mut field.definition);
+            definition.name = "unrelated".to_owned();
+            definition.pointer_class = 0;
         }
     }
     let mapped = map_xb_brep(&doc)?;
