@@ -366,10 +366,13 @@ source node), `bodies_failed` and `bodies_partial`, carries the
 `occt.faces_dropped` and `occt.bodies_failed` warnings (the first fifty entries
 as JSON details), does not compare the source metrics, and reports an invalid
 partial shape as a warning instead of failing. A model where every face
-builds converts exactly as in strict mode; a model where no body survives
-still raises `occt.construction_failed`, with the dropped faces in the error's
-report. STEP export refuses a partial conversion; the preview accepts one
-under `allow_partial=True` (the `viewer --allow-partial` option sets both).
+builds is validated as in strict mode, but a shape that `BRepCheck` rejects or
+whose metrics differ from the source is returned with those findings as
+warnings and `occt_valid=False` instead of failing, since the caller asked for
+what could be built; a model where no body survives still raises
+`occt.construction_failed`, with the dropped faces in the error's report. STEP
+export refuses a partial or invalid conversion; the preview accepts a partial
+one under `allow_partial=True` (the `viewer --allow-partial` option sets both).
 
 `place_instances=True` returns the bodies positioned by the assembly
 structure as transformed copies, one per chain of instances from a root

@@ -210,22 +210,24 @@ def to_occt(
                     message="OCCT BRepCheck_Analyzer rejected the converted shape",
                 )
             )
-        if partial_result:
-            # The source metrics describe the whole model; the partial shape
-            # is reported as it is, with its validity as a warning.
+        if not partial_result:
+            validation_diagnostics.extend(metric_diagnostics(brep, source_metrics, options))
+        if partial_result or (options.partial and validation_diagnostics):
+            # The source metrics describe the whole model; a partial shape, and
+            # a whole shape the caller takes as built (``partial=True``), are
+            # reported as they are, with their validity as a warning.
             context.diagnostics.extend(
                 replace(item, severity=DiagnosticSeverity.WARNING, fatal=False)
                 for item in validation_diagnostics
             )
-            context.diagnostics.extend(_partial_diagnostics(context))
-        else:
-            validation_diagnostics.extend(metric_diagnostics(brep, source_metrics, options))
-            if validation_diagnostics:
-                _raise_conversion(
-                    context,
-                    validation_diagnostics[0],
-                    diagnostics=validation_diagnostics,
-                )
+            if partial_result:
+                context.diagnostics.extend(_partial_diagnostics(context))
+        elif validation_diagnostics:
+            _raise_conversion(
+                context,
+                validation_diagnostics[0],
+                diagnostics=validation_diagnostics,
+            )
     except OcctConversionError:
         raise
     except (KeyboardInterrupt, SystemExit):

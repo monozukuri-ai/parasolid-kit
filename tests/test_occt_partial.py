@@ -148,3 +148,22 @@ def test_partial_preview_reports_a_partial_conversion(tmp_path):
     assert preview.report.status == "partial"
     assert not preview.report.conversion_complete
     assert preview.report.source_complete
+
+
+def test_partial_conversion_returns_a_shape_brepcheck_rejects_with_a_warning():
+    # The authored Onshape cylinder with a hole converts whole, but OCCT's
+    # BRepCheck rejects the shape; strict mode fails and partial mode returns
+    # it as built, with the finding as a warning.
+    from parasolid_kit import read_brep
+
+    model = read_brep("data/onshape-cylinder-hole-v30.x_t").brep
+    with pytest.raises(OcctConversionError, match=r"occt\.invalid_shape"):
+        to_occt(model, source_unit="m")
+    result = to_occt(model, source_unit="m", partial=True)
+    report = result.report
+    assert report.partial_requested and report.conversion_complete
+    assert not report.occt_valid
+    assert report.faces_dropped == () and report.bodies_failed == ()
+    warnings = [item for item in report.diagnostics if item.code == "occt.invalid_shape"]
+    assert [item.severity.value for item in warnings] == ["warning"]
+    assert report.output_topology.to_dict()["faces"] == 4

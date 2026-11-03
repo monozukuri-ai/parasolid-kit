@@ -574,15 +574,17 @@ def _read_source_format(
 
     if isinstance(source, (str, os.PathLike)):
         suffix = Path(source).suffix.lower()
-        if suffix in {".x_b", ".xb"}:
+        if suffix in {".x_b", ".xb", ".xmt_bin"}:
             return "binary"
-        if suffix in {".x_t", ".xt"}:
+        if suffix in {".x_t", ".xt", ".xmt_txt"}:
             return "text"
 
     prefix = data[:4096]
     if prefix.startswith(b"PS\0\0") or b"\nPS\0\0" in prefix:
         return "binary"
-    if prefix.startswith(b"T") or prefix.startswith(b"**PART"):
+    # A bare text stream, or the common header (``**ABCDEF...`` / ``**PART1``)
+    # followed by a text stream (the binary one is caught above).
+    if prefix.startswith(b"T") or prefix.startswith(b"**"):
         return "text"
     raise ValueError("cannot identify source encoding; pass source_format='x-b' or 'x-t'")
 

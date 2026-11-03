@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Partial conversion of a whole shape (after 0.3.11): with `partial=True`, a
+  model where every face builds is still validated as in strict mode, but a
+  shape that `BRepCheck` rejects or whose metrics differ from the source is
+  returned with those findings as warnings and `occt_valid=False` instead of
+  failing, since the caller asked for what could be built. Fifteen of the
+  199 files of the second public corpus and the authored Onshape cylinder
+  with a hole (`data/onshape-cylinder-hole-v30.x_t`) convert that way; strict
+  mode and STEP export are unchanged.
+- `read_brep(source_format="auto")` recognises the `.xmt_txt` and `.xmt_bin`
+  suffixes and a common header (`**ABCDEF...`) in front of a text stream
+  (the three Siemens example files named `.xmt_txt` failed with "cannot
+  identify source encoding" when read by path).
 - Partial OCCT conversion: `to_occt(..., partial=True)` drops a face whose
   construction fails instead of failing the conversion, returns a solid that
   lost a face as an open shell and skips a body left without a face. The
