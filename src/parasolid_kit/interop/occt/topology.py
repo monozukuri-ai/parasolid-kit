@@ -67,6 +67,8 @@ class TopologyBuilder:
         self.half_edge_shapes: dict[int, object] = {}
         self.relations: list[PendingRelation] = []
         self.operations: list[str] = []
+        # Edges whose OCCT geometry runs against the source orientation reference.
+        self.reversed_edges: set[int] = set()
         self.curve_geometries: dict[int, object] = {}
         self.surface_geometries: dict[int, object] = {}
         self._resolving_curves: set[int] = set()
@@ -206,6 +208,7 @@ class TopologyBuilder:
                     )
                 target_edge = TopoDS.Edge_s(target)
                 self.edge_shapes[edge_id] = target_edge
+                self._note_ring_direction(edge_id, target_edge)
 
             result = TopoDS.Face_s(self._orient_shape(result, face.sense, surface.sense))
             self.face_shapes[face.id] = result
@@ -336,6 +339,7 @@ class TopologyBuilder:
                         f"OCCT cone face {face.id} ring parameter differs from its source"
                     )
                 self.edge_shapes[edge_id] = TopoDS.Edge_s(target)
+                self._note_ring_direction(edge_id, self.edge_shapes[edge_id])
 
             result = TopoDS.Face_s(self._orient_shape(result, face.sense, surface.sense))
             self.face_shapes[face.id] = result
@@ -565,7 +569,24 @@ class TopologyBuilder:
             curve = self._curve_for_edge(edge.id)
             sign = _sense_sign(half_edge.sense) * _sense_sign(curve.sense)
             orientation = TopAbs_FORWARD if sign > 0 else TopAbs_REVERSED
+        if edge.id in self.reversed_edges:
+            orientation = TopAbs_REVERSED if orientation == TopAbs_FORWARD else TopAbs_FORWARD
         return TopoDS.Edge_s(self.edge_shapes[edge.id].Oriented(orientation))
+
+    def _note_ring_direction(self, edge_id: int, target: object) -> None:
+        """Record a generated ring edge that runs against its source circle.
+
+        OCCT's ring edges follow the surface's u direction, counterclockwise
+        about the axis; a source circle may run the other way (Onshape writes
+        the bottom rings of a tube clockwise). Half-edges on such an edge keep
+        their source direction only when the edge orientation is flipped.
+        """
+        from OCP.BRepAdaptor import BRepAdaptor_Curve
+
+        circle = self._circle_for_edge(edge_id)
+        axis = BRepAdaptor_Curve(target).Circle().Axis().Direction()
+        if axis.Dot(self.geometry.direction(circle.normal, role="circle normal")) < 0.0:
+            self.reversed_edges.add(edge_id)
 
     def _record_final_edge_relations(self) -> None:
         curve_uses: dict[int, int] = {}
@@ -726,6 +747,7 @@ class TopologyBuilder:
                 surface.definition,
                 resolve_basis=self._surface_geometry,
                 resolve_curve=self._curve_geometry,
+                resolve_basis_sense=lambda basis: self.surfaces[basis].sense,
             )
         finally:
             self._resolving_surfaces.remove(surface_id)

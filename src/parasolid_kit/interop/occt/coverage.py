@@ -41,7 +41,7 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "vertex-free full period; use trimmed for an arc",
+        "vertex-free full period, or the arc between its two vertices",
     ),
     GeometryCoverage(
         "curve",
@@ -49,7 +49,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "vertex-free full period; major radius >= minor radius",
+        "vertex-free full period, or the arc between its two vertices; "
+        "major radius >= minor radius",
     ),
     GeometryCoverage(
         "curve",
@@ -119,7 +120,7 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "two vertex-free circular boundary loops",
+        "two vertex-free circular boundary loops, or face trimmed by its source loops",
     ),
     GeometryCoverage(
         "surface",
@@ -127,7 +128,9 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "frustum with two positive-radius circular boundary loops",
+        "frustum with two positive-radius circular boundary loops, or face trimmed by "
+        "its source loops; the source v is the distance along the axis; an edge "
+        "through the apex is split there",
     ),
     GeometryCoverage(
         "surface",
@@ -135,8 +138,9 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "untrimmed closed face, or explicitly trimmed face in parametric topology; "
-        "OCCT seam and pole topology is generated",
+        "untrimmed closed face, or face trimmed by its source loops; "
+        "OCCT seam and pole topology is generated; an edge through a pole is split "
+        "there and an edge on the seam carries a pcurve per orientation",
     ),
     GeometryCoverage(
         "surface",
@@ -144,8 +148,7 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "closed ring torus, or explicitly trimmed ring, horn, apple or lemon torus "
-        "in parametric topology",
+        "closed ring torus, or ring, horn, apple or lemon torus trimmed by its source loops",
     ),
     GeometryCoverage(
         "surface",
@@ -153,8 +156,17 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "revolution of a mapped profile curve about the spin axis; explicitly "
-        "trimmed faces in parametric topology",
+        "revolution of a mapped profile curve about the spin axis; faces trimmed "
+        "by their source loops",
+    ),
+    GeometryCoverage(
+        "surface",
+        SurfaceKind.SWEPT.value,
+        "exact",
+        "conditional",
+        "conditional",
+        "linear extrusion of a mapped section curve along the sweep direction; faces "
+        "trimmed by their source loops",
     ),
     GeometryCoverage(
         "surface",
@@ -163,7 +175,7 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "conditional",
         "conditional",
         "nonrational or rational 3D row-major grid, open or in the stored periodic form; "
-        "multiple loops in parametric topology",
+        "one or more trim loops",
     ),
     GeometryCoverage(
         "surface",
@@ -171,7 +183,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "supported exact basis surface; I7 verifies a non-periodic NURBS basis",
+        "supported exact basis surface, offset along its normal and against it for a "
+        "basis of negative sense; I7 verifies a non-periodic NURBS basis",
     ),
     GeometryCoverage(
         "surface",
@@ -179,8 +192,9 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "rolling-ball blends of equal offsets as the B-spline pipe of the blend radius "
-        "around the spine, within the validation tolerance; cliff-edge blends unsupported",
+        "rolling-ball and cliff-edge blends of equal offsets as the B-spline pipe of the "
+        "blend radius around the spine, within the validation tolerance; a zero-offset "
+        "blend is a construction reference only",
     ),
     GeometryCoverage(
         "surface",

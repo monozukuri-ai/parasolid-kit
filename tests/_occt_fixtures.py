@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import cosh, pi, sinh
+from math import cosh, pi, sinh, sqrt
 
 from parasolid_kit import (
     Body,
@@ -38,6 +38,8 @@ from parasolid_kit import (
     SphereSurface,
     SurfaceGeometry,
     SurfaceKind,
+    SurfaceParametricCurve,
+    SweptSurface,
     TopologyValidation,
     TorusSurface,
     TrimmedCurve,
@@ -936,6 +938,571 @@ def make_sphere_octant_model(radius: float = 2.0) -> BrepModel:
     )
 
 
+def make_meridian_split_sphere_model(
+    radius: float = 2.0, *, with_vertices: bool = False
+) -> BrepModel:
+    """A ball whose two faces are split by a great circle through the sphere's poles.
+
+    SolidWorks writes spheres this way: the splitting plane contains the
+    parameter axis, so the circle runs through both poles. Without vertices
+    the circle is one vertex-free edge; with vertices it is two arcs that meet
+    on the equator and each pass through one pole in their interior.
+    """
+    sources = _Sources()
+    body_source = sources.next("body")
+    region_source = sources.next("region")
+    shell_source = sources.next("shell")
+    curve_source = sources.next("circle")
+    edge_sources = {1: sources.next("edge"), 2: sources.next("edge")}
+    face_sources = {1: sources.next("face"), 2: sources.next("face")}
+    surface_source = sources.next("sphere")
+    loop_sources = {1: sources.next("loop"), 2: sources.next("loop")}
+    half_edge_sources = {i: sources.next("fin") for i in range(1, 5)}
+    # The circle lies in the plane y = 0, which contains the z axis of the
+    # sphere; it turns counterclockwise about +y, so the y > 0 half sees it
+    # along its own loop direction and the y < 0 half against it. Its
+    # parameter 0 is (r, 0, 0), pi / 2 the south pole and pi is (-r, 0, 0).
+    curves = (
+        CurveGeometry(
+            id=1,
+            sense=Sense.POSITIVE,
+            owner=edge_sources[1],
+            kind=CurveKind.CIRCLE,
+            definition=CircleCurve(
+                Vector3(0.0, 0.0, 0.0), Vector3(0.0, 1.0, 0.0), Vector3(1.0, 0.0, 0.0), radius
+            ),
+            source=curve_source,
+        ),
+    )
+    if with_vertices:
+        positions = {1: Vector3(radius, 0.0, 0.0), 2: Vector3(-radius, 0.0, 0.0)}
+        point_sources = {i: sources.next("point") for i in positions}
+        vertex_sources = {i: sources.next("vertex") for i in positions}
+        vertices = tuple(Vertex(i, i, None, body_source, vertex_sources[i]) for i in positions)
+        points = tuple(
+            PointGeometry(i, position, vertex_sources[i], point_sources[i])
+            for i, position in positions.items()
+        )
+        # Edge 1 runs from (r, 0, 0) through the south pole to (-r, 0, 0),
+        # edge 2 back through the north pole.
+        edges = (
+            Edge(1, body_source, (1, 4), 1, 2, 1, None, edge_sources[1]),
+            Edge(2, body_source, (2, 3), 2, 1, 1, None, edge_sources[2]),
+        )
+        half_edges = (
+            HalfEdge(1, 1, 2, 2, 2, 4, 1, 1, Sense.POSITIVE, False, half_edge_sources[1]),
+            HalfEdge(2, 1, 1, 1, 1, 3, 2, 1, Sense.POSITIVE, False, half_edge_sources[2]),
+            HalfEdge(3, 2, 4, 4, 2, 2, 2, 1, Sense.NEGATIVE, False, half_edge_sources[3]),
+            HalfEdge(4, 2, 3, 3, 1, 1, 1, 1, Sense.NEGATIVE, False, half_edge_sources[4]),
+        )
+        loops = (Loop(1, 1, (1, 2), loop_sources[1]), Loop(2, 2, (3, 4), loop_sources[2]))
+        topology = TopologyValidation(True, 2, 2, 2)
+    else:
+        vertices, points = (), ()
+        edges = (Edge(1, body_source, (1, 2), None, None, 1, None, edge_sources[1]),)
+        half_edges = (
+            HalfEdge(1, 1, 1, 1, None, 2, 1, 1, Sense.POSITIVE, False, half_edge_sources[1]),
+            HalfEdge(2, 2, 2, 2, None, 1, 1, 1, Sense.NEGATIVE, False, half_edge_sources[2]),
+        )
+        loops = (Loop(1, 1, (1,), loop_sources[1]), Loop(2, 2, (2,), loop_sources[2]))
+        topology = TopologyValidation(True, 2, 1, 1)
+    surfaces = (
+        SurfaceGeometry(
+            1,
+            Sense.POSITIVE,
+            face_sources[1],
+            SurfaceKind.SPHERE,
+            SphereSurface(
+                Vector3(0.0, 0.0, 0.0), radius, Vector3(0.0, 0.0, 1.0), Vector3(1.0, 0.0, 0.0)
+            ),
+            surface_source,
+        ),
+    )
+    faces = (
+        Face(1, 1, 1, (1,), 1, Sense.POSITIVE, face_sources[1]),
+        Face(2, 1, 1, (2,), 1, Sense.POSITIVE, face_sources[2]),
+    )
+    return BrepModel(
+        source_format="binary",
+        schema_key="synthetic-split-sphere",
+        complete=True,
+        bodies=(
+            Body(
+                1,
+                BodyKind.SOLID,
+                1.0e-6,
+                1.0e-8,
+                (1,),
+                tuple(edge.id for edge in edges),
+                tuple(vertex.id for vertex in vertices),
+                body_source,
+            ),
+        ),
+        regions=(Region(1, RegionKind.SOLID, 1, (1,), region_source),),
+        shells=(Shell(1, 1, (), (1, 2), (), None, shell_source),),
+        faces=faces,
+        loops=loops,
+        half_edges=half_edges,
+        edges=edges,
+        vertices=vertices,
+        points=points,
+        curves=curves,
+        surfaces=surfaces,
+        topology=topology,
+        metrics=BrepMetrics(
+            BoundingBox(Vector3(-radius, -radius, -radius), Vector3(radius, radius, radius)),
+            4.0 * pi * radius**2,
+            4.0 * pi * radius**3 / 3.0,
+        ),
+        diagnostics=(),
+    )
+
+
+def _loop_half_edges(face_loops, edge_ends, edge_curves, fin_curves, sources):
+    """Build half-edges and loops from ``{face: ((edge, forward), ...)}`` specs."""
+    specs = []  # (id, loop, edge, forward)
+    for face_id, items in face_loops.items():
+        for edge_id, forward in items:
+            specs.append((len(specs) + 1, face_id, edge_id, forward))
+    uses: dict[int, list[int]] = {edge_id: [] for edge_id in edge_ends}
+    for half_edge_id, _loop, edge_id, _forward in specs:
+        uses[edge_id].append(half_edge_id)
+    half_edge_sources = {half_edge_id: sources.next("fin") for half_edge_id, *_ in specs}
+    loop_sources = {face_id: sources.next("loop") for face_id in face_loops}
+    half_edges = []
+    for half_edge_id, loop_id, edge_id, forward in specs:
+        members = [h for h, owner, _e, _f in specs if owner == loop_id]
+        index = members.index(half_edge_id)
+        half_edges.append(
+            HalfEdge(
+                id=half_edge_id,
+                loop=loop_id,
+                forward=members[(index + 1) % len(members)],
+                backward=members[index - 1],
+                vertex=edge_ends[edge_id][1] if forward else edge_ends[edge_id][0],
+                other=next(h for h in uses[edge_id] if h != half_edge_id),
+                edge=edge_id,
+                curve=fin_curves.get((loop_id, edge_id), edge_curves[edge_id]),
+                sense=Sense.POSITIVE if forward else Sense.NEGATIVE,
+                dummy=False,
+                source=half_edge_sources[half_edge_id],
+            )
+        )
+    loops = tuple(
+        Loop(
+            face_id,
+            face_id,
+            tuple(h for h, owner, _e, _f in specs if owner == face_id),
+            loop_sources[face_id],
+        )
+        for face_id in face_loops
+    )
+    return tuple(half_edges), loops, uses
+
+
+def _fin_curves(sources, first_id, surface_id, nurbs, start, end):
+    """A FIN as NURBS, surface-parameter and trimmed curves with consecutive ids."""
+    return (
+        CurveGeometry(
+            first_id, Sense.POSITIVE, None, CurveKind.NURBS, nurbs, sources.next("nurbs")
+        ),
+        CurveGeometry(
+            first_id + 1,
+            Sense.POSITIVE,
+            None,
+            CurveKind.SURFACE_PARAMETRIC,
+            SurfaceParametricCurve(surface_id, first_id, None, None),
+            sources.next("sp_curve"),
+        ),
+        CurveGeometry(
+            first_id + 2,
+            Sense.POSITIVE,
+            None,
+            CurveKind.TRIMMED,
+            TrimmedCurve(first_id + 1, start, end, 0.0, 1.0),
+            sources.next("trimmed"),
+        ),
+    )
+
+
+def make_split_cylinder_model(radius: float = 1.0, height: float = 2.0) -> BrepModel:
+    """A cylinder whose wall is two half faces split along the seam ruling.
+
+    Both halves describe the seam ruling with their own FIN, one at u = 0 and
+    one at u = 2 pi; the ruling at u = pi and the ring arcs are projected.
+    """
+    sources = _Sources()
+    body_source = sources.next("body")
+    region_source = sources.next("region")
+    shell_source = sources.next("shell")
+    positions = {
+        1: Vector3(radius, 0.0, 0.0),
+        2: Vector3(-radius, 0.0, 0.0),
+        3: Vector3(radius, 0.0, height),
+        4: Vector3(-radius, 0.0, height),
+    }
+    point_sources = {i: sources.next("point") for i in positions}
+    vertex_sources = {i: sources.next("vertex") for i in positions}
+    points = tuple(
+        PointGeometry(i, position, vertex_sources[i], point_sources[i])
+        for i, position in positions.items()
+    )
+    vertices = tuple(Vertex(i, i, None, body_source, vertex_sources[i]) for i in positions)
+    # Edges 1 and 2 are the bottom ring's halves (through +y, then -y), 3
+    # and 4 the top ring's, 5 and 6 the rulings at u = 0 and u = pi.
+    edge_ends = {1: (1, 2), 2: (2, 1), 3: (3, 4), 4: (4, 3), 5: (1, 3), 6: (2, 4)}
+    edge_curves = {1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4}
+    edge_sources = {i: sources.next("edge") for i in edge_ends}
+    z_axis, x_axis = Vector3(0.0, 0.0, 1.0), Vector3(1.0, 0.0, 0.0)
+    curves = [
+        CurveGeometry(
+            1,
+            Sense.POSITIVE,
+            edge_sources[1],
+            CurveKind.CIRCLE,
+            CircleCurve(Vector3(0.0, 0.0, 0.0), z_axis, x_axis, radius),
+            sources.next("circle"),
+        ),
+        CurveGeometry(
+            2,
+            Sense.POSITIVE,
+            edge_sources[3],
+            CurveKind.CIRCLE,
+            CircleCurve(Vector3(0.0, 0.0, height), z_axis, x_axis, radius),
+            sources.next("circle"),
+        ),
+        CurveGeometry(
+            3,
+            Sense.POSITIVE,
+            edge_sources[5],
+            CurveKind.LINE,
+            LineCurve(positions[1], z_axis),
+            sources.next("line"),
+        ),
+        CurveGeometry(
+            4,
+            Sense.POSITIVE,
+            edge_sources[6],
+            CurveKind.LINE,
+            LineCurve(positions[2], z_axis),
+            sources.next("line"),
+        ),
+    ]
+    for first_id, u in ((11, 0.0), (14, 2.0 * pi)):
+        nurbs = NurbsCurve(
+            1, 2, 2, 0, False, False, False, 0, ((u, 0.0), (u, height)), (0.0, 1.0), (2, 2), ()
+        )
+        curves.extend(_fin_curves(sources, first_id, 1, nurbs, positions[1], positions[3]))
+    # Loops run counterclockwise about each outward normal.
+    face_loops = {
+        1: ((1, True), (6, True), (3, False), (5, False)),
+        2: ((2, True), (5, True), (4, False), (6, False)),
+        3: ((3, True), (4, True)),
+        4: ((2, False), (1, False)),
+    }
+    half_edges, loops, uses = _loop_half_edges(
+        face_loops, edge_ends, edge_curves, {(1, 5): 13, (2, 5): 16}, sources
+    )
+    edges = tuple(
+        Edge(i, body_source, tuple(uses[i]), start, end, edge_curves[i], None, edge_sources[i])
+        for i, (start, end) in edge_ends.items()
+    )
+    face_sources = {i: sources.next("face") for i in face_loops}
+    surface_sources = {i: sources.next("surface") for i in (1, 2, 3)}
+    surfaces = (
+        SurfaceGeometry(
+            1,
+            Sense.POSITIVE,
+            face_sources[1],
+            SurfaceKind.CYLINDER,
+            CylinderSurface(Vector3(0.0, 0.0, 0.0), z_axis, radius, x_axis),
+            surface_sources[1],
+        ),
+        SurfaceGeometry(
+            2,
+            Sense.POSITIVE,
+            face_sources[3],
+            SurfaceKind.PLANE,
+            PlaneSurface(Vector3(0.0, 0.0, height), z_axis, x_axis),
+            surface_sources[2],
+        ),
+        SurfaceGeometry(
+            3,
+            Sense.POSITIVE,
+            face_sources[4],
+            SurfaceKind.PLANE,
+            PlaneSurface(Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, -1.0), x_axis),
+            surface_sources[3],
+        ),
+    )
+    face_surfaces = {1: 1, 2: 1, 3: 2, 4: 3}
+    faces = tuple(
+        Face(i, 1, 1, (i,), face_surfaces[i], Sense.POSITIVE, face_sources[i]) for i in face_loops
+    )
+    return BrepModel(
+        source_format="binary",
+        schema_key="synthetic-split-cylinder",
+        complete=True,
+        bodies=(
+            Body(
+                1,
+                BodyKind.SOLID,
+                1.0e-6,
+                1.0e-8,
+                (1,),
+                tuple(edge_ends),
+                tuple(positions),
+                body_source,
+            ),
+        ),
+        regions=(Region(1, RegionKind.SOLID, 1, (1,), region_source),),
+        shells=(Shell(1, 1, (), (1, 2, 3, 4), (), None, shell_source),),
+        faces=faces,
+        loops=loops,
+        half_edges=half_edges,
+        edges=edges,
+        vertices=vertices,
+        points=points,
+        curves=tuple(curves),
+        surfaces=surfaces,
+        topology=TopologyValidation(True, 4, 6, 2),
+        metrics=BrepMetrics(
+            BoundingBox(Vector3(-radius, -radius, 0.0), Vector3(radius, radius, height)),
+            2.0 * pi * radius * height + 2.0 * pi * radius**2,
+            pi * radius**2 * height,
+        ),
+        diagnostics=(),
+    )
+
+
+def make_half_ball_model(radius: float = 2.0) -> BrepModel:
+    """Half a ball: a hemisphere and a disc, cut along the plane of the sphere's axis.
+
+    The two arcs of the rim each pass through a pole of the sphere, and the
+    disc describes them with rational FIN semicircles, so the FIN trims must
+    follow the pieces the arcs are split into.
+    """
+    sources = _Sources()
+    body_source = sources.next("body")
+    region_source = sources.next("region")
+    shell_source = sources.next("shell")
+    positions = {1: Vector3(radius, 0.0, 0.0), 2: Vector3(-radius, 0.0, 0.0)}
+    point_sources = {i: sources.next("point") for i in positions}
+    vertex_sources = {i: sources.next("vertex") for i in positions}
+    points = tuple(
+        PointGeometry(i, position, vertex_sources[i], point_sources[i])
+        for i, position in positions.items()
+    )
+    vertices = tuple(Vertex(i, i, None, body_source, vertex_sources[i]) for i in positions)
+    # The rim circle turns counterclockwise about -y: edge 1 runs from
+    # (r, 0, 0) over the north pole to (-r, 0, 0), edge 2 back under the
+    # south pole.
+    edge_ends = {1: (1, 2), 2: (2, 1)}
+    edge_curves = {1: 1, 2: 1}
+    edge_sources = {i: sources.next("edge") for i in edge_ends}
+    curves = [
+        CurveGeometry(
+            1,
+            Sense.POSITIVE,
+            edge_sources[1],
+            CurveKind.CIRCLE,
+            CircleCurve(
+                Vector3(0.0, 0.0, 0.0), Vector3(0.0, -1.0, 0.0), Vector3(1.0, 0.0, 0.0), radius
+            ),
+            sources.next("circle"),
+        ),
+    ]
+    # Rational semicircles in the disc's parameters (u = x, v = z).
+    weight = sqrt(0.5)
+    for first_id, sign in ((11, 1.0), (14, -1.0)):
+        r = sign * radius
+        poles = ((r, 0.0), (r, r), (0.0, r), (-r, r), (-r, 0.0))
+        weights = (1.0, weight, 1.0, weight, 1.0)
+        nurbs = NurbsCurve(
+            2,
+            5,
+            3,
+            0,
+            False,
+            False,
+            True,
+            0,
+            tuple((u * w, v * w, w) for (u, v), w in zip(poles, weights, strict=True)),
+            (0.0, 0.5, 1.0),
+            (3, 2, 3),
+            (),
+        )
+        start, end = (positions[1], positions[2]) if sign > 0 else (positions[2], positions[1])
+        curves.extend(_fin_curves(sources, first_id, 2, nurbs, start, end))
+    face_loops = {1: ((2, False), (1, False)), 2: ((1, True), (2, True))}
+    half_edges, loops, uses = _loop_half_edges(
+        face_loops, edge_ends, edge_curves, {(2, 1): 13, (2, 2): 16}, sources
+    )
+    edges = tuple(
+        Edge(i, body_source, tuple(uses[i]), start, end, 1, None, edge_sources[i])
+        for i, (start, end) in edge_ends.items()
+    )
+    face_sources = {i: sources.next("face") for i in face_loops}
+    surfaces = (
+        SurfaceGeometry(
+            1,
+            Sense.POSITIVE,
+            face_sources[1],
+            SurfaceKind.SPHERE,
+            SphereSurface(
+                Vector3(0.0, 0.0, 0.0), radius, Vector3(0.0, 0.0, 1.0), Vector3(1.0, 0.0, 0.0)
+            ),
+            sources.next("sphere"),
+        ),
+        SurfaceGeometry(
+            2,
+            Sense.POSITIVE,
+            face_sources[2],
+            SurfaceKind.PLANE,
+            PlaneSurface(Vector3(0.0, 0.0, 0.0), Vector3(0.0, -1.0, 0.0), Vector3(1.0, 0.0, 0.0)),
+            sources.next("plane"),
+        ),
+    )
+    faces = (
+        Face(1, 1, 1, (1,), 1, Sense.POSITIVE, face_sources[1]),
+        Face(2, 1, 1, (2,), 2, Sense.POSITIVE, face_sources[2]),
+    )
+    return BrepModel(
+        source_format="binary",
+        schema_key="synthetic-half-ball",
+        complete=True,
+        bodies=(Body(1, BodyKind.SOLID, 1.0e-6, 1.0e-8, (1,), (1, 2), (1, 2), body_source),),
+        regions=(Region(1, RegionKind.SOLID, 1, (1,), region_source),),
+        shells=(Shell(1, 1, (), (1, 2), (), None, shell_source),),
+        faces=faces,
+        loops=loops,
+        half_edges=half_edges,
+        edges=edges,
+        vertices=vertices,
+        points=points,
+        curves=tuple(curves),
+        surfaces=surfaces,
+        topology=TopologyValidation(True, 2, 2, 2),
+        metrics=BrepMetrics(
+            BoundingBox(Vector3(-radius, 0.0, -radius), Vector3(radius, radius, radius)),
+            3.0 * pi * radius**2,
+            2.0 * pi * radius**3 / 3.0,
+        ),
+        diagnostics=(),
+    )
+
+
+def make_swept_cylinder_model(radius: float = 1.0, height: float = 2.0) -> BrepModel:
+    """A cylinder whose wall is a swept surface: a circle swept along +z."""
+    sources = _Sources()
+    body_source = sources.next("body")
+    region_source = sources.next("region")
+    shell_source = sources.next("shell")
+    z_axis, x_axis = Vector3(0.0, 0.0, 1.0), Vector3(1.0, 0.0, 0.0)
+    edge_sources = {1: sources.next("edge"), 2: sources.next("edge")}
+
+    def circle(z: float) -> CircleCurve:
+        return CircleCurve(Vector3(0.0, 0.0, z), z_axis, x_axis, radius)
+
+    curves = (
+        CurveGeometry(
+            1,
+            Sense.POSITIVE,
+            edge_sources[1],
+            CurveKind.CIRCLE,
+            circle(0.0),
+            sources.next("circle"),
+        ),
+        CurveGeometry(
+            2,
+            Sense.POSITIVE,
+            edge_sources[2],
+            CurveKind.CIRCLE,
+            circle(height),
+            sources.next("circle"),
+        ),
+        CurveGeometry(
+            3, Sense.POSITIVE, None, CurveKind.CIRCLE, circle(0.0), sources.next("circle")
+        ),
+    )
+    edges = (
+        Edge(1, body_source, (1, 4), None, None, 1, None, edge_sources[1]),
+        Edge(2, body_source, (2, 3), None, None, 2, None, edge_sources[2]),
+    )
+    half_edge_sources = {i: sources.next("fin") for i in range(1, 5)}
+    # The wall's outward normal is radial: in its parameters the bottom ring
+    # runs with the circle and the top ring against it; the caps run the
+    # other way round.
+    half_edges = (
+        HalfEdge(1, 1, 1, 1, None, 4, 1, 1, Sense.POSITIVE, False, half_edge_sources[1]),
+        HalfEdge(2, 2, 2, 2, None, 3, 2, 2, Sense.NEGATIVE, False, half_edge_sources[2]),
+        HalfEdge(3, 3, 3, 3, None, 2, 2, 2, Sense.POSITIVE, False, half_edge_sources[3]),
+        HalfEdge(4, 4, 4, 4, None, 1, 1, 1, Sense.NEGATIVE, False, half_edge_sources[4]),
+    )
+    loop_sources = {i: sources.next("loop") for i in range(1, 5)}
+    loops = (
+        Loop(1, 1, (1,), loop_sources[1]),
+        Loop(2, 1, (2,), loop_sources[2]),
+        Loop(3, 2, (3,), loop_sources[3]),
+        Loop(4, 3, (4,), loop_sources[4]),
+    )
+    face_sources = {i: sources.next("face") for i in (1, 2, 3)}
+    surfaces = (
+        SurfaceGeometry(
+            1,
+            Sense.POSITIVE,
+            face_sources[1],
+            SurfaceKind.SWEPT,
+            SweptSurface(3, z_axis),
+            sources.next("swept"),
+        ),
+        SurfaceGeometry(
+            2,
+            Sense.POSITIVE,
+            face_sources[2],
+            SurfaceKind.PLANE,
+            PlaneSurface(Vector3(0.0, 0.0, height), z_axis, x_axis),
+            sources.next("plane"),
+        ),
+        SurfaceGeometry(
+            3,
+            Sense.POSITIVE,
+            face_sources[3],
+            SurfaceKind.PLANE,
+            PlaneSurface(Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, -1.0), x_axis),
+            sources.next("plane"),
+        ),
+    )
+    faces = (
+        Face(1, 1, 1, (1, 2), 1, Sense.POSITIVE, face_sources[1]),
+        Face(2, 1, 1, (3,), 2, Sense.POSITIVE, face_sources[2]),
+        Face(3, 1, 1, (4,), 3, Sense.POSITIVE, face_sources[3]),
+    )
+    return BrepModel(
+        source_format="binary",
+        schema_key="synthetic-swept-cylinder",
+        complete=True,
+        bodies=(Body(1, BodyKind.SOLID, 1.0e-6, 1.0e-8, (1,), (1, 2), (), body_source),),
+        regions=(Region(1, RegionKind.SOLID, 1, (1,), region_source),),
+        shells=(Shell(1, 1, (), (1, 2, 3), (), None, shell_source),),
+        faces=faces,
+        loops=loops,
+        half_edges=half_edges,
+        edges=edges,
+        vertices=(),
+        points=(),
+        curves=curves,
+        surfaces=surfaces,
+        topology=TopologyValidation(True, 4, 2, 1),
+        metrics=BrepMetrics(
+            BoundingBox(Vector3(-radius, -radius, 0.0), Vector3(radius, radius, height)),
+            2.0 * pi * radius * height + 2.0 * pi * radius**2,
+            pi * radius**2 * height,
+        ),
+        diagnostics=(),
+    )
+
+
 def make_analytic_curve_sheet_model(kind: CurveKind) -> BrepModel:
     """Return a one-face public fixture for one newly supported exact curve kind."""
 
@@ -1148,6 +1715,124 @@ def make_analytic_curve_sheet_model(kind: CurveKind) -> BrepModel:
         curves=curves,
         surfaces=(surface,),
         topology=TopologyValidation(True, 1, len(edges), 1),
+        metrics=BrepMetrics(None, None, None),
+        diagnostics=(),
+    )
+
+
+def make_vertex_bounded_arc_sheet_model(radius: float = 4.0) -> BrepModel:
+    """Return a quarter-disc sheet whose arc edge is a circle bounded by two vertices.
+
+    SolidWorks writes arcs this way: the edge references the full CIRCLE and
+    its two vertices select the arc, with no explicit trimmed curve.
+    """
+
+    sources = _Sources()
+    body_source = sources.next("body")
+    region_source = sources.next("region")
+    shell_source = sources.next("shell")
+    face_source = sources.next("face")
+    surface_source = sources.next("plane")
+    curve_sources = {1: sources.next("circle"), 2: sources.next("line"), 3: sources.next("line")}
+    edge_sources = {index: sources.next("edge") for index in (1, 2, 3)}
+    point_sources = {index: sources.next("point") for index in (1, 2, 3)}
+    vertex_sources = {index: sources.next("vertex") for index in (1, 2, 3)}
+    half_edge_sources = {index: sources.next("fin") for index in (1, 2, 3)}
+    loop_source = sources.next("loop")
+
+    positions = {
+        1: Vector3(radius, 0.0, 0.0),
+        2: Vector3(0.0, radius, 0.0),
+        3: Vector3(0.0, 0.0, 0.0),
+    }
+    curves = (
+        CurveGeometry(
+            id=1,
+            sense=Sense.POSITIVE,
+            owner=edge_sources[1],
+            kind=CurveKind.CIRCLE,
+            definition=CircleCurve(
+                center=Vector3(0.0, 0.0, 0.0),
+                normal=Vector3(0.0, 0.0, 1.0),
+                x_axis=Vector3(1.0, 0.0, 0.0),
+                radius=radius,
+            ),
+            source=curve_sources[1],
+        ),
+        CurveGeometry(
+            id=2,
+            sense=Sense.POSITIVE,
+            owner=edge_sources[2],
+            kind=CurveKind.LINE,
+            definition=LineCurve(point=positions[2], direction=Vector3(0.0, -radius, 0.0)),
+            source=curve_sources[2],
+        ),
+        CurveGeometry(
+            id=3,
+            sense=Sense.POSITIVE,
+            owner=edge_sources[3],
+            kind=CurveKind.LINE,
+            definition=LineCurve(point=positions[3], direction=Vector3(radius, 0.0, 0.0)),
+            source=curve_sources[3],
+        ),
+    )
+    # The loop runs counterclockwise about +z: along the arc from (r, 0) to
+    # (0, r), down to the centre, and back out along +x.
+    edge_vertices = {1: (1, 2), 2: (2, 3), 3: (3, 1)}
+    edges = tuple(
+        Edge(index, body_source, (index,), start, end, index, None, edge_sources[index])
+        for index, (start, end) in edge_vertices.items()
+    )
+    half_edges = tuple(
+        HalfEdge(
+            index,
+            1,
+            index % 3 + 1,
+            (index - 2) % 3 + 1,
+            edge_vertices[index][1],
+            None,
+            index,
+            index,
+            Sense.POSITIVE,
+            False,
+            half_edge_sources[index],
+        )
+        for index in (1, 2, 3)
+    )
+    return BrepModel(
+        source_format="text",
+        schema_key="synthetic-arc-sheet",
+        complete=True,
+        bodies=(Body(1, BodyKind.SHEET, 1.0e-6, 1.0e-8, (1,), (1, 2, 3), (1, 2, 3), body_source),),
+        regions=(Region(1, RegionKind.SOLID, 1, (1,), region_source),),
+        shells=(Shell(1, 1, (), (1,), (), None, shell_source),),
+        faces=(Face(1, 1, 1, (1,), 1, Sense.POSITIVE, face_source),),
+        loops=(Loop(1, 1, (1, 2, 3), loop_source),),
+        half_edges=half_edges,
+        edges=edges,
+        vertices=tuple(
+            Vertex(index, index, None, body_source, vertex_sources[index]) for index in (1, 2, 3)
+        ),
+        points=tuple(
+            PointGeometry(index, position, vertex_sources[index], point_sources[index])
+            for index, position in positions.items()
+        ),
+        curves=curves,
+        surfaces=(
+            SurfaceGeometry(
+                id=1,
+                sense=Sense.POSITIVE,
+                owner=face_source,
+                kind=SurfaceKind.PLANE,
+                definition=PlaneSurface(
+                    point=Vector3(0.0, 0.0, 0.0),
+                    normal=Vector3(0.0, 0.0, 1.0),
+                    x_axis=Vector3(1.0, 0.0, 0.0),
+                ),
+                source=surface_source,
+            ),
+        ),
+        topology=TopologyValidation(True, 1, 3, 1),
         metrics=BrepMetrics(None, None, None),
         diagnostics=(),
     )

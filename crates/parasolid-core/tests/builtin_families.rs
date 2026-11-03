@@ -37,9 +37,9 @@ fn family_digest(family_id: &str, members: &[FamilyMember], base: &[FamilyMember
 #[test]
 fn every_exact_key_belongs_to_one_derived_family() -> support::Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
-    // Eleven standard families (13006 … 33103) and seventeen embedded families
-    // (15003-13006 … 37102-13006) are derived from the 49 exact profiles.
-    assert_eq!(registry.families().len(), 28);
+    // Twelve standard families (9008, 13006 … 33103) and seventeen embedded
+    // families (15003-13006 … 37102-13006) are derived from the 50 exact profiles.
+    assert_eq!(registry.families().len(), 29);
     let mut covered = 0;
     for profile in registry.profiles() {
         for key in profile.accepted_schema_keys() {

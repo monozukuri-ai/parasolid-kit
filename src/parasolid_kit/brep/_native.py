@@ -33,6 +33,7 @@ from .geometry import (
     SurfaceGeometry,
     SurfaceKind,
     SurfaceParametricCurve,
+    SweptSurface,
     TorusSurface,
     TrimmedCurve,
     UnsupportedGeometry,
@@ -432,6 +433,8 @@ def _surface_definition(kind: SurfaceKind, value: Mapping[str, Any]) -> SurfaceD
             minor_radius=_float(value, "minor_radius"),
             x_axis=_vector(value, "x_axis"),
         )
+    if kind is SurfaceKind.SWEPT:
+        return SweptSurface(section=_int(value, "section"), direction=_vector(value, "direction"))
     if kind is SurfaceKind.SPUN:
         return SpunSurface(
             profile=_int(value, "profile"),

@@ -941,7 +941,7 @@ complete layouts, and only for the node types seen under that exact key:
 | `SCH_2401000_20000` | 19 | BODY, LIST, pointer block |
 | `SCH_2800000_28002` | 41 | BODY, REGION, LIMIT, LIST, pointer block |
 | `SCH_2901000_28101` | 24 | BODY, REGION, LIMIT, LIST, pointer block |
-| `SCH_3200000_32001` | 30 | BODY, REGION, INTERSECTION, LIMIT, LIST, pointer block; type 204 |
+| `SCH_3200000_32001` | 31 | BODY, REGION, INTERSECTION, LIMIT, LIST, pointer block; type 204; type 3 (observed once, unverified) |
 | `SCH_3301000_33103` | 25 | BODY, REGION, INTERSECTION, LIMIT, LIST, pointer block; type 204 |
 
 Each differing layout is the reviewed 13006 declaration with the edit sequence
@@ -954,6 +954,19 @@ pointer block. Type 204 has the two-field layout that embedded 32001 and 33103
 streams declare in full. Added fields have project-assigned names; base fields
 keep their reviewed names, so B-Rep roles are found by name after the mapper
 confirms that every resolved type is exactly the compiled definition.
+
+Revision 2 of the 32001 profile adds node type 3, which the public XT Format
+Reference does not list (its node table starts at ASSEMBLY, 10). It is
+declared from a single observation: an ANSYS Electronics Desktop transmit
+file under `SCH_3300000_32001`, written by Parasolid 34, opens with one such
+node at index 1 carrying eight values, `3 0 0 0 0 2 3 4`, the last three
+naming the file's three bodies. The declaration records exactly that reading,
+an identifier, four null pointers and three body references, and claims no
+semantics; a stream whose type 3 node has another shape desynchronises and
+fails closed on the next node. The same file writes a count before its first
+node although its key names no base schema; readers skip such a count for
+writers of Parasolid 34 or later and report it as the header's
+`stream_prefix`.
 
 One layout lacks same-revision self-description: no embedded 28002 stream
 contains LIMIT (41). The 28002 profile uses the three-field layout carried from
@@ -1250,3 +1263,58 @@ unknown instance or assembly kind, a zero scale or a cycle in an instance chain
 fails the mapping. Public Rust and Python tests author the three record kinds
 in X_T and X_B under the `SolidWorks`, NX, family, iCAD and standard keys and
 check the mapped structure, the transform evaluation and the failures.
+
+## MicroStation modeler key (schema 9008)
+
+Four public Bentley X_T files of the NIST `engineering-design-models`
+repository (`nut.x_t`, `ring.x_t`, `washer inch.x_t` and
+`buttom part inch.x_t`, 2 KB to 480 KB) were written by Parasolid 9.0.129
+inside MicroStation under the standard key `SCH_901297_9008`, the oldest key
+in the public corpus. No public schema file describes schema 9008, and the
+registry failed closed with `schema.missing_base_schema`.
+
+| Exact key | Profile | Source of the key |
+|---|---|---|
+| `SCH_901297_9008` | `microstation-901297-9008-r1` | MicroStation modeler transmit files, Parasolid 9.0.129 |
+
+The profile declares the 27 node types the four files carry (BODY, SHELL,
+FACE, LOOP, EDGE, FIN, VERTEX, REGION, POINT, LINE, CIRCLE, INTERSECTION,
+CHART, LIMIT, PLANE, CYLINDER, SPHERE, TORUS, BLENDED_EDGE, BLEND_BOUND,
+LIST, POINTER_LIS_BLOCK, ATT_DEF_ID, ATTRIB_DEF, ATTRIBUTE, INT_VALUES and
+the shared-geometry owner 141) with their reviewed 13006 layouts and three
+edits, each read from the streams and consistent with the public XT Format
+Reference:
+
+- `BODY` has 22 fields: the 13006 layout without `nom_geom_state`, the byte
+  the reference (printed page 85) marks "set to 1 (for future use)". The
+  order is otherwise the reference's, `highest_node_id` first and the shell,
+  boundary-geometry, region, edge and vertex heads last. MicroStation writes
+  a non-null `next` pointer, which the reference says to ignore.
+- `FIN` has 9 fields: the 13006 layout without `attributes_groups`, read as
+  loop, forward, backward, vertex, other fin, edge, curve, next fin at the
+  vertex and sense. Every fin ring and every `other` pair in the four files
+  closes under this reading.
+- `ATTRIB_DEF` has no `field_names` pointer and lists thirteen legal owners
+  instead of fourteen (`SCH_fn_owner`, the fourteenth, came later), as the
+  reference's own transmit example of schema 12006 (printed page 10) also
+  writes it; the eight event actions and the variable field types are
+  unchanged.
+
+MicroStation wraps its text records at exactly 80 characters and splits
+numbers across lines, which the text reader ignores as the reference
+requires. The four files read to their terminators without a diagnostic,
+map complete B-Reps (4, 12, 29 and 300 faces; the largest carries 184 tori,
+98 rolling-ball blends with 126 blend boundaries and 203 intersection
+curves) and convert to valid OCCT solids in strict mode, the 300-face part
+in about 100 s. Public Rust and Python tests author the reference's
+transmit example in these layouts in X_T and X_B, check the decoded values,
+the mapped disc and the family of schema 9008, and check that the V13
+attribute definition and an unobserved value node fail closed under the key.
+
+The 300-face part also drove two conversion changes recorded in the
+changelog: an analytic intersection whose branch on the surfaces scaled to
+unit extent misses the source points is retried on the unscaled surfaces,
+and the contact curve of a rolling-ball blend is corrected by its chart-point
+residuals, the geometric contact being ill-conditioned along the surfaces
+when the spines are approximations (a blend whose support is another blend
+touches that pipe on the line to the pipe's spine, at the pipe radius).

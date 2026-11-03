@@ -56,6 +56,10 @@ pub struct XbHeader {
     pub user_field_size: u8,
     /// Maximum node type present only when the key names an embedded base schema.
     pub schema_max_type: Option<u16>,
+    /// Count that some writers place before the first node of a stream whose
+    /// key names no base schema; the reference documents no such value, so it
+    /// is recorded and skipped without interpretation.
+    pub stream_prefix: Option<u16>,
     /// Complete input size.
     pub file_size: usize,
     /// Optional leading text-preamble range, including its newline.
@@ -145,6 +149,21 @@ pub fn inspect_xb(data: &[u8], limits: InspectionLimits) -> Result<XbHeader, Par
             },
         ));
     }
+    // As in the text reader: a count before the first node of a stream whose
+    // key names no base schema is recorded and skipped. A node opens with its
+    // type and index, and the first node's index is 1.
+    let mut stream_prefix = None;
+    if !has_embedded_schema && writes_a_stream_prefix(&modeller_version) {
+        let mut probe = BinaryReader::with_position(data, reader.position())?;
+        if let (Ok(prefix), Ok(node_type), Ok(node_index)) =
+            (probe.u16(), probe.i16(), probe.positive_integer())
+            && node_type > 1
+            && node_index == 1
+        {
+            reader.u16()?;
+            stream_prefix = Some(prefix);
+        }
+    }
     let body_offset = reader.position();
     Ok(XbHeader {
         signature: [signature_bytes[0], signature_bytes[1]],
@@ -153,11 +172,34 @@ pub fn inspect_xb(data: &[u8], limits: InspectionLimits) -> Result<XbHeader, Par
         schema_key,
         user_field_size,
         schema_max_type,
+        stream_prefix,
         file_size: data.len(),
         text_header_range,
         binary_header_range: binary_start..body_offset,
         header_range: 0..body_offset,
     })
+}
+
+/// Whether the writer named by a modeller description is known to place a
+/// count before the first node of a stream whose key has no base schema.
+///
+/// An ANSYS Electronics Desktop transmit written by Parasolid 34 does; no
+/// earlier writer in the public corpus does, so the version gates the check
+/// and streams of earlier writers are read as before. The version is the
+/// integer after "modeller version", whose digits above the last five are
+/// the major release.
+pub(crate) fn writes_a_stream_prefix(modeller_version: &str) -> bool {
+    const MARKER: &str = "modeller version ";
+    let Some(start) = modeller_version.find(MARKER) else {
+        return false;
+    };
+    let digits: String = modeller_version[start + MARKER.len()..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    digits
+        .parse::<u64>()
+        .is_ok_and(|version| version / 100_000 >= 34)
 }
 
 fn validate_limits(limits: InspectionLimits) -> Result<(), ParseError> {
@@ -289,6 +331,35 @@ mod tests {
             assert_eq!(header.header_range, 0..data.len());
             assert_eq!(header.text_header_range, None);
         }
+    }
+
+    #[test]
+    fn skips_a_count_written_before_the_first_binary_node() {
+        // Only a Parasolid 34 or later writer is known to put a count there.
+        for (version, expected, skipped) in [("3401241", Some(176), 2), ("3300229", None, 0)] {
+            let mut data = b"PS\0\0".to_vec();
+            append_u16_ascii(
+                &mut data,
+                &format!(": TRANSMIT FILE created by modeller version {version}"),
+            );
+            append_i32_ascii(&mut data, "SCH_3300000_32001");
+            data.extend_from_slice(&0_i32.to_be_bytes());
+            let binary_header_end = data.len();
+            data.extend_from_slice(&176_u16.to_be_bytes());
+            data.extend_from_slice(&12_i16.to_be_bytes());
+            // A positive integer n is transmitted as the remainder n + 1.
+            data.extend_from_slice(&2_i16.to_be_bytes());
+
+            let result = inspect_xb(&data, InspectionLimits::default());
+            assert!(result.is_ok(), "{result:?}");
+            if let Ok(header) = result {
+                assert_eq!(header.stream_prefix, expected);
+                assert_eq!(header.binary_header_range, 0..binary_header_end + skipped);
+            }
+        }
+        assert!(!writes_a_stream_prefix(
+            ": TRANSMIT FILE created by modeller version 901297"
+        ));
     }
 
     #[test]

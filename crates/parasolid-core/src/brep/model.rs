@@ -701,6 +701,8 @@ pub enum SurfaceKind {
         end_parameter: Option<f64>,
         x_axis: Option<Vector3>,
     },
+    /// Mapped section curve swept along a unit direction: `R(u, v) = C(u) + vD`.
+    Swept { section: BrepId, direction: Vector3 },
     /// Offset of another mapped surface.
     Offset { basis_surface: BrepId, offset: f64 },
     /// Exact NURBS definition assembled from auxiliary nodes.
@@ -722,6 +724,7 @@ impl SurfaceKind {
             Self::BlendedEdge { .. } => "blended_edge",
             Self::BlendBoundary { .. } => "blend_boundary",
             Self::Spun { .. } => "spun",
+            Self::Swept { .. } => "swept",
             Self::Offset { .. } => "offset",
             Self::Nurbs(_) => "nurbs",
             Self::Unsupported { .. } => "unsupported",

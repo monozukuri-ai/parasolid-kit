@@ -749,6 +749,11 @@ impl<'a> Mapper<'a> {
                 end_parameter: self.optional_double(node, "end_param")?,
                 x_axis: self.optional_vector(node, "x_axis")?,
             },
+            // The scale field is for internal use only and may be null (XT reference).
+            "SWEPT_SURF" => SurfaceKind::Swept {
+                section: self.required_id(node, "section", "curve geometry", &self.ids.curves)?,
+                direction: self.vector(node, "sweep")?,
+            },
             "OFFSET_SURF" => SurfaceKind::Offset {
                 basis_surface: self.required_id(
                     node,
@@ -3102,6 +3107,15 @@ mod tests {
         ]);
         let spun_index = u32::try_from(nodes.len()).unwrap_or(u32::MAX) + 1;
         nodes.push(node(spun_index, 68, "SPUN_SURF", spun));
+        // A swept surface extrudes a mapped curve; its scale is internal and null.
+        let mut swept = common_surface_fields(0);
+        swept.extend([
+            field("section", 1008, vec![FieldValue::PointerIndex(2)]),
+            vector("sweep", [0.0, 0.0, 1.0]),
+            field("scale", 0, vec![FieldValue::Double(None)]),
+        ]);
+        let swept_index = spun_index + 1;
+        nodes.push(node(swept_index, 67, "SWEPT_SURF", swept));
         let mut mapper = Mapper::new(
             BrepSourceFormat::Text,
             "SCH_TEST",
@@ -3131,6 +3145,27 @@ mod tests {
         if let Ok(SurfaceKind::Spun { profile, .. }) = spun {
             assert_eq!(
                 profile,
+                mapper
+                    .map_curve(2)
+                    .map(|curve| curve.id)
+                    .unwrap_or(u32::MAX)
+            );
+        }
+        let swept = mapper.map_surface(swept_index).map(|surface| surface.kind);
+        assert!(matches!(
+            swept,
+            Ok(SurfaceKind::Swept {
+                direction: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 1.0
+                },
+                ..
+            })
+        ));
+        if let Ok(SurfaceKind::Swept { section, .. }) = swept {
+            assert_eq!(
+                section,
                 mapper
                     .map_curve(2)
                     .map(|curve| curve.id)

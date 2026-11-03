@@ -45,6 +45,7 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
     """
     from OCP.GeomAPI import GeomAPI_Interpolate, GeomAPI_ProjectPointOnSurf
     from OCP.gp import gp_Pnt, gp_Vec
+    from OCP.ShapeAnalysis import ShapeAnalysis_Surface
     from OCP.TColgp import TColgp_HArray1OfPnt
 
     numerical = max(1e-14, tolerance * 1e-4)
@@ -53,14 +54,34 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
 
     def project(point: object, surface: object) -> tuple:
         operation = GeomAPI_ProjectPointOnSurf(point, surface, numerical)
-        if not operation.NbPoints():
-            raise ValueError("intersection point/surface projection failed")
-        u, v = operation.LowerDistanceParameters()
+        if operation.NbPoints():
+            u, v = operation.LowerDistanceParameters()
+        else:
+            # The extrema search returns no candidate on some surfaces (a pipe
+            # B-spline near its seam, a point close to a singularity); the
+            # shape-analysis projection still finds the nearest parameters.
+            uv = ShapeAnalysis_Surface(surface).ValueOfUV(point, numerical)
+            u, v = uv.X(), uv.Y()
+            if not (isfinite(u) and isfinite(v)):
+                raise ValueError("intersection point/surface projection failed")
         q, du, dv = gp_Pnt(), gp_Vec(), gp_Vec()
         surface.D1(u, v, q, du, dv)
         normal = du.Crossed(dv)
+        if normal.Magnitude() <= 1e-300:
+            raise ValueError("intersection support surface is singular at a projected point")
         normal.Normalize()
-        return q, normal.Coord(), operation.LowerDistance()
+        return q, normal.Coord(), q.Distance(point)
+
+    def distinct(items: list, *, periodic: bool) -> list:
+        # The interpolation rejects points closer than its tolerance, which a
+        # refined span or an inserted trim point can otherwise produce.
+        kept: list = []
+        for item in items:
+            if not kept or item.Distance(kept[-1]) > numerical:
+                kept.append(item)
+        if periodic and len(kept) > 2 and kept[0].Distance(kept[-1]) <= numerical:
+            kept.pop()
+        return kept
 
     def refine(point: object, tangent: tuple) -> object:
         anchor = point.Coord()
@@ -104,21 +125,28 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
         if max(project(point, surface)[2] for surface in surfaces) > tolerance:
             raise ValueError("source intersection point is outside its support-surface tolerance")
     for iteration in range(12):
+        points = distinct(points, periodic=closed)
+        if len(points) < 2:
+            raise ValueError("intersection branch has fewer than two distinct points")
         array = TColgp_HArray1OfPnt(1, len(points))
         for index, point in enumerate(points, 1):
             array.SetValue(index, point)
-        fit = GeomAPI_Interpolate(array, closed, numerical)
-        fit.Perform()
+        try:
+            fit = GeomAPI_Interpolate(array, closed, numerical)
+            fit.Perform()
+        except Exception as error:  # OCCT raises Standard_ConstructionError without text
+            raise ValueError("intersection interpolation rejected the branch points") from error
         if not fit.IsDone():
             raise ValueError("intersection interpolation failed")
         curve = fit.Curve()
         if iteration == 0 and anchors:
             # Source trim parameters are not OCCT curve parameters. Insert the
-            # exact trim points in branch order before refining the interior.
+            # exact trim points in branch order before refining the interior;
+            # a sample within the numerical tolerance of a trim point yields to it.
             ordered = [(project_curve(curve, p)[0], p) for p in points]
             for point in anchors:
                 parameter, _ = project_curve(curve, point)
-                ordered = [item for item in ordered if abs(item[0] - parameter) > numerical]
+                ordered = [item for item in ordered if item[1].Distance(point) > numerical]
                 ordered.append((parameter, point))
             points = [item[1] for item in sorted(ordered, key=lambda item: item[0])]
             continue
@@ -197,20 +225,36 @@ def intersect_analytic(surfaces: list, samples: list, tolerance: float) -> objec
     extent = max(samples[0].Distance(point) for point in samples)
     if extent <= tolerance:
         raise ValueError("intersection branch has no resolved extent")
-    # Internal conditioning only; the returned curve retains the requested units.
-    forward, backward = gp_Trsf(), gp_Trsf()
-    forward.SetScale(gp_Pnt(), 1 / extent)
-    backward.SetScale(gp_Pnt(), extent)
-    operation = GeomAPI_IntSS(*(s.Transformed(forward) for s in surfaces), 1e-9)
-    if not operation.IsDone() or not operation.NbLines():
-        raise ValueError("OCCT surface intersection has no branch")
-    curves = [operation.Line(i).Transformed(backward) for i in range(1, operation.NbLines() + 1)]
-    assignments = []
-    for point in samples:
-        choices = sorted((project_curve(curve, point)[1], i) for i, curve in enumerate(curves))
-        if choices[0][0] > tolerance:
-            raise ValueError("OCCT intersection does not match the source branch")
-        assignments.append(choices[0][1])
+
+    def branches(scale: float) -> list:
+        # Internal conditioning only; the returned curves retain the requested units.
+        forward, backward = gp_Trsf(), gp_Trsf()
+        forward.SetScale(gp_Pnt(), scale)
+        backward.SetScale(gp_Pnt(), 1 / scale)
+        operation = GeomAPI_IntSS(*(s.Transformed(forward) for s in surfaces), 1e-9)
+        if not operation.IsDone() or not operation.NbLines():
+            raise ValueError("OCCT surface intersection has no branch")
+        return [operation.Line(i).Transformed(backward) for i in range(1, operation.NbLines() + 1)]
+
+    # The branches of the surfaces scaled to unit extent are tried first; a
+    # branch OCCT walks rather than solves (a plane a few nanoradians off the
+    # equatorial plane of a torus, far from the origin) can miss the source
+    # points by more than the tolerance once scaled back, where the branch of
+    # the unscaled surfaces meets them.
+    curves: list = []
+    assignments: list = []
+    for scale in (1 / extent, 1.0):
+        curves = branches(scale)
+        assignments = []
+        for point in samples:
+            choices = sorted((project_curve(curve, point)[1], i) for i, curve in enumerate(curves))
+            if choices[0][0] > tolerance:
+                break
+            assignments.append(choices[0][1])
+        if len(assignments) == len(samples):
+            break
+    else:
+        raise ValueError("OCCT intersection does not match the source branch")
     pieces = []
     for index in dict.fromkeys(assignments):
         curve = curves[index].Copy()

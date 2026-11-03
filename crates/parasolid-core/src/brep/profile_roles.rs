@@ -321,6 +321,7 @@ fn standard_definitions(
 ) -> Option<Result<Vec<crate::TypeDefinition>, ParseError>> {
     crate::schema::profiles::icad_standard::PROFILES
         .iter()
+        .chain(crate::schema::profiles::microstation::PROFILES)
         .find(|spec| {
             key == spec.key
                 && profile_id == spec.id
@@ -745,12 +746,13 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
             ("surface", 9, "basis_surface", "p"),
             ("offset", 10, "offset", "f"),
         ],
-        // Retain the source surface and report unsupported geometry. The sweep
-        // section, direction and scale are not assigned geometry semantics.
+        // The scale is for internal use only (XT reference) and stays unread.
         67 => &[
             ("node_id", 0, "local_id", "d"),
             ("owner", 2, "owner_ref", "p"),
             ("sense", 6, "orientation", "c"),
+            ("section", 7, "section_curve", "p"),
+            ("sweep", 8, "sweep_direction", "v"),
         ],
         // Retain the source surface and report unsupported geometry. No spun
         // surface parameters are assigned geometry semantics by this mapper.

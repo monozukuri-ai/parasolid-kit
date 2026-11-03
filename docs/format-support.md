@@ -93,8 +93,9 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_2601000_26105` | `icad-2601000-26105-r1` / 1 | 38 / 336 | `f2717a3ccb97d6e836bb36e981671974b0d2fd0a586c9b42e3fcbe77fe36976d` |
 | `SCH_2800000_28002` | `icad-2800000-28002-r1` / 1 | 41 / 370 | `a1693181a2af88fd8456155296f7ffefca2a71fdf14366a9866ab9c88e6531b7` |
 | `SCH_2901000_28101` | `icad-2901000-28101-r1` / 1 | 24 / 214 | `3e62cae9a159faf2364f85206fcc2bf1580eb68b4763b446fed1864010df19de` |
-| `SCH_3200000_32001` | `icad-3200000-32001-r1` / 1 | 30 / 255 | `5911102568cc1e2215b3bc93e0e43146a382b747394aca8661527557b3220edf` |
+| `SCH_3200000_32001` | `icad-3200000-32001-r2` / 2 | 31 / 263 | `ab1d5312e7892bba12d53262617350ecc6da575f658a582180c3edf6bc84f603` |
 | `SCH_3301000_33103` | `icad-3301000-33103-r1` / 1 | 25 / 219 | `29c38621bc5d937dddd0550bc52a4f3fcbc71616a5dd8774881b66aa5bcf030f` |
+| `SCH_901297_9008` | `microstation-901297-9008-r1` / 1 | 27 / 233 | `cc992ddc4cdc9723df08eb07fa0ab52ec7dcc11eb5b7c831a4447f9977c8252a` |
 
 The following cells summarize recorded local validation, not a new CAD capture
 or a guarantee for every input with the same key. Real fixtures are outside
@@ -112,7 +113,8 @@ public CI. The detailed evidence and its retained failures are in
 | [iCAD legacy five exact keys](builtin-profiles.md#legacy-icad-embedded-keys) (unreleased) | 539 sampled neutral X_B resource occurrences match catalog values, ranges and terminators; public X_T/X_B fixtures are authored | 535 complete, four explicitly partial SPUN_SURF cases; all topology valid; catalog parity including source references | Authored wire coordinates, blend references/parameters and UV spline coefficients; no independent legacy CAD measurement campaign | No new conversion qualification; SPUN_SURF remains unsupported | Native ICD framing, ownership, transforms, extrusion and feature history remain downstream responsibilities |
 | [iCAD later exact keys](builtin-profiles.md#later-icad-keys) (unreleased): eight embedded and five standard | 17,082 of 17,099 distinct sampled X_B resources match catalog values, ranges and terminators; 17 with OFFSET_SURF (60) fail closed; public X_T/X_B fixtures are authored | 17,047 complete, 15 explicitly partial SPUN_SURF cases and 20 null-parameter errors, each identical to the catalog path | Authored wire coordinates, per-ordinal record values and B-spline surface coefficients; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
 | [Further iCAD keys and revisions](builtin-profiles.md#further-icad-keys-and-revisions) (unreleased): two embedded and six standard keys, four revised profiles, OFFSET_SURF | 18,610 of 18,634 distinct sampled X_B resources of all iCAD keys match catalog values, ranges and terminators; schema 8008 and 12103 keys and two V30 standard resources still fail closed | 18,567 complete, 32 explicitly partial SPUN_SURF cases and 11 errors, each identical to the catalog path | Authored offset-surface and unset-trim-parameter records with independent values; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
-| [Schema families, transmit-file keys, user fields and assembly structure](builtin-profiles.md#schema-families-and-base-contributors) (unreleased): 28 derived families, three transmit profiles, exact profiles completed by their family, standard 16100/20000 revision 2, ASSEMBLY/INSTANCE/TRANSFORM | 22 public X_T transmit files (SolidWorks 2009-2024, NX, Inventor 2012, the Parasolid 24 and 26 acceptance tests, the Siemens Parasolid 26/27 examples, ANSYS, MicroStation): 20 parse, against 2 with the 0.3.8 release and 6 with exact-key families alone; the other 2 fail closed on ANSYS type 176 or schema 9008 | 18 complete source B-Reps; a SolidWorks 2011 part and an NX assembly keep explicitly unsupported swept or spun surfaces; three assemblies (SolidWorks 2020 with 8 bodies and 10 placed instances, two NX files) map their instances and transforms | Public files only; no catalog comparison and no independent CAD measurement in this repository | Four strict OCCT conversions (the Parasolid 24 acceptance part, the eight unplaced bodies of the SolidWorks 2020 assembly, a Siemens example disk, a SolidWorks 2024 cylinder); the others stop at vertex-trimmed circles, blends, spheres or the OCCT shape check | Assembly structure is returned beside the bodies and not applied to their geometry; the public files are not redistributed |
+| [Schema families, transmit-file keys, user fields and assembly structure](builtin-profiles.md#schema-families-and-base-contributors) (unreleased): 29 derived families, three transmit profiles, exact profiles completed by their family, standard 16100/20000 revision 2, ASSEMBLY/INSTANCE/TRANSFORM | 22 public X_T transmit files (SolidWorks 2009-2024, NX, Inventor 2012, the Parasolid 24 and 26 acceptance tests, the Siemens Parasolid 26/27 examples, ANSYS, MicroStation): all 22 parse, against 2 with the 0.3.8 release and 6 with exact-key families alone (unreleased: the ANSYS Electronics Desktop file's leading count is skipped and its node type 3 is declared from that one observation; the MicroStation file reads with the schema-9008 profile below) | 22 complete source B-Reps (unreleased: the SolidWorks 2011 plaque and the NX part whose swept surfaces were explicitly unsupported decode now); three assemblies (SolidWorks 2020 with 8 bodies and 10 placed instances, two NX files) map their instances and transforms | Public files only; no catalog comparison and no independent CAD measurement in this repository | Twenty-two strict OCCT conversions (unreleased: the parametric path is selected for vertex-bounded arcs, surface-parameter and intersection curves and trimmed spheres; cones measure v along the axis; unbounded blend spines are bounded; sliver-face crossings and ring edges running against their source circle are handled; cliff-edge blends are the pipe around their spine; an edge through a sphere pole is split there and an edge on a periodic seam carries a pcurve per orientation; swept surfaces are extruded sections and offsets follow the sense of their basis; an analytic branch that misses the source points on the scaled surfaces is retried unscaled and blend contact curves are corrected by their chart residuals), against four with the analytic selection alone | Assembly structure is returned beside the bodies and not applied to their geometry; the public files are not redistributed |
+| [MicroStation modeler key](builtin-profiles.md#microstation-modeler-key-schema-9008) (unreleased): one standard key of Parasolid 9, the family of schema 9008 | Four public Bentley X_T files (2 KB to 480 KB) read to their terminators; the BODY, FIN and ATTRIB_DEF layouts are read from those streams and authored in X_T/X_B fixtures | Four complete source B-Reps (4 to 300 faces) | Public files only; no catalog comparison and no independent CAD measurement in this repository | Four strict OCCT conversions, the 300-face part in about 100 s | Only the 27 node types those files carry are declared; the files are not redistributed |
 | SolidWorks partitions (15 exact keys, SolidWorks 2015-2026) | 75 partition, 58 ghost-partition and 811 local-body X_B streams from 63 Parts; four partition streams fail closed (HELIX_CU_FORM, base type 184, NURBS padding); deltas stop at unknown base type 3 | 902 complete B-Reps; 26 explicitly partial with a retained SWEPT_SURF; 12 bodiless partitions | sldkit point/FIN/NURBS parity for the 2026 key; display-outline comparison after OCCT conversion is recorded in sldkit, not here | No partition conversion validation in this repository | Delta application and final saved configuration reconstruction remain unsupported; see [SolidWorks partitions](solidworks-partitions.md) |
 
 Runtime, build, and installation of the built-in parser require no external
@@ -166,8 +168,9 @@ families; this table is checked against it.
 | `28002` | 41 / 370 | `icad-2800000-28002-r1` | none | `6d6dad26be6666a889d408ef28148864d6c37d22614a683d6a1ab8bd9d252734` |
 | `28101` | 24 / 214 | `icad-2901000-28101-r1` | none | `0b0488a89161a1246066ec21ba25dda6be59d062b3389774df17078000f6c998` |
 | `30000` | 44 / 356 | `onshape-sch30000-r3` | none | `a647445d2220d16319cdbe07255da15da80e093d0ab885526f8209cb66228698` |
-| `32001` | 30 / 255 | `icad-3200000-32001-r1` | none | `92e101410e22b4e01c8a7a2d89ca65f4e602bd28ac5923ecf7960ddc7d52793e` |
+| `32001` | 31 / 263 | `icad-3200000-32001-r2` | none | `eb36667e08f5c5344b69bef13b960a3f654b553c4818de8d865464863348f9d9` |
 | `33103` | 25 / 219 | `icad-3301000-33103-r1` | none | `0f378a23e4fa883b08c32b64b08e1b69dd2723f9e5f11c62761b24e22e24082b` |
+| `9008` | 27 / 233 | `microstation-901297-9008-r1` | none | `29752964ce5da4a0b0480e93c3b086596c98ef461f0a6e66aaf80c4033167688` |
 | `15003-13006` | 52 / 462 | `icad-1500137-15003-13006-r1`, `icad-1500245-15003-13006-r1` | the other 37 profiles of base 13006 | `d8ffa3f41faa2aaf69c3116c0b7d54917005bfd4e422f1bf26ff533ede070143` |
 | `16100-13006` | 52 / 462 | `icad-1700223-16100-13006-r1`, `icad-1700256-16100-13006-r1` | the other 37 profiles of base 13006 | `dc86e689a66fed7d03cdfa3b892e897bfcf3cbd890a8095005ba3f7cd6293e8f` |
 | `19008-13006` | 52 / 462 | `icad-1901261-19008-13006-r1`, `icad-1901315-19008-13006-r1` | the other 37 profiles of base 13006 | `f167ea07bdd598680226e77ad3940a80b223e485a0ff309cc4523be6030d6ce8` |
@@ -217,8 +220,9 @@ The source tree compiles fifteen exact `SolidWorks` partition keys, from
 (SolidWorks 2026, now `solidworks-sch37102-13006-r2`). All share one reviewed
 declaration set of 47 base types / 412 field groups: the 13006 subset, WORLD,
 the reviewed TORUS, blend, offset and spun surfaces, and the public-reference
-SWEPT_SURF (67), which the B-Rep mapper retains as an explicitly partial
-surface. Delta streams remain unsupported. See
+SWEPT_SURF (67), which the B-Rep mapper decodes as a swept surface (the
+released packages retain it as an explicitly partial surface). Delta streams
+remain unsupported. See
 [SolidWorks partitions](solidworks-partitions.md) for the local evidence.
 
 For V30, default parsing uses `onshape-sch30000-r3` revision 3 only for the exact internal
@@ -423,8 +427,8 @@ recorded, while unsupported variants remain rejected.
 | Category | Geometry kind | Parser | OCCT | STEP | Exact constraints |
 |---|---|---:|---:|---:|---|
 | curve | `line` | exact | exact | exact | two vertices |
-| curve | `circle` | exact | exact | exact | vertex-free full period; use trimmed for an arc |
-| curve | `ellipse` | exact | exact | exact | vertex-free full period; major radius >= minor radius |
+| curve | `circle` | exact | exact | exact | vertex-free full period, or the arc between its two vertices |
+| curve | `ellipse` | exact | exact | exact | vertex-free full period, or the arc between its two vertices; major radius >= minor radius |
 | curve | `parabola` | exact | exact | exact | two vertices on one exact branch |
 | curve | `hyperbola` | exact | exact | exact | two vertices on one exact branch |
 | curve | `trimmed` | exact | exact | exact | explicit basis, parameters, endpoint positions, and two vertices |
@@ -433,14 +437,15 @@ recorded, while unsupported variants remain rejected.
 | curve | `intersection` | exact | conditional | conditional | source-identified CHART/LIMIT branch on two supports, open or closed; bounded numerical fitting |
 | curve | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
 | surface | `plane` | exact | exact | exact | explicit trim loops |
-| surface | `cylinder` | exact | exact | exact | two vertex-free circular boundary loops |
-| surface | `cone` | exact | exact | exact | frustum with two positive-radius circular boundary loops |
-| surface | `sphere` | exact | exact | exact | untrimmed closed face, or explicitly trimmed face in parametric topology; OCCT seam and pole topology is generated |
-| surface | `torus` | exact | exact | exact | closed ring torus, or explicitly trimmed ring, horn, apple or lemon torus in parametric topology |
-| surface | `spun` | exact | conditional | conditional | revolution of a mapped profile curve about the spin axis; explicitly trimmed faces in parametric topology |
-| surface | `nurbs` | exact | conditional | conditional | nonrational or rational 3D row-major grid, open or in the stored periodic form; multiple loops in parametric topology |
-| surface | `offset` | exact | conditional | conditional | supported exact basis surface; I7 verifies a non-periodic NURBS basis |
-| surface | `blended_edge` | exact | conditional | conditional | rolling-ball blends of equal offsets as the B-spline pipe of the blend radius around the spine, within the validation tolerance; cliff-edge blends unsupported |
+| surface | `cylinder` | exact | exact | exact | two vertex-free circular boundary loops, or face trimmed by its source loops |
+| surface | `cone` | exact | exact | exact | frustum with two positive-radius circular boundary loops, or face trimmed by its source loops; the source v is the distance along the axis; an edge through the apex is split there |
+| surface | `sphere` | exact | exact | exact | untrimmed closed face, or face trimmed by its source loops; OCCT seam and pole topology is generated; an edge through a pole is split there and an edge on the seam carries a pcurve per orientation |
+| surface | `torus` | exact | exact | exact | closed ring torus, or ring, horn, apple or lemon torus trimmed by its source loops |
+| surface | `spun` | exact | conditional | conditional | revolution of a mapped profile curve about the spin axis; faces trimmed by their source loops |
+| surface | `swept` | exact | conditional | conditional | linear extrusion of a mapped section curve along the sweep direction; faces trimmed by their source loops |
+| surface | `nurbs` | exact | conditional | conditional | nonrational or rational 3D row-major grid, open or in the stored periodic form; one or more trim loops |
+| surface | `offset` | exact | conditional | conditional | supported exact basis surface, offset along its normal and against it for a basis of negative sense; I7 verifies a non-periodic NURBS basis |
+| surface | `blended_edge` | exact | conditional | conditional | rolling-ball and cliff-edge blends of equal offsets as the B-spline pipe of the blend radius around the spine, within the validation tolerance; a zero-offset blend is a construction reference only |
 | surface | `blend_boundary` | exact | conditional | conditional | construction surface only: its intersection with a support is the blend's contact curve, interpolated from the spine within the validation tolerance |
 | surface | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
 <!-- END GENERATED I7 GEOMETRY COVERAGE -->
@@ -499,9 +504,11 @@ Windows users can use `[occt]` for conversion, STEP export, and preview.
 I7 adds exact ellipse, parabola, hyperbola, explicit
 trimmed curve, cone frustum, full sphere, full ring torus, non-rational 3D
 NURBS, and exact offset-surface paths to the I3 point/line/circle/plane/cylinder
-baseline. The parametric path additionally resolves bounded conics using
-source orientation and endpoints; the original analytic path still requires
-explicit trim records for arcs. Rational
+baseline. Vertex-bounded arcs, surface-parameter and intersection curves,
+trimmed sphere and torus faces and multi-loop NURBS faces select the
+parametric path, which resolves bounded conics using source orientation and
+endpoints; the analytic path alone still requires explicit trim records for
+arcs. Rational
 NURBS remain conditional-coverage failures in the public adapter. Closed or
 periodic NURBS likewise remain outside its verified conversion path. The V13
 source-storage campaigns establish bounded homogeneous-coefficient and

@@ -15,10 +15,12 @@ use crate::{
 
 /// One step of an observed embedded edit sequence, applied to a base layout.
 #[derive(Clone, Copy)]
-enum Edit {
+pub(super) enum Edit {
     Keep(usize),
     Drop,
     Insert(&'static str, FieldType, u16),
+    /// A fixed-length array of scalars.
+    Array(&'static str, FieldType, u32),
 }
 
 use Edit::{Drop, Keep};
@@ -150,9 +152,9 @@ pub(crate) struct ProfileSpec {
     pub id: &'static str,
     pub revision: u32,
     pub sha256: &'static str,
-    schema: &'static str,
-    types: &'static [u16],
-    edits: &'static [(u16, &'static [Edit])],
+    pub(super) schema: &'static str,
+    pub(super) types: &'static [u16],
+    pub(super) edits: &'static [(u16, &'static [Edit])],
 }
 
 pub(crate) const PROFILES: &[ProfileSpec] = &[
@@ -295,13 +297,14 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     },
     ProfileSpec {
         key: "SCH_3200000_32001",
-        id: "icad-3200000-32001-r1",
-        revision: 1,
-        sha256: "5911102568cc1e2215b3bc93e0e43146a382b747394aca8661527557b3220edf",
+        id: "icad-3200000-32001-r2",
+        revision: 2,
+        sha256: "ab1d5312e7892bba12d53262617350ecc6da575f658a582180c3edf6bc84f603",
         schema: "32001",
+        // Type 3 is observed once (see `observed_opening_node`) and unverified.
         types: &[
-            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 50, 51, 52, 53, 70, 74, 79,
-            80, 81, 82, 83, 84, 133, 141, 204,
+            3, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 50, 51, 52, 53, 70, 74,
+            79, 80, 81, 82, 83, 84, 133, 141, 204,
         ],
         edits: &[
             (12, BODY_32001),
@@ -333,10 +336,48 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     },
 ];
 
+/// Observed once and unverified: node type 3 opens an ANSYS Electronics
+/// Desktop transmit file under `SCH_3300000_32001` (written by Parasolid 34)
+/// at index 1 with the eight values `3 0 0 0 0 2 3 4`, the last three naming
+/// the file's three bodies. The public XT Format Reference lists no node type
+/// below ASSEMBLY (10), so the layout is recorded as read from that stream:
+/// an identifier, four null pointers and three body references. A stream whose
+/// type 3 node differs desynchronises and fails closed on the next node.
+fn observed_opening_node() -> TypeDefinition {
+    use FieldType::{Integer as D, PointerIndex as P};
+    let fields = [
+        ("local_id", D, 0),
+        ("observed_pointer_1", P, 0),
+        ("observed_pointer_2", P, 0),
+        ("observed_pointer_3", P, 0),
+        ("observed_pointer_4", P, 0),
+        ("observed_body_1", P, 12),
+        ("observed_body_2", P, 12),
+        ("observed_body_3", P, 12),
+    ]
+    .into_iter()
+    .map(|(name, field_type, pointer_class)| FieldDefinition {
+        name: name.into(),
+        field_type,
+        pointer_class,
+        element_count: 0,
+        transmitted: true,
+    })
+    .collect();
+    TypeDefinition::from_fields(
+        3,
+        "sch13006_type_3",
+        "Observed stream-opening node, unverified",
+        fields,
+        SchemaSource::Base,
+    )
+}
+
 impl ProfileSpec {
     pub(crate) fn definitions(&self) -> Result<Vec<TypeDefinition>, ParseError> {
         let mut pool = super::icad_legacy::base_definitions(self.types);
         pool.push(intersection_data());
+        pool.push(observed_opening_node());
         pool.extend(super::assembly_definitions());
         // SWEPT_SURF (67) keeps the public-reference layout of the SolidWorks set.
         pool.extend(
@@ -395,6 +436,13 @@ fn apply(base: &TypeDefinition, edits: &[Edit]) -> Result<TypeDefinition, ParseE
                 field_type,
                 pointer_class,
                 element_count: 0,
+                transmitted: true,
+            }),
+            Edit::Array(name, field_type, element_count) => fields.push(FieldDefinition {
+                name: name.into(),
+                field_type,
+                pointer_class: 0,
+                element_count,
                 transmitted: true,
             }),
         }

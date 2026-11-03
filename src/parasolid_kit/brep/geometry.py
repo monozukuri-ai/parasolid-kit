@@ -33,6 +33,7 @@ class SurfaceKind(str, Enum):
     SPHERE = "sphere"
     TORUS = "torus"
     SPUN = "spun"
+    SWEPT = "swept"
     BLENDED_EDGE = "blended_edge"
     BLEND_BOUNDARY = "blend_boundary"
     OFFSET = "offset"
@@ -232,6 +233,14 @@ class SpunSurface:
 
 
 @dataclass(frozen=True, slots=True)
+class SweptSurface:
+    """Section curve swept along a unit direction, ``R(u, v) = C(u) + vD`` (XT SWEPT_SURF)."""
+
+    section: int
+    direction: Vector3
+
+
+@dataclass(frozen=True, slots=True)
 class BlendedEdgeSurface:
     """Exact rolling-ball or cliff-edge blend surface."""
 
@@ -289,6 +298,7 @@ SurfaceDefinition: TypeAlias = (
     | SphereSurface
     | TorusSurface
     | SpunSurface
+    | SweptSurface
     | BlendedEdgeSurface
     | BlendBoundarySurface
     | OffsetSurface

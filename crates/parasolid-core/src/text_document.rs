@@ -27,6 +27,10 @@ pub struct XtHeader {
     pub user_field_size: u8,
     /// Maximum node type present only when the key names an embedded base schema.
     pub schema_max_type: Option<u16>,
+    /// Count that some writers place before the first node of a stream whose
+    /// key names no base schema; the reference documents no such value, so it
+    /// is recorded and skipped without interpretation.
+    pub stream_prefix: Option<u32>,
     /// Complete input size.
     pub file_size: usize,
     /// Optional common, human-oriented header including its final newline.
@@ -268,6 +272,28 @@ fn read_header(
             serialized_user_fields,
         ));
     }
+    // An ANSYS Electronics Desktop transmit (Parasolid 34, a key without a
+    // base schema) puts a count before its first node. The reference places a
+    // count only after a base-schema key. A node opens with its type and
+    // index and the first node's index is 1, so for such a writer a leading
+    // value followed by a type and the index 1 is that count: it is recorded
+    // and skipped.
+    let mut stream_prefix = None;
+    if parsed_schema_key.base().is_none()
+        && crate::header::writes_a_stream_prefix(&modeller_version)
+    {
+        let mut probe = TextReader::new(data, reader.source_position())?;
+        if let (Ok(prefix), Ok(node_type), Ok(node_index)) = (
+            probe.positive_integer("stream_prefix"),
+            probe.positive_integer("node_type"),
+            probe.positive_integer("node_index"),
+        ) && node_type > 1
+            && node_index == 1
+        {
+            reader.positive_integer("stream_prefix")?;
+            stream_prefix = Some(prefix);
+        }
+    }
     let body_start = reader.source_position();
     Ok((
         XtHeader {
@@ -276,6 +302,7 @@ fn read_header(
             schema_key,
             user_field_size,
             schema_max_type,
+            stream_prefix,
             file_size: data.len(),
             common_header_range,
             text_stream_header_range: payload_start..body_start,
@@ -1160,6 +1187,39 @@ mod tests {
                 FieldValue::Vector([None; 3])
             );
             assert_eq!(document.terminator.index, 0);
+        }
+    }
+
+    #[test]
+    fn skips_a_count_written_before_the_first_text_node() {
+        let fields = vec![field("pointer", FieldType::PointerIndex, 12, 0, true)];
+        let mut provider = InMemorySchemaProvider::new();
+        provider.insert("32001", definition(12, fields));
+        // Only a Parasolid 34 or later writer is known to put a count there;
+        // an earlier writer's stream that happens to start the same way is
+        // read as before.
+        for (version, stream, expected) in [
+            ("3401241", &b"176 12 1 0 1 0 "[..], Some(176)),
+            ("3401241", &b"12 1 0 1 0 "[..], None),
+        ] {
+            let modeller = format!(": TRANSMIT FILE created by modeller version {version}");
+            let schema = "SCH_3300000_32001";
+            let mut data = format!(
+                "T{} {}{} {}0 ",
+                modeller.len(),
+                modeller,
+                schema.len(),
+                schema
+            )
+            .into_bytes();
+            data.extend_from_slice(stream);
+            let result = parse_with_scan_parity(&data, &provider, DocumentLimits::default());
+            assert!(result.is_ok(), "{result:?}");
+            if let Ok(document) = result {
+                assert_eq!(document.header.stream_prefix, expected);
+                assert_eq!(document.nodes.len(), 1);
+                assert_eq!(document.nodes[0].node_type, 12);
+            }
         }
     }
 

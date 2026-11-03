@@ -588,6 +588,7 @@ fn header_to_python<'py>(py: Python<'py>, header: &XbHeader) -> PyResult<Bound<'
     value.set_item("schema_key", &header.schema_key)?;
     value.set_item("user_field_size", header.user_field_size)?;
     value.set_item("schema_max_type", header.schema_max_type)?;
+    value.set_item("stream_prefix", header.stream_prefix)?;
     value.set_item("file_size", header.file_size)?;
     value.set_item(
         "text_header_range",
@@ -617,6 +618,7 @@ fn xt_header_to_python<'py>(py: Python<'py>, header: &XtHeader) -> PyResult<Boun
     value.set_item("schema_key", &header.schema_key)?;
     value.set_item("user_field_size", header.user_field_size)?;
     value.set_item("schema_max_type", header.schema_max_type)?;
+    value.set_item("stream_prefix", header.stream_prefix)?;
     value.set_item("file_size", header.file_size)?;
     value.set_item(
         "common_header_range",

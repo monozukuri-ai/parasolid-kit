@@ -47,6 +47,7 @@ class XbHeader:
     schema_key: str
     user_field_size: int
     schema_max_type: int | None
+    stream_prefix: int | None
     file_size: int
     text_header_range: ByteRange | None
     binary_header_range: ByteRange
@@ -65,6 +66,8 @@ class XbHeader:
             raise ValueError("user_field_size must be between 0 and 16")
         if self.schema_max_type is not None and self.schema_max_type < 0:
             raise ValueError("schema_max_type must be non-negative when present")
+        if self.stream_prefix is not None and self.stream_prefix < 0:
+            raise ValueError("stream_prefix must be non-negative when present")
         if self.file_size < self.header_range.end:
             raise ValueError("file_size must include the complete header range")
 
@@ -78,6 +81,7 @@ class XbHeader:
             "schema_key": self.schema_key,
             "user_field_size": self.user_field_size,
             "schema_max_type": self.schema_max_type,
+            "stream_prefix": self.stream_prefix,
             "file_size": self.file_size,
             "text_header_range": (
                 None if self.text_header_range is None else self.text_header_range.to_dict()

@@ -3,11 +3,11 @@ from __future__ import annotations
 import importlib.util
 import json
 from dataclasses import FrozenInstanceError, replace
-from math import isclose
+from math import isclose, pi
 
 import pytest
 
-from parasolid_kit import BrepMetrics, CurveKind
+from parasolid_kit import BrepMetrics, CurveKind, Sense, Vector3
 from parasolid_kit.interop import InteropLimits, OcctConversionError
 from parasolid_kit.interop.occt import (
     OcctConversionOptions,
@@ -15,7 +15,11 @@ from parasolid_kit.interop.occt import (
     ValidationTolerances,
     to_occt,
 )
-from tests._occt_fixtures import make_box_model, make_cylinder_hole_model
+from tests._occt_fixtures import (
+    make_box_model,
+    make_cylinder_hole_model,
+    make_vertex_bounded_arc_sheet_model,
+)
 
 HAS_OCP = importlib.util.find_spec("OCP") is not None
 
@@ -88,16 +92,33 @@ def test_strict_conversion_rejects_an_incomplete_source_before_occt_import() -> 
     assert captured.value.report.source_complete is False
 
 
-def test_vertex_trimmed_circle_is_not_silently_treated_as_a_full_ring() -> None:
+def test_half_bounded_circle_edge_is_rejected_before_occt_import() -> None:
     model = make_cylinder_hole_model()
-    trimmed = replace(model.edges[0], start_vertex=999)
-    model = replace(model, edges=(trimmed, *model.edges[1:]))
+    half_bounded = replace(model.edges[0], start_vertex=999)
+    model = replace(model, edges=(half_bounded, *model.edges[1:]))
 
     with pytest.raises(OcctConversionError) as captured:
         to_occt(model, source_unit="mm")
 
-    assert captured.value.diagnostic.code == "occt.unsupported_curve"
-    assert captured.value.diagnostic.details["geometry_kind"] == "trimmed_circle"
+    assert captured.value.diagnostic.code == "occt.unsupported_topology"
+    assert captured.value.diagnostic.details == {"entity_kind": "edge", "entity_id": 1}
+    assert captured.value.report is not None
+    assert captured.value.report.ocp_version is None
+
+
+@pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")
+def test_vertex_bounded_circle_edge_is_the_arc_between_its_vertices() -> None:
+    radius = 4.0
+    result = to_occt(make_vertex_bounded_arc_sheet_model(radius), source_unit="mm")
+    output = result.report.output_topology.to_dict()
+
+    assert result.report.conversion_complete is True
+    assert result.report.occt_valid is True
+    assert output["faces"] == 1
+    assert output["edges"] == 3
+    assert output["vertices"] == 3
+    assert "project_3d_curve_to_surface_parameters" in result.report.topology_operations
+    assert isclose(result.report.metrics.surface_area or 0.0, pi * radius**2 / 4, rel_tol=1.0e-9)
 
 
 @pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")
@@ -115,6 +136,43 @@ def test_synthetic_box_converts_to_a_valid_shared_topology_solid() -> None:
     assert isclose(result.report.metrics.surface_area or 0.0, 5200.0, rel_tol=1.0e-10)
     assert isclose(result.report.metrics.volume or 0.0, 24000.0, rel_tol=1.0e-10)
     json.dumps(result.to_dict())
+
+
+@pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")
+def test_ring_circle_running_against_its_cylinder_keeps_the_loop_directions() -> None:
+    # Onshape writes the bottom inner ring of a tube clockwise about the
+    # cylinder axis. The loops still run the right way (their half-edges are
+    # reversed), but the OCCT ring edge generated for the cylinder runs the
+    # other way, so the annulus would get its inner wire backwards.
+    model = make_cylinder_hole_model()
+    ring = next(curve for curve in model.curves if curve.id == 3)
+    flipped = replace(
+        ring,
+        definition=replace(ring.definition, normal=Vector3(0.0, 0.0, -1.0)),
+    )
+    half_edges = tuple(
+        replace(
+            item,
+            sense=Sense.NEGATIVE if item.sense is Sense.POSITIVE else Sense.POSITIVE,
+        )
+        if item.edge == 3
+        else item
+        for item in model.half_edges
+    )
+    model = replace(
+        model,
+        curves=tuple(flipped if curve.id == 3 else curve for curve in model.curves),
+        half_edges=half_edges,
+    )
+
+    result = to_occt(model, source_unit="mm")
+
+    assert result.report.occt_valid is True
+    reference = to_occt(make_cylinder_hole_model(), source_unit="mm").report.metrics
+    assert isclose(result.report.metrics.volume or 0.0, reference.volume or 1.0, rel_tol=1e-9)
+    assert isclose(
+        result.report.metrics.surface_area or 0.0, reference.surface_area or 1.0, rel_tol=1e-9
+    )
 
 
 @pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")

@@ -29,9 +29,10 @@ SWEPT_SURF (67) is new. Its layout follows the Parasolid XT Format Reference,
 April 2008 (printed page 73): the common surface header, the section curve,
 the sweep direction and the scale. Every sampled partition and local-body
 stream that contains the type reads to its terminator with this layout. The
-B-Rep mapper retains a swept surface as an unsupported surface with the
-`geometry.unsupported_surface` diagnostic; the model is explicitly partial and
-no sweep semantics are assigned. HELIX_CU_FORM (163) was tried with a guessed
+released B-Rep mapper retains a swept surface as an unsupported surface with
+the `geometry.unsupported_surface` diagnostic, so the counts below list those
+models as explicitly partial; the unreleased mapper decodes the section curve
+and sweep direction as a swept surface. HELIX_CU_FORM (163) was tried with a guessed
 layout and desynchronized two streams, so it stays unknown and fails closed.
 
 WORLD's eleven base fields are described in the same reference, printed pages

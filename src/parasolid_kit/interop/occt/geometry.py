@@ -9,7 +9,6 @@ from math import atan2, isfinite, pi, sqrt
 from ...brep.geometry import (
     BlendBoundarySurface,
     BlendedEdgeSurface,
-    BlendType,
     CircleCurve,
     ConeSurface,
     CurveDefinition,
@@ -25,10 +24,11 @@ from ...brep.geometry import (
     SphereSurface,
     SpunSurface,
     SurfaceDefinition,
+    SweptSurface,
     TorusSurface,
     TrimmedCurve,
 )
-from ...brep.topology import Vector3
+from ...brep.topology import Sense, Vector3
 from .options import OcctConversionOptions
 
 
@@ -427,8 +427,18 @@ class GeometryFactory:
                 raise ValueError("NURBS curve is flagged closed but its ends do not meet")
         return result
 
-    def parameter_curve(self, curve: NurbsCurve, surface: SurfaceDefinition) -> object:
-        """Embed open nonrational 2D poles using the support's parameter units."""
+    def parameter_curve(
+        self,
+        curve: NurbsCurve,
+        surface: SurfaceDefinition,
+        *,
+        section: CurveDefinition | None = None,
+    ) -> object:
+        """Embed open 2D poles, rational or not, using the support's parameter units.
+
+        ``section`` is the section curve of a swept support, whose own
+        parameter is the support's u.
+        """
         from OCP.Geom2d import Geom2d_BSplineCurve
         from OCP.gp import gp_Pnt2d
         from OCP.TColgp import TColgp_Array1OfPnt2d
@@ -438,10 +448,23 @@ class GeometryFactory:
         self._validate_nurbs_curve(curve, parameter=True)
         if isinstance(surface, PlaneSurface):
             u_scale, v_scale = self.scale, self.scale
-        elif isinstance(surface, (CylinderSurface, ConeSurface)):
+        elif isinstance(surface, CylinderSurface):
             u_scale, v_scale = 1.0, self.scale
+        elif isinstance(surface, ConeSurface):
+            # The source cone is R(u, v) = P - vA + (X cos u + Y sin u)(r + v tan a)
+            # (XT reference, CONE): v is measured along the axis and the radius
+            # at v is r + v tan a. OCCT measures v along the generator, where
+            # the same point sits at v / cos a.
+            if not (isfinite(surface.cos_half_angle) and surface.cos_half_angle > 0.0):
+                raise ValueError("cone half-angle must be non-zero and strictly within pi/2")
+            u_scale, v_scale = 1.0, self.scale / surface.cos_half_angle
         elif isinstance(surface, (SphereSurface, TorusSurface, NurbsSurface)):
             u_scale, v_scale = 1.0, 1.0
+        elif isinstance(surface, SweptSurface):
+            # u is the section's own parameter, a length only along a line;
+            # v is the distance along the sweep direction.
+            u_scale = self.scale if isinstance(section, LineCurve) else 1.0
+            v_scale = self.scale
         else:
             raise ValueError("unsupported parameter-curve support surface")
         from OCP.TColStd import TColStd_Array1OfReal
@@ -482,6 +505,7 @@ class GeometryFactory:
         *,
         resolve_basis: Callable[[int], object],
         resolve_curve: Callable[[int], object] | None = None,
+        resolve_basis_sense: Callable[[int], Sense] | None = None,
     ) -> object:
         """Return an exact ``Geom_Surface`` for one supported source definition."""
 
@@ -512,6 +536,8 @@ class GeometryFactory:
             return self.nurbs_surface(definition)
         if isinstance(definition, SpunSurface):
             return self.spun_surface(definition, resolve_curve)
+        if isinstance(definition, SweptSurface):
+            return self.swept_surface(definition, resolve_curve)
         if isinstance(definition, BlendedEdgeSurface):
             return self.blend_surface(definition, resolve_curve)
         if isinstance(definition, BlendBoundarySurface):
@@ -519,9 +545,19 @@ class GeometryFactory:
         if isinstance(definition, OffsetSurface):
             if not isfinite(definition.offset):
                 raise ValueError("offset surface distance must be finite")
+            # The source offsets along the basis normal "taking into account
+            # the surface sense" (XT reference, OFFSET_SURF): a basis of
+            # negative sense is offset against its natural normal.
+            sign = 1.0
+            if resolve_basis_sense is not None:
+                sense = resolve_basis_sense(definition.basis_surface)
+                if sense is Sense.NEGATIVE:
+                    sign = -1.0
+                elif sense is not Sense.POSITIVE:
+                    raise ValueError("offset surface basis has an unknown sense")
             return Geom_OffsetSurface(
                 resolve_basis(definition.basis_surface),
-                definition.offset * self.scale,
+                sign * definition.offset * self.scale,
             )
         raise ValueError(f"unsupported exact surface definition: {type(definition).__name__}")
 
@@ -577,30 +613,52 @@ class GeometryFactory:
         )
         return Geom_SurfaceOfRevolution(profile, axis)
 
+    def swept_surface(
+        self, surface: SweptSurface, resolve_curve: Callable[[int], object] | None
+    ) -> object:
+        """Sweep the mapped section curve along the unit direction (XT SWEPT_SURF).
+
+        The source is ``R(u, v) = C(u) + vD``. OCCT's surface of linear
+        extrusion has the same parameters and the same normal, dC/du x D, so
+        the stored senses apply unchanged; v is a length.
+        """
+        from OCP.Geom import Geom_SurfaceOfLinearExtrusion
+
+        if resolve_curve is None:
+            raise ValueError("swept surface requires a section curve resolver")
+        return Geom_SurfaceOfLinearExtrusion(
+            resolve_curve(surface.section),
+            self.direction(surface.direction, role="sweep direction"),
+        )
+
     def blend_surface(
         self, surface: BlendedEdgeSurface, resolve_curve: Callable[[int], object] | None
     ) -> object:
-        """Rolling-ball blend as the pipe of the blend radius around its spine (XT p. 62).
+        """Blend as the pipe of the blend radius around its spine (XT p. 62).
 
         The blend is the envelope of balls of radius |range| centred on the
         spine, i.e. the canal surface around the spine. OCCT approximates that
         surface as a B-spline within a hundredth of the validation tolerance;
         the result is a surface only, its parameters are not the source's.
+
+        A cliff-edge blend (type E) is the same envelope: the ball rolls on one
+        support and passes through the cliff edge, which the source represents
+        as its second support, a blend of range [0, 0] whose spine is the
+        cliff edge curve. That zero-range blend is a construction surface only
+        and is never a face's surface.
         """
         from OCP.Geom import Geom_BSplineSurface, Geom_RectangularTrimmedSurface
         from OCP.GeomFill import GeomFill_Pipe
 
         if resolve_curve is None:
             raise ValueError("blend surface requires a spine curve resolver")
-        if surface.blend_type is not BlendType.ROLLING_BALL:
-            raise ValueError("cliff-edge blends are unsupported")
         first, second = surface.ranges
         if not all(isfinite(value) for value in (first, second)) or first == 0.0:
-            raise ValueError("rolling-ball blend offsets must be finite and non-zero")
+            raise ValueError("blend offsets must be finite and non-zero")
         if abs(abs(first) - abs(second)) > 1.0e-12 * abs(first):
-            raise ValueError("rolling-ball blend offsets must have equal magnitude")
+            raise ValueError("blend offsets must have equal magnitude")
         if surface.thumb_weights != (1.0, 1.0):
-            raise ValueError("rolling-ball blend thumb weights must be (1, 1)")
+            raise ValueError("blend thumb weights must be (1, 1)")
         pipe = GeomFill_Pipe(resolve_curve(surface.spine_curve), abs(first) * self.scale)
         pipe.Perform(max(1.0e-9, self.options.validation.linear_absolute * 1.0e-2), False)
         if not pipe.IsDone():

@@ -179,8 +179,8 @@ const EXPECTED: [Expected; 11] = [
     },
     Expected {
         key: "SCH_3200000_32001",
-        types: 30,
-        fields: 255,
+        types: 31,
+        fields: 263,
         body: "dppppppppffpppupuupppppppppdppppdp",
         body_references: &[
             (6, 1006),
@@ -250,7 +250,10 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
         let revision = profile.metadata().revision;
         assert_eq!(
             revision,
-            if matches!(expected.key, "SCH_1700000_16100" | "SCH_2401000_20000") {
+            if matches!(
+                expected.key,
+                "SCH_1700000_16100" | "SCH_2401000_20000" | "SCH_3200000_32001"
+            ) {
                 2
             } else {
                 1

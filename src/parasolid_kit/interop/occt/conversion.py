@@ -28,6 +28,7 @@ from ...brep.geometry import (
     SpunSurface,
     SurfaceKind,
     SurfaceParametricCurve,
+    SweptSurface,
     TorusSurface,
     TrimmedCurve,
 )
@@ -435,15 +436,53 @@ def _preflight_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
 
 
 def _uses_parametric_topology(model: BrepModel) -> bool:
-    return any(
+    """Whether the model needs the general parametric topology builder.
+
+    Surface-parametric and intersection curves require it. So do arcs bounded
+    by vertices on circles and ellipses, trimmed sphere and torus faces, and
+    NURBS or offset faces with several loops: the analytic builder constructs
+    none of these, while the parametric builder derives their edge ranges and
+    face parameters from the source geometry.
+    """
+
+    if any(
         isinstance(curve.definition, (SurfaceParametricCurve, IntersectionCurve))
         for curve in model.curves
-    )
+    ):
+        return True
+    curves = {curve.id: curve for curve in model.curves}
+    half_edges = {item.id: item for item in model.half_edges}
+    for edge in model.edges:
+        if edge.start_vertex is None and edge.end_vertex is None:
+            continue
+        curve_ids = {edge.curve} if edge.curve is not None else set()
+        curve_ids.update(
+            half_edges[hid].curve
+            for hid in edge.half_edges
+            if hid in half_edges and half_edges[hid].curve is not None
+        )
+        if any(
+            curves[cid].kind in {CurveKind.CIRCLE, CurveKind.ELLIPSE}
+            for cid in curve_ids
+            if cid in curves
+        ):
+            return True
+    surfaces = {item.id: item for item in model.surfaces}
+    for face in model.faces:
+        surface = surfaces.get(face.surface) if face.surface is not None else None
+        if surface is None:
+            continue
+        if surface.kind in {SurfaceKind.SPHERE, SurfaceKind.TORUS, SurfaceKind.SWEPT} and (
+            face.loops
+        ):
+            return True
+        if surface.kind in {SurfaceKind.NURBS, SurfaceKind.OFFSET} and len(face.loops) > 1:
+            return True
+    return False
 
 
 def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
     model = context.brep
-    parametric = _uses_parametric_topology(model)
     result: list[Diagnostic] = []
     for body in model.bodies:
         if body.kind not in {BodyKind.SOLID, BodyKind.SHEET}:
@@ -465,8 +504,11 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
         definition = curve.definition
         supported = _supported_curve_definition(curve.kind, definition)
         if isinstance(definition, SurfaceParametricCurve):
+            # A 2D parameter curve stores (u, v) poles, or (u w, v w, w) when rational.
             parameter = curve_definitions.get(definition.parameter_curve)
-            supported = isinstance(parameter, NurbsCurve) and parameter.vertex_dimension == 2
+            supported = isinstance(parameter, NurbsCurve) and parameter.vertex_dimension == (
+                3 if parameter.rational else 2
+            )
         elif isinstance(definition, IntersectionCurve):
             supported = (
                 len(definition.chart_points) >= 2
@@ -523,7 +565,6 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
             result.append(_unknown_sense(context, "curve", curve.id, curve.source))
     curves = {curve.id: curve for curve in model.curves}
     half_edges = {item.id: item for item in model.half_edges}
-    surfaces = {item.id: item for item in model.surfaces}
     for edge in model.edges:
         curve_ids = {edge.curve} if edge.curve is not None else set()
         curve_ids.update(
@@ -537,28 +578,6 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
                 continue
             has_start = edge.start_vertex is not None
             has_end = edge.end_vertex is not None
-            if (
-                not parametric
-                and curve.kind in {CurveKind.CIRCLE, CurveKind.ELLIPSE}
-                and (has_start or has_end)
-            ):
-                result.append(
-                    _diagnostic(
-                        context,
-                        code="occt.unsupported_curve",
-                        kind=DiagnosticKind.UNSUPPORTED,
-                        message=(
-                            f"{curve.kind.value} edge {edge.id} is vertex-trimmed; use an "
-                            "explicit trimmed curve with source parameters"
-                        ),
-                        source=edge.source,
-                        details={
-                            "entity_kind": "edge",
-                            "entity_id": edge.id,
-                            "geometry_kind": f"trimmed_{curve.kind.value}",
-                        },
-                    )
-                )
             if has_start != has_end:
                 result.append(
                     _diagnostic(
@@ -613,52 +632,6 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
                             },
                         )
                     )
-    for face in model.faces:
-        if face.surface is None:
-            continue
-        surface = surfaces.get(face.surface)
-        if surface is None:
-            continue
-        if (
-            not parametric
-            and surface.kind in {SurfaceKind.SPHERE, SurfaceKind.TORUS}
-            and face.loops
-        ):
-            result.append(
-                _diagnostic(
-                    context,
-                    code="occt.unsupported_topology",
-                    kind=DiagnosticKind.UNSUPPORTED,
-                    message=(
-                        f"{surface.kind.value} face {face.id} must be an untrimmed closed face"
-                    ),
-                    source=face.source,
-                    details={
-                        "entity_kind": "face",
-                        "entity_id": face.id,
-                        "geometry_kind": surface.kind.value,
-                    },
-                )
-            )
-        if (
-            not parametric
-            and surface.kind in {SurfaceKind.NURBS, SurfaceKind.OFFSET}
-            and len(face.loops) > 1
-        ):
-            result.append(
-                _diagnostic(
-                    context,
-                    code="occt.unsupported_topology",
-                    kind=DiagnosticKind.UNSUPPORTED,
-                    message=(f"{surface.kind.value} face {face.id} supports at most one trim loop"),
-                    source=face.source,
-                    details={
-                        "entity_kind": "face",
-                        "entity_id": face.id,
-                        "geometry_kind": surface.kind.value,
-                    },
-                )
-            )
     loop_half_edges = {half_edge_id for loop in model.loops for half_edge_id in loop.half_edges}
     for half_edge in model.half_edges:
         if half_edge.id in loop_half_edges and half_edge.dummy:
@@ -707,6 +680,7 @@ def _supported_surface_definition(kind: SurfaceKind, definition: object) -> bool
                 (SurfaceKind.SPHERE, SphereSurface),
                 (SurfaceKind.TORUS, TorusSurface),
                 (SurfaceKind.SPUN, SpunSurface),
+                (SurfaceKind.SWEPT, SweptSurface),
                 (SurfaceKind.NURBS, NurbsSurface),
                 (SurfaceKind.OFFSET, OffsetSurface),
                 (SurfaceKind.BLENDED_EDGE, BlendedEdgeSurface),

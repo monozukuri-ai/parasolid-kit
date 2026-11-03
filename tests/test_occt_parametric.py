@@ -15,7 +15,12 @@ from parasolid_kit import (
     Vector3,
 )
 from parasolid_kit.interop import OcctConversionError
-from parasolid_kit.interop.occt import OcctConversionOptions, SourceEntityKind, to_occt
+from parasolid_kit.interop.occt import (
+    OcctConversionOptions,
+    ShapeRelationKind,
+    SourceEntityKind,
+    to_occt,
+)
 from parasolid_kit.interop.occt.geometry import GeometryFactory
 from tests._occt_fixtures import (
     _Sources,
@@ -139,6 +144,29 @@ def test_parameter_units_and_lemon_torus_follow_source_formulas():
             30 + 30 * sin(v),
         )
         assert surface.Value(u, v).Coord() == pytest.approx(expected, abs=1e-12)
+
+
+def test_cone_parameter_curve_measures_v_along_the_axis():
+    from parasolid_kit import ConeSurface
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="cm", target_unit="mm"))
+    # The source point at (u, v) = (0.6, 3 cm) lies 3 cm along the axis at the
+    # radius 2 + 3 * tan(half-angle) = 4.25 cm; OCCT reaches it at v / cos.
+    uv = NurbsCurve(
+        1, 2, 2, 0, False, False, False, 0, ((0.2, 1.0), (0.6, 3.0)), (0.0, 1.0), (2, 2), ()
+    )
+    cone = ConeSurface(
+        Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), 2.0, 0.6, 0.8, Vector3(1.0, 0.0, 0.0)
+    )
+    pc = factory.parameter_curve(uv, cone)
+    surface = factory.surface3d(cone, resolve_basis=lambda _: None)
+    u, v = pc.Value(1.0).Coord()
+    assert (u, v) == pytest.approx((0.6, 37.5))
+    assert surface.Value(u, v).Coord() == pytest.approx(
+        (42.5 * cos(0.6), 42.5 * sin(0.6), 30.0), abs=1e-9
+    )
+    with pytest.raises(ValueError, match="within pi/2"):
+        factory.parameter_curve(uv, replace(cone, sin_half_angle=1.0, cos_half_angle=0.0))
 
 
 def test_numerical_intersection_matches_independent_sphere_plane_circle():
@@ -315,6 +343,151 @@ def test_loop_through_a_sphere_pole_gets_its_degenerated_edge():
     assert area.Mass() == pytest.approx(5 * pi * radius**2 / 4)
 
 
+@pytest.mark.parametrize("with_vertices", [False, True])
+def test_sphere_split_by_a_circle_through_its_poles_is_split_at_the_poles(with_vertices):
+    from tests._occt_fixtures import make_meridian_split_sphere_model
+
+    radius = 2.0
+    model = make_meridian_split_sphere_model(radius, with_vertices=with_vertices)
+    result = to_occt(model, source_unit="mm")
+    assert result.report.occt_valid
+    operations = result.report.topology_operations
+    assert "split_edge_at_surface_singularity" in operations
+    # The meridian in the plane of the axis and the x axis lies on the seam.
+    assert "share_seam_pcurves" in operations
+    assert result.report.metrics.volume == pytest.approx(4 * pi * radius**3 / 3)
+    assert result.report.metrics.surface_area == pytest.approx(4 * pi * radius**2)
+    assert result.report.output_topology.to_dict()["faces"] == 2
+    split = [
+        r
+        for r in result.source_map.relations
+        if r.source.kind is SourceEntityKind.EDGE and r.relation is ShapeRelationKind.SPLIT
+    ]
+    assert len(split) == 2 * len(model.edges)
+    generated = [
+        r
+        for r in result.source_map.relations
+        if r.source.kind is SourceEntityKind.FACE and r.relation is ShapeRelationKind.GENERATED
+    ]
+    assert generated
+    # The published parameters are untouched: a surface-parameter curve on the
+    # sphere changes nothing.
+    uv = NurbsCurve(
+        1, 2, 2, 0, False, False, False, 0, ((0.2, 1.0), (0.6, 3.0)), (0.0, 1.0), (2, 2), ()
+    )
+    pinned = replace(
+        model,
+        curves=(
+            *model.curves,
+            CurveGeometry(90, Sense.POSITIVE, None, CurveKind.NURBS, uv, None),
+            CurveGeometry(
+                91,
+                Sense.POSITIVE,
+                None,
+                CurveKind.SURFACE_PARAMETRIC,
+                SurfaceParametricCurve(1, 90, None, None),
+                None,
+            ),
+        ),
+    )
+    assert to_occt(pinned, source_unit="mm").report.metrics.volume == pytest.approx(
+        4 * pi * radius**3 / 3
+    )
+
+
+def test_swept_surface_extrudes_its_section_along_the_direction():
+    from OCP.Geom import Geom_Circle
+    from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
+
+    from parasolid_kit import LineCurve, SweptSurface
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="cm", target_unit="mm"))
+    circle = Geom_Circle(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1), gp_Dir(1, 0, 0)), 20.0)
+    swept = SweptSurface(1, Vector3(0.0, 0.0, 1.0))
+    surface = factory.surface3d(swept, resolve_basis=lambda _: None, resolve_curve=lambda _: circle)
+    point, du, dv = gp_Pnt(), gp_Vec(), gp_Vec()
+    for u, v in ((0.0, 0.0), (0.7, 5.0), (2.5, -3.0)):
+        assert surface.Value(u, v).Coord() == pytest.approx(
+            (20 * cos(u), 20 * sin(u), v), abs=1e-12
+        )
+        # The normal is dC/du x D: outward, as the source's.
+        surface.D1(u, v, point, du, dv)
+        assert du.Crossed(dv).Normalized().Coord() == pytest.approx(
+            (cos(u), sin(u), 0.0), abs=1e-12
+        )
+    # Parameter curves keep u as the section's parameter and scale v as a
+    # length; along a line section u is a length too.
+    uv = NurbsCurve(
+        1, 2, 2, 0, False, False, False, 0, ((0.2, 1.0), (0.6, 3.0)), (0.0, 1.0), (2, 2), ()
+    )
+    assert factory.parameter_curve(uv, swept).Value(0.5).Coord() == pytest.approx((0.4, 20.0))
+    line = LineCurve(Vector3(0.0, 0.0, 0.0), Vector3(1.0, 0.0, 0.0))
+    assert factory.parameter_curve(uv, swept, section=line).Value(0.5).Coord() == pytest.approx(
+        (4.0, 20.0)
+    )
+    with pytest.raises(ValueError, match="section curve resolver"):
+        factory.surface3d(swept, resolve_basis=lambda _: None)
+
+
+def test_offset_follows_the_sense_of_its_basis():
+    from OCP.Geom import Geom_Plane
+    from OCP.gp import gp_Ax3, gp_Dir, gp_Pnt
+
+    from parasolid_kit import OffsetSurface
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="cm", target_unit="mm"))
+    plane = Geom_Plane(gp_Ax3(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)))
+    offset = OffsetSurface(1, 0.2)
+    resolve = {"resolve_basis": lambda _: plane}
+    assert factory.surface3d(offset, **resolve).Value(1.0, 2.0).Z() == pytest.approx(2.0)
+    for sense, expected in ((Sense.POSITIVE, 2.0), (Sense.NEGATIVE, -2.0)):
+        surface = factory.surface3d(offset, resolve_basis_sense=lambda _, s=sense: s, **resolve)
+        assert surface.Value(1.0, 2.0).Z() == pytest.approx(expected)
+    with pytest.raises(ValueError, match="unknown sense"):
+        factory.surface3d(offset, resolve_basis_sense=lambda _: Sense.UNKNOWN, **resolve)
+
+
+def test_swept_wall_converts_through_the_parametric_path():
+    from tests._occt_fixtures import make_swept_cylinder_model
+
+    radius, height = 1.0, 2.0
+    result = to_occt(make_swept_cylinder_model(radius, height), source_unit="mm")
+    assert result.report.occt_valid
+    assert "generate_periodic_surface_seam" in result.report.topology_operations
+    assert result.report.metrics.volume == pytest.approx(pi * radius**2 * height)
+    assert result.report.metrics.surface_area == pytest.approx(
+        2 * pi * radius * height + 2 * pi * radius**2
+    )
+    assert result.report.output_topology.to_dict()["faces"] == 3
+
+
+def test_two_faces_of_one_cylinder_share_the_seam_ruling_through_their_fins():
+    from tests._occt_fixtures import make_split_cylinder_model
+
+    radius, height = 1.0, 2.0
+    result = to_occt(make_split_cylinder_model(radius, height), source_unit="mm")
+    assert result.report.occt_valid
+    assert "share_seam_pcurves" in result.report.topology_operations
+    assert result.report.metrics.volume == pytest.approx(pi * radius**2 * height)
+    assert result.report.metrics.surface_area == pytest.approx(
+        2 * pi * radius * height + 2 * pi * radius**2
+    )
+    assert result.report.output_topology.to_dict()["faces"] == 4
+
+
+def test_fin_trims_follow_an_edge_split_at_a_sphere_pole():
+    from tests._occt_fixtures import make_half_ball_model
+
+    radius = 2.0
+    result = to_occt(make_half_ball_model(radius), source_unit="mm")
+    assert result.report.occt_valid
+    operations = result.report.topology_operations
+    assert "split_edge_at_surface_singularity" in operations
+    assert "validate_source_fin_geometry" in operations
+    assert result.report.metrics.volume == pytest.approx(2 * pi * radius**3 / 3)
+    assert result.report.metrics.surface_area == pytest.approx(3 * pi * radius**2)
+
+
 @pytest.mark.parametrize("cut", ["z", "x"])
 def test_closed_analytic_branch_follows_the_source_order_across_its_origin(cut):
     from OCP.Geom import Geom_Circle, Geom_Plane, Geom_SurfaceOfRevolution, Geom_TrimmedCurve
@@ -374,6 +547,37 @@ def test_unbounded_analytic_branch_keeps_the_source_order():
         assert project_curve(curve, point)[1] < 1e-6
 
 
+def test_analytic_branch_falls_back_to_the_unscaled_surfaces():
+    from OCP.Geom import Geom_Plane, Geom_ToroidalSurface
+    from OCP.gp import gp_Ax3, gp_Dir, gp_Pnt
+
+    from parasolid_kit.interop.occt.intersection import intersect_analytic, project_curve
+
+    # A MicroStation part cuts a torus far from the origin with a plane 3.6
+    # nanoradians off its equatorial plane. OCCT walks that branch instead of
+    # solving it; on the surfaces scaled to unit extent the walk misses the
+    # source points by 1.3e-5 mm, while the branch of the unscaled surfaces
+    # meets them within 1e-7 mm.
+    centre = (1302.203473569816, -686.1435284059801, -45.092148569663)
+    torus = Geom_ToroidalSurface(gp_Ax3(gp_Pnt(*centre), gp_Dir(0, 0, 1)), 558.8, 101.6)
+    z = -121.29215494210641
+    plane = Geom_Plane(
+        gp_Ax3(
+            gp_Pnt(-576.5003053551629, -1855.5299382204, z),
+            gp_Dir(0, 3.567649228731755e-09, -1),
+        )
+    )
+    radius = 558.8 - (101.6**2 - (z - centre[2]) ** 2) ** 0.5
+    angles = [-2.1, -1.8, -1.5, -1.2, -0.9, -0.6, -0.3, 0.0, 0.3]
+    samples = [gp_Pnt(centre[0] + radius * cos(a), centre[1] + radius * sin(a), z) for a in angles]
+    curve = intersect_analytic([plane, torus], samples, 1e-5)
+    assert curve.IsClosed()
+    # The samples sit on the exact torus at one height; the tilted plane moves
+    # the true branch by up to 3e-6 mm from them.
+    for point in samples:
+        assert project_curve(curve, point)[1] < 1e-5
+
+
 def test_rolling_ball_blend_is_the_pipe_of_its_radius_around_the_spine():
     from OCP.Geom import Geom_Circle, Geom_Line
     from OCP.GeomAPI import GeomAPI_ProjectPointOnCurve
@@ -409,8 +613,14 @@ def test_rolling_ball_blend_is_the_pipe_of_its_radius_around_the_spine():
             assert GeomAPI_ProjectPointOnCurve(point, circle).LowerDistance() == pytest.approx(
                 0.5, abs=1e-6
             )
+    # A cliff-edge blend is the same envelope around its own spine.
+    cliff = factory.surface3d(
+        replace_blend(blend, blend_type=BlendType.CLIFF_EDGE),
+        resolve_curve=lambda _: line,
+        **resolve,
+    )
+    assert cliff.Value(0.3, 0.7).Coord() == pytest.approx(surface.Value(0.3, 0.7).Coord())
     for bad, message in (
-        (replace_blend(blend, blend_type=BlendType.CLIFF_EDGE), "cliff-edge"),
         (replace_blend(blend, ranges=(2.0, 1.0)), "equal magnitude"),
         (replace_blend(blend, ranges=(0.0, 0.0)), "non-zero"),
         (replace_blend(blend, thumb_weights=(1.0, 0.5)), "thumb weights"),

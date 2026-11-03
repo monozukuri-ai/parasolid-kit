@@ -285,9 +285,28 @@ naturally bounded faces introduce topology required by OCCT. Those seam and
 boundary edges and vertices are retained as `generated` source-map relations.
 
 The [parametric path](v30-parametric-viewer.md) additionally constructs trimmed
-analytic/NURBS faces using open nonrational surface-parameter curves and
+analytic/NURBS faces using open surface-parameter curves (rational or not) and
 source-identified open intersections. It evaluates source UV curves on their
 supports and uses bounded numerical 3D approximation or intersection fitting.
+`to_occt()` selects it whenever the analytic path cannot express the source:
+surface-parameter or intersection curves, circle or ellipse edges bounded by
+vertices, trimmed sphere or torus faces, swept faces (a section curve swept
+along a direction), and NURBS or offset faces with several loops. A source cone measures its v along the axis, so parameter
+curves on cones are mapped onto OCCT's generator parameter. An edge whose
+curve passes through a sphere pole or a cone apex, where no pcurve can follow
+it (a SolidWorks sphere is two halves cut along a great circle through its
+poles), is split there with a generated vertex
+(`split_edge_at_surface_singularity`), and an edge lying on the seam of a
+periodic surface carries one pcurve per orientation, as a Boolean split of a
+sphere leaves it, so two faces of one surface can share it
+(`share_seam_pcurves`); FIN trims follow the pieces of a split edge, and the
+FINs that two faces of one periodic surface write for a shared seam edge are
+served by that same representation. An unbounded
+analytic intersection branch is trimmed to its chart extent before a blend
+pipe is built around it, and a face whose edges cross in parameter space just
+before their shared vertex has its edge tolerances grown over the crossing,
+up to the largest tolerance the source declares on the body
+(`fix_wire_self_intersection`).
 Reports retain construction operations and `occt.parametric_approximation`
 warnings when sampled deviation exceeds a source edge tolerance but remains
 within the conversion limit. These checks do not certify a continuous
@@ -319,15 +338,17 @@ a vertex-free Parasolid circle can acquire an OCCT seam vertex, so edge and
 vertex counts are validation evidence rather than identity claims.
 
 The default is `require_complete=True, heal=False`; healing remains unavailable.
-Unsupported UV/intersection variants, cliff-edge blends, invalid loop topology,
-unknown orientation, invalid OCCT shapes, and metric mismatches raise
-`OcctConversionError`. In the released packages rational, closed or periodic
-NURBS and rolling-ball blends raise it too; the unreleased source builds them
-(stored-form NURBS as non-periodic B-splines, blends as the pipe of the blend
-radius around the spine). Two-dimensional NURBS are accepted as parameter
-curves used by `SP_CURVE`. The analytic path requires explicit trims for
-circular/elliptical arcs; the parametric path can resolve bounded conics from
-source orientation and endpoints.
+Unsupported UV/intersection variants, blends with unequal offsets, invalid
+loop topology, unknown orientation, invalid OCCT shapes, and metric mismatches
+raise `OcctConversionError`. In the released packages rational, closed or
+periodic NURBS and blends raise it too; the unreleased source builds them
+(stored-form NURBS as non-periodic B-splines, rolling-ball and cliff-edge
+blends as the pipe of the blend radius around the spine; a cliff-edge blend's
+zero-offset support is a construction reference only). Two-dimensional NURBS
+are accepted as parameter
+curves used by `SP_CURVE`. Circular or elliptical arcs bounded by vertices
+select the parametric path, which resolves them from the source orientation
+and endpoints; the analytic path alone requires explicit trims.
 Explicit `TrimmedCurve` is supported because it
 retains the basis, endpoint positions, and parameter interval needed to choose
 one arc. `.report` contains the partial `ConversionReport` available at failure

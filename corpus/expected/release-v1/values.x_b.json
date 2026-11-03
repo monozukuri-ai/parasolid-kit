@@ -19,6 +19,7 @@
       "modeller_version": ": TRANSMIT FILE created by modeller version 3000000",
       "schema_key": "SCH_3000000_30000",
       "schema_max_type": null,
+      "stream_prefix": null,
       "signature": "PS",
       "text_header_range": null,
       "user_field_size": 0

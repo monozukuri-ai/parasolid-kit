@@ -465,6 +465,7 @@ impl BuiltinProfileRegistry {
                 profiles.extend(super::profiles::icad_legacy_standard()?);
                 profiles.extend(super::profiles::solidworks_partitions_13006()?);
                 profiles.extend(super::profiles::transmit_13006()?);
+                profiles.extend(super::profiles::microstation_9008()?);
                 Self::new(profiles)
             })
             .as_ref()

@@ -18,8 +18,8 @@
       },
       "baseline": {
         "path": "expected/release-v1/values.x_t.json",
-        "sha256": "6b19589b3e5a22d2cba529a982c386f1a4140463f841a7bcdfa660f4b3820b90",
-        "bytes": 5344
+        "sha256": "b55be6bef196ba12c28ed88612a4731b7a3cd313f606930fe6371e4412d2ec14",
+        "bytes": 5373
       },
       "diagnostic": null,
       "oracle": null,
@@ -42,8 +42,8 @@
       },
       "baseline": {
         "path": "expected/release-v1/values.x_b.json",
-        "sha256": "d911620ba86c41a1a55f7aec11bddea5cdd094eb46da24aa0e9480a18c02008a",
-        "bytes": 5381
+        "sha256": "e55502f4d5f28221a7b3c7f7ee1369b827a9810f04e8b6d724307e09bc2898b5",
+        "bytes": 5410
       },
       "diagnostic": null,
       "oracle": null,

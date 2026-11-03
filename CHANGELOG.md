@@ -15,7 +15,7 @@
   `BuiltinProfileRegistry::families`/`family_for_key`, `FamilyMember` and the
   Python `builtin_profiles()` / `SchemaKey.family_id` are new;
   `BuiltinSchemaProvider` owns its selected key and is no longer `Copy`. The
-  28 derived families are listed in the support matrix. Motivation: of 22
+  29 derived families are listed in the support matrix. Motivation: of 22
   public X_T files from SolidWorks, NX, Inventor, ANSYS, MicroStation and
   Onshape, 18 carried distinct keys and 17 had no exact profile, 14 of them
   under schema families that are already reviewed.
@@ -102,8 +102,7 @@
   contact curve on that support, interpolated from the spine and checked
   against the source chart points (`blend_contact_curve`). The pipe is made
   periodic in its closed directions, and edges on approximated branches carry
-  that approximation in their tolerance. Cliff-edge blends and unequal
-  offsets remain unsupported.
+  that approximation in their tolerance. Unequal offsets remain unsupported.
 
 - OCCT parametric topology: a face that opposes its surface now has its source
   loops reversed before the periodic seam and orientation fixes, so the face
@@ -120,6 +119,107 @@
   branch now follows the source point order across its parameter origin and
   is made periodic, so an edge on it takes the source arc rather than the
   complementary one.
+- OCCT parametric topology selection and robustness: `to_occt` chooses the
+  parametric builder itself whenever the analytic one cannot express the
+  source (surface-parameter or intersection curves, circle or ellipse edges
+  bounded by vertices as SolidWorks writes arcs, trimmed sphere and torus
+  faces, NURBS or offset faces with several loops) instead of rejecting the
+  model before the optional import. A source cone measures its v along the
+  axis, so parameter curves on cones are scaled by 1 / cos(half-angle) onto
+  OCCT's generator parameter; an NX ring had put FIN points 4 to 8 µm off
+  their cone. An unbounded analytic intersection branch (a line or hyperbola,
+  which OCCT bounds at ±2e100) is trimmed to its chart extent plus the same
+  margin before a blend pipe is built around it
+  (`bound_infinite_intersection_branch`). Intersection fitting drops
+  coincident samples before each interpolation round, falls back to the
+  shape-analysis projection when the extrema search has no candidate, and
+  reports a rejected interpolation as a conversion error. Edges are made
+  same-parameter again after the seam and orientation fixes. Two edges of a
+  sliver face that cross in parameter space just before their shared vertex
+  have their tolerances grown over the crossing, up to the largest tolerance
+  the source declares on the body (`fix_wire_self_intersection`); this runs
+  after every face is finished, because projecting a pcurve resets the edge
+  tolerance to its measured deviation. In the analytic path, a generated ring
+  edge of a cylinder or cone face that runs against its source circle
+  (Onshape writes the bottom inner ring of a tube clockwise) is marked
+  reversed, so the adjacent annulus keeps its inner wire direction.
+  Cliff-edge blends (type E) are built like rolling-ball blends, as the pipe
+  of the blend radius around their spine: the public XT reference represents
+  the cliff edge as the blend's second support, a blend of range [0, 0] whose
+  spine is the cliff edge curve, which is never a face's surface. An edge
+  whose curve passes through a sphere pole or a cone apex, where no pcurve
+  can follow it (a SolidWorks sphere is two halves cut along a great circle
+  through its poles, with or without vertices on it), is split there with a
+  generated vertex (`split_edge_at_surface_singularity`); the pieces keep the
+  curve and the relations record the split. An edge lying on the seam of a
+  periodic surface carries one pcurve per orientation, as a Boolean split of
+  a sphere leaves it, so two faces of one surface can share it
+  (`share_seam_pcurves`); the loops of a face that opposes its surface are
+  reversed before the wire fixes rather than after, so those fixes see the
+  orientation the face stores. The seam fix keys the pcurves of the edges it
+  splits on its trimmed copy of the surface, so they are copied onto the
+  shared original surface for a neighbouring face of the same surface. FIN
+  trims of a split edge are mapped onto its pieces, the FINs that two faces
+  of one periodic surface write for a shared seam edge are served by the
+  seam representation, line edges take the same splitting path, and the
+  pre-flight check admits rational 2D parameter curves as the coverage
+  already stated. Of
+  the 22 public X_T files, 18 convert strictly instead of 4; the other four
+  are two incomplete sources with explicitly unsupported swept or spun
+  surfaces and the two that do not parse. A 10.7 MB SolidWorks X_T with
+  2,949 faces now converts to a valid solid in about 30 s.
+- Swept surfaces: SWEPT_SURF (67) is decoded as `SurfaceKind::Swept` (the
+  section curve and the unit sweep direction; the scale is internal and
+  stays unread) instead of being retained as an explicitly partial surface,
+  with the Python `SweptSurface` and the `swept` kind. The OCCT interop
+  builds it as the surface of linear extrusion of the mapped section, whose
+  parameters and normal are the source's `R(u, v) = C(u) + vD`; parameter
+  curves on it keep u as the section's own parameter (a length along a line)
+  and scale v as a length, and faces on it take the parametric path. An
+  offset surface is now offset against the natural normal of a basis of
+  negative sense, as the reference's "taking into account the surface sense"
+  requires; an NX part offsetting swept surfaces of negative sense had its
+  offsets on the wrong side. The two public X_T files whose sources were
+  incomplete for swept surfaces (a SolidWorks 2011 plaque with 37, an NX part
+  with 2) now map completely and convert, so 20 of the 22 convert strictly;
+  the remaining two do not parse.
+- Stream prefix and an observed node type: an ANSYS Electronics Desktop
+  transmit written by Parasolid 34 under `SCH_3300000_32001`, a key without
+  a base schema, puts a count before its first node, where the reference
+  places one only after a base-schema key. For a writer of Parasolid 34 or
+  later, a leading value followed by a node type and the index 1 is read as
+  that count, recorded in the new `stream_prefix` header field (text and
+  binary) and skipped; earlier writers are read as before. The same file
+  opens with node type 3, which the public reference does not list (its
+  table starts at ASSEMBLY, 10). `icad-3200000-32001-r2` declares it as
+  observed and unverified from that one stream: an identifier, four null
+  pointers and three body references; a stream whose type 3 node differs
+  fails closed on the next node. The file then parses as three planar faces
+  and converts, so 21 of the 22 public X_T files convert strictly; the
+  MicroStation file under schema 9008 follows below.
+  The release-corpus baselines record the new header field.
+- MicroStation modeler key: `microstation-901297-9008-r1` accepts
+  `SCH_901297_9008`, the key of the Bentley X_T files written by Parasolid
+  9.0.129 inside MicroStation (four public files of the NIST
+  engineering-design-models repository), and schema 9008 gains its family.
+  No public schema file describes schema 9008; the 27 node types the files
+  carry keep their reviewed 13006 layouts except that BODY has no
+  `geometry_state` (the byte the reference marks "for future use"), FIN has
+  no attribute pointer, and ATTRIB_DEF has no field names and thirteen legal
+  owners instead of fourteen, as the reference's own schema-12006 transmit
+  example (printed page 10) also writes it. The four files read to their
+  terminators, map complete B-Reps and convert strictly. Two OCCT changes
+  came with the 300-face part: an analytic intersection whose branch on the
+  surfaces scaled to unit extent misses the source points is retried on the
+  unscaled surfaces (a plane a few nanoradians off the equatorial plane of a
+  torus far from the origin, which OCCT walks instead of solving), and the
+  contact curve of a rolling-ball blend is corrected by its chart-point
+  residuals, since the geometric contact is ill-conditioned along the
+  surfaces when the spines are approximations; a blend whose support is
+  another blend touches that pipe on the line to the pipe's spine, at the
+  pipe radius. The report records the largest residual as
+  `blend_contact_drift`. All 22 public X_T files now parse and convert
+  strictly.
 - Add OFFSET_SURF (60) to the reviewed 13006 declarations and admit it under
   the iCAD keys where it was observed. Add exact profiles for two further
   embedded keys and six further standard keys (13006, 15003, 16100, 19008 and

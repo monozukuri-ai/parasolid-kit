@@ -761,6 +761,10 @@ fn surface_kind_to_python<'py>(
             value.set_item("end_parameter", end_parameter)?;
             value.set_item("x_axis", x_axis.map(vector_tuple))?;
         }
+        SurfaceKind::Swept { section, direction } => {
+            value.set_item("section", section)?;
+            value.set_item("direction", vector_tuple(*direction))?;
+        }
         SurfaceKind::Offset {
             basis_surface,
             offset,

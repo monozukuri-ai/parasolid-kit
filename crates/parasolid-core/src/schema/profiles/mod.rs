@@ -3,6 +3,7 @@
 pub(crate) mod assembly;
 pub(crate) mod icad_legacy;
 pub(crate) mod icad_standard;
+pub(crate) mod microstation;
 mod onshape_current;
 mod sch13006;
 mod sch30000;
@@ -10,6 +11,7 @@ pub(crate) mod solidworks;
 pub(crate) mod transmit;
 pub use icad_legacy::icad_legacy_13006;
 pub use icad_standard::icad_legacy_standard;
+pub use microstation::microstation_9008;
 pub use transmit::transmit_13006;
 
 pub(crate) use assembly::definitions as assembly_definitions;
