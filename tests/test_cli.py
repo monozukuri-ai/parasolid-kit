@@ -457,6 +457,7 @@ def test_cli_view_writes_a_persistent_preview_without_starting_a_server(
         "source_unit": "m",
         "target_unit": "cm",
         "require_complete": True,
+        "partial": False,
         "source_identity": f"sha256:{source_hash}",
     }
     assert calls["result"] is converted

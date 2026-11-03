@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from collections.abc import Iterable
+from dataclasses import replace
 from itertools import pairwise
 from math import isfinite
 
@@ -46,6 +48,8 @@ from ..limits import DEFAULT_INTEROP_LIMITS, InteropLimits
 from .geometry import GeometryFactory
 from .model import (
     ConversionReport,
+    DroppedFace,
+    FailedBody,
     InteropUsage,
     NamedCounts,
     OcctConversionResult,
@@ -55,7 +59,9 @@ from .model import (
     SourceShapeMap,
 )
 from .options import LengthUnit, OcctConversionOptions, ValidationTolerances
-from .topology import PendingRelation, TopologyBuilder
+from .placement import Placement
+from .placement import place_instances as _place_instances
+from .topology import PendingRelation, TopologyBuilder, is_isolated_fin
 from .validation import (
     ShapeRegistry,
     collect_shape_registry,
@@ -77,8 +83,24 @@ def to_occt(
     validation: ValidationTolerances | None = None,
     limits: InteropLimits = DEFAULT_INTEROP_LIMITS,
     source_identity: str | None = None,
+    partial: bool = False,
+    place_instances: bool = False,
 ) -> OcctConversionResult:
-    """Convert the documented subset, reporting bounded UV/intersection approximations."""
+    """Convert the documented subset, reporting bounded UV/intersection approximations.
+
+    With ``partial=True`` a face whose OCCT construction fails is dropped and
+    a body left without faces is skipped instead of failing the conversion;
+    a solid that lost a face comes back as an open shell. The report lists
+    the dropped faces and failed bodies, ``conversion_complete`` is False and
+    the source metrics are not compared. A model where nothing fails converts
+    exactly as in strict mode.
+
+    With ``place_instances=True`` the bodies positioned by the assembly
+    structure are returned as transformed copies, one per instance chain
+    from a root assembly, beside the bodies no instance references; the
+    source map follows the copies and names the placing instances. The
+    source metrics are compared with the unplaced bodies.
+    """
 
     if not isinstance(brep, BrepModel):
         raise TypeError("brep must be BrepModel")
@@ -91,6 +113,8 @@ def to_occt(
         heal=heal,
         validation=validation or ValidationTolerances(),
         source_identity=source_identity,
+        partial=partial,
+        place_instances=place_instances,
     )
     context = _ConversionContext(brep, options, limits)
     preflight = _preflight_diagnostics(context)
@@ -100,13 +124,15 @@ def to_occt(
     runtime = require_occt()
     context.ocp_version = _optional_text(getattr(runtime, "__version__", None))
     context.ocp_distribution = _ocp_distribution()
+    builder: TopologyBuilder | None = None
     try:
         builder_type = TopologyBuilder
         if _uses_parametric_topology(brep):
             from .parametric import ParametricTopologyBuilder
 
             builder_type = ParametricTopologyBuilder
-        built = builder_type(brep, GeometryFactory(options)).build()
+        builder = builder_type(brep, GeometryFactory(options))
+        built = builder.build()
         context.diagnostics.extend(built.diagnostics)
         if len(context.diagnostics) > limits.max_diagnostics:
             _raise_conversion(
@@ -123,9 +149,19 @@ def to_occt(
                     },
                 ),
             )
-        registry = collect_shape_registry(built.shape)
+        root, relations = built.shape, built.relations
+        placement = None
+        if options.place_instances and brep.instances:
+            placement = _place_instances(
+                brep, dict(built.body_shapes), built.relations, options.applied_scale
+            )
+            root, relations = placement.shape, placement.relations
+            context.placement = placement
+        registry = collect_shape_registry(root)
         context.registry = registry
-        context.operations = built.operations
+        context.operations = (
+            built.operations if placement is None else (*built.operations, "instances_placed")
+        )
         if len(registry.subshapes) > limits.max_occt_subshapes:
             diagnostic = _diagnostic(
                 context,
@@ -153,11 +189,17 @@ def to_occt(
                 },
             )
             _raise_conversion(context, diagnostic)
-        source_map = _resolve_relations(registry, built.relations)
+        context.dropped_faces = built.dropped_faces
+        context.failed_bodies = built.failed_bodies
+        context.partial_bodies = built.partial_bodies
+        partial_result = bool(built.dropped_faces or built.failed_bodies)
+        source_map = _resolve_relations(registry, relations, strict=not partial_result)
         context.source_map = source_map
-        valid, metrics = validate_and_measure(built.shape)
+        valid, metrics = validate_and_measure(root)
         context.metrics = metrics
         context.occt_valid = valid
+        # The source metrics describe the bodies where they are built.
+        source_metrics = metrics if placement is None else validate_and_measure(built.shape)[1]
         validation_diagnostics: list[Diagnostic] = []
         if not valid:
             validation_diagnostics.append(
@@ -168,18 +210,34 @@ def to_occt(
                     message="OCCT BRepCheck_Analyzer rejected the converted shape",
                 )
             )
-        validation_diagnostics.extend(metric_diagnostics(brep, metrics, options))
-        if validation_diagnostics:
-            _raise_conversion(
-                context,
-                validation_diagnostics[0],
-                diagnostics=validation_diagnostics,
+        if partial_result:
+            # The source metrics describe the whole model; the partial shape
+            # is reported as it is, with its validity as a warning.
+            context.diagnostics.extend(
+                replace(item, severity=DiagnosticSeverity.WARNING, fatal=False)
+                for item in validation_diagnostics
             )
+            context.diagnostics.extend(_partial_diagnostics(context))
+        else:
+            validation_diagnostics.extend(metric_diagnostics(brep, source_metrics, options))
+            if validation_diagnostics:
+                _raise_conversion(
+                    context,
+                    validation_diagnostics[0],
+                    diagnostics=validation_diagnostics,
+                )
     except OcctConversionError:
         raise
     except (KeyboardInterrupt, SystemExit):
         raise
     except Exception as error:
+        if builder is not None and options.partial:
+            # The faces and bodies a partial conversion had already given up
+            # on when the construction failed outright.
+            records = builder.partial_records()
+            context.dropped_faces = records["dropped_faces"]
+            context.failed_bodies = records["failed_bodies"]
+            context.partial_bodies = records["partial_bodies"]
         diagnostic = _diagnostic(
             context,
             code="occt.construction_failed",
@@ -190,10 +248,10 @@ def to_occt(
         conversion_error = _conversion_error(context, diagnostic)
         raise conversion_error from error
 
-    context.conversion_complete = True
+    context.conversion_complete = not partial_result
     report = context.report()
     return OcctConversionResult(
-        shape=built.shape,
+        shape=root,
         subshapes=registry.subshapes,
         source_map=source_map,
         report=report,
@@ -219,6 +277,10 @@ class _ConversionContext:
         self.conversion_complete = False
         self.diagnostics: list[Diagnostic] = list(brep.diagnostics)
         self.operations: tuple[str, ...] = ()
+        self.dropped_faces: tuple[DroppedFace, ...] = ()
+        self.failed_bodies: tuple[FailedBody, ...] = ()
+        self.partial_bodies: tuple[int, ...] = ()
+        self.placement: Placement | None = None
 
     @property
     def entity_count(self) -> int:
@@ -290,6 +352,16 @@ class _ConversionContext:
             topology_operations=self.operations,
             healing_requested=self.options.heal,
             healing_performed=False,
+            partial_requested=self.options.partial,
+            faces_dropped=self.dropped_faces,
+            bodies_failed=self.failed_bodies,
+            bodies_partial=self.partial_bodies,
+            placement_requested=self.options.place_instances,
+            instances_placed=0 if self.placement is None else self.placement.instances_placed,
+            instances_negative=0 if self.placement is None else self.placement.instances_negative,
+            bodies_unreferenced=(
+                0 if self.placement is None else self.placement.bodies_unreferenced
+            ),
         )
 
 
@@ -472,9 +544,12 @@ def _uses_parametric_topology(model: BrepModel) -> bool:
         surface = surfaces.get(face.surface) if face.surface is not None else None
         if surface is None:
             continue
-        if surface.kind in {SurfaceKind.SPHERE, SurfaceKind.TORUS, SurfaceKind.SWEPT} and (
-            face.loops
-        ):
+        if surface.kind in {
+            SurfaceKind.SPHERE,
+            SurfaceKind.TORUS,
+            SurfaceKind.SWEPT,
+            SurfaceKind.SPUN,
+        } and (face.loops):
             return True
         if surface.kind in {SurfaceKind.NURBS, SurfaceKind.OFFSET} and len(face.loops) > 1:
             return True
@@ -645,7 +720,12 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
                     details={"entity_kind": "half_edge", "entity_id": half_edge.id},
                 )
             )
-        if half_edge.id in loop_half_edges and half_edge.sense is Sense.UNKNOWN:
+        if (
+            half_edge.id in loop_half_edges
+            and half_edge.sense is Sense.UNKNOWN
+            and not is_isolated_fin(half_edge)
+        ):
+            # The sense of an isolated loop's fin is not significant (XT p. 91).
             result.append(_unknown_sense(context, "half_edge", half_edge.id, half_edge.source))
     return result
 
@@ -830,8 +910,10 @@ def _nurbs_surface_issue(definition: NurbsSurface) -> str | None:
         or definition.v_degree >= definition.v_control_vertex_count
     ):
         return "degree is outside its valid control-point range"
-    if any(len(values) != 3 for values in definition.control_vertices):
-        return "control vertices must contain exactly three coordinates"
+    if definition.vertex_dimension != (4 if definition.rational else 3):
+        return "control grid dimension does not match the rational flag"
+    if any(len(values) != definition.vertex_dimension for values in definition.control_vertices):
+        return "control vertices must match the declared dimension"
     if any(not isfinite(value) for values in definition.control_vertices for value in values):
         return "control vertices must be finite"
     u_issue = _nurbs_knot_issue(
@@ -1012,7 +1094,7 @@ def _reference_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
             "edge",
             half_edge.edge,
             half_edge.source,
-            optional=half_edge.dummy,
+            optional=half_edge.dummy or is_isolated_fin(half_edge),
         )
         check(
             "half_edge",
@@ -1079,13 +1161,75 @@ def _reference_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
     ]
 
 
+def _partial_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
+    """Warnings listing what a partial conversion left out."""
+
+    result: list[Diagnostic] = []
+    shown = 50
+    if context.dropped_faces:
+        faces = context.dropped_faces
+        result.append(
+            replace(
+                _diagnostic(
+                    context,
+                    code="occt.faces_dropped",
+                    kind=DiagnosticKind.INCOMPLETE,
+                    message=(
+                        f"{len(faces)} source faces were dropped from the partial "
+                        f"conversion; {len(context.partial_bodies)} solid bodies are "
+                        "returned as open shells"
+                    ),
+                    source=faces[0].source,
+                    details={
+                        "face_count": len(faces),
+                        "faces": json.dumps([item.to_dict() for item in faces[:shown]]),
+                        "truncated": len(faces) > shown,
+                        "bodies_partial": json.dumps(list(context.partial_bodies)),
+                    },
+                ),
+                severity=DiagnosticSeverity.WARNING,
+                fatal=False,
+            )
+        )
+    if context.failed_bodies:
+        bodies = context.failed_bodies
+        result.append(
+            replace(
+                _diagnostic(
+                    context,
+                    code="occt.bodies_failed",
+                    kind=DiagnosticKind.INCOMPLETE,
+                    message=f"{len(bodies)} source bodies have no converted face",
+                    source=bodies[0].source,
+                    details={
+                        "body_count": len(bodies),
+                        "bodies": json.dumps([item.to_dict() for item in bodies[:shown]]),
+                        "truncated": len(bodies) > shown,
+                    },
+                ),
+                severity=DiagnosticSeverity.WARNING,
+                fatal=False,
+            )
+        )
+    return result
+
+
 def _resolve_relations(
     registry: ShapeRegistry,
     pending: tuple[PendingRelation, ...],
+    *,
+    strict: bool = True,
 ) -> SourceShapeMap:
     unique: dict[tuple[str, str, str, str | None], ShapeRelation] = {}
     for item in pending:
-        target_key = registry.key_for(item.target)
+        try:
+            target_key = registry.key_for(item.target)
+        except KeyError:
+            # A partial conversion drops faces whose relations were recorded
+            # before the failure; their targets are not in the result.
+            if strict:
+                raise
+            continue
         relation = ShapeRelation(item.source, target_key, item.relation, item.note)
         key = (item.source.key, target_key, item.relation.value, item.note)
         unique[key] = relation

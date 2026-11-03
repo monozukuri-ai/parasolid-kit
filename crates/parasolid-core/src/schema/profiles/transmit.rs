@@ -26,7 +26,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         key: "SCH_2400164_20000_13006",
         id: "parasolid-2400164-20000-13006-r1",
         revision: 1,
-        sha256: "393421e270aa0d45e373c0c6be3fda3d2085352287aef75a184504cc2a0a1155",
+        sha256: "2ea1aaac6129330bf33d3641fd4548abbaa3cd4641e7afb29f841ff5f2398ad1",
         producer: "Parasolid 24.0.164 acceptance-test transmit files",
         groups: true,
     },
@@ -34,7 +34,7 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         key: "SCH_2600169_25001_13006",
         id: "nx-2600169-25001-13006-r1",
         revision: 1,
-        sha256: "1b57b090a95549c13ca8b79ff3a3cd7cbfa41f3a018cd32339e2c1477a137811",
+        sha256: "3b7a6fe5dd88c7c204e4100ff583a0466e4e87376d2fffd8877780d542157da8",
         producer: "NX (unigraphics) transmit files, Parasolid 26.0.169",
         groups: false,
     },
@@ -42,8 +42,27 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         key: "SCH_2600217_25001_13006",
         id: "parasolid-2600217-25001-13006-r1",
         revision: 1,
-        sha256: "46a68701d5d2978853b9fc8a9737911889c1956696ebbdb0cdc4bbe99d9721a5",
+        sha256: "6dd12893367c55e32ce53b981e407bf347d7d64ac264ae16b8b8230d1ce1c271",
         producer: "Parasolid 26.0.217 acceptance-test transmit files",
+        groups: false,
+    },
+    // Three public NX parts carry this key; it anchors the first family of
+    // schema 30100, which no SolidWorks or iCAD key uses.
+    ProfileSpec {
+        key: "SCH_3001232_30100_13006",
+        id: "nx-3001232-30100-13006-r1",
+        revision: 1,
+        sha256: "33cbfed14ae825cae02d76685526ea545ca8274cafca600671a4f75077dd402b",
+        producer: "NX (unigraphics) transmit files, Parasolid 30.1.232",
+        groups: false,
+    },
+    // One public NX part; the first family of schema 34001.
+    ProfileSpec {
+        key: "SCH_3400176_34001_13006",
+        id: "nx-3400176-34001-13006-r1",
+        revision: 1,
+        sha256: "a52eebc67c1401d7c66d4de1a9071a2f59133dcd991822f22d28334201224a9d",
+        producer: "NX (unigraphics) transmit files, Parasolid 34.0.176",
         groups: false,
     },
 ];

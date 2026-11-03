@@ -118,7 +118,9 @@ def intersection(
 @pytest.mark.parametrize(
     "key,edits", [(BASE, "unchanged"), (EMBEDDED, "unchanged"), (EMBEDDED, "copy")]
 )
-@pytest.mark.parametrize("limit_kind,limit_count", [("H", 1), ("L", 1), ("T", 2)])
+# A spine boundary (B) carries one position like a help point or an
+# arbitrary limit; SolidWorks writes it.
+@pytest.mark.parametrize("limit_kind,limit_count", [("H", 1), ("L", 1), ("B", 1), ("T", 2)])
 def test_intersection_references_and_hvec_arrays_preserve_source(
     key, edits, limit_kind, limit_count
 ):
@@ -173,9 +175,9 @@ def test_intersection_references_and_hvec_arrays_preserve_source(
         {"start_ref": 5},
         {"end_ref": 0},
         {"surface_ref": 5},
-        {"limit_kind": "B"},
         {"limit_kind": "?"},
         {"limit_kind": "T"},
+        {"limit_kind": "B", "limit_count": 2},
         {"limit_count": 2},
         {"coordinate": None},
     ],

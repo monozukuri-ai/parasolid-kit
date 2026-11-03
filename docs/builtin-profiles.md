@@ -1129,7 +1129,10 @@ The 8,668,707 nodes and 67,991,664 field groups of the parsed payloads match
 in values, byte ranges, variable lengths, user fields and terminators. Ten of
 the eleven errors are intersection curves whose limits have kind `B`, which
 the public reference describes for blends and not for intersection curves; the
-mapper keeps rejecting them. The other is an invalid reference under the V30
+mapper of that comparison rejected them. The unreleased mapper reads a `B`
+limit like an arbitrary limit, with one position, after the public corpus
+showed SolidWorks writing it on ordinary intersection curves; the comparison
+has not been repeated. The other error is an invalid reference under the V30
 standard key. Neither successful mapping nor this comparison proves OCCT, STEP
 or preview conversion.
 
@@ -1149,7 +1152,7 @@ family additionally takes every other reviewed profile of the same base as a
 base contributor: base 13006 declarations describe the same base whichever
 effective schema a key names, so the TORUS, OFFSET_SURF, SWEPT_SURF, WORLD and
 B-spline surface layouts reviewed under one 13006 key hold under all of them.
-The compiled 13006 families therefore all merge the same 49 base definitions
+The compiled 13006 families therefore all merge the same 57 base definitions
 and record types 176 and 204 as absent. A type whose layout or membership two
 contributors state differently would be excluded; none is today, and a Rust
 test asserts it.
@@ -1166,7 +1169,7 @@ sample showed.
 
 ## Transmit-file keys and user fields
 
-Three exact profiles cover keys of complete transmit files rather than
+Five exact profiles cover keys of complete transmit files rather than
 extracted CAD streams. Their declarations are the reviewed 13006 set of the
 SolidWorks profiles; nothing is taken from a catalog, and the keys come from
 the files' own headers.
@@ -1176,6 +1179,20 @@ the files' own headers.
 | `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r1` | Parasolid 24.0.164 acceptance-test transmit files |
 | `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r1` | NX transmit files, Parasolid 26.0.169 |
 | `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r1` | Parasolid 26.0.217 acceptance-test transmit files |
+| `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r1` | NX transmit files, Parasolid 30.1.232 (three public parts) |
+| `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r1` | NX transmit files, Parasolid 34.0.176 (one public part) |
+
+The two NX keys are the first of schemas 30100 and 34001, which no SolidWorks
+or iCAD key uses; each anchors the family of its schema, so other NX builds
+of those schemas resolve through it. The four parts (6 to 28 faces) read to
+their terminators with the shared set, map complete B-Reps and convert to
+valid OCCT solids in strict mode. An embedded key whose family has no
+member still fails with `schema.missing_base_schema`: the stream's edits are
+relative to base 13006 whichever effective schema it names, so the reviewed
+13006 set could read such a key, but the registry declares a family only once
+a public file has shown the key reading to its terminator, and the provenance
+of every family names the member that did. Reading unobserved schemas with
+the base alone was considered for these two keys and not adopted.
 
 ### GROUP and MEMBER_OF_GROUP
 
@@ -1201,6 +1218,31 @@ step. Built-in profiles now read the declared words after every node exactly
 like caller catalogs and keep them in `RawNode.user_fields`;
 `validate_builtin_input` no longer rejects them. The four files reach a
 complete source B-Rep.
+
+### Attribute value nodes
+
+The shared 13006 set declares the five attribute value nodes the public XT
+reference describes beside INT_VALUES, REAL_VALUES, CHAR_VALUES and
+UNICODE_VALUES (printed pages 106-108): POINT_VALUES (85), VECTOR_VALUES
+(86), DIRECTION_VALUES (89) and AXIS_VALUES (87) hold vectors (an axis takes
+up two), TAG_VALUES (88) holds `t` tags, which the reference keeps for system
+attributes. Every 13006 family carries them. Two public SolidWorks 2011 parts
+under `SCH_2201256_20000_13006` write VECTOR_VALUES (a `TexSplitFace`
+attribute of three vectors on faces), Solid Edge parts under
+`SCH_3800150_37102_13006` and `SCH_3300171_32001_13006` write AXIS_VALUES
+(`SolidEdge/EndHoleThread_u_info`, `SolidEdge/AddDraftFace_info`, with a
+vector beside the axis in the second) and an Onshape part under the exact
+`SCH_3701212_37102_13006` key writes AXIS_VALUES and DIRECTION_VALUES
+(`BTI/Named_CSysTop`, a coordinate system on faces); the five files failed
+with `schema.unknown_base_type` before and map complete B-Reps now, three
+converting strictly. In every observed axis the first vector is a position
+and the second a unit direction; the reference says only that an axis takes
+up two vectors, so the mapper keeps the pair in source order. It returns the
+nodes as `points`, `vectors`, `directions`, `axes` and `tags` fields, with a
+null or non-finite vector as `None`; an empty field of those kinds is typed
+by the definition like the others. The V30 standard profile had already
+declared AXIS_VALUES and DIRECTION_VALUES from Onshape V30 exports; its
+attributes now map the same way.
 
 ## Standard-key revision 2: schemas 16100 and 20000
 
@@ -1264,56 +1306,74 @@ fails the mapping. Public Rust and Python tests author the three record kinds
 in X_T and X_B under the `SolidWorks`, NX, family, iCAD and standard keys and
 check the mapped structure, the transform evaluation and the failures.
 
-## MicroStation modeler key (schema 9008)
+## Older standard keys: Parasolid 9 to 16
 
-Four public Bentley X_T files of the NIST `engineering-design-models`
-repository (`nut.x_t`, `ring.x_t`, `washer inch.x_t` and
-`buttom part inch.x_t`, 2 KB to 480 KB) were written by Parasolid 9.0.129
-inside MicroStation under the standard key `SCH_901297_9008`, the oldest key
-in the public corpus. No public schema file describes schema 9008, and the
-registry failed closed with `schema.missing_base_schema`.
+Public transmit files of Parasolid 9 to 16 carry standard keys whose schemas
+no profile declared, so they failed closed with `schema.missing_base_schema`.
+No public schema file describes these schemas. Each profile below declares
+the node types its public files carry with the reviewed 13006 layouts and
+the edits those streams show, each consistent with the public XT Format
+Reference; every file reads to its terminator and maps a complete B-Rep.
+The files are not redistributed.
 
-| Exact key | Profile | Source of the key |
-|---|---|---|
-| `SCH_901297_9008` | `microstation-901297-9008-r1` | MicroStation modeler transmit files, Parasolid 9.0.129 |
+| Exact key | Profile | Source of the key | Public files |
+|---|---|---|---|
+| `SCH_900141_9003` | `nx-900141-9003-r1` | NX (unigraphics) transmit files, Parasolid 9.0.141 | two assemblies of the NIST `engineering-design-models` repository (9 bodies, 9 instances each) |
+| `SCH_901297_9008` | `microstation-901297-9008-r1` | MicroStation modeler transmit files, Parasolid 9.0.129 | four Bentley files of the NIST `engineering-design-models` repository (`nut.x_t`, `ring.x_t`, `washer inch.x_t`, `buttom part inch.x_t`, 2 KB to 480 KB) and four files of other builds of the schema in its Unigraphics folder (three under `SCH_901209_9008`, one under `SCH_900254_9008`) through the family |
+| `SCH_1000252_10004` | `nx-1000252-10004-r1` | NX (unigraphics) transmit files, Parasolid 10.0.252 | two NX parts of the NIST repository (42 and 236 faces) and a SolidWorks 98Plus part of the ANSYS example data under `SCH_1000230_10004` through the family |
+| `SCH_1100129_11004` | `ironcad-1100129-11004-r1` | IronCAD transmit files, Parasolid 11.0.129 | ten IronCAD parts of the NIST repository's VDS folder (8 to 186 faces) |
+| `SCH_1200000_12006` | `solidworks-1200000-12006-r1` | SolidWorks 2022 transmit files under the reference key, Parasolid 12.0 | the reference's own transmit example (printed page 10), authored verbatim in the tests. The one public SolidWorks 2022 file of this key stops at its first CYLINDER (51) under this profile; with the types it carries declared it would stop at HELIX_CU_FORM (163), which the reference does not describe, so they are not declared |
+| `SCH_1600000_16004` | `nx-1600000-16004-r1` | NX (unigraphics) transmit files, Parasolid 16.0 | one NX part (an ONERA M6 wing of a turbulence-model repository) |
 
-The profile declares the 27 node types the four files carry (BODY, SHELL,
-FACE, LOOP, EDGE, FIN, VERTEX, REGION, POINT, LINE, CIRCLE, INTERSECTION,
-CHART, LIMIT, PLANE, CYLINDER, SPHERE, TORUS, BLENDED_EDGE, BLEND_BOUND,
-LIST, POINTER_LIS_BLOCK, ATT_DEF_ID, ATTRIB_DEF, ATTRIBUTE, INT_VALUES and
-the shared-geometry owner 141) with their reviewed 13006 layouts and three
-edits, each read from the streams and consistent with the public XT Format
-Reference:
+The layouts differ from 13006 in a few records only:
 
-- `BODY` has 22 fields: the 13006 layout without `nom_geom_state`, the byte
-  the reference (printed page 85) marks "set to 1 (for future use)". The
+- `BODY` under Parasolid 9 has 22 fields: the 13006 layout without
+  `nom_geom_state`, the byte the reference (printed page 85) marks "set to 1
+  (for future use)". From Parasolid 10 on the layout is the reference's. The
   order is otherwise the reference's, `highest_node_id` first and the shell,
-  boundary-geometry, region, edge and vertex heads last. MicroStation writes
-  a non-null `next` pointer, which the reference says to ignore.
-- `FIN` has 9 fields: the 13006 layout without `attributes_groups`, read as
-  loop, forward, backward, vertex, other fin, edge, curve, next fin at the
-  vertex and sense. Every fin ring and every `other` pair in the four files
-  closes under this reading.
-- `ATTRIB_DEF` has no `field_names` pointer and lists thirteen legal owners
-  instead of fourteen (`SCH_fn_owner`, the fourteenth, came later), as the
-  reference's own transmit example of schema 12006 (printed page 10) also
-  writes it; the eight event actions and the variable field types are
-  unchanged.
+  boundary-geometry, region, edge and vertex heads last; MicroStation and
+  IronCAD write a non-null `next` pointer, which the reference says to
+  ignore.
+- `FIN` under Parasolid 9 and 10 has 9 fields: the 13006 layout without
+  `attributes_groups`, read as loop, forward, backward, vertex, other fin,
+  edge, curve, next fin at the vertex and sense. Every fin ring and every
+  `other` pair in the files closes under this reading. From Parasolid 11 on
+  the fin carries its attribute pointer.
+- `ATTRIB_DEF` under Parasolid 9 to 12 has no `field_names` pointer and lists
+  thirteen legal owners instead of fourteen (`SCH_fn_owner`, the fourteenth,
+  came later), as the reference's own transmit example of schema 12006
+  (printed page 10) also writes it; the eight event actions and the variable
+  field types are unchanged.
+- `CURVE_DATA` (135) under Parasolid 9 to 12 carries the self-intersection
+  state alone; the analytic-form pointer of the 13006 layout is not written.
+- `LIST` under schema 9003 has no trailing transmission flag; schema 9008
+  and the reference carry it.
+- `KEY` (102), which the Parasolid 9 assemblies point at from their
+  assembly node, is declared from the reference (printed page 83) as a
+  character string and read by nothing.
+- The other records keep their 13006 layouts, the B-spline curve and surface
+  nodes, the blends, the groups and the assembly structure included.
 
 MicroStation wraps its text records at exactly 80 characters and splits
 numbers across lines, which the text reader ignores as the reference
-requires. The four files read to their terminators without a diagnostic,
-map complete B-Reps (4, 12, 29 and 300 faces; the largest carries 184 tori,
-98 rolling-ball blends with 126 blend boundaries and 203 intersection
-curves) and convert to valid OCCT solids in strict mode, the 300-face part
-in about 100 s. Public Rust and Python tests author the reference's
-transmit example in these layouts in X_T and X_B, check the decoded values,
-the mapped disc and the family of schema 9008, and check that the V13
-attribute definition and an unobserved value node fail closed under the key.
+requires. The four MicroStation files map complete B-Reps (4 to 300 faces;
+the largest carries 184 tori, 98 rolling-ball blends with 126 blend
+boundaries and 203 intersection curves) and convert to valid OCCT solids in
+strict mode, the 300-face part in about 20 s; the four files of other builds
+(10 to 107 faces) map completely, two convert strictly and two (`Plate4`,
+`Raceway`) only in partial mode. The two Parasolid 9 NX assemblies, the
+three Parasolid 10 files, the ten IronCAD parts and the NX 16 part all read
+to their terminators and map complete B-Reps; their conversions are
+measured in the corpus matrix (six of the ten IronCAD parts strict). Public
+Rust and Python tests author
+the reference's transmit example in the 9008 layouts in X_T and X_B, and
+verbatim under its own key `SCH_1200000_12006`, check the decoded values,
+the mapped disc and the families, and check that the V13 attribute
+definition and an unobserved value node fail closed under the keys.
 
-The 300-face part also drove two conversion changes recorded in the
-changelog: an analytic intersection whose branch on the surfaces scaled to
-unit extent misses the source points is retried on the unscaled surfaces,
+The 300-face MicroStation part also drove two conversion changes recorded in
+the changelog: an analytic intersection whose branch on the surfaces scaled
+to unit extent misses the source points is retried on the unscaled surfaces,
 and the contact curve of a rolling-ball blend is corrected by its chart-point
 residuals, the geometric contact being ill-conditioned along the surfaces
 when the spines are approximations (a blend whose support is another blend

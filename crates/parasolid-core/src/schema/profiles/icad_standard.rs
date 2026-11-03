@@ -129,7 +129,7 @@ const LIMIT: &[Edit] = &[
 ];
 
 // The last three base fields are dropped where the embedded sequence ends.
-const LIST: &[Edit] = &[
+pub(super) const LIST: &[Edit] = &[
     Keep(1),
     Edit::Insert("entry_kind", FieldType::UnsignedByte, 0),
     Edit::Insert("transmission_flag", FieldType::Logical, 0),
@@ -230,15 +230,21 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     // (40), LIMIT (41), OFFSET_SURF (60), SWEPT_SURF (67), TRIMMED_CURVE (133),
     // the SP_CURVE dependencies (45, 127, 128, 134-137) and the shared-geometry
     // owner (141); all keep their reviewed 13006 layouts.
+    // Revision 3 adds the types observed in six public parts written under
+    // another build of the same standard key (`SCH_2400000_20000`): ELLIPSE
+    // (32), SPHERE (53), TORUS (54), BLENDED_EDGE (56), BLEND_BOUND (59) and
+    // the B-spline surface nodes (124-126); all keep their reviewed 13006
+    // layouts and the parts read to the terminator and map complete B-Reps.
     ProfileSpec {
         key: "SCH_2401000_20000",
-        id: "icad-2401000-20000-r2",
-        revision: 2,
-        sha256: "183e902263c1294d6dfe8a24e3e7113b1253c255c5b8218eac395078dfa0cba0",
+        id: "icad-2401000-20000-r3",
+        revision: 3,
+        sha256: "fbdd2b2c31177b9fba0104c4a7d9ead562c38202aff91f2759f30101557fa53f",
         schema: "20000",
         types: &[
-            10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 38, 40, 41, 45, 50, 51, 60, 67, 70,
-            74, 79, 80, 81, 82, 83, 84, 100, 127, 128, 133, 134, 135, 136, 137, 141,
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 53, 54,
+            56, 59, 60, 67, 70, 74, 79, 80, 81, 82, 83, 84, 100, 124, 125, 126, 127, 128, 133, 134,
+            135, 136, 137, 141,
         ],
         edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
     },
@@ -277,15 +283,18 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
             (74, POINTER_BLOCK),
         ],
     },
+    // Revision 2 adds REAL_VALUES (83) and CHAR_VALUES (84), observed in
+    // twenty public parts written under another build of the same standard
+    // key (`SCH_2900166_28101`).
     ProfileSpec {
         key: "SCH_2901000_28101",
-        id: "icad-2901000-28101-r1",
-        revision: 1,
-        sha256: "3e62cae9a159faf2364f85206fcc2bf1580eb68b4763b446fed1864010df19de",
+        id: "icad-2901000-28101-r2",
+        revision: 2,
+        sha256: "aa6770061f55dde9d96afcff1b8ab260293e1a9671cda701b262b775f2192548",
         schema: "28101",
         types: &[
             12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 38, 40, 41, 50, 51, 52, 70, 74, 79, 80, 81,
-            82, 141,
+            82, 83, 84, 141,
         ],
         edits: &[
             (12, BODY_28101),
@@ -379,6 +388,8 @@ impl ProfileSpec {
         pool.push(intersection_data());
         pool.push(observed_opening_node());
         pool.extend(super::assembly_definitions());
+        pool.extend(super::transmit::group_definitions());
+        pool.push(super::legacy::key_definition());
         // SWEPT_SURF (67) keeps the public-reference layout of the SolidWorks set.
         pool.extend(
             super::solidworks::solidworks_definitions()

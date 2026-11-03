@@ -35,7 +35,9 @@ The five [legacy iCAD profiles](builtin-profiles.md#legacy-icad-embedded-keys)
 use this same default path in Python and Rust. In the released packages,
 SPUN_SURF records parse, but `map_brep` reports `geometry.unsupported_surface`
 and `complete=False` for documents containing them; the unreleased source maps
-them to `SpunSurface`. Raw success alone does not establish conversion.
+them to `SpunSurface` and converts them as surfaces of revolution, with their
+surface-parameter curves mapped onto OCCT's (angle, profile) parameters. Raw
+success alone does not establish conversion.
 
 The [SolidWorks profile](solidworks-partitions.md) does not apply delta streams
 or determine final configuration state. Unsupported delta records fail explicitly.
@@ -154,8 +156,23 @@ positions and the instances that reference it; each `Instance` names its part
 (a body or an assembly identifier with `part_kind`), its sign, its owning
 assembly and the stored `Transform` (rotation rows, translation, scale and the
 component flags), whose `apply` evaluates `(rotation · x + translation) · scale`.
-The transforms are not applied to the bodies' geometry; the entity counts and
-the `check` output include both collections.
+The transforms are not applied to the bodies' geometry by `map_brep`; the
+entity counts and the `check` output include both collections, and
+`to_occt(..., place_instances=True)` places the copies (below).
+
+`BrepModel.attributes` lists the `ATTRIBUTE` nodes with the identifier of
+their definition (`SDL/TYSA_COLOUR`, `SDL/TYSA_NAME`, a producer's own
+name), the definition's `type_id`, the owning entity (`AttributeOwner`: a
+mapped body, face, edge, vertex, region, shell, loop, assembly, instance,
+point, curve or surface, or the raw node of an unmapped owner such as a fin)
+and the fields as `AttributeField` values: integers, reals, tags, text,
+unicode text, points, vectors, directions or axes (two vectors each), or an
+unsupported value node kept by name. Bodies and faces list the
+ids of their own attributes; `attributes_of(kind, id)`, `colour_of(kind, id)`
+(the three reals of the system colour, 0 to 1) and `name_of(kind, id)` read
+them. An attribute whose definition, identifier or owner pointer does not
+resolve fails the mapping; the attribute chains of the nodes themselves are
+not followed.
 
 `ParsedBrep.complete`, `BrepSummary.complete`, and `BrepModel.complete` describe
 the same source-mapping stage. A complete model may still have unavailable
@@ -276,7 +293,8 @@ orientation, and topology IDs are not.
 The current exact path covers point, bounded line, vertex-free full circle and
 ellipse, bounded parabola and hyperbola branches, explicitly parameterized
 trimmed curves, plane, cylinder, cone frustum, untrimmed sphere and ring torus,
-open non-periodic non-rational 3D NURBS, and exact offset surfaces under the
+3D NURBS (rational or not; a closed or periodic one is built over its stored
+knot vector and checked to meet itself), and exact offset surfaces under the
 constraints reported by `geometry_coverage()`. It constructs shared vertices,
 edges, wires, faces,
 shells, and bodies directly from `BrepModel`; it does not recreate source
@@ -291,7 +309,8 @@ supports and uses bounded numerical 3D approximation or intersection fitting.
 `to_occt()` selects it whenever the analytic path cannot express the source:
 surface-parameter or intersection curves, circle or ellipse edges bounded by
 vertices, trimmed sphere or torus faces, swept faces (a section curve swept
-along a direction), and NURBS or offset faces with several loops. A source cone measures its v along the axis, so parameter
+along a direction), spun faces (a profile revolved about an axis), and NURBS
+or offset faces with several loops. A source cone measures its v along the axis, so parameter
 curves on cones are mapped onto OCCT's generator parameter. An edge whose
 curve passes through a sphere pole or a cone apex, where no pcurve can follow
 it (a SolidWorks sphere is two halves cut along a great circle through its
@@ -338,6 +357,33 @@ a vertex-free Parasolid circle can acquire an OCCT seam vertex, so edge and
 vertex counts are validation evidence rather than identity claims.
 
 The default is `require_complete=True, heal=False`; healing remains unavailable.
+
+`partial=True` keeps going when a face cannot be built: the face is dropped
+with its reason, the solid it bounded comes back as an open shell, and a body
+left without a converted face is skipped. The report then has
+`conversion_complete=False`, lists `faces_dropped` (face and body ids, reason,
+source node), `bodies_failed` and `bodies_partial`, carries the
+`occt.faces_dropped` and `occt.bodies_failed` warnings (the first fifty entries
+as JSON details), does not compare the source metrics, and reports an invalid
+partial shape as a warning instead of failing. A model where every face
+builds converts exactly as in strict mode; a model where no body survives
+still raises `occt.construction_failed`, with the dropped faces in the error's
+report. STEP export refuses a partial conversion; the preview accepts one
+under `allow_partial=True` (the `viewer --allow-partial` option sets both).
+
+`place_instances=True` returns the bodies positioned by the assembly
+structure as transformed copies, one per chain of instances from a root
+assembly (an assembly no instance references) down to a body, composing
+`(rotation . x + translation) . scale` along the chain with the translation
+in the target unit. Bodies no instance references stay where they are. The
+source map follows the copies: every relation of a placed body is rewritten
+onto the copy's subshapes with the instance chain in its note, and each copy
+gains a `generated` relation from its placing instance. The report counts
+`instances_placed`, `instances_negative` (negative instances are placed and
+counted, not subtracted) and `bodies_unreferenced`; its metrics and validity
+describe the placed shape, while the source metrics are still compared with
+the bodies as built. A transform whose rows are not orthogonal and of equal
+length fails the conversion.
 Unsupported UV/intersection variants, blends with unequal offsets, invalid
 loop topology, unknown orientation, invalid OCCT shapes, and metric mismatches
 raise `OcctConversionError`. In the released packages rational, closed or

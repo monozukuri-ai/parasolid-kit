@@ -134,7 +134,7 @@ fn membership_is_explicit_and_scoped_to_the_exact_base() -> Result<()> {
         BuiltinProfileCoverage::FamilyInferred
     );
     assert_eq!(family.lookup_type("13006", 204), SchemaTypeLookup::Absent);
-    for other in ["SCH_3000310_30100_13006", "SCH_3000310_30000_13007"] {
+    for other in ["SCH_3000310_30900_13006", "SCH_3000310_30000_13007"] {
         assert!(
             registry
                 .provider_for_key(&SchemaKey::parse(other)?)

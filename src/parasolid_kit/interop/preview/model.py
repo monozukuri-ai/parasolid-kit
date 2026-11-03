@@ -121,10 +121,12 @@ class PreviewReport:
             raise ValueError("preview report status must be complete or partial")
         if self.partial != (self.status == "partial"):
             raise ValueError("preview report status and partial flag must agree")
-        if not self.conversion_complete or not self.occt_valid:
-            raise ValueError("successful preview reports require a complete valid conversion")
-        if not self.source_complete and not self.partial:
-            raise ValueError("an incomplete source must produce a partial preview report")
+        if not self.occt_valid:
+            raise ValueError("successful preview reports require a valid conversion")
+        if not (self.source_complete and self.conversion_complete) and not self.partial:
+            raise ValueError(
+                "an incomplete source or conversion must produce a partial preview report"
+            )
         if self.partial and not self.options.allow_partial:
             raise ValueError("partial preview reports require allow_partial=True")
         if not self.glb_validation.valid:

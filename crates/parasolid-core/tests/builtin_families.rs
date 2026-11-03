@@ -37,9 +37,9 @@ fn family_digest(family_id: &str, members: &[FamilyMember], base: &[FamilyMember
 #[test]
 fn every_exact_key_belongs_to_one_derived_family() -> support::Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
-    // Twelve standard families (9008, 13006 … 33103) and seventeen embedded
-    // families (15003-13006 … 37102-13006) are derived from the 50 exact profiles.
-    assert_eq!(registry.families().len(), 29);
+    // Seventeen standard families (9003 … 33103) and nineteen embedded
+    // families (15003-13006 … 37102-13006) are derived from the 57 exact profiles.
+    assert_eq!(registry.families().len(), 36);
     let mut covered = 0;
     for profile in registry.profiles() {
         for key in profile.accepted_schema_keys() {
@@ -163,34 +163,40 @@ fn producer_families_merge_the_expected_members() -> support::Result<()> {
             "parasolid-2600217-25001-13006-r1"
         ]
     );
+    // One public NX key each anchors these families; other builds of the two
+    // schemas resolve through them.
+    assert_eq!(members("30100-13006")?, ["nx-3001232-30100-13006-r1"]);
+    assert_eq!(members("34001-13006")?, ["nx-3400176-34001-13006-r1"]);
 
     // Every embedded family over 13006 takes the reviewed declarations of all
     // 13006 profiles: the SolidWorks swept surface and blends reach the iCAD-only
     // families, and the Onshape 37.1 membership audit (176 absent) applies to all.
-    for family_id in ["20000-13006", "19008-13006", "37102-13006"] {
+    for family_id in ["20000-13006", "19008-13006", "37102-13006", "30100-13006"] {
         let family = registry
             .profile(&format!("family-{family_id}"))
             .ok_or("family")?;
         assert_eq!(family.absent_base_types().collect::<Vec<_>>(), [176, 204]);
-        for kind in [10, 11, 54, 56, 59, 60, 67, 68, 90, 91, 100, 101] {
+        for kind in [
+            10, 11, 54, 56, 59, 60, 67, 68, 85, 86, 87, 88, 89, 90, 91, 100, 101,
+        ] {
             assert!(
                 family.definition(kind).is_some(),
                 "{family_id} lacks {kind}"
             );
         }
-        // The shared 50 declarations (with ASSEMBLY, INSTANCE and TRANSFORM)
-        // plus GROUP and MEMBER_OF_GROUP from the Parasolid 24 acceptance-test
-        // profile.
-        assert_eq!(family.definitions().len(), 52);
+        // The shared 55 declarations (with ASSEMBLY, INSTANCE, TRANSFORM and
+        // the point, vector, axis, tag and direction value nodes) plus GROUP
+        // and MEMBER_OF_GROUP from the Parasolid 24 acceptance-test profile.
+        assert_eq!(family.definitions().len(), 57);
         assert!(!family.base_members().is_empty());
     }
     // The standard 13006 family likewise gains the embedded profiles' declarations.
     let standard = registry.profile("family-13006").ok_or("family")?;
     assert!(standard.definition(54).is_some() && standard.definition(101).is_some());
     // A standard family of another revision keeps only its own revision's layouts.
-    let revision_20000 = registry.profile("family-20000").ok_or("family")?;
-    assert!(revision_20000.base_members().is_empty());
-    assert!(revision_20000.definition(54).is_none());
+    let revision_28101 = registry.profile("family-28101").ok_or("family")?;
+    assert!(revision_28101.base_members().is_empty());
+    assert!(revision_28101.definition(54).is_none());
     Ok(())
 }
 
@@ -232,6 +238,21 @@ fn an_exact_profile_is_completed_by_its_family() -> support::Result<()> {
         other_build.profile().metadata().coverage,
         BuiltinProfileCoverage::FamilyInferred
     );
+    Ok(())
+}
+
+#[test]
+fn every_compiled_exact_profile_has_its_canonical_hash() -> support::Result<()> {
+    // The per-profile tests pin most digests; this covers the transmit-file
+    // profiles too and prints the recomputed digest of any that drifted.
+    let mut mismatches = Vec::new();
+    for profile in BuiltinProfileRegistry::compiled()?.profiles() {
+        let digest = support::profile_hash(profile)?;
+        if profile.metadata().profile_sha256 != digest {
+            mismatches.push(format!("HASH {} {digest}", profile.metadata().profile_id));
+        }
+    }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
     Ok(())
 }
 

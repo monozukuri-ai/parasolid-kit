@@ -227,7 +227,7 @@ def test_trim_scope_and_binary_truncation():
         with pytest.raises(ParseError):
             parse_xb(data[:end])
     with pytest.raises(ParseError):
-        parse_xb(data.replace(EMBEDDED.encode(), b"SCH_3000311_30100_13006"))
+        parse_xb(data.replace(EMBEDDED.encode(), b"SCH_3000311_30900_13006"))
 
 
 @pytest.mark.parametrize("basis_sense", ["+", "-"])

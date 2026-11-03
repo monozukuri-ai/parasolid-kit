@@ -37,7 +37,7 @@ KEYS = {
     "SCH_2600169_25001_13006": "nx-2600169-25001-13006-r1",
     "SCH_3101299_31100_13006": "family-31100-13006",
     "SCH_1901315_19008_13006": "icad-1901315-19008-13006-r1",
-    STANDARD_KEY: "icad-2401000-20000-r2",
+    STANDARD_KEY: "icad-2401000-20000-r3",
 }
 # A quarter turn about z, stored row by row.
 ROTATION = (0, -1, 0, 1, 0, 0, 0, 0, 1)

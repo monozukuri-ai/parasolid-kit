@@ -560,6 +560,7 @@ def _run(arguments: argparse.Namespace) -> int:
             target_unit=arguments.target_unit,
             require_complete=not arguments.allow_partial,
             source_identity=f"sha256:{source_sha256}",
+            partial=arguments.allow_partial,
         )
         output = arguments.output or arguments.path.with_name(
             f"{arguments.path.stem}.parasolid-preview"

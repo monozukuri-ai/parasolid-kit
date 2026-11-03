@@ -62,6 +62,12 @@ class OcctConversionOptions:
     heal: bool = False
     validation: ValidationTolerances = field(default_factory=ValidationTolerances)
     source_identity: str | None = None
+    # Drop the faces whose OCCT construction fails and the bodies left without
+    # faces instead of failing the whole conversion; the report lists them.
+    partial: bool = False
+    # Place the bodies positioned by the assembly instances as transformed
+    # copies; bodies no instance references stay where they are.
+    place_instances: bool = False
 
     def __post_init__(self) -> None:
         for name in ("source_unit", "target_unit"):
@@ -70,7 +76,7 @@ class OcctConversionOptions:
                 supported = ", ".join(UNIT_TO_METRES)
                 raise ValueError(f"{name} must be one of: {supported}")
             object.__setattr__(self, name, cast(LengthUnit, value))
-        for name in ("require_complete", "heal"):
+        for name in ("require_complete", "heal", "partial", "place_instances"):
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be a boolean")
         if not isinstance(self.validation, ValidationTolerances):
@@ -101,6 +107,8 @@ class OcctConversionOptions:
             "applied_scale": self.applied_scale,
             "require_complete": self.require_complete,
             "heal": self.heal,
+            "partial": self.partial,
+            "place_instances": self.place_instances,
             "validation": self.validation.to_dict(),
             "source_identity": self.source_identity,
         }

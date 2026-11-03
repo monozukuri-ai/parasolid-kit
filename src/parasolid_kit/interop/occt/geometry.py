@@ -436,8 +436,8 @@ class GeometryFactory:
     ) -> object:
         """Embed open 2D poles, rational or not, using the support's parameter units.
 
-        ``section`` is the section curve of a swept support, whose own
-        parameter is the support's u.
+        ``section`` is the section curve of a swept support or the profile
+        curve of a spun support, whose own parameter is the support's u.
         """
         from OCP.Geom2d import Geom2d_BSplineCurve
         from OCP.gp import gp_Pnt2d
@@ -465,16 +465,27 @@ class GeometryFactory:
             # v is the distance along the sweep direction.
             u_scale = self.scale if isinstance(section, LineCurve) else 1.0
             v_scale = self.scale
+        elif isinstance(surface, SpunSurface):
+            # The source parameterises a spun surface by profile parameter u
+            # (a length along a line profile) and angle v; OCCT puts the angle
+            # first, and `spun_surface` reverses the axis so the normals
+            # agree, which also reverses the angle: (u, v) maps to (-v, u).
+            u_scale = self.scale if isinstance(section, LineCurve) else 1.0
+            v_scale = 1.0
         else:
             raise ValueError("unsupported parameter-curve support surface")
         from OCP.TColStd import TColStd_Array1OfReal
 
+        swap = isinstance(surface, SpunSurface)
         poles = TColgp_Array1OfPnt2d(1, len(curve.control_vertices))
         weights = TColStd_Array1OfReal(1, len(curve.control_vertices))
         for index, values in enumerate(curve.control_vertices, 1):
             weight = values[2] if curve.rational else 1.0
             u, v = values[0] / weight, values[1] / weight
-            poles.SetValue(index, gp_Pnt2d(u * u_scale, v * v_scale))
+            if swap:
+                poles.SetValue(index, gp_Pnt2d(-v * v_scale, u * u_scale))
+            else:
+                poles.SetValue(index, gp_Pnt2d(u * u_scale, v * v_scale))
             weights.SetValue(index, weight)
         knots = _real_array(curve.knots)
         multiplicities = _integer_array(curve.knot_multiplicities)

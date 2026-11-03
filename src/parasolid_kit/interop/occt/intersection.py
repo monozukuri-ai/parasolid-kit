@@ -52,15 +52,29 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
     if len(samples) + len(anchors) > 10_000:
         raise ValueError("intersection input exceeds 10000 points")
 
+    # One projector per surface: building the extrema search of a B-spline
+    # surface samples it, which dominated the fit when every point built its own.
+    projectors: dict[int, tuple[object, object]] = {}
+
+    def projector(surface: object) -> tuple[object, object]:
+        key = id(surface)
+        if key not in projectors:
+            operation = GeomAPI_ProjectPointOnSurf()
+            u1, u2, v1, v2 = surface.Bounds()
+            operation.Init(surface, u1, u2, v1, v2, numerical)
+            projectors[key] = (operation, ShapeAnalysis_Surface(surface))
+        return projectors[key]
+
     def project(point: object, surface: object) -> tuple:
-        operation = GeomAPI_ProjectPointOnSurf(point, surface, numerical)
+        operation, analysis = projector(surface)
+        operation.Perform(point)
         if operation.NbPoints():
             u, v = operation.LowerDistanceParameters()
         else:
             # The extrema search returns no candidate on some surfaces (a pipe
             # B-spline near its seam, a point close to a singularity); the
             # shape-analysis projection still finds the nearest parameters.
-            uv = ShapeAnalysis_Surface(surface).ValueOfUV(point, numerical)
+            uv = analysis.ValueOfUV(point, numerical)
             u, v = uv.X(), uv.Y()
             if not (isfinite(u) and isfinite(v)):
                 raise ValueError("intersection point/surface projection failed")

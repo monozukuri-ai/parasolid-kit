@@ -121,8 +121,10 @@ def write_preview(
         )
 
     artifacts = tuple(_artifact(name, payloads[name]) for name in sorted(payloads))
-    partial = not brep.complete or bool(
-        tessellated.missing_face_count or tessellated.missing_edge_count
+    partial = (
+        not brep.complete
+        or not converted.report.conversion_complete
+        or bool(tessellated.missing_face_count or tessellated.missing_edge_count)
     )
     report = PreviewReport(
         schema_version=1,

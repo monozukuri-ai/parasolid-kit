@@ -3,10 +3,11 @@
 #![allow(clippy::too_many_lines)]
 
 use parasolid_core::brep::{
-    Assembly, Body, BrepDiagnostic, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind, Edge,
-    Face, HalfEdge, Instance, InstancePart, Loop, NurbsCurve, NurbsSurface, PointGeometry, Region,
-    Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind, Transform, Vector3, Vertex,
-    map_xb_brep_with_diagnostic_limit, map_xt_brep_with_diagnostic_limit,
+    Assembly, Attribute, AttributeField, AttributeOwner, Body, BrepDiagnostic, BrepModel,
+    BrepSourceFormat, CurveGeometry, CurveKind, Edge, Face, HalfEdge, Instance, InstancePart, Loop,
+    NurbsCurve, NurbsSurface, PointGeometry, Region, Shell, SourceNodeRef, SurfaceGeometry,
+    SurfaceKind, Transform, Vector3, Vertex, map_xb_brep_with_diagnostic_limit,
+    map_xt_brep_with_diagnostic_limit,
 };
 use pyo3::{
     Bound, Py, PyRef, PyResult, Python, pyfunction,
@@ -196,6 +197,7 @@ fn model_to_python<'py>(py: Python<'py>, model: &BrepModel) -> PyResult<Bound<'p
     value.set_item("points", points_to_python(py, &model.points)?)?;
     value.set_item("curves", curves_to_python(py, &model.curves)?)?;
     value.set_item("surfaces", surfaces_to_python(py, &model.surfaces)?)?;
+    value.set_item("attributes", attributes_to_python(py, &model.attributes)?)?;
 
     let topology = PyDict::new(py);
     topology.set_item("valid", model.topology.valid)?;
@@ -301,6 +303,7 @@ fn bodies_to_python<'py>(py: Python<'py>, values: &[Body]) -> PyResult<Bound<'py
         value.set_item("regions", &body.regions)?;
         value.set_item("edges", &body.edges)?;
         value.set_item("vertices", &body.vertices)?;
+        value.set_item("attributes", &body.attributes)?;
         value.set_item("source", source_to_python(py, &body.source)?)?;
         result.append(value)?;
     }
@@ -347,6 +350,7 @@ fn faces_to_python<'py>(py: Python<'py>, values: &[Face]) -> PyResult<Bound<'py,
         value.set_item("loops", &face.loops)?;
         value.set_item("surface", face.surface)?;
         value.set_item("sense", face.sense.as_str())?;
+        value.set_item("attributes", &face.attributes)?;
         value.set_item("source", source_to_python(py, &face.source)?)?;
         result.append(value)?;
     }
@@ -819,6 +823,89 @@ fn diagnostic_to_python<'py>(
     value.set_item("role", diagnostic.role)?;
     value.set_item("source", source_to_python(py, &diagnostic.source)?)?;
     Ok(value)
+}
+
+fn attributes_to_python<'py>(
+    py: Python<'py>,
+    values: &[Attribute],
+) -> PyResult<Bound<'py, PyList>> {
+    let result = PyList::empty(py);
+    for attribute in values {
+        let value = PyDict::new(py);
+        value.set_item("id", attribute.id)?;
+        value.set_item("identifier", &attribute.identifier)?;
+        value.set_item("kind_id", attribute.kind_id)?;
+        let owner = PyDict::new(py);
+        owner.set_item("kind", attribute.owner.kind())?;
+        owner.set_item("id", attribute.owner.id())?;
+        owner.set_item(
+            "source",
+            match &attribute.owner {
+                AttributeOwner::Other(source) => Some(source_to_python(py, source)?),
+                _ => None,
+            },
+        )?;
+        value.set_item("owner", owner)?;
+        let fields = PyList::empty(py);
+        for field in &attribute.fields {
+            let item = PyDict::new(py);
+            match field {
+                AttributeField::Integers(values) => {
+                    item.set_item("kind", "integers")?;
+                    item.set_item("values", values)?;
+                }
+                AttributeField::Reals(values) => {
+                    item.set_item("kind", "reals")?;
+                    item.set_item("values", values)?;
+                }
+                AttributeField::Text(text) => {
+                    item.set_item("kind", "text")?;
+                    item.set_item("value", text)?;
+                }
+                AttributeField::Unicode(text) => {
+                    item.set_item("kind", "unicode")?;
+                    item.set_item("value", text)?;
+                }
+                AttributeField::Points(values) => {
+                    item.set_item("kind", "points")?;
+                    item.set_item("values", vector_values(values))?;
+                }
+                AttributeField::Vectors(values) => {
+                    item.set_item("kind", "vectors")?;
+                    item.set_item("values", vector_values(values))?;
+                }
+                AttributeField::Directions(values) => {
+                    item.set_item("kind", "directions")?;
+                    item.set_item("values", vector_values(values))?;
+                }
+                AttributeField::Axes(values) => {
+                    item.set_item("kind", "axes")?;
+                    item.set_item("values", vector_values(values))?;
+                }
+                AttributeField::Tags(values) => {
+                    item.set_item("kind", "tags")?;
+                    item.set_item("values", values)?;
+                }
+                AttributeField::Unsupported {
+                    type_name,
+                    node_index,
+                } => {
+                    item.set_item("kind", "unsupported")?;
+                    item.set_item("type_name", type_name)?;
+                    item.set_item("node_index", node_index)?;
+                }
+            }
+            fields.append(item)?;
+        }
+        value.set_item("fields", fields)?;
+        value.set_item("source", source_to_python(py, &attribute.source)?)?;
+        result.append(value)?;
+    }
+    Ok(result)
+}
+
+fn vector_values(values: &[Option<Vector3>]) -> Vec<Option<(f64, f64, f64)>> {
+    values.iter().map(|value| value.map(vector_tuple)).collect()
 }
 
 fn source_to_python<'py>(py: Python<'py>, source: &SourceNodeRef) -> PyResult<Bound<'py, PyDict>> {

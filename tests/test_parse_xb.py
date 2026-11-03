@@ -174,7 +174,7 @@ def test_parse_xb_accepts_a_path_and_rejects_missing_catalog(tmp_path: Path) -> 
     assert document.schema_resolution.coverage == "family_inferred"
     assert document.nodes[0].index == 1
 
-    unknown_schema = payload.replace(b"SCH_3000000_30000_13006", b"SCH_3000000_30100_13006")
+    unknown_schema = payload.replace(b"SCH_3000000_30000_13006", b"SCH_3000000_30900_13006")
     with pytest.raises(SchemaError) as captured:
         parse_xb(unknown_schema)
 

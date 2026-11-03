@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+- Partial OCCT conversion: `to_occt(..., partial=True)` drops a face whose
+  construction fails instead of failing the conversion, returns a solid that
+  lost a face as an open shell and skips a body left without a face. The
+  report lists `faces_dropped` (with the reason and source node),
+  `bodies_failed` and `bodies_partial`, carries the `occt.faces_dropped` and
+  `occt.bodies_failed` warnings, and has `conversion_complete=False`; the
+  source metrics are not compared and an invalid partial shape is a warning.
+  A model where nothing fails converts as in strict mode, and a model where
+  no body survives still fails. STEP export refuses a partial conversion; the
+  preview accepts one with `allow_partial`, which the `viewer` option now
+  sets for both. `OcctConversionOptions.partial`, `DroppedFace` and
+  `FailedBody` are new, and the report dictionary gains a `partial` section.
+- Attributes: `map_brep` returns the `ATTRIBUTE` nodes as
+  `BrepModel.attributes`, each with its definition's `ATT_DEF_ID` string
+  (`SDL/TYSA_COLOUR`, `SDL/TYSA_NAME`, ...), its `type_id`, its owner (a
+  mapped body, face, edge, vertex, region, shell, loop, assembly, instance,
+  point, curve or surface, or the raw node of an unmapped owner) and its
+  fields as integer, real, text, unicode, point, vector, direction, axis or
+  tag values from `INT_VALUES`, `REAL_VALUES`, `CHAR_VALUES`,
+  `UNICODE_VALUES`, `POINT_VALUES`, `VECTOR_VALUES`, `DIRECTION_VALUES`,
+  `AXIS_VALUES` (two vectors per axis) and `TAG_VALUES`; a pointer field is
+  kept by name, and an empty field, transmitted as a null pointer, is typed
+  by the definition. Bodies and faces list their attribute ids;
+  `attributes_of`, `colour_of` and `name_of` read them. The attribute node
+  types gain B-Rep roles, and an attribute whose definition, identifier or
+  owner pointer does not resolve fails the mapping. Sixteen of the 22 public
+  X_T files carry the system colour; the MicroStation files carry only an
+  integer `BSI_OldFace`.
+- Spun surfaces convert: surface-parameter curves on a `SpunSurface` are
+  mapped from the source's (profile parameter, angle) onto OCCT's (angle,
+  profile) parameters, with the angle reversed as the surface's axis is, and
+  faces on spun surfaces take the parametric path. Rational NURBS surfaces
+  are no longer rejected by the pre-flight check for their homogeneous
+  control grid; the builder already carried their weights, and a closed or
+  periodic surface is built over its stored knot vector.
+- Instance placement: `to_occt(..., place_instances=True)` returns the
+  bodies positioned by the assembly structure as transformed copies, one per
+  instance chain from a root assembly, composing the stored transforms with
+  the translation in the target unit; bodies no instance references stay in
+  place, negative instances are placed and counted, and the source map is
+  rewritten onto the copies with a `generated` relation from each placing
+  instance (`SourceEntityKind.INSTANCE`). The report counts
+  `instances_placed`, `instances_negative` and `bodies_unreferenced`; a
+  transform that is not a rotation with a uniform scale fails.
+- Conversion speed: the intersection fit keeps one surface projector per
+  support instead of rebuilding the extrema search of a B-spline support for
+  every point, which cut the 300-face MicroStation part from 49 s to 21 s;
+  the fit was 41 s of it. The chart-residual correction of blend contact
+  curves fails when the residual exceeds one percent of the chart spacing,
+  so a wrong spine or support cannot hide behind it.
+- Corpus regression: `scripts/corpus_matrix.py` runs every file of a
+  directory through parse, mapping and OCCT in its own process and writes
+  the rows as JSON; `tests/test_public_corpus.py` runs it over the directory
+  named by `PARASOLID_KIT_CORPUS` and compares the failures with the
+  directory's `expected.json`, and is skipped without the variable.
 - Schema families: a key that no exact profile accepts is read with the
   profile derived for its schema family, the key without its modeller build
   (`<effective>[-<base>]`). The registry merges the reviewed definitions and
@@ -15,7 +70,7 @@
   `BuiltinProfileRegistry::families`/`family_for_key`, `FamilyMember` and the
   Python `builtin_profiles()` / `SchemaKey.family_id` are new;
   `BuiltinSchemaProvider` owns its selected key and is no longer `Copy`. The
-  29 derived families are listed in the support matrix. Motivation: of 22
+  34 derived families are listed in the support matrix. Motivation: of 22
   public X_T files from SolidWorks, NX, Inventor, ANSYS, MicroStation and
   Onshape, 18 carried distinct keys and 17 had no exact profile, 14 of them
   under schema families that are already reviewed.
@@ -41,7 +96,19 @@
   `nx-2600169-25001-13006-r1` (`SCH_2600169_25001_13006`, NX) and
   `parasolid-2600217-25001-13006-r1` (`SCH_2600217_25001_13006`, the Parasolid
   26 acceptance-test files) reuse the reviewed 13006 declaration set; schema
-  25001 gains its first family.
+  25001 gains its first family. `nx-3001232-30100-13006-r1`
+  (`SCH_3001232_30100_13006`, three public NX parts) and
+  `nx-3400176-34001-13006-r1` (`SCH_3400176_34001_13006`, one public NX part)
+  anchor the first families of schemas 30100 and 34001, which failed with
+  `schema.missing_base_schema` before; an embedded key of a schema no public
+  file has shown still does.
+- Attribute value nodes: the shared 13006 declaration set, hence every 13006
+  family, declares POINT_VALUES (85), VECTOR_VALUES (86), AXIS_VALUES (87),
+  TAG_VALUES (88) and DIRECTION_VALUES (89) from the public XT reference
+  (printed pages 106-108); two public SolidWorks 2011 parts (VECTOR_VALUES)
+  and three Solid Edge and Onshape parts (AXIS_VALUES) failed with
+  `schema.unknown_base_type` before. The SolidWorks and transmit profile
+  digests change.
 - Standard profiles `icad-1700000-16100-r2` (adds the 19 types seen in a
   public NX 7 part: INTERSECTION, CHART, LIMIT, CONE, SPHERE, TORUS,
   BLENDED_EDGE, BLEND_BOUND, REAL_VALUES, CHAR_VALUES, TRIMMED_CURVE, the
@@ -198,6 +265,36 @@
   and converts, so 21 of the 22 public X_T files convert strictly; the
   MicroStation file under schema 9008 follows below.
   The release-corpus baselines record the new header field.
+- Older standard keys: `nx-900141-9003-r1` (`SCH_900141_9003`, NX
+  assemblies of Parasolid 9.0.141), `nx-1000252-10004-r1`
+  (`SCH_1000252_10004`, NX assemblies of Parasolid 10.0.252, and a SolidWorks
+  98Plus part through the family), `ironcad-1100129-11004-r1`
+  (`SCH_1100129_11004`, ten IronCAD parts), `solidworks-1200000-12006-r1`
+  (`SCH_1200000_12006`, the reference key, declaring the node types of the
+  reference's own transmit example) and `nx-1600000-16004-r1`
+  (`SCH_1600000_16004`, an NX part) join the MicroStation key in a new
+  legacy-keys module; schemas 9003, 10004, 11004, 12006 and 16004 gain their
+  families. Parasolid 10 keeps the 13006 BODY but still writes fins without
+  their attribute pointer; Parasolid 9 to 12 write `CURVE_DATA` with its
+  self-intersection state alone and the 12006-style `ATTRIB_DEF`; schema 9003
+  writes lists without the transmission flag; `KEY` (102) is declared from
+  the reference as a character string. The MicroStation profile now declares
+  the 44 node types of eight public files (four of other builds through the
+  family), B-spline surfaces, groups, offset and spun surfaces included; a
+  chart whose base scale is unset is accepted. `icad-2401000-20000-r3` adds
+  the ellipse, sphere, torus, blends and B-spline surfaces of six public
+  parts of another build, and `icad-2901000-28101-r2` the real and
+  character values of twenty.
+- A `B` (spine boundary) limit on an intersection curve is read like an
+  arbitrary limit, with one position, as SolidWorks writes it; values after
+  the declared knot, multiplicity and control-vertex counts of a NURBS node
+  are ignored instead of being required to be padding (SolidWorks 2019
+  sizes the arrays of a periodic curve alike and leaves earlier values
+  there); an isolated loop (one vertex inside a face, whose fin points at
+  itself with no edge and an insignificant sense, XT reference p. 91) is
+  left out of the face's wires and its vertex is not built, instead of
+  failing the conversion on the fin's unknown sense (NX writes them at cone
+  apices).
 - MicroStation modeler key: `microstation-901297-9008-r1` accepts
   `SCH_901297_9008`, the key of the Bentley X_T files written by Parasolid
   9.0.129 inside MicroStation (four public files of the NIST

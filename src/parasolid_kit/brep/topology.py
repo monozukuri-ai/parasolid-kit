@@ -115,6 +115,8 @@ class Body:
     edges: tuple[int, ...]
     vertices: tuple[int, ...]
     source: SourceNodeRef
+    # Ids into ``BrepModel.attributes``.
+    attributes: tuple[int, ...] = ()
 
 
 class AssemblyKind(str, Enum):
@@ -237,6 +239,8 @@ class Face:
     surface: int | None
     sense: Sense
     source: SourceNodeRef
+    # Ids into ``BrepModel.attributes``.
+    attributes: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -289,3 +293,97 @@ class Vertex:
     tolerance: float | None
     owner: SourceNodeRef
     source: SourceNodeRef
+
+
+class AttributeOwnerKind(str, Enum):
+    """Kind of entity an attribute is attached to."""
+
+    ASSEMBLY = "assembly"
+    INSTANCE = "instance"
+    BODY = "body"
+    REGION = "region"
+    SHELL = "shell"
+    FACE = "face"
+    LOOP = "loop"
+    EDGE = "edge"
+    VERTEX = "vertex"
+    POINT = "point"
+    CURVE = "curve"
+    SURFACE = "surface"
+    # A node the B-Rep model does not map, such as a fin or a group.
+    OTHER = "other"
+
+
+@dataclass(frozen=True, slots=True)
+class AttributeOwner:
+    """The entity an attribute is attached to: a mapped entity's id, or a raw node."""
+
+    kind: AttributeOwnerKind
+    id: int | None
+    source: SourceNodeRef | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, AttributeOwnerKind):
+            object.__setattr__(self, "kind", AttributeOwnerKind(self.kind))
+        if (self.kind is AttributeOwnerKind.OTHER) != (self.id is None):
+            raise ValueError("a mapped attribute owner has an id and an unmapped one has none")
+
+
+@dataclass(frozen=True, slots=True)
+class AttributeField:
+    """One field of an attribute: the values of one value node.
+
+    ``kind`` is ``integers``, ``reals`` or ``tags`` (``values`` holds the
+    numbers, ``None`` for an unset one), ``points``, ``vectors``, ``directions``
+    or ``axes`` (``values`` holds ``(x, y, z)`` triples, ``None`` for a null
+    one; an axis takes two triples in source order), ``text`` or ``unicode``
+    (``value`` holds the string), or ``unsupported`` (a value node kept by name).
+    """
+
+    kind: str
+    values: (
+        tuple[int | None, ...]
+        | tuple[float | None, ...]
+        | tuple[tuple[float, float, float] | None, ...]
+    ) = ()
+    value: str | None = None
+    type_name: str | None = None
+    node_index: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in {
+            "integers",
+            "reals",
+            "tags",
+            "points",
+            "vectors",
+            "directions",
+            "axes",
+            "text",
+            "unicode",
+            "unsupported",
+        }:
+            raise ValueError("attribute field kind is unknown")
+        if not isinstance(self.values, tuple):
+            object.__setattr__(self, "values", tuple(self.values))
+
+
+@dataclass(frozen=True, slots=True)
+class Attribute:
+    """One ATTRIBUTE node with the identifier of its definition.
+
+    ``identifier`` is the definition's ``ATT_DEF_ID`` string, such as
+    ``SDL/TYSA_COLOUR``; ``kind_id`` its ``type_id`` (8001 for the system
+    colour) when set.
+    """
+
+    id: int
+    identifier: str
+    kind_id: int | None
+    owner: AttributeOwner
+    fields: tuple[AttributeField, ...]
+    source: SourceNodeRef
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.fields, tuple):
+            object.__setattr__(self, "fields", tuple(self.fields))

@@ -56,6 +56,7 @@ from ...brep.geometry import (
     OffsetSurface,
     PlaneSurface,
     SphereSurface,
+    SpunSurface,
     SurfaceParametricCurve,
     SweptSurface,
     TorusSurface,
@@ -65,7 +66,7 @@ from ...brep.topology import BodyKind, RegionKind, Sense, Vector3
 from ...diagnostics import Diagnostic, DiagnosticKind, DiagnosticSeverity, SourceLocation
 from .intersection import fit_intersection, intersect_analytic, project_curve
 from .model import ShapeRelationKind, SourceEntityKind
-from .topology import BuiltTopology, TopologyBuilder, _sense_sign
+from .topology import BuiltTopology, TopologyBuilder, _reason, _sense_sign
 
 
 def subshapes(shape: object, kind: object) -> list:
@@ -153,19 +154,35 @@ class ParametricTopologyBuilder(TopologyBuilder):
     def build(self) -> BuiltTopology:
         self._build_vertices()
         for edge in self.model.edges:
-            self._build_edge(edge)
+            try:
+                self._build_edge(edge)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as error:
+                if not self.partial:
+                    raise
+                self.failed_edges[edge.id] = _reason(error)
+                self.edge_shapes.pop(edge.id, None)
+                self.split_edges.pop(edge.id, None)
+        for face in self.model.faces:
+            failed_edge = self._failed_edge_of(face)
+            if failed_edge is not None:
+                self._drop_face(
+                    face.id, f"edge {failed_edge} failed: {self.failed_edges[failed_edge]}"
+                )
         # All face pcurves must exist before a periodic seam splits shared rings.
-        for face in self.model.faces:
-            self._build_face(face)
-        for face in self.model.faces:
-            self._finish_face(face)
-        for face in self.model.faces:
-            shape = TopoDS.Face_s(self.context.Apply(self.face_shapes[face.id]))
-            if not BRepCheck_Analyzer(shape).IsValid():
-                shape = self._cover_wire_crossings(shape)
-                if not BRepCheck_Analyzer(shape).IsValid():
-                    raise ValueError(f"OCCT parametric face {face.id} is invalid")
-            self.face_shapes[face.id] = shape
+        for step in (self._build_face, self._finish_face, self._check_face):
+            for face in self.model.faces:
+                if face.id in self.dropped_faces:
+                    continue
+                try:
+                    step(face)
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except Exception as error:
+                    if not self.partial:
+                        raise
+                    self._drop_face(face.id, error)
         self._validate_source_boundaries()
         # The base wire builder records provisional relations; resolve them only
         # after every seam replacement has propagated to both adjacent faces.
@@ -177,7 +194,33 @@ class ParametricTopologyBuilder(TopologyBuilder):
             tuple(self.relations),
             tuple(dict.fromkeys(self.operations)),
             tuple(self.diagnostics),
+            body_shapes=tuple(bodies),
+            **self.partial_records(),
         )
+
+    def _check_face(self, face):
+        shape = TopoDS.Face_s(self.context.Apply(self.face_shapes[face.id]))
+        if not BRepCheck_Analyzer(shape).IsValid():
+            shape = self._cover_wire_crossings(shape)
+            if not BRepCheck_Analyzer(shape).IsValid():
+                raise ValueError(f"OCCT parametric face {face.id} is invalid")
+        self.face_shapes[face.id] = shape
+
+    def _guard_partial(self, error, face_ids):
+        """Drop the faces in partial mode; re-raise otherwise."""
+        if not self.partial:
+            raise error
+        for face_id in face_ids:
+            if face_id not in self.dropped_faces:
+                self._drop_face(face_id, error)
+
+    def _faces_of_edge(self, edge):
+        face_ids = []
+        for half_edge_id in edge.half_edges:
+            loop_id = self.half_edges[half_edge_id].loop
+            if loop_id is not None:
+                face_ids.append(self.loops[loop_id].face)
+        return face_ids
 
     def _edge_tolerance(self, edge):
         if edge.tolerance is not None and (not isfinite(edge.tolerance) or edge.tolerance < 0):
@@ -191,6 +234,8 @@ class ParametricTopologyBuilder(TopologyBuilder):
         super()._build_vertices()
         builder = BRep_Builder()
         for vertex in self.model.vertices:
+            if vertex.id not in self.vertex_shapes:
+                continue
             tolerance = vertex.tolerance or self.precision / self.geometry.scale
             if not isfinite(tolerance) or tolerance < 0:
                 raise ValueError(f"vertex {vertex.id} has an invalid tolerance")
@@ -503,6 +548,18 @@ class ParametricTopologyBuilder(TopologyBuilder):
             for point, parameter in zip(points, parameters, strict=True)
         ]
         drift = max(sum(r * r for r in residual) ** 0.5 for residual in residuals)
+        # The correction interpolates the residuals between chart points, so
+        # they must be small against the chart spacing; a residual of that
+        # order means the spine or support is not the one the chart follows.
+        spacing = min(
+            (a.Distance(b) for a, b in pairwise(points) if a.Distance(b) > numerical),
+            default=0.0,
+        )
+        if spacing and drift > 0.01 * spacing:
+            raise ValueError(
+                f"blend contact drift {drift:g} exceeds one percent of the chart spacing "
+                f"{spacing:g}"
+            )
         samples = []
         for (a, b), (first, second) in zip(pairwise(parameters), pairwise(residuals), strict=True):
             if abs(b - a) <= numerical:
@@ -566,6 +623,8 @@ class ParametricTopologyBuilder(TopologyBuilder):
         section = None
         if isinstance(support, SweptSurface):
             section = self.curves[support.section].definition
+        elif isinstance(support, SpunSurface):
+            section = self.curves[support.profile].definition
         return self.geometry.parameter_curve(curve, support, section=section)
 
     def _surface_trim(self, curve_id):
@@ -847,7 +906,8 @@ class ParametricTopologyBuilder(TopologyBuilder):
             BRepLib.SameParameter_s(shape, self.precision)
 
     def _build_face(self, face):
-        if not face.loops:
+        loops = self._trim_loops(face)
+        if not loops:
             raise ValueError(f"parametric face {face.id} requires explicit source trim loops")
         shape = TopoDS_Face()
         builder = BRep_Builder()
@@ -864,7 +924,7 @@ class ParametricTopologyBuilder(TopologyBuilder):
         opposed = _sense_sign(face.sense) * _sense_sign(self.surfaces[face.surface].sense) < 0
         if opposed:
             self.operations.append("reverse_opposed_face_loops")
-        for loop_id in face.loops:
+        for loop_id in loops:
             for half_edge_id in self.loops[loop_id].half_edges:
                 self._add_pcurve(self.half_edges[half_edge_id], shape)
             wire = self._make_wire(loop_id)
@@ -962,25 +1022,70 @@ class ParametricTopologyBuilder(TopologyBuilder):
         # output pcurve. Keep source tolerance and representation error separate.
         exceeded = {}
         for edge in self.model.edges:
-            curves = [
-                BRep_Tool.Curve_s(shape, 0.0, 0.0)
-                for shape in self.split_edges.get(edge.id) or [self.edge_shapes[edge.id]]
-            ]
-            source_tolerance = (
-                edge.tolerance or self.precision / (2 * self.geometry.scale)
-            ) * self.geometry.scale
-            approximation = self._edge_tolerance(edge)
-            validation = self.geometry.options.validation.linear_threshold(0.0)
-            budget = source_tolerance + approximation + validation
-            vertices = [
-                (
-                    self.geometry.point(self.points[self.vertices[i].point].position),
-                    BRep_Tool.Tolerance_s(self.vertex_shapes[i]),
+            if edge.id in self.failed_edges:
+                continue
+            try:
+                self._validate_edge_boundaries(edge, exceeded)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as error:
+                self._guard_partial(error, self._faces_of_edge(edge))
+        if exceeded:
+            edge_id = max(exceeded, key=lambda i: exceeded[i][0])
+            distance, tolerance, limit = exceeded[edge_id]
+            source = self.edges[edge_id].source
+            self.geometry_checks["edges_exceeding_source_tolerance"] = len(exceeded)
+            self.diagnostics.append(
+                Diagnostic(
+                    code="occt.parametric_approximation",
+                    severity=DiagnosticSeverity.WARNING,
+                    kind=DiagnosticKind.INVALID,
+                    fatal=False,
+                    message=(
+                        f"{len(exceeded)} edges have sampled FIN-to-output differences "
+                        "above their source edge tolerance; conversion error budgets passed"
+                    ),
+                    location=SourceLocation(byte_offset=source.byte_range.start),
+                    node_type=source.node_type,
+                    schema_key=self.model.schema_key,
+                    details={
+                        "edge_count": len(exceeded),
+                        "max_deviation_edge_id": edge_id,
+                        "max_deviation": distance,
+                        "source_edge_tolerance": tolerance,
+                        "conversion_limit": limit,
+                        "samples_per_fin": 33,
+                        "target_unit": self.geometry.options.target_unit,
+                    },
                 )
-                for i in (edge.start_vertex, edge.end_vertex)
-                if i is not None
-            ]
-            for half_edge_id in edge.half_edges:
+            )
+        self.operations.append("validate_source_fin_geometry")
+
+    def _validate_edge_boundaries(self, edge, exceeded):
+        curves = [
+            BRep_Tool.Curve_s(shape, 0.0, 0.0)
+            for shape in self.split_edges.get(edge.id) or [self.edge_shapes[edge.id]]
+        ]
+        source_tolerance = (
+            edge.tolerance or self.precision / (2 * self.geometry.scale)
+        ) * self.geometry.scale
+        approximation = self._edge_tolerance(edge)
+        validation = self.geometry.options.validation.linear_threshold(0.0)
+        budget = source_tolerance + approximation + validation
+        vertices = [
+            (
+                self.geometry.point(self.points[self.vertices[i].point].position),
+                BRep_Tool.Tolerance_s(self.vertex_shapes[i]),
+            )
+            for i in (edge.start_vertex, edge.end_vertex)
+            if i is not None
+        ]
+        for half_edge_id in edge.half_edges:
+            half_edge = self.half_edges[half_edge_id]
+            face_id = None if half_edge.loop is None else self.loops[half_edge.loop].face
+            if face_id in self.dropped_faces:
+                continue
+            try:
                 trimmed = self._surface_trim(self.half_edges[half_edge_id].curve)
                 if trimmed is None:
                     continue
@@ -1016,36 +1121,12 @@ class ParametricTopologyBuilder(TopologyBuilder):
                         previous = exceeded.get(edge.id, (0.0, source_tolerance, limit))
                         exceeded[edge.id] = max(previous, (distance, source_tolerance, limit))
                     self.geometry_checks["source_uv_samples"] += 1
-        if exceeded:
-            edge_id = max(exceeded, key=lambda i: exceeded[i][0])
-            distance, tolerance, limit = exceeded[edge_id]
-            source = self.edges[edge_id].source
-            self.geometry_checks["edges_exceeding_source_tolerance"] = len(exceeded)
-            self.diagnostics.append(
-                Diagnostic(
-                    code="occt.parametric_approximation",
-                    severity=DiagnosticSeverity.WARNING,
-                    kind=DiagnosticKind.INVALID,
-                    fatal=False,
-                    message=(
-                        f"{len(exceeded)} edges have sampled FIN-to-output differences "
-                        "above their source edge tolerance; conversion error budgets passed"
-                    ),
-                    location=SourceLocation(byte_offset=source.byte_range.start),
-                    node_type=source.node_type,
-                    schema_key=self.model.schema_key,
-                    details={
-                        "edge_count": len(exceeded),
-                        "max_deviation_edge_id": edge_id,
-                        "max_deviation": distance,
-                        "source_edge_tolerance": tolerance,
-                        "conversion_limit": limit,
-                        "samples_per_fin": 33,
-                        "target_unit": self.geometry.options.target_unit,
-                    },
-                )
-            )
-        self.operations.append("validate_source_fin_geometry")
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as error:
+                # A FIN that does not follow its edge drops only the face it
+                # belongs to; the edge and its other face stay.
+                self._guard_partial(error, [] if face_id is None else [face_id])
 
     def _record_boundaries(self):
         def record_many(kind, source, shapes, note=None):
@@ -1055,6 +1136,8 @@ class ParametricTopologyBuilder(TopologyBuilder):
 
         source_vertices = set()
         for vertex in self.model.vertices:
+            if vertex.id in self.isolated_vertices:
+                continue
             shape = self.context.Apply(self.vertex_shapes[vertex.id])
             record_many(SourceEntityKind.VERTEX, vertex, [shape])
             point = self.points[vertex.point]
@@ -1064,8 +1147,14 @@ class ParametricTopologyBuilder(TopologyBuilder):
         mapped_edges = {}
         curve_targets = defaultdict(dict)
         for edge in self.model.edges:
+            if edge.id in self.failed_edges:
+                continue
             shapes = subshapes(self.context.Apply(self.edge_shapes[edge.id]), TopAbs_EDGE)
             if not shapes:
+                if self.partial:
+                    self.failed_edges[edge.id] = "edge disappeared during seam construction"
+                    self._guard_partial(ValueError("edge disappeared"), self._faces_of_edge(edge))
+                    continue
                 raise ValueError(f"source edge {edge.id} disappeared during seam construction")
             mapped_edges[edge.id] = shapes
             source_edges.update(hash(shape) for shape in shapes)
@@ -1094,42 +1183,55 @@ class ParametricTopologyBuilder(TopologyBuilder):
         for curve_id, targets in curve_targets.items():
             record_many(SourceEntityKind.CURVE, self.curves[curve_id], list(targets.values()))
         for face in self.model.faces:
-            shape = self.face_shapes[face.id]
-            record_many(SourceEntityKind.FACE, face, [shape])
-            self._record_surface(self.surfaces[face.surface], shape)
-            wires = subshapes(shape, TopAbs_WIRE)
-            wire_edges = [{hash(edge) for edge in subshapes(wire, TopAbs_EDGE)} for wire in wires]
-            loop_targets = []
-            for loop_id in face.loops:
-                expected = {
-                    hash(edge)
-                    for hid in self.loops[loop_id].half_edges
-                    for edge in mapped_edges[self.half_edges[hid].edge]
-                }
-                candidates = [i for i, values in enumerate(wire_edges) if expected <= values]
-                if len(candidates) != 1:
-                    raise ValueError(
-                        f"source loop {loop_id} cannot be mapped to its final OCCT wire"
-                    )
-                loop_targets.append((loop_id, candidates[0]))
-            counts = Counter(index for _, index in loop_targets)
-            for loop_id, index in loop_targets:
-                loop = self.loops[loop_id]
-                relation = (
-                    ShapeRelationKind.MERGED if counts[index] > 1 else ShapeRelationKind.DIRECT
-                )
-                self._record(SourceEntityKind.LOOP, loop.id, loop.source, wires[index], relation)
-            for kind, known in ((TopAbs_EDGE, source_edges), (TopAbs_VERTEX, source_vertices)):
-                for generated in subshapes(shape, kind):
-                    if hash(generated) not in known:
-                        self._record(
-                            SourceEntityKind.FACE,
-                            face.id,
-                            face.source,
-                            generated,
-                            ShapeRelationKind.GENERATED,
-                            "periodic seam, split-boundary or surface-singularity vertex",
+            if face.id in self.dropped_faces:
+                continue
+            relation_count = len(self.relations)
+            try:
+                shape = self.face_shapes[face.id]
+                record_many(SourceEntityKind.FACE, face, [shape])
+                self._record_surface(self.surfaces[face.surface], shape)
+                wires = subshapes(shape, TopAbs_WIRE)
+                wire_edges = [
+                    {hash(edge) for edge in subshapes(wire, TopAbs_EDGE)} for wire in wires
+                ]
+                loop_targets = []
+                for loop_id in self._trim_loops(face):
+                    expected = {
+                        hash(edge)
+                        for hid in self.loops[loop_id].half_edges
+                        for edge in mapped_edges[self.half_edges[hid].edge]
+                    }
+                    candidates = [i for i, values in enumerate(wire_edges) if expected <= values]
+                    if len(candidates) != 1:
+                        raise ValueError(
+                            f"source loop {loop_id} cannot be mapped to its final OCCT wire"
                         )
+                    loop_targets.append((loop_id, candidates[0]))
+                counts = Counter(index for _, index in loop_targets)
+                for loop_id, index in loop_targets:
+                    loop = self.loops[loop_id]
+                    relation = (
+                        ShapeRelationKind.MERGED if counts[index] > 1 else ShapeRelationKind.DIRECT
+                    )
+                    self._record(
+                        SourceEntityKind.LOOP, loop.id, loop.source, wires[index], relation
+                    )
+                for kind, known in ((TopAbs_EDGE, source_edges), (TopAbs_VERTEX, source_vertices)):
+                    for generated in subshapes(shape, kind):
+                        if hash(generated) not in known:
+                            self._record(
+                                SourceEntityKind.FACE,
+                                face.id,
+                                face.source,
+                                generated,
+                                ShapeRelationKind.GENERATED,
+                                "periodic seam, split-boundary or surface-singularity vertex",
+                            )
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as error:
+                del self.relations[relation_count:]
+                self._guard_partial(error, [face.id])
 
     def _build_bodies(self):
         results = []
@@ -1140,38 +1242,65 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 material = regions
             shell_shapes = {}
             solids = []
+            open_body = False
             for region in material:
-                solid = BRepBuilderAPI_MakeSolid()
+                region_shells = []
                 for shell_id in region.shells:
                     shell = self.shells[shell_id]
                     faces = frozenset((*shell.back_faces, *shell.front_faces))
                     if not faces:
                         raise ValueError(f"shell {shell_id} has no boundary faces")
+                    available = [i for i in sorted(faces) if i in self.face_shapes]
+                    if not available:
+                        if not self.partial:
+                            raise ValueError(f"shell {shell_id} has no boundary faces")
+                        open_body = True
+                        continue
                     shape = TopoDS_Shell()
                     builder = BRep_Builder()
                     builder.MakeShell(shape)
-                    for face_id in sorted(faces):
+                    for face_id in available:
                         builder.Add(shape, self.face_shapes[face_id])
-                    if body.kind is BodyKind.SOLID and not BRep_Tool.IsClosed_s(shape):
-                        raise ValueError(f"shell {shell_id} is not closed")
+                    if body.kind is BodyKind.SOLID and (
+                        len(available) < len(faces) or not BRep_Tool.IsClosed_s(shape)
+                    ):
+                        if not self.partial:
+                            raise ValueError(f"shell {shell_id} is not closed")
+                        open_body = True
                     if faces in shell_shapes:
                         raise ValueError("material regions repeat the same boundary shell")
                     shell_shapes[faces] = shape
-                    solid.Add(shape)
+                    region_shells.append(shape)
                     if body.kind is BodyKind.SHEET:
                         solids.append((region.id, shape))
-                if body.kind is BodyKind.SOLID:
-                    if not solid.IsDone():
-                        raise ValueError(f"region {region.id} solid construction failed")
-                    region_shape = solid.Solid()
+                if body.kind is BodyKind.SOLID and region_shells:
+                    if open_body:
+                        # A solid region with a dropped face comes back as its
+                        # open shells, never as a solid.
+                        region_shape = self._make_root([(region.id, s) for s in region_shells])
+                    else:
+                        solid = BRepBuilderAPI_MakeSolid()
+                        for shape in region_shells:
+                            solid.Add(shape)
+                        if not solid.IsDone():
+                            raise ValueError(f"region {region.id} solid construction failed")
+                        region_shape = solid.Solid()
                     solids.append((region.id, region_shape))
                     self._record(SourceEntityKind.REGION, region.id, region.source, region_shape)
+            if not solids:
+                self.failed_bodies[body.id] = "every boundary face was dropped"
+                continue
+            if open_body:
+                self.partial_bodies.append(body.id)
+                self.operations.append("partial_body_open_shell")
             body_shape = self._make_root(solids)
             for region in regions:
                 for shell_id in region.shells:
                     shell = self.shells[shell_id]
                     key = frozenset((*shell.back_faces, *shell.front_faces))
                     if key not in shell_shapes:
+                        if self.partial:
+                            continue
                         raise ValueError(f"shell {shell_id} has no matching material boundary")
                     shape = shell_shapes[key]
                     self._record(

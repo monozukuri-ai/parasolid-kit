@@ -3,7 +3,7 @@
 pub(crate) mod assembly;
 pub(crate) mod icad_legacy;
 pub(crate) mod icad_standard;
-pub(crate) mod microstation;
+pub(crate) mod legacy;
 mod onshape_current;
 mod sch13006;
 mod sch30000;
@@ -11,7 +11,7 @@ pub(crate) mod solidworks;
 pub(crate) mod transmit;
 pub use icad_legacy::icad_legacy_13006;
 pub use icad_standard::icad_legacy_standard;
-pub use microstation::microstation_9008;
+pub use legacy::legacy_standard_keys;
 pub use transmit::transmit_13006;
 
 pub(crate) use assembly::definitions as assembly_definitions;
@@ -27,6 +27,7 @@ pub(crate) use sch13006::bspline_surface_definitions as sch13006_bspline_surface
 pub(crate) use sch13006::definitions as sch13006_definitions;
 pub(crate) use sch13006::icad_sch30000_13006_definitions;
 pub(crate) use sch13006::sp_curve_definitions as sch13006_sp_curve_definitions;
+pub(crate) use sch13006::value_node_definitions as sch13006_value_node_definitions;
 pub use sch13006::{icad_sch30000_13006, onshape_sch13006};
 pub use sch30000::onshape_sch30000;
 

@@ -206,7 +206,19 @@ impl RoleAccess {
                 133 => "TRIMMED_CURVE",
                 100 => "TRANSFORM",
                 204 => "INTERSECTION_DATA",
-                _ => "", // List/attribute types cannot acquire roles from their names.
+                79 => "ATT_DEF_ID",
+                80 => "ATTRIB_DEF",
+                81 => "ATTRIBUTE",
+                82 => "INT_VALUES",
+                83 => "REAL_VALUES",
+                84 => "CHAR_VALUES",
+                85 => "POINT_VALUES",
+                86 => "VECTOR_VALUES",
+                87 => "AXIS_VALUES",
+                88 => "TAG_VALUES",
+                89 => "DIRECTION_VALUES",
+                98 => "UNICODE_VALUES",
+                _ => "", // List types cannot acquire roles from their names.
             },
         }
     }
@@ -321,7 +333,11 @@ fn standard_definitions(
 ) -> Option<Result<Vec<crate::TypeDefinition>, ParseError>> {
     crate::schema::profiles::icad_standard::PROFILES
         .iter()
-        .chain(crate::schema::profiles::microstation::PROFILES)
+        .chain(
+            crate::schema::profiles::legacy::PROFILES
+                .iter()
+                .map(|item| &item.profile),
+        )
         .find(|spec| {
             key == spec.key
                 && profile_id == spec.id
@@ -786,6 +802,26 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
             ("flag", 7, "flag", "d"),
             ("perspective_vector", 8, "perspective", "v"),
         ],
+        // Attributes (public reference pp. 98-110): the definition, its
+        // identifier string and the value nodes of each field.
+        79 => &[("string", 0, "identifier_bytes", "c")],
+        80 => &[
+            ("identifier", 1, "identifier_ref", "p"),
+            ("type_id", 2, "kind_id", "d"),
+            ("fields", 6, "value_kinds", "u"),
+        ],
+        81 => &[
+            ("definition", 1, "definition_ref", "p"),
+            ("owner", 2, "owner_ref", "p"),
+            ("fields", 7, "value_arrays", "p"),
+        ],
+        82 => &[("values", 0, "integers", "d")],
+        83 => &[("values", 0, "reals", "f")],
+        84 => &[("values", 0, "text_bytes", "c")],
+        // The reference's own field name; the V30 table carries 87 and 89 so.
+        85 | 86 | 87 | 89 => &[("values", 0, "values", "v")],
+        88 => &[("values", 0, "values", "t")],
+        98 => &[("values", 0, "utf16_units", "w")],
         _ => &[],
     }
 }
@@ -969,11 +1005,11 @@ mod tests {
                     .filter(|s| !field_roles(s.definition.node_type).is_empty())
                     .count(),
                 if standard {
-                    28
+                    35
                 } else if key.raw() == "SCH_3401212_34101_13006" {
-                    29
+                    36
                 } else {
-                    31
+                    38
                 }
             );
         }
@@ -1118,7 +1154,11 @@ mod tests {
                 assert_eq!(field.field_type.code(), *code);
                 let count = match (definition.node_type, *role) {
                     (38, "surface") => 2,
-                    (40 | 41, "hvec") | (45 | 127 | 128, _) | (204, "values") => 1,
+                    (40 | 41, "hvec")
+                    | (45 | 127 | 128, _)
+                    | (79, "string")
+                    | (80 | 81, "fields")
+                    | (82..=89 | 98 | 204, "values") => 1,
                     _ => 0,
                 };
                 assert_eq!(
@@ -1129,7 +1169,7 @@ mod tests {
                 assert!(field.transmitted);
             }
         }
-        assert_eq!(mapped_types, 29);
+        assert_eq!(mapped_types, 38);
         Ok(())
     }
 }

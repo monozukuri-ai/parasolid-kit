@@ -128,6 +128,10 @@ def validate_and_measure(shape: object) -> tuple[bool, OcctMetrics]:
     if not bounding_box.IsVoid():
         bounds = tuple(float(value) for value in bounding_box.Get())
 
+    # The fixed Gauss rule, exact for the analytic and polynomial faces the
+    # source metrics are compared with; it integrates a multi-span rational
+    # B-spline face to about a tenth of a percent, where OCCT's adaptive rule
+    # stops short on extruded surfaces instead.
     surface_properties = GProp_GProps()
     BRepGProp.SurfaceProperties_s(shape, surface_properties)
     volume_properties = GProp_GProps()

@@ -102,9 +102,11 @@ const EXPECTED: [Expected; 11] = [
         key: "SCH_2401000_20000",
         // Revision 2 adds REAL_VALUES (83) and CHAR_VALUES (84), one field each,
         // and the types of a public NX assembly: 10, 11, 100, 38, 40, 41, 60,
-        // 67, 133, the SP_CURVE dependencies and the shared-geometry owner.
-        types: 38,
-        fields: 302,
+        // 67, 133, the SP_CURVE dependencies and the shared-geometry owner;
+        // revision 3 the ellipse, sphere, torus, blends and B-spline surfaces
+        // of six public parts of another build.
+        types: 46,
+        fields: 411,
         body: "dppppppffpppupuupppppppdppp",
         body_references: &[(24, 82), (25, 82), (26, 82)],
         region_head: 20,
@@ -156,8 +158,9 @@ const EXPECTED: [Expected; 11] = [
     },
     Expected {
         key: "SCH_2901000_28101",
-        types: 24,
-        fields: 214,
+        // Revision 2 adds REAL_VALUES (83) and CHAR_VALUES (84) of twenty public parts.
+        types: 26,
+        fields: 216,
         body: "dppppppppffpppupuupppppppppdppppd",
         body_references: &[
             (6, 1006),
@@ -250,13 +253,10 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
         let revision = profile.metadata().revision;
         assert_eq!(
             revision,
-            if matches!(
-                expected.key,
-                "SCH_1700000_16100" | "SCH_2401000_20000" | "SCH_3200000_32001"
-            ) {
-                2
-            } else {
-                1
+            match expected.key {
+                "SCH_2401000_20000" => 3,
+                "SCH_1700000_16100" | "SCH_2901000_28101" | "SCH_3200000_32001" => 2,
+                _ => 1,
             }
         );
         assert_eq!(

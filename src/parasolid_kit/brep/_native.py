@@ -42,6 +42,10 @@ from .model import BrepMetrics, BrepModel, BrepSourceFormat, TopologyValidation
 from .topology import (
     Assembly,
     AssemblyKind,
+    Attribute,
+    AttributeField,
+    AttributeOwner,
+    AttributeOwnerKind,
     Body,
     BodyKind,
     BoundingBox,
@@ -95,6 +99,11 @@ def brep_from_native(value: Mapping[str, Any]) -> BrepModel:
         points=tuple(_point(item) for item in _list(value, "points")),
         curves=tuple(_curve(item) for item in _list(value, "curves")),
         surfaces=tuple(_surface(item) for item in _list(value, "surfaces")),
+        attributes=(
+            tuple(_attribute(item) for item in _list(value, "attributes"))
+            if "attributes" in value
+            else ()
+        ),
         topology=TopologyValidation(
             valid=_bool(topology, "valid"),
             closed_loop_count=_int(topology, "closed_loop_count"),
@@ -121,6 +130,43 @@ def _assembly(value: object) -> Assembly:
         linear_resolution=_float(item, "linear_resolution"),
         instances=_int_tuple(item, "instances"),
         referencing_instances=_int_tuple(item, "referencing_instances"),
+        source=_source(item.get("source")),
+    )
+
+
+def _attribute(value: object) -> Attribute:
+    item = _mapping(value, "attribute")
+    owner = _mapping(item.get("owner"), "attribute owner")
+    owner_source = owner.get("source")
+    fields = []
+    for raw in _list(item, "fields"):
+        field = _mapping(raw, "attribute field")
+        kind = _str(field, "kind")
+        if kind in {"integers", "reals", "tags", "points", "vectors", "directions", "axes"}:
+            values = field.get("values")
+            if not isinstance(values, list):
+                raise RuntimeError("native attribute values are not a list")
+            fields.append(AttributeField(kind=kind, values=tuple(values)))
+        elif kind in {"text", "unicode"}:
+            fields.append(AttributeField(kind=kind, value=_str(field, "value")))
+        else:
+            fields.append(
+                AttributeField(
+                    kind="unsupported",
+                    type_name=_str(field, "type_name"),
+                    node_index=_int(field, "node_index"),
+                )
+            )
+    return Attribute(
+        id=_int(item, "id"),
+        identifier=_str(item, "identifier"),
+        kind_id=_optional_int(item, "kind_id"),
+        owner=AttributeOwner(
+            kind=AttributeOwnerKind(_str(owner, "kind")),
+            id=_optional_int(owner, "id"),
+            source=None if owner_source is None else _source(owner_source),
+        ),
+        fields=tuple(fields),
         source=_source(item.get("source")),
     )
 
@@ -170,6 +216,7 @@ def _body(value: object) -> Body:
         edges=_int_tuple(item, "edges"),
         vertices=_int_tuple(item, "vertices"),
         source=_source(item.get("source")),
+        attributes=_int_tuple(item, "attributes") if "attributes" in item else (),
     )
 
 
@@ -207,6 +254,7 @@ def _face(value: object) -> Face:
         surface=_optional_int(item, "surface"),
         sense=Sense(_str(item, "sense")),
         source=_source(item.get("source")),
+        attributes=_int_tuple(item, "attributes") if "attributes" in item else (),
     )
 
 

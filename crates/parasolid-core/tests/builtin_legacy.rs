@@ -1,23 +1,24 @@
-//! Authored checks for the `MicroStation` modeler key `SCH_901297_9008`. Field
-//! codes and record values are stated here independently of the profile
-//! table; the public Bentley files are compared separately and are not
-//! redistributed.
+//! Authored checks for the older standard keys, the `MicroStation` modeler
+//! key `SCH_901297_9008` in detail. Field codes and record values are stated
+//! here independently of the profile table; the public files are compared
+//! separately and are not redistributed.
 
 #[path = "support/sch30000.rs"]
 mod support;
 
+use parasolid_core::brep::{AttributeField, AttributeOwner, map_xt_brep};
 use parasolid_core::{
     BuiltinProfileCoverage, BuiltinProfileRegistry, BuiltinSchemaProfile, DocumentLimits,
     FieldValue, SchemaKey, SchemaProvider, SchemaProviderResolution, SchemaTypeLookup, parse_xt,
-    schema::profiles::microstation_9008,
+    schema::profiles::legacy_standard_keys,
 };
 use support::Result;
 
 const KEY: &str = "SCH_901297_9008";
 const PROFILE: &str = "microstation-901297-9008-r1";
-const TYPES: [u16; 27] = [
-    12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 38, 40, 41, 50, 51, 53, 54, 56, 59, 70, 74, 79, 80,
-    81, 82, 141,
+const TYPES: [u16; 44] = [
+    12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53, 54, 56, 59, 60,
+    68, 70, 74, 79, 80, 81, 82, 83, 84, 90, 91, 124, 125, 126, 127, 128, 134, 135, 136, 141,
 ];
 
 /// The public XT Format Reference's transmit example (printed page 10, a disc
@@ -65,9 +66,11 @@ fn stream(key: &str, nodes: &str) -> Vec<u8> {
 #[test]
 fn exact_profile_layouts_and_canonical_hash() -> Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
-    let profiles = microstation_9008()?;
-    assert_eq!(profiles.len(), 1);
-    let profile = &profiles[0];
+    let profiles = legacy_standard_keys()?;
+    let profile = profiles
+        .iter()
+        .find(|item| item.metadata().profile_id == PROFILE)
+        .ok_or("profile")?;
     let key = profile.accepted_schema_keys().next().ok_or("key")?;
     assert_eq!(key.raw(), KEY);
     assert_eq!(profile.accepted_schema_keys().len(), 1);
@@ -106,6 +109,10 @@ fn exact_profile_layouts_and_canonical_hash() -> Result<()> {
                 assert_eq!(reviewed.fields[0].name, "annotations");
                 assert_eq!(own.fields, reviewed.fields[1..]);
             }
+            135 => {
+                assert_eq!(reviewed.fields.len(), 2);
+                assert_eq!(own.fields, reviewed.fields[..1]);
+            }
             80 => {
                 assert_eq!(own.fields[..4], reviewed.fields[..4]);
                 assert_eq!(reviewed.fields[4].name, "field_labels");
@@ -122,7 +129,7 @@ fn exact_profile_layouts_and_canonical_hash() -> Result<()> {
     // Only the observed types are declared; a neighbouring build of the same
     // schema resolves through the derived family of this one profile.
     let provider = registry.provider_for_key(key).ok_or("provider")?;
-    for kind in [10, 32, 45, 52, 67, 83, 84, 133] {
+    for kind in [10, 11, 67, 98, 100, 102, 133, 137] {
         assert_eq!(
             provider.lookup_type("9008", kind),
             SchemaTypeLookup::Unknown
@@ -195,14 +202,40 @@ fn the_reshaped_reference_example_decodes_to_its_terminator() -> Result<()> {
     assert_eq!((identifier.node_type, identifier.index), (79, 16));
     assert_eq!(identifier.fields[0].values.len(), 15);
 
+    // The colour attribute of the example maps to the disc's face.
+    let model = map_xt_brep(&document)?;
+    assert_eq!(model.attributes.len(), 1);
+    let attribute = &model.attributes[0];
+    assert_eq!(attribute.identifier, "SDL/TYSA_COLOUR");
+    assert_eq!(attribute.kind_id, Some(8001));
+    assert_eq!(attribute.owner, AttributeOwner::Face(0));
+    assert_eq!(
+        attribute.fields,
+        [AttributeField::Integers(vec![Some(1), Some(2), Some(3)])]
+    );
+    assert_eq!(model.faces[0].attributes, [0]);
+
     // The V13 attribute definition (field names, fourteen owners) and a value
-    // node the Bentley files do not carry both fail closed under this key.
+    // node the MicroStation files do not carry both fail closed under this key.
     let v13 = DISC.replace("FFFFTFTFFFFFF1 ", "0 FFFFTFTFFFFFFF1 ");
     assert!(parse_xt(&stream(KEY, &v13), &provider, DocumentLimits::default()).is_err());
-    let reals = DISC.replace("82 3 15 1 2 3 ", "83 3 15 1 2 3 ");
-    assert!(parse_xt(&stream(KEY, &reals), &provider, DocumentLimits::default()).is_err());
+    let unicode = DISC.replace("82 3 15 1 2 3 ", "98 3 15 1 2 3 ");
+    assert!(parse_xt(&stream(KEY, &unicode), &provider, DocumentLimits::default()).is_err());
     for end in 0..bytes.len() - 1 {
         assert!(parse_xt(&bytes[..end], &provider, DocumentLimits::default()).is_err());
     }
+    Ok(())
+}
+
+#[test]
+fn every_legacy_profile_has_its_canonical_hash() -> Result<()> {
+    let mut mismatches = Vec::new();
+    for profile in legacy_standard_keys()? {
+        let digest = support::profile_hash(&profile)?;
+        if profile.metadata().profile_sha256 != digest {
+            mismatches.push(format!("HASH {} {digest}", profile.metadata().profile_id));
+        }
+    }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
     Ok(())
 }

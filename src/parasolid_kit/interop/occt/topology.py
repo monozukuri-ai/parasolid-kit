@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from math import pi, sqrt
 
@@ -20,10 +21,10 @@ from ...brep.geometry import (
     TorusSurface,
 )
 from ...brep.model import BrepModel
-from ...brep.topology import BodyKind, Face, HalfEdge, Sense, SourceNodeRef, Vector3
+from ...brep.topology import BodyKind, Edge, Face, HalfEdge, Sense, SourceNodeRef, Vector3
 from ...diagnostics import Diagnostic
 from .geometry import GeometryFactory
-from .model import ShapeRelationKind, SourceEntityKind, SourceEntityRef
+from .model import DroppedFace, FailedBody, ShapeRelationKind, SourceEntityKind, SourceEntityRef
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +41,32 @@ class BuiltTopology:
     relations: tuple[PendingRelation, ...]
     operations: tuple[str, ...]
     diagnostics: tuple[Diagnostic, ...] = ()
+    dropped_faces: tuple[DroppedFace, ...] = ()
+    failed_bodies: tuple[FailedBody, ...] = ()
+    partial_bodies: tuple[int, ...] = ()
+    body_shapes: tuple[tuple[int, object], ...] = ()
+
+
+def is_isolated_fin(half_edge: HalfEdge) -> bool:
+    """Whether a fin is the single fin of an isolated loop (XT reference, p. 91).
+
+    An isolated loop is one vertex in the interior of a face: its fin points
+    at itself, has no edge, curve or partner, and its sense is not significant.
+    """
+    return (
+        not half_edge.dummy
+        and half_edge.edge is None
+        and half_edge.curve is None
+        and half_edge.other is None
+        and half_edge.forward == half_edge.id
+        and half_edge.backward == half_edge.id
+        and half_edge.vertex is not None
+    )
+
+
+def _reason(error: object) -> str:
+    text = str(error).strip() or type(error).__name__
+    return text if len(text) <= 300 else text[:297] + "..."
 
 
 class TopologyBuilder:
@@ -48,6 +75,14 @@ class TopologyBuilder:
     def __init__(self, model: BrepModel, geometry: GeometryFactory) -> None:
         self.model = model
         self.geometry = geometry
+        # Partial mode drops the faces whose construction fails instead of
+        # failing the conversion; the bodies they bound come back open.
+        self.partial = geometry.options.partial
+        self.dropped_faces: dict[int, str] = {}
+        self.failed_edges: dict[int, str] = {}
+        self.failed_bodies: dict[int, str] = {}
+        self.partial_bodies: list[int] = []
+        self._stage_faces: tuple[Face, ...] | None = None
         self.bodies = {item.id: item for item in model.bodies}
         self.regions = {item.id: item for item in model.regions}
         self.shells = {item.id: item for item in model.shells}
@@ -59,6 +94,25 @@ class TopologyBuilder:
         self.points = {item.id: item for item in model.points}
         self.curves = {item.id: item for item in model.curves}
         self.surfaces = {item.id: item for item in model.surfaces}
+        # Isolated loops (one vertex inside a face) trim nothing: they are left
+        # out of the wires, and a vertex only they reference is not built.
+        self.isolated_loops = {
+            loop.id
+            for loop in model.loops
+            if loop.half_edges
+            and all(is_isolated_fin(self.half_edges[item]) for item in loop.half_edges)
+        }
+        used_vertices = {
+            vertex_id
+            for edge in model.edges
+            for vertex_id in (edge.start_vertex, edge.end_vertex)
+            if vertex_id is not None
+        }
+        self.isolated_vertices = {
+            self.half_edges[item].vertex
+            for loop_id in self.isolated_loops
+            for item in self.loops[loop_id].half_edges
+        } - used_vertices
 
         self.vertex_shapes: dict[int, object] = {}
         self.edge_shapes: dict[int, object] = {}
@@ -77,24 +131,118 @@ class TopologyBuilder:
     def build(self) -> BuiltTopology:
         self._build_vertices()
         self._build_initial_edges()
-        self._build_cylinder_faces()
-        self._build_cone_faces()
-        self._build_plane_faces()
-        self._build_closed_analytic_faces()
-        self._build_generic_surface_faces()
-        missing_faces = sorted(set(self.faces) - set(self.face_shapes))
+        for stage in (
+            self._build_cylinder_faces,
+            self._build_cone_faces,
+            self._build_plane_faces,
+            self._build_closed_analytic_faces,
+            self._build_generic_surface_faces,
+        ):
+            self._run_face_stage(stage)
+        missing_faces = sorted(set(self.faces) - set(self.face_shapes) - set(self.dropped_faces))
         if missing_faces:
-            raise ValueError(f"unsupported face construction for source faces {missing_faces}")
+            if not self.partial:
+                raise ValueError(f"unsupported face construction for source faces {missing_faces}")
+            for face_id in missing_faces:
+                self._drop_face(face_id, "unsupported face construction")
         self._record_final_edge_relations()
         body_shapes = self._build_bodies()
         root = self._make_root(body_shapes)
-        return BuiltTopology(root, tuple(self.relations), tuple(dict.fromkeys(self.operations)))
+        return BuiltTopology(
+            root,
+            tuple(self.relations),
+            tuple(dict.fromkeys(self.operations)),
+            body_shapes=tuple(body_shapes),
+            **self.partial_records(),
+        )
+
+    def _trim_loops(self, face: Face) -> tuple[int, ...]:
+        """The loops of a face that bound it: isolated vertex loops are skipped."""
+        if not self.isolated_loops:
+            return face.loops
+        result = tuple(loop_id for loop_id in face.loops if loop_id not in self.isolated_loops)
+        if len(result) != len(face.loops) and "skip_isolated_vertex_loops" not in self.operations:
+            self.operations.append("skip_isolated_vertex_loops")
+        return result
+
+    def _faces(self) -> tuple[Face, ...]:
+        return self.model.faces if self._stage_faces is None else self._stage_faces
+
+    def _run_face_stage(self, stage: Callable[[], None]) -> None:
+        """Run one face-construction stage, face by face in partial mode.
+
+        A face whose construction raises is dropped with the reason and the
+        relations and edge replacements it recorded are rolled back; the
+        stage then continues with the next face.
+        """
+        if not self.partial:
+            stage()
+            return
+        for face in self.model.faces:
+            if face.id in self.dropped_faces or face.id in self.face_shapes:
+                continue
+            failed_edge = self._failed_edge_of(face)
+            if failed_edge is not None:
+                self._drop_face(
+                    face.id, f"edge {failed_edge} failed: {self.failed_edges[failed_edge]}"
+                )
+                continue
+            self._stage_faces = (face,)
+            relation_count = len(self.relations)
+            edge_shapes = dict(self.edge_shapes)
+            try:
+                stage()
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as error:
+                del self.relations[relation_count:]
+                self.edge_shapes = edge_shapes
+                self._drop_face(face.id, error)
+            finally:
+                self._stage_faces = None
+
+    def _failed_edge_of(self, face: Face) -> int | None:
+        for loop_id in self._trim_loops(face):
+            for half_edge_id in self.loops[loop_id].half_edges:
+                edge_id = self.half_edges[half_edge_id].edge
+                if edge_id is not None and edge_id in self.failed_edges:
+                    return edge_id
+        return None
+
+    def _drop_face(self, face_id: int, error: object) -> None:
+        self.dropped_faces[face_id] = _reason(error)
+        self.face_shapes.pop(face_id, None)
+
+    def _body_of_face(self, face_id: int) -> int | None:
+        face = self.faces[face_id]
+        for shell_id in (face.back_shell, face.front_shell):
+            shell = self.shells.get(shell_id)
+            if shell is not None:
+                return self.regions[shell.region].body
+        return None
+
+    def partial_records(self) -> dict[str, tuple]:
+        dropped = tuple(
+            DroppedFace(face_id, self._body_of_face(face_id), reason, self.faces[face_id].source)
+            for face_id, reason in sorted(self.dropped_faces.items())
+        )
+        failed = tuple(
+            FailedBody(body_id, reason, self.bodies[body_id].source)
+            for body_id, reason in sorted(self.failed_bodies.items())
+        )
+        return {
+            "dropped_faces": dropped,
+            "failed_bodies": failed,
+            "partial_bodies": tuple(dict.fromkeys(self.partial_bodies)),
+        }
 
     def _build_vertices(self) -> None:
         point_uses: dict[int, int] = {}
         for vertex in self.model.vertices:
             point_uses[vertex.point] = point_uses.get(vertex.point, 0) + 1
         for vertex in self.model.vertices:
+            if vertex.id in self.isolated_vertices:
+                continue
             point = self.points[vertex.point]
             shape = self.geometry.make_vertex(point.position)
             self.vertex_shapes[vertex.id] = shape
@@ -106,30 +254,41 @@ class TopologyBuilder:
 
     def _build_initial_edges(self) -> None:
         for edge in self.model.edges:
-            curve = self._curve_for_edge(edge.id)
-            if isinstance(curve.definition, LineCurve):
-                if edge.start_vertex is None or edge.end_vertex is None:
-                    raise ValueError(f"line edge {edge.id} must have two endpoint vertices")
-                start = self.vertices[edge.start_vertex]
-                end = self.vertices[edge.end_vertex]
-                self.edge_shapes[edge.id] = self.geometry.make_line_edge(
-                    curve.definition,
-                    self.vertex_shapes[start.id],
-                    self.vertex_shapes[end.id],
-                    self.points[start.point].position,
-                    self.points[end.point].position,
-                )
-            else:
-                start = None if edge.start_vertex is None else self.vertices[edge.start_vertex]
-                end = None if edge.end_vertex is None else self.vertices[edge.end_vertex]
-                self.edge_shapes[edge.id] = self.geometry.make_curve_edge(
-                    curve.definition,
-                    None if start is None else self.vertex_shapes[start.id],
-                    None if end is None else self.vertex_shapes[end.id],
-                    None if start is None else self.points[start.point].position,
-                    None if end is None else self.points[end.point].position,
-                    resolve_basis=self._curve_geometry,
-                )
+            try:
+                self._build_initial_edge(edge)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as error:
+                if not self.partial:
+                    raise
+                self.failed_edges[edge.id] = _reason(error)
+                self.edge_shapes.pop(edge.id, None)
+
+    def _build_initial_edge(self, edge: Edge) -> None:
+        curve = self._curve_for_edge(edge.id)
+        if isinstance(curve.definition, LineCurve):
+            if edge.start_vertex is None or edge.end_vertex is None:
+                raise ValueError(f"line edge {edge.id} must have two endpoint vertices")
+            start = self.vertices[edge.start_vertex]
+            end = self.vertices[edge.end_vertex]
+            self.edge_shapes[edge.id] = self.geometry.make_line_edge(
+                curve.definition,
+                self.vertex_shapes[start.id],
+                self.vertex_shapes[end.id],
+                self.points[start.point].position,
+                self.points[end.point].position,
+            )
+        else:
+            start = None if edge.start_vertex is None else self.vertices[edge.start_vertex]
+            end = None if edge.end_vertex is None else self.vertices[edge.end_vertex]
+            self.edge_shapes[edge.id] = self.geometry.make_curve_edge(
+                curve.definition,
+                None if start is None else self.vertex_shapes[start.id],
+                None if end is None else self.vertex_shapes[end.id],
+                None if start is None else self.points[start.point].position,
+                None if end is None else self.points[end.point].position,
+                resolve_basis=self._curve_geometry,
+            )
 
     def _build_cylinder_faces(self) -> None:
         from OCP.BRepAdaptor import BRepAdaptor_Curve
@@ -140,11 +299,13 @@ class TopologyBuilder:
         from OCP.TopoDS import TopoDS
         from OCP.TopTools import TopTools_IndexedMapOfShape
 
-        for face in self.model.faces:
+        for face in self._faces():
             surface = self._surface_for_face(face)
             if not isinstance(surface.definition, CylinderSurface):
                 continue
-            loop_edges = [self._single_ring_edge(loop_id, face.id) for loop_id in face.loops]
+            loop_edges = [
+                self._single_ring_edge(loop_id, face.id) for loop_id in self._trim_loops(face)
+            ]
             if len(loop_edges) != 2 or len(set(loop_edges)) != 2:
                 raise ValueError(
                     f"cylinder face {face.id} must have exactly two distinct periodic ring loops"
@@ -217,7 +378,7 @@ class TopologyBuilder:
             if wire_map.Extent() != 1:
                 raise ValueError(f"OCCT cylinder face {face.id} must contain one merged wire")
             merged_wire = wire_map.FindKey(1)
-            for loop_id in face.loops:
+            for loop_id in self._trim_loops(face):
                 self.loop_shapes[loop_id] = merged_wire
                 loop = self.loops[loop_id]
                 self._record(
@@ -279,11 +440,13 @@ class TopologyBuilder:
         from OCP.TopoDS import TopoDS
         from OCP.TopTools import TopTools_IndexedMapOfShape
 
-        for face in self.model.faces:
+        for face in self._faces():
             surface = self._surface_for_face(face)
             if not isinstance(surface.definition, ConeSurface):
                 continue
-            loop_edges = [self._single_ring_edge(loop_id, face.id) for loop_id in face.loops]
+            loop_edges = [
+                self._single_ring_edge(loop_id, face.id) for loop_id in self._trim_loops(face)
+            ]
             if len(loop_edges) != 2 or len(set(loop_edges)) != 2:
                 raise ValueError(
                     f"cone face {face.id} must have exactly two distinct periodic ring loops"
@@ -348,7 +511,7 @@ class TopologyBuilder:
             if wire_map.Extent() != 1:
                 raise ValueError(f"OCCT cone face {face.id} must contain one merged wire")
             merged_wire = wire_map.FindKey(1)
-            for loop_id in face.loops:
+            for loop_id in self._trim_loops(face):
                 self.loop_shapes[loop_id] = merged_wire
                 loop = self.loops[loop_id]
                 self._record(
@@ -405,18 +568,18 @@ class TopologyBuilder:
         from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
         from OCP.TopoDS import TopoDS
 
-        for face in self.model.faces:
+        for face in self._faces():
             surface = self._surface_for_face(face)
             if not isinstance(surface.definition, PlaneSurface):
                 continue
-            if not face.loops:
+            if not self._trim_loops(face):
                 raise ValueError(f"plane face {face.id} has no boundary loops")
-            if len(face.loops) == 1:
-                wires = [(1.0, self._make_wire(face.loops[0]))]
+            if len(self._trim_loops(face)) == 1:
+                wires = [(1.0, self._make_wire(self._trim_loops(face)[0]))]
             else:
                 wires = [
                     (self._loop_area(loop_id, surface.definition), self._make_wire(loop_id))
-                    for loop_id in face.loops
+                    for loop_id in self._trim_loops(face)
                 ]
             outer_index = max(range(len(wires)), key=lambda index: wires[index][0])
             outer_wire = wires[outer_index][1]
@@ -440,12 +603,12 @@ class TopologyBuilder:
         from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
         from OCP.TopoDS import TopoDS
 
-        for face in self.model.faces:
+        for face in self._faces():
             surface = self._surface_for_face(face)
             definition = surface.definition
             if not isinstance(definition, (SphereSurface, TorusSurface)):
                 continue
-            if face.loops:
+            if self._trim_loops(face):
                 raise ValueError(
                     f"{surface.kind.value} face {face.id} must be an untrimmed closed face"
                 )
@@ -481,19 +644,19 @@ class TopologyBuilder:
         from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
         from OCP.TopoDS import TopoDS
 
-        for face in self.model.faces:
+        for face in self._faces():
             surface = self._surface_for_face(face)
             if not isinstance(surface.definition, (NurbsSurface, OffsetSurface)):
                 continue
-            if len(face.loops) > 1:
+            if len(self._trim_loops(face)) > 1:
                 raise ValueError(
                     f"{surface.kind.value} face {face.id} supports at most one explicit trim loop"
                 )
             exact = self._surface_geometry(surface.id)
-            if face.loops:
+            if self._trim_loops(face):
                 builder = BRepBuilderAPI_MakeFace(
                     exact,
-                    self._make_wire(face.loops[0]),
+                    self._make_wire(self._trim_loops(face)[0]),
                     True,
                 )
             else:
@@ -507,17 +670,19 @@ class TopologyBuilder:
                 )
             result = TopoDS.Face_s(self._orient_shape(builder.Face(), face.sense, surface.sense))
             self.face_shapes[face.id] = result
-            relation = ShapeRelationKind.DIRECT if face.loops else ShapeRelationKind.SPLIT
+            relation = (
+                ShapeRelationKind.DIRECT if self._trim_loops(face) else ShapeRelationKind.SPLIT
+            )
             self._record(
                 SourceEntityKind.FACE,
                 face.id,
                 face.source,
                 result,
                 relation,
-                None if face.loops else "natural surface bounds generate OCCT topology",
+                None if self._trim_loops(face) else "natural surface bounds generate OCCT topology",
             )
             self._record_surface(surface, result)
-            if not face.loops:
+            if not self._trim_loops(face):
                 self._record_generated_face_topology(
                     face,
                     result,
@@ -592,10 +757,14 @@ class TopologyBuilder:
         curve_uses: dict[int, int] = {}
         edge_curves: dict[int, CurveGeometry] = {}
         for edge in self.model.edges:
+            if edge.id in self.failed_edges:
+                continue
             curve = self._curve_for_edge(edge.id)
             edge_curves[edge.id] = curve
             curve_uses[curve.id] = curve_uses.get(curve.id, 0) + 1
         for edge in self.model.edges:
+            if edge.id in self.failed_edges:
+                continue
             shape = self.edge_shapes[edge.id]
             curve = edge_curves[edge.id]
             self._record(SourceEntityKind.EDGE, edge.id, edge.source, shape)
@@ -628,12 +797,19 @@ class TopologyBuilder:
                 face_ids.extend(shell.front_faces)
             face_ids = list(dict.fromkeys(face_ids))
             if not face_ids:
-                raise ValueError(f"body {body.id} has no boundary faces")
+                if not self.partial:
+                    raise ValueError(f"body {body.id} has no boundary faces")
+                self.failed_bodies[body.id] = "body has no boundary faces"
+                continue
+            available = [face_id for face_id in face_ids if face_id in self.face_shapes]
+            if not available:
+                self.failed_bodies[body.id] = "every boundary face was dropped"
+                continue
 
             builder = BRep_Builder()
             shell_shape = TopoDS_Shell()
             builder.MakeShell(shell_shape)
-            for face_id in face_ids:
+            for face_id in available:
                 builder.Add(shell_shape, self.face_shapes[face_id])
             shell_relation = (
                 ShapeRelationKind.MERGED if len(source_shells) > 1 else ShapeRelationKind.DIRECT
@@ -647,9 +823,16 @@ class TopologyBuilder:
                     shell_relation,
                 )
 
-            if body.kind is BodyKind.SOLID:
-                if not BRep_Tool.IsClosed_s(shell_shape):
+            if body.kind is BodyKind.SOLID and (
+                len(available) < len(face_ids) or not BRep_Tool.IsClosed_s(shell_shape)
+            ):
+                if not self.partial:
                     raise ValueError(f"body {body.id} boundary shell is not closed")
+                # A solid with a dropped face comes back as its open shell.
+                body_shape = shell_shape
+                self.partial_bodies.append(body.id)
+                self.operations.append("partial_body_open_shell")
+            elif body.kind is BodyKind.SOLID:
                 solid_builder = BRepBuilderAPI_MakeSolid(shell_shape)
                 if not solid_builder.IsDone():
                     raise ValueError(f"OCCT solid construction failed for body {body.id}")
@@ -682,6 +865,8 @@ class TopologyBuilder:
         from OCP.TopoDS import TopoDS_Compound
 
         if not body_shapes:
+            if self.failed_bodies:
+                raise ValueError("no body of the B-Rep model could be converted")
             raise ValueError("B-Rep model contains no bodies")
         if len(body_shapes) == 1:
             return body_shapes[0][1]

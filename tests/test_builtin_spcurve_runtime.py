@@ -178,6 +178,11 @@ def spcurve(
     [
         {},
         {"knots": (0.0, 1.0, None), "multiplicities": (2, 2, 0)},
+        # Values after the declared knot count are ignored, padding or not:
+        # SolidWorks 2019 sizes the arrays of a periodic curve alike and
+        # leaves earlier values there.
+        {"knots": (0.0, 1.0, 0.5)},
+        {"multiplicities": (2, 2, 1)},
         {"original": 4, "tolerance": 1e-8},
         {
             "degree": 2,
@@ -328,7 +333,7 @@ def test_open_uv_curve_can_wind_once_around_a_cylinder(reverse):
         {"knots": (0, None)},
         {"multiplicities": (0, 4)},
         {"multiplicities": (1, 2)},
-        {"multiplicities": (2, 2, 1)},
+        {"multiplicities": (2,)},
         {
             "degree": 2,
             "count": 6,
@@ -345,7 +350,7 @@ def test_open_uv_curve_can_wind_once_around_a_cylinder(reverse):
             "knots": (0, 0.5, 1),
             "multiplicities": (2, 3, 3),
         },
-        {"knots": (0, 1, 0.5)},
+        {"knots": (0,)},
         {"periodic": True},
         {"rational": True, "dimension": 3, "vertices": (0, 0, 1, 1, 1, 0)},
         {"rational": True, "dimension": 3, "vertices": (0, 0, 1, 1, 1, -1)},

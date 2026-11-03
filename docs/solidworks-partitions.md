@@ -62,7 +62,9 @@ bodiless partitions belong to Parts whose bodies are stored only in
 `FeatureBodies/LocalBodies`; those local-body streams map completely. The four
 partition failures are recorded, not worked around: two partitions of one Part
 reach HELIX_CU_FORM (163), one reaches an unreviewed base type 184, and one
-NURBS record carries values after its declared knot multiplicities. A sixteenth
+NURBS record carries values after its declared knot multiplicities (the
+unreleased mapper ignores such values, as SolidWorks 2019 writes them on
+periodic curves; the partition counts have not been re-measured). A sixteenth
 key, `SCH_2501231_25001_13006`, was seen in one SolidWorks 2014 Part stored in
 the OLE2 container and is not compiled; it fails closed as an unsupported key.
 

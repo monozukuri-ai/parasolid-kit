@@ -192,6 +192,35 @@ fn trimmed_curve() -> TypeDefinition {
     )
 }
 
+/// Public XT reference pp. 106-108: the attribute value nodes beside the
+/// integer, real, character and unicode ones. A point, vector, direction or
+/// axis value is a vector (an axis takes up two); a tag value is a `t`, which
+/// the reference keeps for system attributes. `VECTOR_VALUES` (86) is observed
+/// in public `SolidWorks` 2011 parts and `AXIS_VALUES` (87) in Solid Edge and
+/// Onshape parts; the other three are declared from the reference alone. The
+/// V30 table names the field `values` for the two it carries (87 and 89).
+pub(crate) fn value_node_definitions() -> Vec<TypeDefinition> {
+    use FieldType::{Tag as T, Vector as V};
+    [(85, V), (86, V), (87, V), (88, T), (89, V)]
+        .into_iter()
+        .map(|(node_type, field_type)| {
+            TypeDefinition::from_fields(
+                node_type,
+                format!("sch13006_type_{node_type}"),
+                "Reviewed 13006 attribute value node",
+                vec![FieldDefinition {
+                    name: "values".into(),
+                    field_type,
+                    pointer_class: 0,
+                    element_count: 1,
+                    transmitted: true,
+                }],
+                SchemaSource::Base,
+            )
+        })
+        .collect()
+}
+
 #[allow(clippy::too_many_lines)] // Auditable wire order of the reviewed base subset.
 pub(crate) fn definitions() -> Vec<TypeDefinition> {
     use FieldType::{

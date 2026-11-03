@@ -10,6 +10,8 @@ from ..diagnostics import Diagnostic
 from .geometry import CurveGeometry, PointGeometry, SurfaceGeometry
 from .topology import (
     Assembly,
+    Attribute,
+    AttributeOwnerKind,
     Body,
     BoundingBox,
     Edge,
@@ -68,11 +70,57 @@ class BrepModel:
     # Assembly structure beside the topology; instance transforms are not applied.
     assemblies: tuple[Assembly, ...] = ()
     instances: tuple[Instance, ...] = ()
+    # ATTRIBUTE nodes with their definition identifiers; bodies and faces also
+    # list the ids of their own attributes.
+    attributes: tuple[Attribute, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-compatible semantic report."""
 
         return cast(dict[str, object], _json_value(self))
+
+    def attributes_of(
+        self, kind: AttributeOwnerKind | str, entity_id: int
+    ) -> tuple[Attribute, ...]:
+        """Return the attributes attached to one mapped entity, in source order."""
+
+        owner_kind = AttributeOwnerKind(kind)
+        return tuple(
+            item
+            for item in self.attributes
+            if item.owner.kind is owner_kind and item.owner.id == entity_id
+        )
+
+    def colour_of(
+        self, kind: AttributeOwnerKind | str, entity_id: int
+    ) -> tuple[float, float, float] | None:
+        """The ``SDL/TYSA_COLOUR`` of one entity as (red, green, blue) in 0..1, if any.
+
+        The first colour attribute whose first field holds three set reals
+        counts; the reference assigns the attribute to faces and edges, and
+        producers also write it on bodies.
+        """
+
+        for item in self.attributes_of(kind, entity_id):
+            if item.identifier != "SDL/TYSA_COLOUR" or not item.fields:
+                continue
+            field = item.fields[0]
+            if field.kind == "reals" and len(field.values) == 3:
+                values = field.values
+                if all(isinstance(v, float) for v in values):
+                    return cast(tuple[float, float, float], tuple(values))
+        return None
+
+    def name_of(self, kind: AttributeOwnerKind | str, entity_id: int) -> str | None:
+        """The ``SDL/TYSA_NAME`` of one entity, if any."""
+
+        for item in self.attributes_of(kind, entity_id):
+            if item.identifier != "SDL/TYSA_NAME" or not item.fields:
+                continue
+            field = item.fields[0]
+            if field.kind in {"text", "unicode"} and field.value is not None:
+                return field.value
+        return None
 
 
 def _json_value(value: Any) -> Any:

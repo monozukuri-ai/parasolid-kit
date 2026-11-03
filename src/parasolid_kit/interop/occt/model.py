@@ -23,6 +23,7 @@ class SourceEntityKind(str, Enum):
     POINT = "point"
     CURVE = "curve"
     SURFACE = "surface"
+    INSTANCE = "instance"
 
 
 class OcctShapeKind(str, Enum):
@@ -245,6 +246,42 @@ class OcctMetrics:
 
 
 @dataclass(frozen=True, slots=True)
+class DroppedFace:
+    """A source face left out of a partial conversion, with the reason."""
+
+    face_id: int
+    body_id: int | None
+    reason: str
+    source: SourceNodeRef
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "face_id": self.face_id,
+            "body_id": self.body_id,
+            "reason": self.reason,
+            "node_index": self.source.node_index,
+            "node_id": self.source.node_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class FailedBody:
+    """A source body with no converted face in a partial conversion."""
+
+    body_id: int
+    reason: str
+    source: SourceNodeRef
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "body_id": self.body_id,
+            "reason": self.reason,
+            "node_index": self.source.node_index,
+            "node_id": self.source.node_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ConversionReport:
     schema_version: int
     producer: str
@@ -272,10 +309,23 @@ class ConversionReport:
     healing_requested: bool = False
     healing_performed: bool = False
     healing_operations: tuple[str, ...] = ()
+    # Partial conversion: the faces dropped, the bodies left without a face
+    # and the solid bodies returned as open shells because a face was dropped.
+    partial_requested: bool = False
+    faces_dropped: tuple[DroppedFace, ...] = ()
+    bodies_failed: tuple[FailedBody, ...] = ()
+    bodies_partial: tuple[int, ...] = ()
+    # Instance placement: copies of the bodies positioned by the assemblies.
+    placement_requested: bool = False
+    instances_placed: int = 0
+    instances_negative: int = 0
+    bodies_unreferenced: int = 0
 
     def __post_init__(self) -> None:
         if self.schema_version != 1:
             raise ValueError("conversion report schema_version must be 1")
+        if (self.faces_dropped or self.bodies_failed) and self.conversion_complete:
+            raise ValueError("a conversion with dropped faces or failed bodies is not complete")
         for name in ("mapping_relation_count", "generated_topology_count"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -319,6 +369,18 @@ class ConversionReport:
                 "requested": self.healing_requested,
                 "performed": self.healing_performed,
                 "operations": list(self.healing_operations),
+            },
+            "partial": {
+                "requested": self.partial_requested,
+                "faces_dropped": [item.to_dict() for item in self.faces_dropped],
+                "bodies_failed": [item.to_dict() for item in self.bodies_failed],
+                "bodies_partial": list(self.bodies_partial),
+            },
+            "placement": {
+                "requested": self.placement_requested,
+                "instances_placed": self.instances_placed,
+                "instances_negative": self.instances_negative,
+                "bodies_unreferenced": self.bodies_unreferenced,
             },
         }
 

@@ -35,6 +35,10 @@ from .model import BrepMetrics, BrepModel, TopologyValidation
 from .topology import (
     Assembly,
     AssemblyKind,
+    Attribute,
+    AttributeField,
+    AttributeOwner,
+    AttributeOwnerKind,
     Body,
     BodyKind,
     BoundingBox,
@@ -57,6 +61,10 @@ from .topology import (
 __all__ = [
     "Assembly",
     "AssemblyKind",
+    "Attribute",
+    "AttributeField",
+    "AttributeOwner",
+    "AttributeOwnerKind",
     "BlendBoundarySurface",
     "BlendType",
     "BlendedEdgeSurface",

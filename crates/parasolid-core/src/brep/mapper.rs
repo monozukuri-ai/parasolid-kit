@@ -8,10 +8,11 @@ use crate::{
 
 use super::metrics::derive_metrics;
 use super::model::{
-    Assembly, AssemblyKind, BlendType, Body, BodyKind, BrepDiagnostic, BrepId, BrepMetrics,
-    BrepModel, BrepSourceFormat, CurveGeometry, CurveKind, Edge, Face, HalfEdge, Instance,
-    InstancePart, Loop, NurbsCurve, NurbsSurface, PointGeometry, Region, RegionKind, Sense, Shell,
-    SourceNodeRef, SurfaceGeometry, SurfaceKind, TopologyValidation, Transform, Vector3, Vertex,
+    Assembly, AssemblyKind, Attribute, AttributeField, AttributeOwner, BlendType, Body, BodyKind,
+    BrepDiagnostic, BrepId, BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind,
+    Edge, Face, HalfEdge, Instance, InstancePart, Loop, NurbsCurve, NurbsSurface, PointGeometry,
+    Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind,
+    TopologyValidation, Transform, Vector3, Vertex,
 };
 use super::profile_roles::RoleAccess;
 
@@ -111,6 +112,7 @@ struct IdMaps {
     points: BTreeMap<u32, BrepId>,
     curves: BTreeMap<u32, BrepId>,
     surfaces: BTreeMap<u32, BrepId>,
+    attributes: BTreeMap<u32, BrepId>,
 }
 
 impl IdMaps {
@@ -129,6 +131,7 @@ impl IdMaps {
             points: assign_ids(nodes, |node| roles.type_name(node) == "POINT"),
             curves: assign_ids(nodes, |node| roles.is_curve(node)),
             surfaces: assign_ids(nodes, |node| roles.is_surface(node)),
+            attributes: assign_ids(nodes, |node| roles.type_name(node) == "ATTRIBUTE"),
         }
     }
 }
@@ -196,7 +199,7 @@ impl<'a> Mapper<'a> {
             .into_iter()
             .map(|index| self.map_instance(index))
             .collect::<Result<Vec<_>, _>>()?;
-        let bodies = self
+        let mut bodies = self
             .ordered_indices(&self.ids.bodies)
             .into_iter()
             .map(|index| self.map_body(index))
@@ -211,7 +214,7 @@ impl<'a> Mapper<'a> {
             .into_iter()
             .map(|index| self.map_shell(index))
             .collect::<Result<Vec<_>, _>>()?;
-        let faces = self
+        let mut faces = self
             .ordered_indices(&self.ids.faces)
             .into_iter()
             .map(|index| self.map_face(index))
@@ -250,6 +253,25 @@ impl<'a> Mapper<'a> {
         for index in self.ordered_indices(&self.ids.surfaces) {
             surfaces.push(self.map_surface(index)?);
         }
+        let mut attributes = Vec::with_capacity(self.ids.attributes.len());
+        for index in self.ordered_indices(&self.ids.attributes) {
+            attributes.push(self.map_attribute(index)?);
+        }
+        for attribute in &attributes {
+            match attribute.owner {
+                AttributeOwner::Body(id) => {
+                    if let Some(body) = bodies.iter_mut().find(|body| body.id == id) {
+                        body.attributes.push(attribute.id);
+                    }
+                }
+                AttributeOwner::Face(id) => {
+                    if let Some(face) = faces.iter_mut().find(|face| face.id == id) {
+                        face.attributes.push(attribute.id);
+                    }
+                }
+                _ => {}
+            }
+        }
 
         let topology = self.validate_topology(
             &bodies,
@@ -278,6 +300,7 @@ impl<'a> Mapper<'a> {
             points,
             curves,
             surfaces,
+            attributes,
             topology,
             metrics: BrepMetrics {
                 bounding_box: None,
@@ -324,6 +347,7 @@ impl<'a> Mapper<'a> {
             regions: self.null_chain(node, "region", "REGION", "next", &self.ids.regions)?,
             edges: self.null_chain(node, "edge", "EDGE", "next", &self.ids.edges)?,
             vertices: self.null_chain(node, "vertex", "VERTEX", "next", &self.ids.vertices)?,
+            attributes: Vec::new(),
             source: self.source(node),
         })
     }
@@ -528,8 +552,138 @@ impl<'a> Mapper<'a> {
             loops: self.null_chain(node, "loop", "LOOP", "next", &self.ids.loops)?,
             surface: self.optional_id(node, "surface", "surface geometry", &self.ids.surfaces)?,
             sense: self.sense(node, "sense")?,
+            attributes: Vec::new(),
             source: self.source(node),
         })
+    }
+
+    fn map_attribute(&self, index: u32) -> Result<Attribute, ParseError> {
+        let node = self.node(index)?;
+        let definition = self.required_typed_node(node, "definition", "ATTRIB_DEF")?;
+        let identifier_node = self.required_typed_node(definition, "identifier", "ATT_DEF_ID")?;
+        let identifier = self.character_text(identifier_node, "string")?;
+        let kind_id = self.optional_integer(definition, "type_id")?;
+        let owner_index = self.required_pointer(node, "owner")?;
+        let owner_node = self.nodes.get(&owner_index).copied().ok_or_else(|| {
+            self.invalid_reference(
+                node,
+                "owner",
+                owner_index,
+                "raw node",
+                "attribute owner pointer is unresolved",
+            )
+        })?;
+        let owner = self.attribute_owner(owner_node);
+        // The definition types each field; an empty field is transmitted as
+        // a null pointer (the reference's pointer fields always are).
+        let declared_kinds: Vec<u8> = self
+            .field(definition, "fields")?
+            .values
+            .iter()
+            .filter_map(|value| match value {
+                FieldValue::UnsignedByte(kind) => Some(*kind),
+                _ => None,
+            })
+            .collect();
+        let mut fields = Vec::new();
+        for (position, target) in self.pointer_array(node, "fields")?.into_iter().enumerate() {
+            if target == 0 {
+                fields.push(match declared_kinds.get(position) {
+                    Some(1) => AttributeField::Integers(Vec::new()),
+                    Some(2) => AttributeField::Reals(Vec::new()),
+                    Some(3) => AttributeField::Text(String::new()),
+                    Some(4) => AttributeField::Points(Vec::new()),
+                    Some(5) => AttributeField::Vectors(Vec::new()),
+                    Some(6) => AttributeField::Directions(Vec::new()),
+                    Some(7) => AttributeField::Axes(Vec::new()),
+                    Some(8) => AttributeField::Tags(Vec::new()),
+                    Some(10) => AttributeField::Unicode(String::new()),
+                    other => AttributeField::Unsupported {
+                        type_name: match other {
+                            Some(kind) => format!("empty field of kind {kind}"),
+                            None => "empty field of undeclared kind".to_owned(),
+                        },
+                        node_index: 0,
+                    },
+                });
+                continue;
+            }
+            let value_node = self.nodes.get(&target).copied().ok_or_else(|| {
+                self.invalid_reference(
+                    node,
+                    "fields",
+                    target,
+                    "value node",
+                    "attribute field pointer is unresolved",
+                )
+            })?;
+            fields.push(match self.roles.type_name(value_node) {
+                "INT_VALUES" => AttributeField::Integers(self.integer_array(value_node, "values")?),
+                "REAL_VALUES" => {
+                    AttributeField::Reals(self.optional_double_array(value_node, "values")?)
+                }
+                "CHAR_VALUES" => AttributeField::Text(self.character_text(value_node, "values")?),
+                "UNICODE_VALUES" => {
+                    AttributeField::Unicode(self.unicode_text(value_node, "values")?)
+                }
+                "POINT_VALUES" => {
+                    AttributeField::Points(self.optional_vector_array(value_node, "values")?)
+                }
+                "VECTOR_VALUES" => {
+                    AttributeField::Vectors(self.optional_vector_array(value_node, "values")?)
+                }
+                "DIRECTION_VALUES" => {
+                    AttributeField::Directions(self.optional_vector_array(value_node, "values")?)
+                }
+                "AXIS_VALUES" => {
+                    AttributeField::Axes(self.optional_vector_array(value_node, "values")?)
+                }
+                "TAG_VALUES" => AttributeField::Tags(self.tag_array(value_node, "values")?),
+                _ => AttributeField::Unsupported {
+                    type_name: value_node.definition.name.clone(),
+                    node_index: target,
+                },
+            });
+        }
+        Ok(Attribute {
+            id: self.id(&self.ids.attributes, node, "ATTRIBUTE")?,
+            identifier,
+            kind_id,
+            owner,
+            fields,
+            source: self.source(node),
+        })
+    }
+
+    fn attribute_owner(&self, node: &RawNode) -> AttributeOwner {
+        let index = &node.index;
+        if let Some(id) = self.ids.bodies.get(index) {
+            AttributeOwner::Body(*id)
+        } else if let Some(id) = self.ids.faces.get(index) {
+            AttributeOwner::Face(*id)
+        } else if let Some(id) = self.ids.edges.get(index) {
+            AttributeOwner::Edge(*id)
+        } else if let Some(id) = self.ids.vertices.get(index) {
+            AttributeOwner::Vertex(*id)
+        } else if let Some(id) = self.ids.regions.get(index) {
+            AttributeOwner::Region(*id)
+        } else if let Some(id) = self.ids.shells.get(index) {
+            AttributeOwner::Shell(*id)
+        } else if let Some(id) = self.ids.loops.get(index) {
+            AttributeOwner::Loop(*id)
+        } else if let Some(id) = self.ids.assemblies.get(index) {
+            AttributeOwner::Assembly(*id)
+        } else if let Some(id) = self.ids.instances.get(index) {
+            AttributeOwner::Instance(*id)
+        } else if let Some(id) = self.ids.points.get(index) {
+            AttributeOwner::Point(*id)
+        } else if let Some(id) = self.ids.curves.get(index) {
+            AttributeOwner::Curve(*id)
+        } else if let Some(id) = self.ids.surfaces.get(index) {
+            AttributeOwner::Surface(*id)
+        } else {
+            AttributeOwner::Other(self.source(node))
+        }
     }
 
     fn map_loop(&self, index: u32) -> Result<Loop, ParseError> {
@@ -922,8 +1076,10 @@ impl<'a> Mapper<'a> {
 
     fn intersection_curve(&self, node: &RawNode) -> Result<CurveKind, ParseError> {
         let chart = self.required_typed_node(node, "chart", "CHART")?;
-        self.double(chart, "base_parameter")?;
-        self.double(chart, "base_scale")?;
+        // The chart's base parameter and scale are not used by the mapping;
+        // MicroStation leaves the scale unset.
+        self.optional_double(chart, "base_parameter")?;
+        self.optional_double(chart, "base_scale")?;
         self.optional_double(chart, "chordal_error")?;
         self.optional_double(chart, "angular_error")?;
         let count = self.nonnegative_integer(chart, "chart_count")?;
@@ -932,7 +1088,10 @@ impl<'a> Mapper<'a> {
         let [start_points, end_points] = ["start", "end"].map(|field| {
             let limit = self.required_typed_node(node, field, "LIMIT")?;
             let count = match self.character(limit, "type")? {
-                b'H' | b'L' => 1,
+                // A spine boundary ('B') describes the end of a degenerate
+                // rolling-ball blend; SolidWorks writes one on intersection
+                // curves too, with the single position of an arbitrary limit.
+                b'H' | b'L' | b'B' => 1,
                 b'T' => 2,
                 _ => {
                     return Err(self.invalid_geometry(
@@ -1058,7 +1217,7 @@ impl<'a> Mapper<'a> {
             self.required_typed_node(nurbs, "bspline_vertices", "BSPLINE_VERTICES")?;
         let multiplicities_node = self.required_typed_node(nurbs, "knot_mult", "KNOT_MULT")?;
         let knots_node = self.required_typed_node(nurbs, "knots", "KNOT_SET")?;
-        let flat_vertices = self.double_array(vertices_node, "vertices")?;
+        let mut flat_vertices = self.double_array(vertices_node, "vertices")?;
         let distinct_knot_count_usize = usize::try_from(distinct_knot_count).unwrap_or(usize::MAX);
         let multiplicities = self.positive_short_array_prefix(
             multiplicities_node,
@@ -1066,14 +1225,15 @@ impl<'a> Mapper<'a> {
             distinct_knot_count_usize,
         )?;
         let knots = self.double_array_prefix(knots_node, "knots", distinct_knot_count_usize)?;
-        self.validate_count(
-            nurbs,
-            "vertices",
-            usize::try_from(control_count)
-                .unwrap_or(usize::MAX)
-                .saturating_mul(usize::from(vertex_dimension)),
-            flat_vertices.len(),
-        )?;
+        let expected_vertices = usize::try_from(control_count)
+            .unwrap_or(usize::MAX)
+            .saturating_mul(usize::from(vertex_dimension));
+        if flat_vertices.len() < expected_vertices {
+            self.validate_count(nurbs, "vertices", expected_vertices, flat_vertices.len())?;
+        }
+        // Values after the declared control points are ignored, as for the
+        // knots: SolidWorks 2019 sizes the arrays of a periodic curve alike.
+        flat_vertices.truncate(expected_vertices);
         let degree = self.positive_short(nurbs, "degree")?;
         let rational = self.logical(nurbs, "rational")?;
         let periodic = self.logical(nurbs, "periodic")?;
@@ -1139,7 +1299,7 @@ impl<'a> Mapper<'a> {
         let v_mult_node = self.required_typed_node(nurbs, "v_knot_mult", "KNOT_MULT")?;
         let u_knots_node = self.required_typed_node(nurbs, "u_knots", "KNOT_SET")?;
         let v_knots_node = self.required_typed_node(nurbs, "v_knots", "KNOT_SET")?;
-        let flat_vertices = self.double_array(vertices_node, "vertices")?;
+        let mut flat_vertices = self.double_array(vertices_node, "vertices")?;
         let u_knot_count =
             usize::try_from(self.nonnegative_integer(nurbs, "n_u_knots")?).unwrap_or(usize::MAX);
         let v_knot_count =
@@ -1153,12 +1313,11 @@ impl<'a> Mapper<'a> {
         let vertex_count = usize::try_from(u_count)
             .unwrap_or(usize::MAX)
             .saturating_mul(usize::try_from(v_count).unwrap_or(usize::MAX));
-        self.validate_count(
-            nurbs,
-            "vertices",
-            vertex_count.saturating_mul(usize::from(vertex_dimension)),
-            flat_vertices.len(),
-        )?;
+        let expected_vertices = vertex_count.saturating_mul(usize::from(vertex_dimension));
+        if flat_vertices.len() < expected_vertices {
+            self.validate_count(nurbs, "vertices", expected_vertices, flat_vertices.len())?;
+        }
+        flat_vertices.truncate(expected_vertices);
         let u_degree = self.positive_short(nurbs, "u_degree")?;
         let v_degree = self.positive_short(nurbs, "v_degree")?;
         self.validate_nurbs_knots(
@@ -1992,6 +2151,112 @@ impl<'a> Mapper<'a> {
         }
     }
 
+    fn optional_integer(
+        &self,
+        node: &RawNode,
+        field: &'static str,
+    ) -> Result<Option<i32>, ParseError> {
+        match self.value(node, field)? {
+            FieldValue::Integer(value) => Ok(*value),
+            _ => Err(self.invalid_field(node, field, "required field is not an integer")),
+        }
+    }
+
+    fn integer_array(
+        &self,
+        node: &RawNode,
+        field: &'static str,
+    ) -> Result<Vec<Option<i32>>, ParseError> {
+        self.field(node, field)?
+            .values
+            .iter()
+            .map(|value| match value {
+                FieldValue::Integer(item) => Ok(*item),
+                _ => Err(self.invalid_field(node, field, "array contains a non-integer value")),
+            })
+            .collect()
+    }
+
+    fn optional_double_array(
+        &self,
+        node: &RawNode,
+        field: &'static str,
+    ) -> Result<Vec<Option<f64>>, ParseError> {
+        self.field(node, field)?
+            .values
+            .iter()
+            .map(|value| match value {
+                FieldValue::Double(item) => Ok(item.filter(|item| item.is_finite())),
+                _ => Err(self.invalid_field(node, field, "array contains a non-double value")),
+            })
+            .collect()
+    }
+
+    /// The vectors of an attribute value node; a null or non-finite one is `None`,
+    /// as an unset real of `REAL_VALUES` is.
+    fn optional_vector_array(
+        &self,
+        node: &RawNode,
+        field: &'static str,
+    ) -> Result<Vec<Option<Vector3>>, ParseError> {
+        self.field(node, field)?
+            .values
+            .iter()
+            .map(|value| match value {
+                FieldValue::Vector([Some(x), Some(y), Some(z)])
+                    if x.is_finite() && y.is_finite() && z.is_finite() =>
+                {
+                    Ok(Some(Vector3 {
+                        x: *x,
+                        y: *y,
+                        z: *z,
+                    }))
+                }
+                FieldValue::Vector(_) => Ok(None),
+                _ => Err(self.invalid_field(node, field, "array contains a non-vector value")),
+            })
+            .collect()
+    }
+
+    fn tag_array(
+        &self,
+        node: &RawNode,
+        field: &'static str,
+    ) -> Result<Vec<Option<i32>>, ParseError> {
+        self.field(node, field)?
+            .values
+            .iter()
+            .map(|value| match value {
+                FieldValue::Tag(item) => Ok(*item),
+                _ => Err(self.invalid_field(node, field, "array contains a non-tag value")),
+            })
+            .collect()
+    }
+
+    fn character_text(&self, node: &RawNode, field: &'static str) -> Result<String, ParseError> {
+        self.field(node, field)?
+            .values
+            .iter()
+            .map(|value| match value {
+                FieldValue::Character(byte) => Ok(char::from(*byte)),
+                _ => Err(self.invalid_field(node, field, "array contains a non-character value")),
+            })
+            .collect()
+    }
+
+    fn unicode_text(&self, node: &RawNode, field: &'static str) -> Result<String, ParseError> {
+        let units = self
+            .field(node, field)?
+            .values
+            .iter()
+            .map(|value| match value {
+                FieldValue::UnicodeCharacter(unit) => Ok(*unit),
+                _ => Err(self.invalid_field(node, field, "array contains a non-unicode value")),
+            })
+            .collect::<Result<Vec<u16>, _>>()?;
+        Ok(String::from_utf16_lossy(&units))
+    }
+
     fn optional_double(
         &self,
         node: &RawNode,
@@ -2159,16 +2424,8 @@ impl<'a> Mapper<'a> {
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if values[count..]
-            .iter()
-            .any(|value| !matches!(value, FieldValue::Double(None)))
-        {
-            return Err(self.invalid_geometry(
-                node,
-                field,
-                "values after the declared knot count are not null padding",
-            ));
-        }
+        // Values after the declared count are ignored: Parasolid pads the
+        // array with nulls, SolidWorks 2019 leaves earlier values there.
         Ok(output)
     }
 
@@ -2207,16 +2464,7 @@ impl<'a> Mapper<'a> {
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if values[count..]
-            .iter()
-            .any(|value| !matches!(value, FieldValue::ShortInteger(Some(0))))
-        {
-            return Err(self.invalid_geometry(
-                node,
-                field,
-                "values after the declared multiplicity count are not zero padding",
-            ));
-        }
+        // Values after the declared count are ignored, as for the knots.
         Ok(output)
     }
 

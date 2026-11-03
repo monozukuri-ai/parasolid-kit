@@ -174,6 +174,8 @@ pub struct Body {
     pub edges: Vec<BrepId>,
     /// Vertex chain owned directly by the body.
     pub vertices: Vec<BrepId>,
+    /// Attributes attached to the body, as `BrepModel::attributes` ids.
+    pub attributes: Vec<BrepId>,
     /// Raw-node provenance.
     pub source: SourceNodeRef,
 }
@@ -351,6 +353,8 @@ pub struct Face {
     pub surface: Option<BrepId>,
     /// Orientation relative to the attached surface.
     pub sense: Sense,
+    /// Attributes attached to the face, as `BrepModel::attributes` ids.
+    pub attributes: Vec<BrepId>,
     /// Raw-node provenance.
     pub source: SourceNodeRef,
 }
@@ -809,10 +813,116 @@ pub struct BrepModel {
     pub points: Vec<PointGeometry>,
     pub curves: Vec<CurveGeometry>,
     pub surfaces: Vec<SurfaceGeometry>,
+    /// Attributes of the entities above, in source order (ATTRIBUTE nodes).
+    pub attributes: Vec<Attribute>,
     /// L4 structural report.
     pub topology: TopologyValidation,
     /// Kernel-free derived metrics.
     pub metrics: BrepMetrics,
     /// Explicit non-fatal mapping losses.
     pub diagnostics: Vec<BrepDiagnostic>,
+}
+
+/// Entity an attribute is attached to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AttributeOwner {
+    Assembly(BrepId),
+    Instance(BrepId),
+    Body(BrepId),
+    Region(BrepId),
+    Shell(BrepId),
+    Face(BrepId),
+    Loop(BrepId),
+    Edge(BrepId),
+    Vertex(BrepId),
+    Point(BrepId),
+    Curve(BrepId),
+    Surface(BrepId),
+    /// A node the B-Rep model does not map, such as a fin or a group.
+    Other(SourceNodeRef),
+}
+
+impl AttributeOwner {
+    /// Stable lowercase owner kind name.
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Assembly(_) => "assembly",
+            Self::Instance(_) => "instance",
+            Self::Body(_) => "body",
+            Self::Region(_) => "region",
+            Self::Shell(_) => "shell",
+            Self::Face(_) => "face",
+            Self::Loop(_) => "loop",
+            Self::Edge(_) => "edge",
+            Self::Vertex(_) => "vertex",
+            Self::Point(_) => "point",
+            Self::Curve(_) => "curve",
+            Self::Surface(_) => "surface",
+            Self::Other(_) => "other",
+        }
+    }
+
+    /// The owner's B-Rep identifier, when the owner is a mapped entity.
+    #[must_use]
+    pub const fn id(&self) -> Option<BrepId> {
+        match self {
+            Self::Assembly(id)
+            | Self::Instance(id)
+            | Self::Body(id)
+            | Self::Region(id)
+            | Self::Shell(id)
+            | Self::Face(id)
+            | Self::Loop(id)
+            | Self::Edge(id)
+            | Self::Vertex(id)
+            | Self::Point(id)
+            | Self::Curve(id)
+            | Self::Surface(id) => Some(*id),
+            Self::Other(_) => None,
+        }
+    }
+}
+
+/// The values of one attribute field: one value node.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AttributeField {
+    /// `INT_VALUES`; an unset value is `None`.
+    Integers(Vec<Option<i32>>),
+    /// `REAL_VALUES`; an unset value is `None`.
+    Reals(Vec<Option<f64>>),
+    /// `CHAR_VALUES`, one character per transmitted byte.
+    Text(String),
+    /// `UNICODE_VALUES`, UTF-16 code units decoded lossily.
+    Unicode(String),
+    /// `POINT_VALUES`; a null or non-finite vector is `None`.
+    Points(Vec<Option<Vector3>>),
+    /// `VECTOR_VALUES`; a null or non-finite vector is `None`.
+    Vectors(Vec<Option<Vector3>>),
+    /// `DIRECTION_VALUES`; a null or non-finite vector is `None`.
+    Directions(Vec<Option<Vector3>>),
+    /// `AXIS_VALUES`: two vectors per axis in source order (the reference says
+    /// only that an axis takes up two vectors); a null one is `None`.
+    Axes(Vec<Option<Vector3>>),
+    /// `TAG_VALUES`; an unset tag is `None`.
+    Tags(Vec<Option<i32>>),
+    /// A value node the mapper does not decode.
+    Unsupported { type_name: String, node_index: u32 },
+}
+
+/// One `ATTRIBUTE` node with the identifier of its definition.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attribute {
+    /// Document-local B-Rep identifier.
+    pub id: BrepId,
+    /// The definition's `ATT_DEF_ID` string, for example `SDL/TYSA_COLOUR`.
+    pub identifier: String,
+    /// The definition's `type_id` (8001 for the system colour), when set.
+    pub kind_id: Option<i32>,
+    /// Entity the attribute is attached to.
+    pub owner: AttributeOwner,
+    /// Field values in definition order.
+    pub fields: Vec<AttributeField>,
+    /// Raw-node provenance of the `ATTRIBUTE` node.
+    pub source: SourceNodeRef,
 }

@@ -114,13 +114,16 @@ def _validate_inputs(
                 message="OCCT conversion completeness differs from the supplied BrepModel",
             )
         )
-    if not report.conversion_complete or not report.occt_valid:
+    if not report.occt_valid or (not report.conversion_complete and not options.allow_partial):
         raise PreviewError(
             _diagnostic(
                 brep,
                 code="preview.invalid_conversion",
                 kind=DiagnosticKind.INVALID,
-                message="preview requires a complete and OCCT-valid conversion result",
+                message=(
+                    "preview requires an OCCT-valid conversion result, complete unless "
+                    "allow_partial is set"
+                ),
                 details={
                     "conversion_complete": report.conversion_complete,
                     "occt_valid": report.occt_valid,

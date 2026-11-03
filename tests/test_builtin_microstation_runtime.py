@@ -100,6 +100,14 @@ def test_exact_key_reads_the_reshaped_reference_example():
     assert len(model.edges) == 1
     assert len(model.vertices) == 0
     assert model.curves[0].definition.radius == 1.0
+    # The example's colour attribute decorates the face with integer values.
+    assert [item.identifier for item in model.attributes] == ["SDL/TYSA_COLOUR"]
+    attribute = model.attributes[0]
+    assert attribute.kind_id == 8001
+    assert (attribute.owner.kind.value, attribute.owner.id) == ("face", model.faces[0].id)
+    assert attribute.fields[0].kind == "integers"
+    assert attribute.fields[0].values == (1, 2, 3)
+    assert model.faces[0].attributes == (attribute.id,)
 
 
 def binary() -> bytes:
@@ -169,11 +177,11 @@ def test_builtin_listing_has_the_profile_and_its_family():
     assert profile.schema_keys == (KEY,)
     assert profile.provider_schema == "9008"
     assert profile.coverage == "verified_subset"
-    assert profile.type_count == 27
+    assert profile.type_count == 44
     family = by_id["family-9008"]
     assert [m.profile_id for m in family.members] == [PROFILE]
     assert family.base_members == ()
-    assert family.type_count == 27
+    assert family.type_count == 44
 
 
 def test_other_layouts_and_unobserved_types_fail_closed():
@@ -181,10 +189,10 @@ def test_other_layouts_and_unobserved_types_fail_closed():
     v13 = DISC.replace("FFFFTFTFFFFFF1 ", "0 FFFFTFTFFFFFFF1 ")
     with pytest.raises(ParseError):
         parse_xt(stream(nodes=v13))
-    # REAL_VALUES (83) is not observed in the Bentley files.
-    reals = DISC.replace("82 3 15 1 2 3 ", "83 3 15 1 2 3 ")
+    # UNICODE_VALUES (98) is not observed in the MicroStation files.
+    unicode = DISC.replace("82 3 15 1 2 3 ", "98 3 15 1 2 3 ")
     with pytest.raises(SchemaError, match=r"schema\.builtin_profile_uncovered_type"):
-        parse_xt(stream(nodes=reals))
+        parse_xt(stream(nodes=unicode))
     data = stream()
     for end in range(len(data) - 1):
         with pytest.raises(ParseError):

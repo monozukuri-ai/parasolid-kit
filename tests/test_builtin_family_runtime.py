@@ -25,7 +25,7 @@ from tests.test_builtin_schema_runtime import general_body_payload
 ROOT = Path(__file__).resolve().parents[1]
 OTHER_V30_BUILD = "SCH_3000999_30000"
 OTHER_EMBEDDED_BUILD = "SCH_3000399_30000_13006"
-NO_FAMILY = "SCH_3000310_30100_13006"
+NO_FAMILY = "SCH_3000310_30900_13006"
 
 
 def parser(encoding):
@@ -36,8 +36,8 @@ def test_family_listing_follows_the_exact_profiles():
     profiles = builtin_profiles()
     exact = [p for p in profiles if p.coverage == "verified_subset"]
     families = [p for p in profiles if p.coverage == "family_inferred"]
-    assert len(exact) == 50
-    assert len(families) == 29
+    assert len(exact) == 57
+    assert len(families) == 36
     by_id = {p.profile_id: p for p in profiles}
     assert len(by_id) == len(profiles)
     for profile in exact:
