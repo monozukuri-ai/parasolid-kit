@@ -7,9 +7,8 @@
   shape that `BRepCheck` rejects or whose metrics differ from the source is
   returned with those findings as warnings and `occt_valid=False` instead of
   failing, since the caller asked for what could be built. Fifteen of the
-  199 files of the second public corpus and the authored Onshape cylinder
-  with a hole (`data/onshape-cylinder-hole-v30.x_t`) convert that way; strict
-  mode and STEP export are unchanged.
+  199 files of the second public corpus and an authored Onshape cylinder
+  with a hole convert that way; strict mode and STEP export are unchanged.
 - `read_brep(source_format="auto")` recognises the `.xmt_txt` and `.xmt_bin`
   suffixes and a common header (`**ABCDEF...`) in front of a text stream
   (the three Siemens example files named `.xmt_txt` failed with "cannot

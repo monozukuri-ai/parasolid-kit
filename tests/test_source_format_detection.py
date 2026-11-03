@@ -1,39 +1,68 @@
-"""``read_brep(source_format="auto")`` recognises the common header and the ``.xmt_*`` suffixes.
+"""``read_brep(source_format="auto")`` recognises the ``.xmt_*`` suffixes and the stream prefix.
 
 The Siemens example transmit files are named ``.xmt_txt``; read by path they
 failed with "cannot identify source encoding" because neither the suffix nor
-the ``**ABCDEF...`` first line of the common header was recognised.
+the ``**ABCDEF...`` first line of the common header was recognised. The
+fixtures are the authored general body in both encodings, bare and behind a
+common header.
 """
 
 from __future__ import annotations
 
-import shutil
-from pathlib import Path
-
 import pytest
 
 from parasolid_kit import read_brep
+from tests.test_builtin_schema_runtime import general_body_payload
 
-DATA = Path(__file__).resolve().parents[1] / "data"
+COMMON_HEADER = {
+    "x_t": (
+        b"**PART1;FORMAT=text;\n**PART2;SCH=SCH_9999999_99999;USFLD_SIZE=0;\n"
+        b"**PART3;\n**END_OF_HEADER***\n"
+    ),
+    "x_b": (
+        b"**PART1;FORMAT=binary;\n**PART2;SCH=SCH_9999999_99999;USFLD_SIZE=0;\n"
+        b"**PART3;\n**END_OF_HEADER***\n"
+    ),
+}
+FORMAT = {"x_t": "text", "x_b": "binary"}
+
+
+def payload(encoding: str, *, common_header: bool) -> bytes:
+    data = general_body_payload(encoding)
+    return COMMON_HEADER[encoding] + data if common_header else data
 
 
 @pytest.mark.parametrize(
-    "name,suffix,encoding",
+    "encoding,suffix,common_header",
     [
-        ("onshape-box-v30.x_t", ".xmt_txt", "text"),
-        ("onshape-box-v30.x_b", ".xmt_bin", "binary"),
-        ("onshape-box-v30.x_t", ".dat", "text"),
-        ("onshape-box-v30.x_b", ".dat", "binary"),
+        ("x_t", ".xmt_txt", False),
+        ("x_t", ".xmt_txt", True),
+        ("x_b", ".xmt_bin", False),
+        ("x_b", ".xmt_bin", True),
+        # An unknown suffix leaves the decision to the stream: the bare ``T``
+        # line or the ``**`` common header is text, the ``PS`` marker binary.
+        ("x_t", ".dat", False),
+        ("x_t", ".dat", True),
+        ("x_b", ".dat", False),
+        ("x_b", ".dat", True),
     ],
 )
-def test_auto_detection_by_suffix_and_common_header(tmp_path, name, suffix, encoding):
+def test_auto_detection_by_suffix_and_stream_prefix(tmp_path, encoding, suffix, common_header):
+    data = payload(encoding, common_header=common_header)
     path = tmp_path / f"model{suffix}"
-    shutil.copyfile(DATA / name, path)
+    path.write_bytes(data)
     parsed = read_brep(path)
-    assert parsed.document.format == encoding
+    assert parsed.document.format == FORMAT[encoding]
     assert len(parsed.brep.bodies) == 1
     # In-memory bytes rely on the content alone.
-    assert read_brep(path.read_bytes()).document.format == encoding
+    assert read_brep(data).document.format == FORMAT[encoding]
+
+
+def test_the_suffix_decides_before_the_stream_is_inspected(tmp_path):
+    path = tmp_path / "renamed.xmt_txt"
+    path.write_bytes(payload("x_t", common_header=True))
+    assert read_brep(path, source_format="x-t").document.format == "text"
+    assert read_brep(path).document.format == "text"
 
 
 def test_unrecognised_bytes_still_need_an_explicit_format():
