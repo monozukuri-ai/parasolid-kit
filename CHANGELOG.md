@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Intersection curves whose source chart continues past the face onto the
+  natural extension of a bounded surface (a ruled or B-spline surface, a
+  blend pipe) now fit: the point-on-surface check and the Newton refinement
+  project onto one more span on each side of a finite, non-periodic parameter
+  range, which is the polynomial extension the source evaluated. Before, such
+  a chart point failed as "source intersection point is outside its
+  support-surface tolerance" although it lay on the extended surface; the
+  saved bodies of three iCAD SX production files (2026) stopped there.
+- A zero-range blended edge (the construction surface a cliff-edge blend
+  rolls through, never a face's surface) may store null thumb weights; they
+  map to the unweighted (1, 1) rolling ball instead of failing the body with
+  "double array contains null or non-finite data". A blend with a range still
+  requires both weights.
 - Partial conversion of a whole shape (after 0.3.11): with `partial=True`, a
   model where every face builds is still validated as in strict mode, but a
   shape that `BRepCheck` rejects or whose metrics differ from the source is

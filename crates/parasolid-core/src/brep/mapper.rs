@@ -947,6 +947,7 @@ impl<'a> Mapper<'a> {
         })
     }
 
+    #[allow(clippy::float_cmp)] // A zero range is stored as exact zeros.
     fn blended_edge_surface(&self, node: &RawNode) -> Result<SurfaceKind, ParseError> {
         let blend_type = match self.character(node, "blend_type")? {
             b'R' => BlendType::RollingBall,
@@ -963,12 +964,30 @@ impl<'a> Mapper<'a> {
             self.required_id_pair(node, "surface", "surface geometry", &self.ids.surfaces)?;
         let boundary_surfaces =
             self.optional_id_pair(node, "boundary", "surface geometry", &self.ids.surfaces)?;
+        let ranges = self.double_pair(node, "range")?;
+        // A zero-range blend, the construction surface a cliff-edge blend
+        // rolls through and never a face's surface, stores null thumb weights
+        // (an iCAD SX V8L4 production body, 2026). The unweighted rolling ball
+        // has weight 1 on both sides; a blend with a range keeps its weights.
+        let weights = self.optional_double_array(node, "thumb_weight")?;
+        self.validate_count(node, "thumb_weight", 2, weights.len())?;
+        let thumb_weights = match (weights[0], weights[1]) {
+            (Some(first), Some(second)) => [first, second],
+            _ if ranges == [0.0, 0.0] => [1.0, 1.0],
+            _ => {
+                return Err(self.invalid_geometry(
+                    node,
+                    "thumb_weight",
+                    "thumb weights are null on a blend with a nonzero range",
+                ));
+            }
+        };
         Ok(SurfaceKind::BlendedEdge {
             blend_type,
             supporting_surfaces,
             spine_curve: self.required_id(node, "spine", "curve geometry", &self.ids.curves)?,
-            ranges: self.double_pair(node, "range")?,
-            thumb_weights: self.double_pair(node, "thumb_weight")?,
+            ranges,
+            thumb_weights,
             boundary_surfaces,
             start: self.optional_source(node, "start")?,
             end: self.optional_source(node, "end")?,

@@ -61,6 +61,16 @@ def fit_intersection(surfaces: list, samples: list, anchors: list, tolerance: fl
         if key not in projectors:
             operation = GeomAPI_ProjectPointOnSurf()
             u1, u2, v1, v2 = surface.Bounds()
+            # A source chart runs along the natural extension of a bounded
+            # surface where the curve continues past the face (a ruled or
+            # B-spline surface, a blend pipe). The polynomial extension is
+            # what the source evaluated, so the extrema search covers one
+            # more span on each side of a finite, non-periodic range; a point
+            # on the surface proper still projects onto itself.
+            if not surface.IsUPeriodic() and isfinite(u1) and isfinite(u2):
+                u1, u2 = u1 - (u2 - u1), u2 + (u2 - u1)
+            if not surface.IsVPeriodic() and isfinite(v1) and isfinite(v2):
+                v1, v2 = v1 - (v2 - v1), v2 + (v2 - v1)
             operation.Init(surface, u1, u2, v1, v2, numerical)
             projectors[key] = (operation, ShapeAnalysis_Surface(surface))
         return projectors[key]
