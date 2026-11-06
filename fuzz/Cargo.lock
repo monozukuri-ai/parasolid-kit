@@ -71,7 +71,7 @@ dependencies = [
 
 [[package]]
 name = "parasolid-core"
-version = "0.3.14"
+version = "0.3.15"
 
 [[package]]
 name = "parasolid-kit-fuzz"
