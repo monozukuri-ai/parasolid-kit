@@ -5,7 +5,8 @@
 //! `SP_CURVE` and B-spline surface layouts, the attribute value nodes of the
 //! public reference, `WORLD`, the reviewed `TORUS`, blend, offset, swept and
 //! spun surfaces, and the assembly structure (`ASSEMBLY`, `INSTANCE`,
-//! `TRANSFORM`) seen in a `SolidWorks` 2020 assembly export. Version
+//! `TRANSFORM`) seen in a `SolidWorks` 2020 assembly export, and the
+//! reference's helical curve descriptor (`HELIX_CU_FORM`, 163). Version
 //! differences arrive as each stream's embedded edits; a nearby key is never
 //! selected.
 
@@ -13,7 +14,7 @@ use crate::schema::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
 use crate::{BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, ParseError};
 
 pub(crate) const PROFILE_SHA256: &str =
-    "a3d1a2d825e536dacfdddc95b5ca39de60b2d1c9af8e3381081a7ae662696a84";
+    "7300096c034365663a13f40c96a919d19b73d25b4c957f9dbb0e472c0a381730";
 
 /// Construct the exact `SolidWorks` 2026 partition subset.
 ///
@@ -25,8 +26,8 @@ pub(crate) const PROFILE_SHA256: &str =
 pub fn solidworks_sch37102_13006() -> Result<BuiltinSchemaProfile, ParseError> {
     BuiltinSchemaProfile::new_embedded(
         BuiltinProfileMetadata {
-            profile_id: "solidworks-sch37102-13006-r2".into(),
-            revision: 2,
+            profile_id: "solidworks-sch37102-13006-r3".into(),
+            revision: 3,
             provider_schema: "13006".into(),
             producer_scope: "SolidWorks 2026 partition".into(),
             coverage: BuiltinProfileCoverage::VerifiedSubset,
@@ -51,87 +52,87 @@ pub(crate) struct ProfileSpec {
 pub(crate) const PROFILES: &[ProfileSpec] = &[
     ProfileSpec {
         key: "SCH_2700199_26105_13006",
-        id: "solidworks-2700199-26105-13006-r1",
-        revision: 1,
-        sha256: "61a654e5bb4df611facb23111f450656972af25b1b6f55dff97d844b18adee31",
+        id: "solidworks-2700199-26105-13006-r2",
+        revision: 2,
+        sha256: "edab51092b3b8d1e0f137e6e3d7f666348a433b2bf17a932e8b708886e6b4331",
     },
     ProfileSpec {
         key: "SCH_2800191_28002_13006",
-        id: "solidworks-2800191-28002-13006-r1",
-        revision: 1,
-        sha256: "f0490af8d0773a1ad5f8804c4b5638ecd00c08aad7b05cc846f4649aa96d601a",
+        id: "solidworks-2800191-28002-13006-r2",
+        revision: 2,
+        sha256: "388cf98e9768b041ff7dd572df1e63f83c41afc36eaa635ccf61fdc272214a3e",
     },
     ProfileSpec {
         key: "SCH_2800209_28002_13006",
-        id: "solidworks-2800209-28002-13006-r1",
-        revision: 1,
-        sha256: "b4b34fb287a688e68791a1ace42d70d7cff61b23718b15760dffb0d26d27e517",
+        id: "solidworks-2800209-28002-13006-r2",
+        revision: 2,
+        sha256: "162b6cdd51c8b6ac6bcbddf363c2b9cba98262d4e08365d31576b30a3653fe3e",
     },
     ProfileSpec {
         key: "SCH_2900166_28101_13006",
-        id: "solidworks-2900166-28101-13006-r1",
-        revision: 1,
-        sha256: "e0c74972b365d686e37c297134906e40617102e6be3c8a9782c06f780a25f888",
+        id: "solidworks-2900166-28101-13006-r2",
+        revision: 2,
+        sha256: "f34b810890bf48d501fd941a5e2793741df03915b93292ce3abb36d6b16a6bff",
     },
     ProfileSpec {
         key: "SCH_2900190_28101_13006",
-        id: "solidworks-2900190-28101-13006-r1",
-        revision: 1,
-        sha256: "d8a47dec500e2ed31901257b79de15a72b3a67784373d409f808f269cef4de62",
+        id: "solidworks-2900190-28101-13006-r2",
+        revision: 2,
+        sha256: "6625faaa9d5afae86fa6f9058a6ae36a2bc97852f6d66dd8d68b3c899a868f7f",
     },
     ProfileSpec {
         key: "SCH_2900195_28101_13006",
-        id: "solidworks-2900195-28101-13006-r1",
-        revision: 1,
-        sha256: "cbb74b85cc8bbbba07dc518c6320c406029a159156fbb0f10448532e52f2be44",
+        id: "solidworks-2900195-28101-13006-r2",
+        revision: 2,
+        sha256: "3ed9e73e24121d843d2393b42462c5ae633c8054ec8f66b54ebddc2ea4c8a28b",
     },
     ProfileSpec {
         key: "SCH_3000226_30000_13006",
-        id: "solidworks-3000226-30000-13006-r1",
-        revision: 1,
-        sha256: "d606e1f8d7b738717de4c9c2212db805cd7e9d0bb1710ffea8447ee166ec9255",
+        id: "solidworks-3000226-30000-13006-r2",
+        revision: 2,
+        sha256: "734a40413d7a1a97a2344e5d6379255b299365ea50361ff0286c7f90fcd956cc",
     },
     ProfileSpec {
         key: "SCH_3000298_30000_13006",
-        id: "solidworks-3000298-30000-13006-r1",
-        revision: 1,
-        sha256: "6bd9e9778f9dfe75fb879db617daa4b7f888718ea14c3f01cce68c44c880a5e5",
+        id: "solidworks-3000298-30000-13006-r2",
+        revision: 2,
+        sha256: "c9d5c679dba4855d478de10e6c0cd88167113bbdc0a9553b259bab261e490cfd",
     },
     ProfileSpec {
         key: "SCH_3100203_31001_13006",
-        id: "solidworks-3100203-31001-13006-r1",
-        revision: 1,
-        sha256: "43458838d65f494f5d15fb854ba6fb072cd8071b0f7bb72a83e0636066dbd651",
+        id: "solidworks-3100203-31001-13006-r2",
+        revision: 2,
+        sha256: "b209ba14673b1fb93d43bb4d74aab652e63fba9d9bbeb88e4c1ee5608c1b9bb1",
     },
     ProfileSpec {
         key: "SCH_3101290_31100_13006",
-        id: "solidworks-3101290-31100-13006-r1",
-        revision: 1,
-        sha256: "63124f4e458c2bfd26998dac4ac29a2fbee04b858675db13e3bd89b2bca58827",
+        id: "solidworks-3101290-31100-13006-r2",
+        revision: 2,
+        sha256: "bee8630028173b14a84497976ff74082bbb9c8bc8af1ae71059c389968420c5b",
     },
     ProfileSpec {
         key: "SCH_3401254_34101_13006",
-        id: "solidworks-3401254-34101-13006-r1",
-        revision: 1,
-        sha256: "dc94f65e04520c3ad3707fc293c1f3456bda4b53de64cb332d03038724f6f69d",
+        id: "solidworks-3401254-34101-13006-r2",
+        revision: 2,
+        sha256: "c702f7a475e4e727791463e24fa7673d289f77aab0768e01bd61b25ce960b059",
     },
     ProfileSpec {
         key: "SCH_3501210_35102_13006",
-        id: "solidworks-3501210-35102-13006-r1",
-        revision: 1,
-        sha256: "805b85624a1cc298e13493443b0edc73279b5f0ab7b79f317deaba94d6950f7b",
+        id: "solidworks-3501210-35102-13006-r2",
+        revision: 2,
+        sha256: "9673a3534ce3df39916de4d9016403861526d0cc66a3887ae4dcf41b2a12d689",
     },
     ProfileSpec {
         key: "SCH_3501256_35102_13006",
-        id: "solidworks-3501256-35102-13006-r1",
-        revision: 1,
-        sha256: "1d30ef6d2637e866800116a1a6542664472b4da337874dce5db25a23f7ac9758",
+        id: "solidworks-3501256-35102-13006-r2",
+        revision: 2,
+        sha256: "2b66c69af0f79c8a2f7558696b125a994a86026e452d8fc2a7d6577b4fb5d9d9",
     },
     ProfileSpec {
         key: "SCH_3601228_36001_13006",
-        id: "solidworks-3601228-36001-13006-r1",
-        revision: 1,
-        sha256: "30a14081482f630314285cd3a62ac02ea217d66f3d209dd2efb6f5f0635d8525",
+        id: "solidworks-3601228-36001-13006-r2",
+        revision: 2,
+        sha256: "71d7a26b5ee2ce9d857449556f91757cc943e8ea8aedceb82c150f706585dc7c",
     },
 ];
 
@@ -148,7 +149,42 @@ pub(crate) fn solidworks_definitions() -> Vec<TypeDefinition> {
     definitions.extend(super::icad_legacy::reviewed_extra_definitions());
     definitions.push(swept_surface());
     definitions.extend(super::assembly_definitions());
+    definitions.push(helix_curve_form());
     definitions
+}
+
+/// Public XT Format Reference, April 2008, printed pp. 43-44 and 118.
+/// `HELIX_CU_FORM` (163) is the optional analytic descriptor referenced by
+/// `CURVE_DATA` (135), not a curve with the common geometry header. In
+/// particular, `turns` is one interval field, not two scalar field groups;
+/// embedded edits address these seven base fields.
+fn helix_curve_form() -> TypeDefinition {
+    use FieldType::{Character as C, Double as F, Interval as I, Vector as V};
+    let fields = [
+        ("axis_point", V),
+        ("axis_direction", V),
+        ("point", V),
+        ("hand", C),
+        ("turns", I),
+        ("pitch", F),
+        ("tolerance", F),
+    ]
+    .into_iter()
+    .map(|(name, field_type)| FieldDefinition {
+        name: name.into(),
+        field_type,
+        pointer_class: 0,
+        element_count: 0,
+        transmitted: true,
+    })
+    .collect();
+    TypeDefinition::from_fields(
+        163,
+        "sch13006_type_163",
+        "Reviewed helical curve descriptor",
+        fields,
+        SchemaSource::Base,
+    )
 }
 
 /// Construct the earlier `SolidWorks` partition profiles, one per exact key.

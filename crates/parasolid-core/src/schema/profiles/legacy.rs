@@ -175,8 +175,8 @@ pub(crate) const PROFILES: &[LegacySpec] = &[
             schema: "12006",
             // The node types of the reference's transmit example (printed page
             // 10). The one public file of this key stops at its first CYLINDER
-            // under this profile, and would stop at HELIX_CU_FORM (163), which the
-            // reference does not describe, with its types declared.
+            // under this profile. HELIX_CU_FORM (163) is described on printed
+            // pp. 43-44, but is not reviewed for this standard schema.
             types: &[12, 13, 14, 15, 16, 17, 19, 31, 50, 70, 74, 79, 80, 81, 83],
             edits: PARASOLID_11,
         },

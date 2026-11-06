@@ -64,8 +64,8 @@ impl RoleAccess {
                         && *profile_revision == 3
                         && key == "SCH_3401212_34101_13006"
                         && profile_sha256 == crate::schema::profiles::ICAD_V34_PROFILE_SHA256)
-                    || (profile_id == "solidworks-sch37102-13006-r2"
-                        && *profile_revision == 2
+                    || (profile_id == "solidworks-sch37102-13006-r3"
+                        && *profile_revision == 3
                         && key == "SCH_3701229_37102_13006"
                         && profile_sha256
                             == crate::schema::profiles::SOLIDWORKS_PROFILE_SHA256)

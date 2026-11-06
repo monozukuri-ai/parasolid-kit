@@ -24,7 +24,7 @@ fn exact_v34_profile_pins_reviewed_base_and_rejects_nearby_keys() -> support::Re
     // The exact profile declares only the types observed under its key; the
     // provider completes it with the reviewed 13006 declarations of its family
     // (blend boundary, offset and B-surface types from other profiles).
-    for kind in [59, 60, 124, 125, 126, 101] {
+    for kind in [59, 60, 124, 125, 126, 101, 163] {
         assert!(profile.definition(kind).is_none());
         assert!(matches!(
             provider.lookup_type("13006", kind),
@@ -32,10 +32,6 @@ fn exact_v34_profile_pins_reviewed_base_and_rejects_nearby_keys() -> support::Re
         ));
     }
     assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
-    assert_eq!(
-        provider.lookup_type("13006", 163),
-        SchemaTypeLookup::Unknown
-    );
     // The exact provider never accepts another key. Another build of the same
     // schema resolves through the derived family; another schema or base does not.
     for nearby in [

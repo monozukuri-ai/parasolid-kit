@@ -51,21 +51,21 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r6` / 6 | 43 / 366 | `29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e` |
 | `SCH_3401212_34101_13006` | `icad-sch34101-13006-r3` / 3 | 40 / 320 | `595a8848c2b7730367bb41bbe75332c79c9038eb56accc7ee785ca9742a37de7` |
 | `SCH_3701212_37102_13006` | `onshape-sch37102-13006-r3` / 3 | 41 / 339 | `3f9489b24874ca7857e48d8daf106bcf821f612b49e0d60650b20e132e04abaa` |
-| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r2` / 2 | 55 / 453 | `a3d1a2d825e536dacfdddc95b5ca39de60b2d1c9af8e3381081a7ae662696a84` |
-| `SCH_2700199_26105_13006` | `solidworks-2700199-26105-13006-r1` / 1 | 55 / 453 | `61a654e5bb4df611facb23111f450656972af25b1b6f55dff97d844b18adee31` |
-| `SCH_2800191_28002_13006` | `solidworks-2800191-28002-13006-r1` / 1 | 55 / 453 | `f0490af8d0773a1ad5f8804c4b5638ecd00c08aad7b05cc846f4649aa96d601a` |
-| `SCH_2800209_28002_13006` | `solidworks-2800209-28002-13006-r1` / 1 | 55 / 453 | `b4b34fb287a688e68791a1ace42d70d7cff61b23718b15760dffb0d26d27e517` |
-| `SCH_2900166_28101_13006` | `solidworks-2900166-28101-13006-r1` / 1 | 55 / 453 | `e0c74972b365d686e37c297134906e40617102e6be3c8a9782c06f780a25f888` |
-| `SCH_2900190_28101_13006` | `solidworks-2900190-28101-13006-r1` / 1 | 55 / 453 | `d8a47dec500e2ed31901257b79de15a72b3a67784373d409f808f269cef4de62` |
-| `SCH_2900195_28101_13006` | `solidworks-2900195-28101-13006-r1` / 1 | 55 / 453 | `cbb74b85cc8bbbba07dc518c6320c406029a159156fbb0f10448532e52f2be44` |
-| `SCH_3000226_30000_13006` | `solidworks-3000226-30000-13006-r1` / 1 | 55 / 453 | `d606e1f8d7b738717de4c9c2212db805cd7e9d0bb1710ffea8447ee166ec9255` |
-| `SCH_3000298_30000_13006` | `solidworks-3000298-30000-13006-r1` / 1 | 55 / 453 | `6bd9e9778f9dfe75fb879db617daa4b7f888718ea14c3f01cce68c44c880a5e5` |
-| `SCH_3100203_31001_13006` | `solidworks-3100203-31001-13006-r1` / 1 | 55 / 453 | `43458838d65f494f5d15fb854ba6fb072cd8071b0f7bb72a83e0636066dbd651` |
-| `SCH_3101290_31100_13006` | `solidworks-3101290-31100-13006-r1` / 1 | 55 / 453 | `63124f4e458c2bfd26998dac4ac29a2fbee04b858675db13e3bd89b2bca58827` |
-| `SCH_3401254_34101_13006` | `solidworks-3401254-34101-13006-r1` / 1 | 55 / 453 | `dc94f65e04520c3ad3707fc293c1f3456bda4b53de64cb332d03038724f6f69d` |
-| `SCH_3501210_35102_13006` | `solidworks-3501210-35102-13006-r1` / 1 | 55 / 453 | `805b85624a1cc298e13493443b0edc73279b5f0ab7b79f317deaba94d6950f7b` |
-| `SCH_3501256_35102_13006` | `solidworks-3501256-35102-13006-r1` / 1 | 55 / 453 | `1d30ef6d2637e866800116a1a6542664472b4da337874dce5db25a23f7ac9758` |
-| `SCH_3601228_36001_13006` | `solidworks-3601228-36001-13006-r1` / 1 | 55 / 453 | `30a14081482f630314285cd3a62ac02ea217d66f3d209dd2efb6f5f0635d8525` |
+| `SCH_3701229_37102_13006` | `solidworks-sch37102-13006-r3` / 3 | 56 / 460 | `7300096c034365663a13f40c96a919d19b73d25b4c957f9dbb0e472c0a381730` |
+| `SCH_2700199_26105_13006` | `solidworks-2700199-26105-13006-r2` / 2 | 56 / 460 | `edab51092b3b8d1e0f137e6e3d7f666348a433b2bf17a932e8b708886e6b4331` |
+| `SCH_2800191_28002_13006` | `solidworks-2800191-28002-13006-r2` / 2 | 56 / 460 | `388cf98e9768b041ff7dd572df1e63f83c41afc36eaa635ccf61fdc272214a3e` |
+| `SCH_2800209_28002_13006` | `solidworks-2800209-28002-13006-r2` / 2 | 56 / 460 | `162b6cdd51c8b6ac6bcbddf363c2b9cba98262d4e08365d31576b30a3653fe3e` |
+| `SCH_2900166_28101_13006` | `solidworks-2900166-28101-13006-r2` / 2 | 56 / 460 | `f34b810890bf48d501fd941a5e2793741df03915b93292ce3abb36d6b16a6bff` |
+| `SCH_2900190_28101_13006` | `solidworks-2900190-28101-13006-r2` / 2 | 56 / 460 | `6625faaa9d5afae86fa6f9058a6ae36a2bc97852f6d66dd8d68b3c899a868f7f` |
+| `SCH_2900195_28101_13006` | `solidworks-2900195-28101-13006-r2` / 2 | 56 / 460 | `3ed9e73e24121d843d2393b42462c5ae633c8054ec8f66b54ebddc2ea4c8a28b` |
+| `SCH_3000226_30000_13006` | `solidworks-3000226-30000-13006-r2` / 2 | 56 / 460 | `734a40413d7a1a97a2344e5d6379255b299365ea50361ff0286c7f90fcd956cc` |
+| `SCH_3000298_30000_13006` | `solidworks-3000298-30000-13006-r2` / 2 | 56 / 460 | `c9d5c679dba4855d478de10e6c0cd88167113bbdc0a9553b259bab261e490cfd` |
+| `SCH_3100203_31001_13006` | `solidworks-3100203-31001-13006-r2` / 2 | 56 / 460 | `b209ba14673b1fb93d43bb4d74aab652e63fba9d9bbeb88e4c1ee5608c1b9bb1` |
+| `SCH_3101290_31100_13006` | `solidworks-3101290-31100-13006-r2` / 2 | 56 / 460 | `bee8630028173b14a84497976ff74082bbb9c8bc8af1ae71059c389968420c5b` |
+| `SCH_3401254_34101_13006` | `solidworks-3401254-34101-13006-r2` / 2 | 56 / 460 | `c702f7a475e4e727791463e24fa7673d289f77aab0768e01bd61b25ce960b059` |
+| `SCH_3501210_35102_13006` | `solidworks-3501210-35102-13006-r2` / 2 | 56 / 460 | `9673a3534ce3df39916de4d9016403861526d0cc66a3887ae4dcf41b2a12d689` |
+| `SCH_3501256_35102_13006` | `solidworks-3501256-35102-13006-r2` / 2 | 56 / 460 | `2b66c69af0f79c8a2f7558696b125a994a86026e452d8fc2a7d6577b4fb5d9d9` |
+| `SCH_3601228_36001_13006` | `solidworks-3601228-36001-13006-r2` / 2 | 56 / 460 | `71d7a26b5ee2ce9d857449556f91757cc943e8ea8aedceb82c150f706585dc7c` |
 | `SCH_1500137_15003_13006` | `icad-1500137-15003-13006-r1` / 1 | 31 / 252 | `dcb4bb70654e9d1bf091b1310b2068872b56304f0b820435a3910bcec366a9e8` |
 | `SCH_1500245_15003_13006` | `icad-1500245-15003-13006-r1` / 1 | 34 / 292 | `4179d5785e61e89926dfb54e0bc5eed7f0fb7cdec7300de0936ef678ba4d0f4c` |
 | `SCH_1700223_16100_13006` | `icad-1700223-16100-13006-r1` / 1 | 31 / 252 | `a27d8216055fe16425438c854482ec8dfac5e6f2e0aea1e1b7ce3605bc6ac633` |
@@ -81,11 +81,11 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_3200152_32001_13006` | `icad-3200152-32001-13006-r1` / 1 | 39 / 305 | `b6d919827de77377bc8a96581f25c1654bf257e5d0f3c126ba1090850b623413` |
 | `SCH_3200252_32001_13006` | `icad-3200252-32001-13006-r1` / 1 | 44 / 379 | `141ddd0f43c9a5c8bac32395171352899adca081f7b17fb77f9fd625e2495172` |
 | `SCH_3301231_33103_13006` | `icad-3301231-33103-13006-r2` / 2 | 45 / 391 | `cc98a11221746512e9429ae85dd6c354b2c557fb7fe3959c7d13151220936baf` |
-| `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r1` / 1 | 57 / 467 | `2ea1aaac6129330bf33d3641fd4548abbaa3cd4641e7afb29f841ff5f2398ad1` |
-| `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r1` / 1 | 55 / 453 | `3b7a6fe5dd88c7c204e4100ff583a0466e4e87376d2fffd8877780d542157da8` |
-| `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r1` / 1 | 55 / 453 | `6dd12893367c55e32ce53b981e407bf347d7d64ac264ae16b8b8230d1ce1c271` |
-| `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r1` / 1 | 55 / 453 | `33cbfed14ae825cae02d76685526ea545ca8274cafca600671a4f75077dd402b` |
-| `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r1` / 1 | 55 / 453 | `a52eebc67c1401d7c66d4de1a9071a2f59133dcd991822f22d28334201224a9d` |
+| `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r2` / 2 | 58 / 474 | `ef75cfbf0f21455156dde0b6d346e3be92dd114f9eb2500f4a2e7f7dd9de39ae` |
+| `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r2` / 2 | 56 / 460 | `45a2e1d9ca4e48831c5e4c757978f0cde09e3d67c46d88392055f52ea031eea0` |
+| `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r2` / 2 | 56 / 460 | `99becb31c455144e4bb98e25fa97232518754b4ea9b6115c3533f554ad8ce18b` |
+| `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r2` / 2 | 56 / 460 | `a4d96295b72774062ffc6a7fb124664e1254f1df584748bbc5960897ec9b576b` |
+| `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r2` / 2 | 56 / 460 | `254c0340fcef549d67badc03c25653f518e06d7657b892308a48f1f4b3aabf05` |
 | `SCH_1300218_13006` | `icad-1300218-13006-r1` / 1 | 23 / 189 | `928962c3f7f5a87013f6af6e45a443d040ff9a967b0887f959366b9bd2774b82` |
 | `SCH_1302234_13006` | `icad-1302234-13006-r1` / 1 | 19 / 165 | `29708f25ceea002ff57f2ebcada3a8bd25ffb6ef1f908ff678b45c3c7abc9f54` |
 | `SCH_1500000_15003` | `icad-1500000-15003-r1` / 1 | 28 / 242 | `d3f7b3909050da2834e34c7f1ccf6b17f2f9cf16048053634dd7fc61506ad313` |
@@ -122,7 +122,7 @@ public CI. The detailed evidence and its retained failures are in
 | [Further iCAD keys and revisions](builtin-profiles.md#further-icad-keys-and-revisions) (unreleased): two embedded and six standard keys, four revised profiles, OFFSET_SURF | 18,610 of 18,634 distinct sampled X_B resources of all iCAD keys match catalog values, ranges and terminators; schema 8008 and 12103 keys and two V30 standard resources still fail closed | 18,567 complete, 32 explicitly partial SPUN_SURF cases and 11 errors, each identical to the catalog path | Authored offset-surface and unset-trim-parameter records with independent values; no independent CAD measurement campaign in this repository | No new conversion qualification | Native ICD framing, ownership, transforms and feature history remain downstream responsibilities |
 | [Schema families, transmit-file keys, user fields and assembly structure](builtin-profiles.md#schema-families-and-base-contributors) (unreleased): 36 derived families, five transmit profiles, exact profiles completed by their family, standard 16100/20000 revision 2, ASSEMBLY/INSTANCE/TRANSFORM, the attribute value nodes of the reference | 22 public X_T transmit files (SolidWorks 2009-2024, NX, Inventor 2012, the Parasolid 24 and 26 acceptance tests, the Siemens Parasolid 26/27 examples, ANSYS, MicroStation): all 22 parse, against 2 with the 0.3.8 release and 6 with exact-key families alone (unreleased: the ANSYS Electronics Desktop file's leading count is skipped and its node type 3 is declared from that one observation; the MicroStation file reads with the schema-9008 profile below) | 22 complete source B-Reps (unreleased: the SolidWorks 2011 plaque and the NX part whose swept surfaces were explicitly unsupported decode now); three assemblies (SolidWorks 2020 with 8 bodies and 10 placed instances, two NX files) map their instances and transforms | Public files only; no catalog comparison and no independent CAD measurement in this repository | Twenty-two strict OCCT conversions (unreleased: the parametric path is selected for vertex-bounded arcs, surface-parameter and intersection curves and trimmed spheres; cones measure v along the axis; unbounded blend spines are bounded; sliver-face crossings and ring edges running against their source circle are handled; cliff-edge blends are the pipe around their spine; an edge through a sphere pole is split there and an edge on a periodic seam carries a pcurve per orientation; swept surfaces are extruded sections and offsets follow the sense of their basis; an analytic branch that misses the source points on the scaled surfaces is retried unscaled and blend contact curves are corrected by their chart residuals), against four with the analytic selection alone | Assembly structure is returned beside the bodies and not applied to their geometry; the public files are not redistributed |
 | [Older standard keys](builtin-profiles.md#older-standard-keys-parasolid-9-to-16) (unreleased): six standard keys of Parasolid 9 to 16 (NX, MicroStation, IronCAD, SolidWorks 98 and the reference key) and their families | 24 public X_T files (NIST engineering-design-models and other GitHub repositories) read to their terminators; the BODY, FIN, ATTRIB_DEF, CURVE_DATA and LIST layouts are read from those streams, the reference's transmit example is authored verbatim and in the 9008 layouts in X_T/X_B fixtures | 24 complete source B-Reps (4 to 300 faces, two Parasolid 9 assemblies of 9 bodies) | Public files only; no catalog comparison and no independent CAD measurement in this repository | Strict OCCT conversions of the four MicroStation files, the 300-face part in about 20 s, and of 10 of the other 20 (eight more in partial mode, two rejected by BRepCheck); measured in the corpus matrix | Only the node types those files carry are declared; the one SolidWorks 2022 file under the reference key stops at CYLINDER (51), and would stop at HELIX_CU_FORM (163) with its types declared; the files are not redistributed |
-| SolidWorks partitions (15 exact keys, SolidWorks 2015-2026) | 75 partition, 58 ghost-partition and 811 local-body X_B streams from 63 Parts; four partition streams fail closed (HELIX_CU_FORM, base type 184, NURBS padding; the unreleased mapper ignores values after the declared counts, not re-measured); deltas stop at unknown base type 3 | 902 complete B-Reps; 26 explicitly partial with a retained SWEPT_SURF; 12 bodiless partitions | sldkit point/FIN/NURBS parity for the 2026 key; display-outline comparison after OCCT conversion is recorded in sldkit, not here | No partition conversion validation in this repository | Delta application and final saved configuration reconstruction remain unsupported; see [SolidWorks partitions](solidworks-partitions.md) |
+| SolidWorks partitions (15 exact keys, SolidWorks 2015-2026) | 75 partition, 58 ghost-partition and 811 local-body X_B streams from 63 Parts; the historical replay had four partition failures (then-undeclared HELIX_CU_FORM, base type 184, NURBS padding; current declarations and padding handling have not been re-measured on these inputs); deltas stop at unknown base type 3 | 902 complete B-Reps; 26 explicitly partial with a retained SWEPT_SURF; 12 bodiless partitions | sldkit point/FIN/NURBS parity for the 2026 key; display-outline comparison after OCCT conversion is recorded in sldkit, not here | No partition conversion validation in this repository | Delta application and final saved configuration reconstruction remain unsupported; see [SolidWorks partitions](solidworks-partitions.md) |
 
 Runtime, build, and installation of the built-in parser require no external
 schema catalog or CAD installation. Normal build/package dependencies are
@@ -169,7 +169,7 @@ families; this table is checked against it.
 | `10004` | 47 / 408 | `nx-1000252-10004-r1` | none | `7cdfd3ac33bff689a6e352b350251d2e3aa35a15fdf05443141b6672b5bbcb5c` |
 | `11004` | 34 / 327 | `ironcad-1100129-11004-r1` | none | `bd57b76b304deaad7d465a8bc6793f4a9a67e976b2fdb3f3eb16afe4aa784894` |
 | `12006` | 15 / 130 | `solidworks-1200000-12006-r1` | none | `28709be637a0ec323f439eb35e3c935cc8b324ec1e73886903a3a6e4f5de3746` |
-| `13006` | 57 / 467 | `icad-1300218-13006-r1`, `icad-1302234-13006-r1`, `onshape-sch13006-r6` | the other 38 profiles of base 13006 | `a33f7bbf8aa574578f1273e11df8665b54d03519fe5168e019b832084280ed60` |
+| `13006` | 58 / 474 | `icad-1300218-13006-r1`, `icad-1302234-13006-r1`, `onshape-sch13006-r6` | the other 38 profiles of base 13006 | `9e9e3cec48091d4771dd669cd811fb12373b5f6e764b01277eca8907bcff66b5` |
 | `15003` | 28 / 242 | `icad-1500000-15003-r1` | none | `832c3e08690feac9c9289aed7d7dc1fb6e94e21f676aaadcb83c7dcee54071ba` |
 | `16004` | 30 / 246 | `nx-1600000-16004-r1` | none | `a735b30e1daef6a0c1c1ec313e26e93915c3592fee3dc967341dcf47723cd6de` |
 | `16100` | 39 / 311 | `icad-1700000-16100-r2` | none | `95552b33d166be3fac54cda9879e23f7b054509765df97c13232c1ab79d6702b` |
@@ -183,25 +183,25 @@ families; this table is checked against it.
 | `33103` | 25 / 219 | `icad-3301000-33103-r1` | none | `0f378a23e4fa883b08c32b64b08e1b69dd2723f9e5f11c62761b24e22e24082b` |
 | `9003` | 44 / 360 | `nx-900141-9003-r1` | none | `6f398e0e39375a7dca727a53135731601777eb6b1ba117b8f1582907e1b52fff` |
 | `9008` | 44 / 377 | `microstation-901297-9008-r1` | none | `0423090b256712358e99f211eac964a01bde5bdc6977504e1de868cd301c18c6` |
-| `15003-13006` | 57 / 467 | `icad-1500137-15003-13006-r1`, `icad-1500245-15003-13006-r1` | the other 39 profiles of base 13006 | `cf2d4c482bc253b0d401650a03068169a9e90b79ed4422e24a59f483a39ecc4b` |
-| `16100-13006` | 57 / 467 | `icad-1700223-16100-13006-r1`, `icad-1700256-16100-13006-r1` | the other 39 profiles of base 13006 | `f26094921ce83ab6b7b20d8d1c70ac5eed86de77c2772288d8f1b77c0bedbb0b` |
-| `19008-13006` | 57 / 467 | `icad-1901261-19008-13006-r1`, `icad-1901315-19008-13006-r1` | the other 39 profiles of base 13006 | `afcad6e33c3644e3635766f69203530c77e4968ad90b92217012642f1f03e3c0` |
-| `20000-13006` | 57 / 467 | `icad-2100293-20000-13006-r2`, `icad-2100311-20000-13006-r1`, `icad-2401260-20000-13006-r1`, `parasolid-2400164-20000-13006-r1` | the other 37 profiles of base 13006 | `5ebefea1355bf6b77daf2e99501ad667f5d20136a32054b4b1c775318668c4b8` |
-| `25001-13006` | 57 / 467 | `nx-2600169-25001-13006-r1`, `parasolid-2600217-25001-13006-r1` | the other 39 profiles of base 13006 | `71fbccd14f6d9d51ab39da6335531f95f341a03854297e42a8dd63d4b0e39a3f` |
-| `26105-13006` | 57 / 467 | `icad-2601246-26105-13006-r1`, `solidworks-2700199-26105-13006-r1` | the other 39 profiles of base 13006 | `f01299cda22c318f69bc60ba769360fa0a6b6fcf39eb129489969aa21928e46f` |
-| `28002-13006` | 57 / 467 | `icad-2800188-28002-13006-r1`, `solidworks-2800191-28002-13006-r1`, `solidworks-2800209-28002-13006-r1` | the other 38 profiles of base 13006 | `0152ea35ea4c88dc7c8f2bff227be0c40033cb22364d2318b5788531bec9eabe` |
-| `28101-13006` | 57 / 467 | `icad-2901199-28101-13006-r1`, `solidworks-2900166-28101-13006-r1`, `solidworks-2900190-28101-13006-r1`, `solidworks-2900195-28101-13006-r1` | the other 37 profiles of base 13006 | `d1ebb699194c63af30e4c5d8115f89cb909a77f1c6e3d59cbb295744c5438cdc` |
-| `30000-13006` | 57 / 467 | `icad-sch30000-13006-r6`, `solidworks-3000226-30000-13006-r1`, `solidworks-3000298-30000-13006-r1` | the other 38 profiles of base 13006 | `e41683de930a74014c7b7e1d70c3fc21c53806edecd9974d5c5cad33edd0fbd8` |
-| `30100-13006` | 57 / 467 | `nx-3001232-30100-13006-r1` | the other 40 profiles of base 13006 | `fbd607cbca2359e82bd5654951952820849d35fdda38734a29087ee04ec1cfa3` |
-| `31001-13006` | 57 / 467 | `solidworks-3100203-31001-13006-r1` | the other 40 profiles of base 13006 | `849e3793033771fdffa62df5559f8e1a04a993994a36b5c2dc5ccbeb560b6f08` |
-| `31100-13006` | 57 / 467 | `solidworks-3101290-31100-13006-r1` | the other 40 profiles of base 13006 | `ecb0102effed4c48a19b0fade35873a14679852edef432db867cca831adf05fc` |
-| `32001-13006` | 57 / 467 | `icad-3200152-32001-13006-r1`, `icad-3200252-32001-13006-r1` | the other 39 profiles of base 13006 | `44cceb2a94163851fb7af0be51f22a8abd9a02850979b861d551bd8107a82f4b` |
-| `33103-13006` | 57 / 467 | `icad-3301231-33103-13006-r2` | the other 40 profiles of base 13006 | `753b7b6bd776bea4aa9aa601fce6b02e33f0dc83fd5ff4061d404914b6eac817` |
-| `34001-13006` | 57 / 467 | `nx-3400176-34001-13006-r1` | the other 40 profiles of base 13006 | `88bb960a26169dbcb1a37303e0213d55868c0595936c26b370681d7c7e8010e0` |
-| `34101-13006` | 57 / 467 | `icad-sch34101-13006-r3`, `solidworks-3401254-34101-13006-r1` | the other 39 profiles of base 13006 | `61ea54333280723e126689f08da4408722ce6ea4ec103e744cfcb8e95975cadf` |
-| `35102-13006` | 57 / 467 | `solidworks-3501210-35102-13006-r1`, `solidworks-3501256-35102-13006-r1` | the other 39 profiles of base 13006 | `9985de8d1df241f3487aad79972ee42503fa14ce0d0e7193720ea6229ec93d7b` |
-| `36001-13006` | 57 / 467 | `solidworks-3601228-36001-13006-r1` | the other 40 profiles of base 13006 | `79d67164097fc5d71e61ce354b189766a9d41dcba97b54eb61fb7ff796b846e6` |
-| `37102-13006` | 57 / 467 | `onshape-sch37102-13006-r3`, `solidworks-sch37102-13006-r2` | the other 39 profiles of base 13006 | `83b35162116e367961d68d34452b7586c42c87b8c1fa29ce8ae1e33f65f6e512` |
+| `15003-13006` | 58 / 474 | `icad-1500137-15003-13006-r1`, `icad-1500245-15003-13006-r1` | the other 39 profiles of base 13006 | `35343490a6876a49868a4351a6f809c99eee4b76840a6cca78b6a085033d8b40` |
+| `16100-13006` | 58 / 474 | `icad-1700223-16100-13006-r1`, `icad-1700256-16100-13006-r1` | the other 39 profiles of base 13006 | `859ba17153c523dee68d759b51536edb0e61b9ec59bebc93cf7901c65ac06506` |
+| `19008-13006` | 58 / 474 | `icad-1901261-19008-13006-r1`, `icad-1901315-19008-13006-r1` | the other 39 profiles of base 13006 | `e3762e619bbee2f4145cd747aacfda744881f1dfcbfec261757b358f59379962` |
+| `20000-13006` | 58 / 474 | `icad-2100293-20000-13006-r2`, `icad-2100311-20000-13006-r1`, `icad-2401260-20000-13006-r1`, `parasolid-2400164-20000-13006-r2` | the other 37 profiles of base 13006 | `cc48d2f53ccd66dd7074961e5347ee4ab9a7f84157715e97ba10964421725da2` |
+| `25001-13006` | 58 / 474 | `nx-2600169-25001-13006-r2`, `parasolid-2600217-25001-13006-r2` | the other 39 profiles of base 13006 | `035da6ba6a75a432353c786afb9d8574620bd319248f05d389aa0e333ff7531c` |
+| `26105-13006` | 58 / 474 | `icad-2601246-26105-13006-r1`, `solidworks-2700199-26105-13006-r2` | the other 39 profiles of base 13006 | `a1414c458175d697895dcf0faff66ac545b079e0274a35c90366676a54c679af` |
+| `28002-13006` | 58 / 474 | `icad-2800188-28002-13006-r1`, `solidworks-2800191-28002-13006-r2`, `solidworks-2800209-28002-13006-r2` | the other 38 profiles of base 13006 | `035899578369acab4f49407028a75c76d3dfddd8908b935a62eed51dcb1bc812` |
+| `28101-13006` | 58 / 474 | `icad-2901199-28101-13006-r1`, `solidworks-2900166-28101-13006-r2`, `solidworks-2900190-28101-13006-r2`, `solidworks-2900195-28101-13006-r2` | the other 37 profiles of base 13006 | `6668a671b75a21d8b54617697b56c2d38f5b8910035215a594b8277c9125ac7c` |
+| `30000-13006` | 58 / 474 | `icad-sch30000-13006-r6`, `solidworks-3000226-30000-13006-r2`, `solidworks-3000298-30000-13006-r2` | the other 38 profiles of base 13006 | `e4af9eb85bac9f28afe7f46ae65e2407df5dd2bfb58c2563f05ef2a3fb9dbb46` |
+| `30100-13006` | 58 / 474 | `nx-3001232-30100-13006-r2` | the other 40 profiles of base 13006 | `c181b3e908ad56ab1a710827473c12c5c30253907b8add300da872b3f6accb9d` |
+| `31001-13006` | 58 / 474 | `solidworks-3100203-31001-13006-r2` | the other 40 profiles of base 13006 | `d9bbd3b1256106b78f658094a847f4257c3b2fa84ee31d615670447be30b8cfe` |
+| `31100-13006` | 58 / 474 | `solidworks-3101290-31100-13006-r2` | the other 40 profiles of base 13006 | `e91bb6905efcc1d6faac96695dff3f4708f17bcb7923a8409f92092f1b215197` |
+| `32001-13006` | 58 / 474 | `icad-3200152-32001-13006-r1`, `icad-3200252-32001-13006-r1` | the other 39 profiles of base 13006 | `22b379d82101076d7cad17c23de3bdbb5dd3d08d9532e33c5133bd8013d8337a` |
+| `33103-13006` | 58 / 474 | `icad-3301231-33103-13006-r2` | the other 40 profiles of base 13006 | `7a42e473be92d2e76a1d837db1a3e6d9825bccd52317cdd07f863ca13905b3e5` |
+| `34001-13006` | 58 / 474 | `nx-3400176-34001-13006-r2` | the other 40 profiles of base 13006 | `acc400560e39b4a66181eef99d3545a7becfbdb787767304897f40777914449f` |
+| `34101-13006` | 58 / 474 | `icad-sch34101-13006-r3`, `solidworks-3401254-34101-13006-r2` | the other 39 profiles of base 13006 | `5114b6dfe340d00266584e93333537393b7968f76c333468e4b7b42f7be2ce01` |
+| `35102-13006` | 58 / 474 | `solidworks-3501210-35102-13006-r2`, `solidworks-3501256-35102-13006-r2` | the other 39 profiles of base 13006 | `0202ba52c2be767950aaf07cc0019e4ac15e60919c895c3c1f6c2c3a2edce12e` |
+| `36001-13006` | 58 / 474 | `solidworks-3601228-36001-13006-r2` | the other 40 profiles of base 13006 | `8dd3e4575d2b1f032292a6f9303c69d246f35775e4c43f2f836a2c68c0dcd8ce` |
+| `37102-13006` | 58 / 474 | `onshape-sch37102-13006-r3`, `solidworks-sch37102-13006-r3` | the other 39 profiles of base 13006 | `952cacfd1e526d70c7b0917fdc29811368640b9b5728d895fa9e3ca817838cc5` |
 
 No compiled family currently excludes a disputed type. Standard families have
 no base contributors and declare complete layouts only for the node types
@@ -231,7 +231,7 @@ and the earlier [direct NURBS evidence](onshape-current-parametric.md).
 
 The source tree compiles fifteen exact `SolidWorks` partition keys, from
 `SCH_2700199_26105_13006` (SolidWorks 2015) to `SCH_3701229_37102_13006`
-(SolidWorks 2026, now `solidworks-sch37102-13006-r2`). All share one reviewed
+(SolidWorks 2026, now `solidworks-sch37102-13006-r3`). All share one reviewed
 declaration set of 47 base types / 412 field groups: the 13006 subset, WORLD,
 the reviewed TORUS, blend, offset and spun surfaces, and the public-reference
 SWEPT_SURF (67), which the B-Rep mapper decodes as a swept surface (the

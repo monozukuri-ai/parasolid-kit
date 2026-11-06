@@ -1176,11 +1176,11 @@ the files' own headers.
 
 | Exact key | Profile | Source of the key |
 |---|---|---|
-| `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r1` | Parasolid 24.0.164 acceptance-test transmit files |
-| `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r1` | NX transmit files, Parasolid 26.0.169 |
-| `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r1` | Parasolid 26.0.217 acceptance-test transmit files |
-| `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r1` | NX transmit files, Parasolid 30.1.232 (three public parts) |
-| `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r1` | NX transmit files, Parasolid 34.0.176 (one public part) |
+| `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r2` | Parasolid 24.0.164 acceptance-test transmit files |
+| `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r2` | NX transmit files, Parasolid 26.0.169 |
+| `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r2` | Parasolid 26.0.217 acceptance-test transmit files |
+| `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r2` | NX transmit files, Parasolid 30.1.232 (three public parts) |
+| `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r2` | NX transmit files, Parasolid 34.0.176 (one public part) |
 
 The two NX keys are the first of schemas 30100 and 34001, which no SolidWorks
 or iCAD key uses; each anchors the family of its schema, so other NX builds
@@ -1322,7 +1322,7 @@ The files are not redistributed.
 | `SCH_901297_9008` | `microstation-901297-9008-r1` | MicroStation modeler transmit files, Parasolid 9.0.129 | four Bentley files of the NIST `engineering-design-models` repository (`nut.x_t`, `ring.x_t`, `washer inch.x_t`, `buttom part inch.x_t`, 2 KB to 480 KB) and four files of other builds of the schema in its Unigraphics folder (three under `SCH_901209_9008`, one under `SCH_900254_9008`) through the family |
 | `SCH_1000252_10004` | `nx-1000252-10004-r1` | NX (unigraphics) transmit files, Parasolid 10.0.252 | two NX parts of the NIST repository (42 and 236 faces) and a SolidWorks 98Plus part of the ANSYS example data under `SCH_1000230_10004` through the family |
 | `SCH_1100129_11004` | `ironcad-1100129-11004-r1` | IronCAD transmit files, Parasolid 11.0.129 | ten IronCAD parts of the NIST repository's VDS folder (8 to 186 faces) |
-| `SCH_1200000_12006` | `solidworks-1200000-12006-r1` | SolidWorks 2022 transmit files under the reference key, Parasolid 12.0 | the reference's own transmit example (printed page 10), authored verbatim in the tests. The one public SolidWorks 2022 file of this key stops at its first CYLINDER (51) under this profile; with the types it carries declared it would stop at HELIX_CU_FORM (163), which the reference does not describe, so they are not declared |
+| `SCH_1200000_12006` | `solidworks-1200000-12006-r1` | SolidWorks 2022 transmit files under the reference key, Parasolid 12.0 | the reference's own transmit example (printed page 10), authored verbatim in the tests. The one public SolidWorks 2022 file of this key stops at its first CYLINDER (51) under this profile; the reference describes HELIX_CU_FORM (163) on printed pp. 43-44, but its layout is not reviewed for this standard schema |
 | `SCH_1600000_16004` | `nx-1600000-16004-r1` | NX (unigraphics) transmit files, Parasolid 16.0 | one NX part (an ONERA M6 wing of a turbulence-model repository) |
 
 The layouts differ from 13006 in a few records only:

@@ -130,20 +130,20 @@ fn producer_families_merge_the_expected_members() -> support::Result<()> {
     assert_eq!(
         members("35102-13006")?,
         [
-            "solidworks-3501210-35102-13006-r1",
-            "solidworks-3501256-35102-13006-r1",
+            "solidworks-3501210-35102-13006-r2",
+            "solidworks-3501256-35102-13006-r2",
         ]
     );
     assert_eq!(
         members("37102-13006")?,
-        ["onshape-sch37102-13006-r3", "solidworks-sch37102-13006-r2"]
+        ["onshape-sch37102-13006-r3", "solidworks-sch37102-13006-r3"]
     );
     assert_eq!(
         members("28002-13006")?,
         [
             "icad-2800188-28002-13006-r1",
-            "solidworks-2800191-28002-13006-r1",
-            "solidworks-2800209-28002-13006-r1",
+            "solidworks-2800191-28002-13006-r2",
+            "solidworks-2800209-28002-13006-r2",
         ]
     );
     assert_eq!(members("30000")?, ["onshape-sch30000-r3"]);
@@ -159,14 +159,14 @@ fn producer_families_merge_the_expected_members() -> support::Result<()> {
     assert_eq!(
         members("25001-13006")?,
         [
-            "nx-2600169-25001-13006-r1",
-            "parasolid-2600217-25001-13006-r1"
+            "nx-2600169-25001-13006-r2",
+            "parasolid-2600217-25001-13006-r2"
         ]
     );
     // One public NX key each anchors these families; other builds of the two
     // schemas resolve through them.
-    assert_eq!(members("30100-13006")?, ["nx-3001232-30100-13006-r1"]);
-    assert_eq!(members("34001-13006")?, ["nx-3400176-34001-13006-r1"]);
+    assert_eq!(members("30100-13006")?, ["nx-3001232-30100-13006-r2"]);
+    assert_eq!(members("34001-13006")?, ["nx-3400176-34001-13006-r2"]);
 
     // Every embedded family over 13006 takes the reviewed declarations of all
     // 13006 profiles: the SolidWorks swept surface and blends reach the iCAD-only
@@ -184,10 +184,10 @@ fn producer_families_merge_the_expected_members() -> support::Result<()> {
                 "{family_id} lacks {kind}"
             );
         }
-        // The shared 55 declarations (with ASSEMBLY, INSTANCE, TRANSFORM and
+        // The shared 56 declarations (with ASSEMBLY, INSTANCE, TRANSFORM and
         // the point, vector, axis, tag and direction value nodes) plus GROUP
         // and MEMBER_OF_GROUP from the Parasolid 24 acceptance-test profile.
-        assert_eq!(family.definitions().len(), 57);
+        assert_eq!(family.definitions().len(), 58);
         assert!(!family.base_members().is_empty());
     }
     // The standard 13006 family likewise gains the embedded profiles' declarations.
@@ -225,10 +225,10 @@ fn an_exact_profile_is_completed_by_its_family() -> support::Result<()> {
     ));
     assert!(provider.type_definition("13006", 59).is_some());
     assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
-    assert_eq!(
+    assert!(matches!(
         provider.lookup_type("13006", 163),
-        SchemaTypeLookup::Unknown
-    );
+        SchemaTypeLookup::Defined(_)
+    ));
     // A family provider has no further family to fall back to.
     let other_build = registry
         .provider_for_key(&SchemaKey::parse("SCH_1901316_19008_13006")?)
@@ -268,10 +268,10 @@ fn an_unregistered_solidworks_build_parses_through_its_family() -> support::Resu
     assert!(provider.supports_schema_key(&key));
     assert!(!provider.supports_schema_key(&SchemaKey::parse("SCH_3501210_35102_13006")?));
     assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
-    assert_eq!(
+    assert!(matches!(
         provider.lookup_type("13006", 163),
-        SchemaTypeLookup::Unknown
-    );
+        SchemaTypeLookup::Defined(_)
+    ));
 
     // A node-free stream still records the family provenance against the requested key.
     let mut bytes = support::xt_header(key.raw(), 0);

@@ -61,8 +61,8 @@ def test_family_listing_follows_the_exact_profiles():
             assert by_id[member.profile_id].profile_revision == member.profile_revision
         assert family.type_count >= max(by_id[m].type_count for m in members)
     assert {m.profile_id for m in by_id["family-35102-13006"].members} == {
-        "solidworks-3501210-35102-13006-r1",
-        "solidworks-3501256-35102-13006-r1",
+        "solidworks-3501210-35102-13006-r2",
+        "solidworks-3501256-35102-13006-r2",
     }
     assert by_id["family-37102-13006"].absent_base_types == (176, 204)
     assert by_id["family-30000"].members[0].profile_id == "onshape-sch30000-r3"

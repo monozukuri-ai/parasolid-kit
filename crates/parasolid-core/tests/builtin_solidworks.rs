@@ -8,84 +8,84 @@ use parasolid_core::{
 };
 
 const KEY: &str = "SCH_3701229_37102_13006";
-/// The shared `SolidWorks` declaration set: 55 types and 453 field groups.
-const TYPES: usize = 55;
-const FIELD_GROUPS: usize = 453;
+/// The shared `SolidWorks` declaration set: 56 types and 460 field groups.
+const TYPES: usize = 56;
+const FIELD_GROUPS: usize = 460;
 /// Base types outside every `SolidWorks` profile, including the delta update
-/// records (3 and 4) and layouts without local evidence (163, 184).
-const UNKNOWN_TYPES: [u16; 4] = [3, 4, 163, 184];
+/// records (3 and 4) and the unreviewed surface descriptor (184).
+const UNKNOWN_TYPES: [u16; 3] = [3, 4, 184];
 
 /// Earlier keys, their profile ids and canonical hashes.
 const EARLIER: &[(&str, &str, &str)] = &[
     (
         "SCH_2700199_26105_13006",
-        "solidworks-2700199-26105-13006-r1",
-        "61a654e5bb4df611facb23111f450656972af25b1b6f55dff97d844b18adee31",
+        "solidworks-2700199-26105-13006-r2",
+        "edab51092b3b8d1e0f137e6e3d7f666348a433b2bf17a932e8b708886e6b4331",
     ),
     (
         "SCH_2800191_28002_13006",
-        "solidworks-2800191-28002-13006-r1",
-        "f0490af8d0773a1ad5f8804c4b5638ecd00c08aad7b05cc846f4649aa96d601a",
+        "solidworks-2800191-28002-13006-r2",
+        "388cf98e9768b041ff7dd572df1e63f83c41afc36eaa635ccf61fdc272214a3e",
     ),
     (
         "SCH_2800209_28002_13006",
-        "solidworks-2800209-28002-13006-r1",
-        "b4b34fb287a688e68791a1ace42d70d7cff61b23718b15760dffb0d26d27e517",
+        "solidworks-2800209-28002-13006-r2",
+        "162b6cdd51c8b6ac6bcbddf363c2b9cba98262d4e08365d31576b30a3653fe3e",
     ),
     (
         "SCH_2900166_28101_13006",
-        "solidworks-2900166-28101-13006-r1",
-        "e0c74972b365d686e37c297134906e40617102e6be3c8a9782c06f780a25f888",
+        "solidworks-2900166-28101-13006-r2",
+        "f34b810890bf48d501fd941a5e2793741df03915b93292ce3abb36d6b16a6bff",
     ),
     (
         "SCH_2900190_28101_13006",
-        "solidworks-2900190-28101-13006-r1",
-        "d8a47dec500e2ed31901257b79de15a72b3a67784373d409f808f269cef4de62",
+        "solidworks-2900190-28101-13006-r2",
+        "6625faaa9d5afae86fa6f9058a6ae36a2bc97852f6d66dd8d68b3c899a868f7f",
     ),
     (
         "SCH_2900195_28101_13006",
-        "solidworks-2900195-28101-13006-r1",
-        "cbb74b85cc8bbbba07dc518c6320c406029a159156fbb0f10448532e52f2be44",
+        "solidworks-2900195-28101-13006-r2",
+        "3ed9e73e24121d843d2393b42462c5ae633c8054ec8f66b54ebddc2ea4c8a28b",
     ),
     (
         "SCH_3000226_30000_13006",
-        "solidworks-3000226-30000-13006-r1",
-        "d606e1f8d7b738717de4c9c2212db805cd7e9d0bb1710ffea8447ee166ec9255",
+        "solidworks-3000226-30000-13006-r2",
+        "734a40413d7a1a97a2344e5d6379255b299365ea50361ff0286c7f90fcd956cc",
     ),
     (
         "SCH_3000298_30000_13006",
-        "solidworks-3000298-30000-13006-r1",
-        "6bd9e9778f9dfe75fb879db617daa4b7f888718ea14c3f01cce68c44c880a5e5",
+        "solidworks-3000298-30000-13006-r2",
+        "c9d5c679dba4855d478de10e6c0cd88167113bbdc0a9553b259bab261e490cfd",
     ),
     (
         "SCH_3100203_31001_13006",
-        "solidworks-3100203-31001-13006-r1",
-        "43458838d65f494f5d15fb854ba6fb072cd8071b0f7bb72a83e0636066dbd651",
+        "solidworks-3100203-31001-13006-r2",
+        "b209ba14673b1fb93d43bb4d74aab652e63fba9d9bbeb88e4c1ee5608c1b9bb1",
     ),
     (
         "SCH_3101290_31100_13006",
-        "solidworks-3101290-31100-13006-r1",
-        "63124f4e458c2bfd26998dac4ac29a2fbee04b858675db13e3bd89b2bca58827",
+        "solidworks-3101290-31100-13006-r2",
+        "bee8630028173b14a84497976ff74082bbb9c8bc8af1ae71059c389968420c5b",
     ),
     (
         "SCH_3401254_34101_13006",
-        "solidworks-3401254-34101-13006-r1",
-        "dc94f65e04520c3ad3707fc293c1f3456bda4b53de64cb332d03038724f6f69d",
+        "solidworks-3401254-34101-13006-r2",
+        "c702f7a475e4e727791463e24fa7673d289f77aab0768e01bd61b25ce960b059",
     ),
     (
         "SCH_3501210_35102_13006",
-        "solidworks-3501210-35102-13006-r1",
-        "805b85624a1cc298e13493443b0edc73279b5f0ab7b79f317deaba94d6950f7b",
+        "solidworks-3501210-35102-13006-r2",
+        "9673a3534ce3df39916de4d9016403861526d0cc66a3887ae4dcf41b2a12d689",
     ),
     (
         "SCH_3501256_35102_13006",
-        "solidworks-3501256-35102-13006-r1",
-        "1d30ef6d2637e866800116a1a6542664472b4da337874dce5db25a23f7ac9758",
+        "solidworks-3501256-35102-13006-r2",
+        "2b66c69af0f79c8a2f7558696b125a994a86026e452d8fc2a7d6577b4fb5d9d9",
     ),
     (
         "SCH_3601228_36001_13006",
-        "solidworks-3601228-36001-13006-r1",
-        "30a14081482f630314285cd3a62ac02ea217d66f3d209dd2efb6f5f0635d8525",
+        "solidworks-3601228-36001-13006-r2",
+        "71d7a26b5ee2ce9d857449556f91757cc943e8ea8aedceb82c150f706585dc7c",
     ),
 ];
 
@@ -127,9 +127,9 @@ fn solidworks_profile_has_reviewed_world_and_exact_membership() -> support::Resu
     let profile = provider.profile();
     assert_eq!(
         profile.metadata().profile_id,
-        "solidworks-sch37102-13006-r2"
+        "solidworks-sch37102-13006-r3"
     );
-    assert_eq!(profile.metadata().revision, 2);
+    assert_eq!(profile.metadata().revision, 3);
     assert_eq!(profile.definitions().len(), TYPES);
     assert_eq!(
         profile.definitions().map(|d| d.fields.len()).sum::<usize>(),
@@ -178,7 +178,7 @@ fn earlier_keys_share_declarations_and_pin_canonical_hashes() -> support::Result
         assert_eq!(key.raw(), *expected_key);
         assert_eq!(profile.accepted_schema_keys().len(), 1);
         assert_eq!(profile.metadata().profile_id, *expected_id);
-        assert_eq!(profile.metadata().revision, 1);
+        assert_eq!(profile.metadata().revision, 2);
         assert_eq!(profile.metadata().profile_sha256, *expected_hash);
         assert_eq!(
             profile.metadata().profile_sha256,

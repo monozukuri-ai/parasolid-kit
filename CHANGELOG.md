@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fix #13: declare the public-reference HELIX_CU_FORM (163) base layout for
+  the SolidWorks and standalone-transmit profiles over schema 13006. Embedded
+  schema edits now address its seven field groups, including one interval for
+  the turn range, so these records no longer stop parsing with
+  `schema.unknown_base_type`. Authored X_T/X_B fixtures cover the reported
+  `SCH_3601228_36001_13006` key, family selection, CLI checks and STEP export.
+  The original confidential assembly has not been validated.
+
 - Intersection curves whose source chart continues past the domain of a
   bounded B-surface (the offsets a blend spine is cut from) now fit. Beyond a
   finite, non-periodic bound Parasolid continues a B-surface *linearly* along
