@@ -68,6 +68,12 @@ class OcctConversionOptions:
     # Place the bodies positioned by the assembly instances as transformed
     # copies; bodies no instance references stay where they are.
     place_instances: bool = False
+    # A FIN whose sampled source geometry differs from its shared edge by more
+    # than the declared edge tolerance plus the conversion budget fails the
+    # edge. With a cap (target units) such a FIN is accepted up to it: the
+    # output edge already carries the measured deviation as its tolerance and
+    # a non-fatal ``occt.source_fin_deviation`` diagnostic reports the edges.
+    fin_deviation_cap: float | None = None
 
     def __post_init__(self) -> None:
         for name in ("source_unit", "target_unit"):
@@ -85,6 +91,13 @@ class OcctConversionOptions:
             not isinstance(self.source_identity, str) or not self.source_identity.strip()
         ):
             raise ValueError("source_identity must be a non-empty string or None")
+        cap = self.fin_deviation_cap
+        if cap is not None:
+            if isinstance(cap, bool) or not isinstance(cap, (int, float)):
+                raise ValueError("fin_deviation_cap must be a finite non-negative number or None")
+            if not isfinite(cap) or cap < 0.0:
+                raise ValueError("fin_deviation_cap must be a finite non-negative number or None")
+            object.__setattr__(self, "fin_deviation_cap", float(cap))
 
     @property
     def source_to_metres(self) -> float:
@@ -109,6 +122,7 @@ class OcctConversionOptions:
             "heal": self.heal,
             "partial": self.partial,
             "place_instances": self.place_instances,
+            "fin_deviation_cap": self.fin_deviation_cap,
             "validation": self.validation.to_dict(),
             "source_identity": self.source_identity,
         }

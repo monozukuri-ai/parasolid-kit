@@ -31,6 +31,12 @@ from ...brep.geometry import (
 from ...brep.topology import Sense, Vector3
 from .options import OcctConversionOptions
 
+# The part of the validation tolerance a blend pipe's B-spline approximation
+# may use. The pipe follows a spine fitted within the full tolerance; a
+# hundredth made production pipes of thousands of poles slower to build,
+# project onto and mesh without changing any measured edge tolerance.
+PIPE_TOLERANCE_FRACTION = 1.0e-1
+
 
 class GeometryFactory:
     """Scale source lengths and construct the supported exact OCCT geometry."""
@@ -566,9 +572,12 @@ class GeometryFactory:
                     sign = -1.0
                 elif sense is not Sense.POSITIVE:
                     raise ValueError("offset surface basis has an unknown sense")
+            # A basis with a C0 knot (a crease) is offset span by span, as the
+            # source does; OCCT refuses it unless told not to check.
             return Geom_OffsetSurface(
                 resolve_basis(definition.basis_surface),
                 sign * definition.offset * self.scale,
+                True,
             )
         raise ValueError(f"unsupported exact surface definition: {type(definition).__name__}")
 
@@ -583,8 +592,10 @@ class GeometryFactory:
         agrees with the source normal and the stored senses apply unchanged.
         When both profile parameters are stored, the profile is trimmed to
         them, so a closed profile is not revolved twice; a stored start or end
-        point must then lie on the profile at its parameter. No parameter
-        convention is assumed by callers.
+        point must then lie on the profile at its parameter. A profile that
+        meets the spin axis at one end only stores that point and parameter
+        alone (see ``_one_sided_spin_range``). No parameter convention is
+        assumed by callers.
         """
         from OCP.Geom import Geom_SurfaceOfRevolution, Geom_TrimmedCurve
         from OCP.gp import gp_Ax1
@@ -596,9 +607,7 @@ class GeometryFactory:
         profile = resolve_curve(surface.profile)
         first, last = surface.start_parameter, surface.end_parameter
         if (first is None) != (last is None):
-            # XT allows a range that is infinite on one side; OCCT cannot trim
-            # a profile to a half-infinite range, so that case fails closed.
-            raise ValueError("spun surface with a one-sided profile parameter range is unsupported")
+            first, last = self._one_sided_spin_range(surface, profile)
         if first is not None and last is not None:
             if not (isfinite(first) and isfinite(last)) or first == last:
                 raise ValueError("spun surface profile parameters must be finite and distinct")
@@ -623,6 +632,43 @@ class GeometryFactory:
             self.direction(surface.axis, role="spun axis").Reversed(),
         )
         return Geom_SurfaceOfRevolution(profile, axis)
+
+    def _one_sided_spin_range(self, surface: SpunSurface, profile: object) -> tuple[float, float]:
+        """The profile range of a spun surface whose profile meets its axis at one end.
+
+        XT records where the profile meets the spin axis (the surface's
+        degenerate point) as ``start`` or ``end`` with its profile parameter
+        and leaves the other null when the profile meets the axis only once:
+        an iCAD SX revolved cap stores the profile's first point, on the axis,
+        and no end. The surface is the revolution of the profile from that
+        point to the profile's other end (a full period of a periodic
+        profile), which puts the degenerate ring on the boundary of the
+        surface. A record whose point is missing or off the axis, or whose
+        parameter is outside the profile, still fails closed.
+        """
+        from OCP.gp import gp_Lin
+
+        refused = ValueError("spun surface with a one-sided profile parameter range is unsupported")
+        at_start = surface.start_parameter is not None
+        parameter = surface.start_parameter if at_start else surface.end_parameter
+        point = surface.start if at_start else surface.end
+        if point is None or parameter is None or not isfinite(parameter):
+            raise refused
+        axis = gp_Lin(self.point(surface.base), self.direction(surface.axis, role="spun axis"))
+        if axis.Distance(self.point(point)) > self.options.validation.linear_absolute:
+            raise refused
+        if profile.IsPeriodic():
+            period = profile.Period()
+            return (parameter, parameter + period) if at_start else (parameter - period, parameter)
+        lower, upper = profile.FirstParameter(), profile.LastParameter()
+        slack = 1e-12 * max(1.0, abs(upper - lower))
+        if at_start:
+            if not lower - slack <= parameter < upper:
+                raise refused
+            return (max(parameter, lower), upper)
+        if not lower < parameter <= upper + slack:
+            raise refused
+        return (lower, min(parameter, upper))
 
     def swept_surface(
         self, surface: SweptSurface, resolve_curve: Callable[[int], object] | None
@@ -649,7 +695,7 @@ class GeometryFactory:
 
         The blend is the envelope of balls of radius |range| centred on the
         spine, i.e. the canal surface around the spine. OCCT approximates that
-        surface as a B-spline within a hundredth of the validation tolerance;
+        surface as a B-spline within a tenth of the validation tolerance;
         the result is a surface only, its parameters are not the source's.
 
         A cliff-edge blend (type E) is the same envelope: the ball rolls on one
@@ -659,7 +705,6 @@ class GeometryFactory:
         and is never a face's surface.
         """
         from OCP.Geom import Geom_BSplineSurface, Geom_RectangularTrimmedSurface
-        from OCP.GeomFill import GeomFill_Pipe
 
         if resolve_curve is None:
             raise ValueError("blend surface requires a spine curve resolver")
@@ -670,11 +715,10 @@ class GeometryFactory:
             raise ValueError("blend offsets must have equal magnitude")
         if surface.thumb_weights != (1.0, 1.0):
             raise ValueError("blend thumb weights must be (1, 1)")
-        pipe = GeomFill_Pipe(resolve_curve(surface.spine_curve), abs(first) * self.scale)
-        pipe.Perform(max(1.0e-9, self.options.validation.linear_absolute * 1.0e-2), False)
-        if not pipe.IsDone():
-            raise ValueError("rolling-ball blend pipe construction failed")
-        result = pipe.Surface()
+        tolerance = max(1.0e-9, self.options.validation.linear_absolute * PIPE_TOLERANCE_FRACTION)
+        result = self._canal_surface(
+            resolve_curve(surface.spine_curve), abs(first) * self.scale, tolerance
+        )
         # An exact pipe (a cylinder around a line, a torus around a circle)
         # comes back trimmed to the spine; the face loops trim it instead, and
         # the seam fixes need the untrimmed periodic basis.
@@ -688,6 +732,222 @@ class GeometryFactory:
             if result.IsVClosed() and not result.IsVPeriodic():
                 result.SetVPeriodic()
         return result
+
+    @staticmethod
+    def _canal_surface(spine: object, radius: float, tolerance: float) -> object:
+        """The surface swept by a circle of ``radius`` along ``spine``.
+
+        GeomFill_Pipe moves the circle with the corrected Frenet trihedron,
+        which breaks down where the spine's curvature vanishes or turns
+        sharply; on the fitted spines of production blends it left the
+        surface 0.6 to 400 mm off while reporting success. The discrete
+        trihedron of BRepOffsetAPI_MakePipeShell integrates a
+        rotation-minimising frame along the spine instead and held the
+        approximation within the tolerance on every blend of that corpus. The
+        circle is symmetric, so the frame's rotation about the spine does not
+        change the surface.
+
+        The sweep approximates one piece per spine span at the highest degree
+        it is allowed. Cubic pieces meet the tolerance on the production
+        spines with a third of the poles of degree 11 (the pieces join with
+        C0 knots at either degree), which keeps the STEP model and the mesh
+        of a blend-heavy part small; degree 11 remains the fallback when a
+        cubic sweep misses the tolerance.
+        """
+        from OCP.Geom import Geom_Circle, Geom_Line, Geom_TrimmedCurve
+        from OCP.GeomFill import GeomFill_Pipe
+        from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
+
+        basis = spine.BasisCurve() if isinstance(spine, Geom_TrimmedCurve) else spine
+        if isinstance(basis, (Geom_Line, Geom_Circle)):
+            # Exact: the cylinder around a line, the torus around a circle.
+            pipe = GeomFill_Pipe(spine, radius)
+            pipe.Perform(tolerance, False)
+            if not pipe.IsDone():
+                raise ValueError("rolling-ball blend pipe construction failed")
+            return pipe.Surface()
+        binormal = GeometryFactory._closed_spine_binormal(spine, tolerance)
+        if binormal is not None:
+            # The pipe around a closed spine is closed in both directions.
+            # OCCT's seam fix adjusts the wires of such a torus-like face by
+            # the period along the missing seam, with one period for both
+            # directions (ShapeFix_Face::FixMissingSeam); the spine is
+            # reparametrized over the circle's range so the pipe has the
+            # periods of a torus.
+            spine = GeometryFactory._spine_over_circle_range(spine)
+        start, tangent = gp_Pnt(), gp_Vec()
+        spine.D1(spine.FirstParameter(), start, tangent)
+        if tangent.Magnitude() <= 1e-300:
+            raise ValueError("blend spine has no tangent at its start")
+        section = Geom_Circle(gp_Ax2(start, gp_Dir(tangent)), radius)
+        result = None
+        failure = "rolling-ball blend pipe construction failed"
+        for degree in (3, 11):
+            try:
+                candidate = GeometryFactory._sweep_circle(
+                    spine, section, binormal, tolerance, degree
+                )
+            except ValueError as error:
+                failure = str(error)
+                continue
+            if result is None or GeometryFactory._pole_count(
+                candidate
+            ) < GeometryFactory._pole_count(result):
+                result = candidate
+        if result is None:
+            raise ValueError(failure)
+        if binormal is not None:
+            # The fixed frame returns exactly, so the end row misses the start
+            # row only by the approximation; ten times that is the validation
+            # tolerance at the pipe's share of it.
+            GeometryFactory._close_sweep(result, 10.0 * tolerance)
+        return result
+
+    @staticmethod
+    def _pole_count(surface: object) -> int:
+        """The number of poles of a B-spline surface (others count as none)."""
+        if hasattr(surface, "NbUPoles"):
+            return surface.NbUPoles() * surface.NbVPoles()
+        return 0
+
+    @staticmethod
+    def _sweep_circle(
+        spine: object, section: object, binormal: object | None, tolerance: float, degree: int
+    ) -> object:
+        """The B-spline surface of ``section`` swept along ``spine`` within ``tolerance``."""
+        from OCP.BRep import BRep_Tool
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeWire
+        from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
+        from OCP.gp import gp_Dir
+        from OCP.TopAbs import TopAbs_FACE
+        from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
+
+        path = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(spine).Edge()).Wire()
+        sweep = BRepOffsetAPI_MakePipeShell(path)
+        if binormal is None:
+            sweep.SetDiscreteMode()
+        else:
+            sweep.SetMode(gp_Dir(binormal))
+        sweep.SetTolerance(tolerance, tolerance, 1.0e-2)
+        sweep.SetMaxDegree(degree)
+        sweep.SetMaxSegments(3000)
+        profile = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(section).Edge()).Wire()
+        sweep.Add(profile, False, False)
+        try:
+            sweep.Build()
+        except Exception as error:  # OCCT raises without a message on degenerate sweeps
+            raise ValueError("rolling-ball blend pipe construction failed") from error
+        if not sweep.IsDone():
+            raise ValueError("rolling-ball blend pipe construction failed")
+        if sweep.ErrorOnSurface() > tolerance:
+            raise ValueError(
+                f"rolling-ball blend pipe approximation error {sweep.ErrorOnSurface():g} "
+                f"exceeds {tolerance:g}"
+            )
+        faces = []
+        explorer = TopExp_Explorer(sweep.Shape(), TopAbs_FACE)
+        while explorer.More():
+            faces.append(TopoDS.Face_s(explorer.Current()))
+            explorer.Next()
+        if len(faces) != 1:
+            raise ValueError(f"rolling-ball blend pipe produced {len(faces)} faces")
+        return BRep_Tool.Surface_s(faces[0])
+
+    @staticmethod
+    def _closed_spine_binormal(spine: object, tolerance: float) -> object | None:
+        """A fixed binormal for sweeping along a closed spine, or None.
+
+        The discrete trihedron integrates a rotation-minimising frame along
+        the spine; around a closed spine it returns rotated about the tangent
+        (its holonomy), so the pipe's end section is its start section with
+        another parameter origin and the surface is not closed in the sweep
+        direction. The faces of a ring blend are split at other sections, so
+        their loops cross that end, where a pcurve projected onto the
+        non-closed surface jumps by the whole sweep range. A fixed binormal
+        makes the frame a function of the tangent alone, which returns
+        exactly; the section is a circle, so the surface does not depend on
+        the frame. The direction is the normal of the spine's mean plane (a
+        ring blend's spine is planar or nearly so), usable while every
+        tangent keeps clear of it.
+        """
+        from OCP.gp import gp_Pnt, gp_Vec, gp_XYZ
+
+        first, last = spine.FirstParameter(), spine.LastParameter()
+        if not (isfinite(first) and isfinite(last)):
+            return None
+        if spine.Value(first).Distance(spine.Value(last)) > max(100.0 * tolerance, 1.0e-7):
+            return None
+        count = 128
+        points = []
+        tangents = []
+        for index in range(count):
+            point, tangent = gp_Pnt(), gp_Vec()
+            spine.D1(first + (last - first) * index / count, point, tangent)
+            points.append(point.XYZ())
+            tangents.append(tangent.XYZ())
+        # OCP's in-place operators on gp_XYZ return None; the binary forms are used.
+        centre = gp_XYZ()
+        for point in points:
+            centre = centre + point
+        centre = centre / count
+        area = gp_XYZ()
+        for a, b in zip(points, points[1:] + points[:1], strict=True):
+            area = area + (a - centre).Crossed(b - centre)
+        if area.Modulus() <= 1.0e-300:
+            return None
+        normal = area.Normalized()
+        for tangent in tangents:
+            magnitude = tangent.Modulus()
+            if magnitude <= 1.0e-300 or abs(tangent.Dot(normal)) > 0.5 * magnitude:
+                return None
+        return normal
+
+    @staticmethod
+    def _spine_over_circle_range(spine: object) -> object:
+        """A B-spline copy of ``spine`` with its knots scaled onto [0, 2π]."""
+        from OCP.Geom import Geom_BSplineCurve
+        from OCP.GeomConvert import GeomConvert
+        from OCP.TColStd import TColStd_Array1OfReal
+
+        if isinstance(spine, Geom_BSplineCurve):
+            curve = spine.Copy()
+        else:
+            curve = GeomConvert.CurveToBSplineCurve_s(spine)
+        knots = TColStd_Array1OfReal(1, curve.NbKnots())
+        curve.Knots(knots)
+        first, last = knots.Value(1), knots.Value(knots.Upper())
+        if not last > first:
+            raise ValueError("blend spine has no parameter range")
+        for index in range(1, knots.Upper() + 1):
+            knots.SetValue(index, (knots.Value(index) - first) / (last - first) * (2.0 * pi))
+        curve.SetKnots(knots)
+        return curve
+
+    @staticmethod
+    def _close_sweep(surface: object, tolerance: float) -> None:
+        """Make the end row of a pipe around a closed spine its start row.
+
+        The sweep returns to its start within its approximation error; the
+        periodic form (which ``blend_surface`` sets where the rows are equal)
+        drops the end row, so the rows are made equal where they agree within
+        the tolerance. A larger gap leaves the surface open.
+        """
+        from OCP.Geom import Geom_BSplineSurface
+
+        if not isinstance(surface, Geom_BSplineSurface) or surface.IsVClosed():
+            return
+        last = surface.NbVPoles()
+        gap = max(
+            surface.Pole(index, 1).Distance(surface.Pole(index, last))
+            for index in range(1, surface.NbUPoles() + 1)
+        )
+        if gap > tolerance:
+            return
+        for index in range(1, surface.NbUPoles() + 1):
+            surface.SetPole(index, last, surface.Pole(index, 1))
+            if surface.IsURational() or surface.IsVRational():
+                surface.SetWeight(index, last, surface.Weight(index, 1))
 
     def nurbs_surface(self, surface: NurbsSurface) -> object:
         from OCP.Geom import Geom_BSplineSurface
@@ -753,7 +1013,42 @@ class GeometryFactory:
                 for a, b, c, d in samples
             ):
                 raise ValueError("NURBS surface is flagged closed but its boundaries do not meet")
+        if surface.u_periodic or surface.v_periodic:
+            result = self._periodic_nurbs_surface(result, surface, tolerance)
         return result
+
+    @staticmethod
+    def _periodic_nurbs_surface(result: object, surface: NurbsSurface, tolerance: float) -> object:
+        """OCCT's periodic form of a source-periodic B-surface.
+
+        A periodic XT surface stores the knots of one period with the degree's
+        worth of imaginary knots on each side and repeats its first poles at
+        the end (p. 38): the flat form of OCCT's periodic B-spline, whose
+        ``SetUPeriodic`` keeps the poles of one period. The non-periodic form
+        agrees inside the period but continues the polynomial of its end
+        spans beyond it, where the source repeats the surface; a face loop
+        that crosses the period there (the projected parameter curve of a
+        3D curve on the seam, unwrapped by OCCT's own projection) landed
+        millimetres off. Periodic, OCCT evaluates the wrap itself and the
+        seam fixes apply as on a cylinder. A surface OCCT cannot make periodic,
+        or whose periodic form differs from the stored one, keeps the flat
+        form, which is exact inside the period.
+        """
+        periodic = result.Copy()
+        try:
+            if surface.u_periodic:
+                periodic.SetUPeriodic()
+            if surface.v_periodic:
+                periodic.SetVPeriodic()
+        except Exception:  # OCCT raises Standard_ConstructionError without text
+            return result
+        u1, u2, v1, v2 = result.Bounds()
+        for i in range(5):
+            for j in range(5):
+                u, v = u1 + (u2 - u1) * i / 4, v1 + (v2 - v1) * j / 4
+                if periodic.Value(u, v).Distance(result.Value(u, v)) > tolerance:
+                    return result
+        return periodic
 
     def _validate_nurbs_curve(self, curve: NurbsCurve, *, parameter: bool = False) -> None:
         expected = (3 if curve.rational else 2) if parameter else (4 if curve.rational else 3)

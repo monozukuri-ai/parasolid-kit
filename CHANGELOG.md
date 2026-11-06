@@ -2,14 +2,206 @@
 
 ## Unreleased
 
-- Intersection curves whose source chart continues past the face onto the
-  natural extension of a bounded surface (a ruled or B-spline surface, a
-  blend pipe) now fit: the point-on-surface check and the Newton refinement
-  project onto one more span on each side of a finite, non-periodic parameter
-  range, which is the polynomial extension the source evaluated. Before, such
-  a chart point failed as "source intersection point is outside its
-  support-surface tolerance" although it lay on the extended surface; the
-  saved bodies of three iCAD SX production files (2026) stopped there.
+- Intersection curves whose source chart continues past the domain of a
+  bounded B-surface (the offsets a blend spine is cut from) now fit. Beyond a
+  finite, non-periodic bound Parasolid continues a B-surface *linearly* along
+  its boundary tangents (past a corner the two extensions multiply), and an
+  offset follows the normal of that extension; OCCT evaluates the polynomial
+  beyond its knots instead, 0.06 to 22 mm away. `SupportSurface` evaluates
+  and projects onto the linear extension (237 of 238 out-of-domain chart
+  points of four iCAD SX production bodies lie on it within 1e-12 mm; the
+  last is on a periodic direction, see below). Before, such a chart point
+  failed as "source intersection point is outside its support-surface
+  tolerance". The source's own periodicity flags travel with the surfaces: a
+  periodic XT B-surface arrives in OCCT as a non-periodic surface whose knots
+  wrap past the period, and that direction is never extended.
+- Intersection fitting projects each point with a Gauss-Newton search seeded
+  by the previous foot and only falls back to OCCT's extrema search when the
+  seed misses, and takes the parameters of the interpolated points from the
+  interpolation knots instead of projecting them back; a 900-face blend part
+  that spent 140 s in the fit now fits in a few seconds. The refinement step
+  is Levenberg-Marquardt damped: two offsets meeting at a shallow angle (a
+  blend between nearly tangent faces) made the exact Newton step slide along
+  both surfaces and oscillate without converging.
+- A blend spine whose own chart stops short of the blend face (contact
+  curves and face vertices up to 18 mm past the last chart point on
+  production parts) is continued along the intersection of its two supports
+  in both directions until every such point projects onto its interior, and
+  refitted; before, the contact construction clamped to the spine end and
+  failed with "blend contact drift ... exceeds".
+- Rolling-ball blends are swept with the discrete (rotation-minimising)
+  trihedron of `BRepOffsetAPI_MakePipeShell` instead of `GeomFill_Pipe`'s
+  corrected Frenet frame, which left the pipe 0.6 to 400 mm off its spine
+  where the spine's curvature vanished or turned sharply while reporting
+  success; the achieved approximation error is now checked against a tenth
+  of the validation tolerance (`PIPE_TOLERANCE_FRACTION`; a hundredth made
+  production pipes of thousands of poles that were slower to build, to
+  project onto and to mesh, without changing any measured edge tolerance).
+  The sweep is approximated with cubic pieces and with pieces of degree 11,
+  and the pipe with fewer poles is kept: both join one piece per spine span
+  with C0 knots, and the cubic pipe usually has a third of the poles (the
+  blend pipes of seven blend-heavy production bodies went from 1.33 to 0.71
+  million poles with unchanged edge tolerances).
+  The blend contact curve keeps every
+  chart point as a sample (two chart points sharing a spine parameter lost
+  one before) and its drift check compares against the median chart spacing.
+- A FIN whose SP-curve lives in a blend's own parameters (which the rebuilt
+  canal surface does not reproduce) gets its pcurve by projecting the edge's
+  3D curve and is left out of the source FIN validation; an edge whose own
+  curve is such an SP-curve takes its 3D geometry from the FIN on the
+  adjacent face. Before: "unsupported parameter-curve support surface".
+- `OcctConversionOptions.fin_deviation_cap` (target units): a FIN whose
+  sampled source geometry leaves its declared edge tolerance plus the
+  conversion budget is accepted up to the cap, with the non-fatal
+  `occt.source_fin_deviation` diagnostic and the operation
+  `accept_source_fin_deviation_within_cap`; the output edge tolerance already
+  covers the measured deviation. Without a cap the edge fails as before.
+- Wire bodies convert: their edges, chained into wires where they connect
+  within the precision (`ShapeAnalysis_FreeBounds`), one compound per body
+  (`wire_body_from_edges`), through both builders and the conversion
+  preflight; a wire body without a shell takes the edges listed on the body.
+  Before: "shell ... has no boundary faces" or "body kind wire is not
+  supported". The preview draws a free edge from the polygon the mesher
+  stored on it and accepts an edge-only preview of a wire-only model
+  (before: `NCollection_List::First` on the empty face list, then
+  `preview.empty_mesh`).
+- Edges known only in blends' parameters: an edge between two blend faces
+  whose own curve is absent or an SP-curve on a blend is walked as the
+  intersection of the two rebuilt canal surfaces from its start vertex to
+  its end vertex (`blend_intersection_edge_walked`); where the two blends
+  are tangent (consecutive fillets of one radius) it is the cross-section
+  arc of the rolling ball through both vertices (`blend_section_arc_edge`).
+- The vertices of an edge that uses an intersection curve directly join the
+  curve's anchors, and the trim points of edges on a blend contact curve
+  join its chart (`blend_contact_curve_through_trim_points`): the fitted
+  curves pass through them instead of missing them by what the fit leaves
+  between chart points (3 to 8 µm on production parts).
+- The blend contact point is the support at the ball centre's parameters on
+  the offset the spine was cut from (an offset keeps its basis parameters),
+  no longer the nearest point of the support, which is wrong where the
+  support curves more tightly than the radius (an offset's swallowtail: 0.1
+  mm on a 20 mm blend) or where the contact runs past the support's domain.
+  The drift check allows a tenth of the median chart spacing, ten times the
+  precision or a hundredth of the radius, whichever is largest.
+- A FIN that runs past the domain of its B-surface gets its 3D curve fitted
+  through the source's (linearly extended) points instead of the pcurve on
+  the OCCT surface, whose polynomial continuation left the trim end 0.06 mm
+  from its vertex ("UV trim disagrees with its source point").
+- `fit_intersection` accepts a per-support uncertainty (a blend pipe is only
+  as exact as its fitted spine) and, with `fin_deviation_cap`, a point its
+  supports meet only within the cap (an offset of a basis with a crease
+  leaves a gap the source bridged): the largest such distance becomes the
+  curve's approximation, carried into the edges on it, and the non-fatal
+  `occt.intersection_deviation` diagnostic reports it. Without a cap such a
+  fit fails as before.
+- A loop that passes through one vertex twice (a sliver face thinner than
+  its vertex tolerance: two spikes on a strip, every edge paired with another
+  between the same vertices) is split into its simple wires before the face
+  is oriented (`split_self_touching_loops`); OCCT's wire traversal of such a
+  loop depended on the face's orientation and failed the reversed face.
+- The linear extension applies to B-surfaces and to the B-curve section of a
+  swept surface (which continues along its end tangent; a chart ran 55 mm
+  past the section's knots on a production part); a sphere's v direction
+  ends at the poles and a cone's or cylinder's v is unbounded, so neither is
+  continued. A source-periodic B-surface that OCCT holds non-periodic wraps
+  its parameter by the B-spline period (knot[n] - knot[p]) instead. An
+  offset surface reports the normal of its basis, which stays defined on the
+  offset's focal set where the offset's own derivatives vanish. A blend
+  around a straight or circular spine stays the exact cylinder or torus of
+  `GeomFill_Pipe`.
+- A FIN whose SP-curve leaves the knots of its B-surface (into the linear
+  extension or the next period) has its pcurve projected from the edge's 3D
+  curve instead of taken from the source (`project_fin_curve_outside_knots`),
+  since OCCT evaluates the stored pcurve there on the polynomial. A ring
+  edge without a curve of its own is built from its closed FIN curve.
+- A source-periodic B-surface is built as OCCT's periodic B-spline: the XT
+  form (one period of knots, the degree's worth of imaginary knots on each
+  side, the first poles repeated at the end) is the flat form of OCCT's
+  periodic surface, and `SetUPeriodic`/`SetVPeriodic` keep one period of
+  poles; the two agree inside the period (checked on five by five samples;
+  2e-13 mm on eleven production surfaces). Non-periodic, OCCT continued the
+  polynomial of the end spans past the period, where a face loop that
+  crossed it (the pcurve of a 3D curve on the seam, which OCCT's own
+  projection unwrapped to u = -0.038) landed 8 mm off; periodic, OCCT
+  evaluates the wrap itself and the seam fixes apply as on a cylinder.
+- A FIN trim stored a period away from its curve's range (a ring edge's FIN
+  from 0 to -1 over a curve spanning [0, 1] whose image closes, on a
+  periodic surface or as a periodic B-curve) is moved by whole periods into
+  the range (`wrap_closed_fin_trim`), and a trim that crosses the end of a
+  closed curve takes its points beyond the end from the curve's start: the
+  edge is fitted through them and the face projects its pcurve
+  (`sp_curve_fitted_across_its_closure`). Before, OCCT read the trim off its
+  curve's end polynomial (`BRepBuilderAPI_ParameterOutOfRange`,
+  `Geom2d_BSplineCurve::InsertKnots`). A FIN's trimmed SP-curve runs along
+  the FIN from its start parameter to its end parameter, backwards when the
+  start is the larger (on 200 bodies of a production part, all 10,406 FINs
+  whose trim ends match their edge's vertices start at the FIN's own start
+  vertex, 1,048 of them with the larger start parameter); a ring edge
+  with neither vertices nor a curve of its own takes its direction from the
+  FIN it is built from, and its half-edges and the pcurves of its other
+  FINs follow from that, since its coinciding ends cannot tell (before:
+  "half-edge ... has no orientation reference").
+- `BRepLib::SameParameter` is retried with a looser target when it leaves an
+  edge above ten thousand times the body's linear resolution (a tenth of a
+  millimetre at the usual 1e-5 mm) and its declared tolerance:
+  `Approx_SameParameter` discards a
+  reparametrization that misses its target, which left a FIN mapped
+  linearly onto an edge whose parameter runs at another speed (its 3D curve
+  follows the other face's FIN) 0.33 mm off along the edge while its image
+  was within micrometres. The looser target installs the reparametrized
+  pcurve, the strict target is reached from it (2 µm there), and the vertex
+  tolerances the first pass grew to the discarded deviation are set back to
+  what the installed pcurve needs (`reparametrize_pcurve_through_looser_target`).
+- A rolling-ball blend around a closed spine (a ring blend) is swept with a
+  fixed binormal, the normal of the spine's mean plane, instead of the
+  discrete trihedron: the rotation-minimising frame returns from a closed
+  loop rotated about the tangent, so the pipe's end section was its start
+  section with another parameter origin, the surface was not closed along
+  the spine, and a pcurve projected across that end jumped by the whole
+  sweep range (23 mm of edge tolerance). The spine is reparametrized over
+  the circle's range first, since OCCT's seam fix adjusts the two wires of
+  a torus-like face by one period taken for both directions
+  (`ShapeFix_Face::FixMissingSeam`). The pipe's end row is set onto its
+  start row where they agree within the validation tolerance and the
+  surface is made periodic along the spine, so the band face between two
+  closed contact curves gets its seam like a torus.
+- A face whose only kernel complaint is the orientation of its wire, while
+  the wire closes, does not cross itself and is otherwise sound, and whose
+  mean width (twice the area over the perimeter) is within the body's
+  declared tolerance cap, is accepted (`accept_sliver_face_orientation`):
+  the signed area of a strip a hundredth of a millimetre wide is numerical
+  noise, and the orientation fix and the check disagree about it.
+- Face loops are assembled with `BRep_Builder` instead of
+  `BRepBuilderAPI_MakeWire`, which merges vertices that lie within each
+  other's tolerance and replaces the edges it joins there by copies carrying
+  the merged vertex: an edge shorter than its vertex tolerance (a tolerant
+  source sliver, 0.03 mm long under a 0.04 mm vertex) was copied in one face
+  only, the neighbour kept the original and the shell did not close.
+- A spun surface whose profile meets the spin axis at one end only, which
+  XT records as that start (or end) point with its profile parameter and a
+  null other end, is the revolution of the profile from that point to its
+  other end (a full period of a periodic profile). The point must lie on
+  the axis and on the profile at its parameter; any other one-sided record
+  still fails closed. Before, every such surface (an iCAD SX revolved cap)
+  failed as "spun surface with a one-sided profile parameter range".
+- Intersection fitting on surface extensions uses the extension's own
+  derivatives (forward differences only for an offset of an extension),
+  keeps the seeded Gauss-Newton foot while the point is within a hundred
+  thousand tolerances of the surface (a chord midpoint of a coarse chart),
+  stops the iteration at 1e-10 of the parameter range and evaluates with
+  coordinates instead of temporary OCCT vectors; with the coarser pipe
+  approximation, a blend-heavy production body (306 faces, 240 blend
+  contact curves) builds in 28 s instead of 140 s, and the 417 saved bodies
+  of its file in 116 s instead of 285 s.
+- Face construction: a wire whose edges were reordered by a neighbouring
+  periodic face's seam split (the two pieces of a shared edge arrive in that
+  edge's own direction) is stored in traversal order before the orientation
+  fix, which judged such a wire by the signed area of its edges in stored
+  order and reversed a correct loop (`order_wire_edges_after_seam_split`).
+  `BRepLib::SameParameter` no longer lowers an edge's declared tolerance (a
+  ring edge dropped from 1e-5 to 1e-7 and the planar face with a second ring
+  failed its orientation check). An offset of a basis with a C0 knot is
+  built span by span instead of being refused as "Offset with no C1 Surface".
 - A zero-range blended edge (the construction surface a cliff-edge blend
   rolls through, never a face's surface) may store null thumb weights; they
   map to the unweighted (1, 1) rolling ball instead of failing the body with

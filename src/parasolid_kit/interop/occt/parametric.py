@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from itertools import pairwise
-from math import isfinite, sqrt
+from math import floor, isfinite, sqrt
 
 from OCP.BRep import BRep_Builder, BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Curve
@@ -53,6 +53,7 @@ from ...brep.geometry import (
     IntersectionCurve,
     LineCurve,
     NurbsCurve,
+    NurbsSurface,
     OffsetSurface,
     PlaneSurface,
     SphereSurface,
@@ -64,7 +65,13 @@ from ...brep.geometry import (
 )
 from ...brep.topology import BodyKind, RegionKind, Sense, Vector3
 from ...diagnostics import Diagnostic, DiagnosticKind, DiagnosticSeverity, SourceLocation
-from .intersection import fit_intersection, intersect_analytic, project_curve
+from .intersection import (
+    SupportSurface,
+    fit_intersection,
+    intersect_analytic,
+    march_intersection,
+    project_curve,
+)
 from .model import ShapeRelationKind, SourceEntityKind
 from .topology import BuiltTopology, TopologyBuilder, _reason, _sense_sign
 
@@ -144,8 +151,25 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 self.curve_anchors[d.basis_curve].extend(
                     (geometry.point(d.start_point), geometry.point(d.end_point))
                 )
+        # The vertices of an edge that uses an intersection curve directly are
+        # source points of that curve as well: a fitted branch passes through
+        # them instead of missing them by what the fit leaves between chart points.
+        positions = {point.id: point.position for point in model.points}
+        vertex_points = {vertex.id: positions[vertex.point] for vertex in model.vertices}
+        for edge in model.edges:
+            if edge.curve is None or not isinstance(
+                self.curves[edge.curve].definition, IntersectionCurve
+            ):
+                continue
+            for vertex_id in (edge.start_vertex, edge.end_vertex):
+                if vertex_id is not None:
+                    self.curve_anchors[edge.curve].append(geometry.point(vertex_points[vertex_id]))
+        # Approximated supports widen the acceptance of the curves built on them.
+        self.surface_uncertainty: dict[int, float] = {}
         # Edges split at a surface singularity: the pieces along the curve.
         self.split_edges: dict[int, list] = {}
+        # Ring edges built from a FIN's curve: whether each runs along its source edge.
+        self.ring_edge_directions: dict[int, bool] = {}
         self.geometry_checks = Counter()
         # Curves built by approximation and the deviation each one may carry.
         self.approximated_curves: dict[int, float] = {}
@@ -203,8 +227,41 @@ class ParametricTopologyBuilder(TopologyBuilder):
         if not BRepCheck_Analyzer(shape).IsValid():
             shape = self._cover_wire_crossings(shape)
             if not BRepCheck_Analyzer(shape).IsValid():
-                raise ValueError(f"OCCT parametric face {face.id} is invalid")
+                if not self._sliver_orientation_only(shape):
+                    raise ValueError(f"OCCT parametric face {face.id} is invalid")
+                self.operations.append("accept_sliver_face_orientation")
         self.face_shapes[face.id] = shape
+
+    def _sliver_orientation_only(self, shape):
+        """Whether the only complaint is the orientation of a strip thinner than the cap.
+
+        A face whose two long edges run within the body's declared tolerance
+        of each other (a strip a hundredth of a millimetre wide and a hundred
+        long, a tolerant source modelling artefact) has a signed area whose
+        sign is numerical noise: the orientation fix and the kernel check
+        sample it differently and disagree, while its wire closes, does not
+        cross itself and is otherwise sound. Such a face is accepted; any
+        other complaint still fails it.
+        """
+        from OCP.BRepCheck import BRepCheck_Status
+        from OCP.BRepGProp import BRepGProp
+        from OCP.GProp import GProp_GProps
+
+        analyzer = BRepCheck_Analyzer(shape)
+        statuses = set(analyzer.Result(shape).Status())
+        if statuses != {BRepCheck_Status.BRepCheck_BadOrientationOfSubshape}:
+            return False
+        for kind in (TopAbs_WIRE, TopAbs_EDGE, TopAbs_VERTEX):
+            for candidate in subshapes(shape, kind):
+                if not analyzer.IsValid(candidate):
+                    return False
+        area, length = GProp_GProps(), GProp_GProps()
+        BRepGProp.SurfaceProperties_s(shape, area)
+        BRepGProp.LinearProperties_s(shape, length)
+        perimeter = length.Mass()
+        if perimeter <= 0.0:
+            return False
+        return 2.0 * abs(area.Mass()) / perimeter <= self.tolerance_cap
 
     def _guard_partial(self, error, face_ids):
         """Drop the faces in partial mode; re-raise otherwise."""
@@ -418,11 +475,15 @@ class ParametricTopologyBuilder(TopologyBuilder):
             if isinstance(self.surfaces[i].definition, BlendBoundarySurface)
         ]
         if boundaries:
-            result = self._blend_contact_curve(definition, points, boundaries[0])
+            result = self._blend_contact_curve(
+                definition, points, boundaries[0], self.curve_anchors[curve_id]
+            )
             self.operations.append("blend_contact_curve")
+            blend_id = self.surfaces[boundaries[0]].definition.blend_surface
+            spine_id = self.surfaces[blend_id].definition.spine_curve
             self.approximated_curves[curve_id] = max(
                 self.precision, self.geometry_checks.get("blend_contact_deviation", 0.0)
-            )
+            ) + self.approximated_curves.get(spine_id, self.precision)
             self.curve_geometries[curve_id] = result
             return result
         surfaces = [self._surface_geometry(i) for i in definition.surfaces]
@@ -441,11 +502,39 @@ class ParametricTopologyBuilder(TopologyBuilder):
             )
             self.operations.append("source_identified_surface_intersection")
         else:
+            periodic = [self._source_periodicity(i) for i in definition.surfaces]
+            slack = [self._support_uncertainty(i) for i in definition.surfaces]
+            cap = self.geometry.options.fin_deviation_cap
+            report = {}
+            anchors = self.curve_anchors[curve_id]
             result = fit_intersection(
-                surfaces, points, self.curve_anchors[curve_id], self.precision
+                surfaces,
+                points,
+                anchors,
+                self.precision,
+                periodic=periodic,
+                slack=slack,
+                cap=cap,
+                report=report,
             )
+            extended = self._spine_extension(curve_id, result, points, surfaces, periodic, slack)
+            if extended is not None:
+                result = fit_intersection(
+                    surfaces,
+                    extended,
+                    anchors,
+                    self.precision,
+                    periodic=periodic,
+                    slack=slack,
+                    cap=cap,
+                    report=report,
+                )
+                self.operations.append("extend_blend_spine_past_chart")
             self.operations.append("intersection_curve_numerical_approximation")
-            self.approximated_curves[curve_id] = self.precision
+            deviation = report.get("deviation", 0.0)
+            self.approximated_curves[curve_id] = max(self.precision, deviation) + max(slack)
+            if deviation > 0.0:
+                self._accept_intersection_deviation(curve_id, deviation, cap)
         first, last = result.FirstParameter(), result.LastParameter()
         if not all(isfinite(value) and abs(value) < 1e99 for value in (first, last)):
             # OCCT bounds an infinite branch (a line, a hyperbola) by a huge
@@ -462,7 +551,202 @@ class ParametricTopologyBuilder(TopologyBuilder):
         self.curve_geometries[curve_id] = result
         return result
 
-    def _blend_contact_curve(self, definition, points, boundary_id):
+    def _blend_coverage_points(self, blend_id):
+        """Source points the blend surface has to reach.
+
+        The chart points of every intersection on the blend or on one of its
+        boundary surfaces (its contact curves) and the vertices of the faces
+        it carries.
+        """
+        boundaries = {
+            s.id
+            for s in self.model.surfaces
+            if isinstance(s.definition, BlendBoundarySurface)
+            and s.definition.blend_surface == blend_id
+        }
+        points = []
+        for curve in self.model.curves:
+            definition = curve.definition
+            if isinstance(definition, IntersectionCurve) and (
+                blend_id in definition.surfaces or boundaries.intersection(definition.surfaces)
+            ):
+                points.extend(
+                    self.geometry.point(p)
+                    for p in (
+                        *definition.start_points,
+                        *definition.chart_points,
+                        *definition.end_points,
+                    )
+                )
+        for face in self.model.faces:
+            if face.surface != blend_id:
+                continue
+            for loop_id in face.loops:
+                for half_edge_id in self.loops[loop_id].half_edges:
+                    edge_id = self.half_edges[half_edge_id].edge
+                    if edge_id is None:
+                        continue
+                    edge = self.edges[edge_id]
+                    for vertex_id in (edge.start_vertex, edge.end_vertex):
+                        if vertex_id is not None:
+                            position = self.points[self.vertices[vertex_id].point].position
+                            points.append(self.geometry.point(position))
+        return points
+
+    def _spine_extension(self, curve_id, curve, points, surfaces, periodic, slack):
+        """The chart of a blend spine continued past its ends where the blend needs it.
+
+        A blend stores the chart of its spine's own intersection, which can
+        stop short of the blend face: on production parts the contact curves
+        and the face's vertices run up to 18 mm past the last chart point.
+        There the contact construction clamps to the end of the spine and the
+        pipe does not reach the face. Both ends are continued along the
+        intersection of the two supports until every such point projects onto
+        the interior; the result is refitted through chart and continuation.
+        """
+        from OCP.gp import gp_Pnt, gp_Vec
+
+        blends = [
+            s.id
+            for s in self.model.surfaces
+            if isinstance(s.definition, BlendedEdgeSurface) and s.definition.spine_curve == curve_id
+        ]
+        if not blends or curve.IsPeriodic() or curve.IsClosed():
+            return None
+        coverage = [p for blend_id in blends for p in self._blend_coverage_points(blend_id)]
+        if not coverage:
+            return None
+        first, last = curve.FirstParameter(), curve.LastParameter()
+        at_end = 1e-9 * (last - first)
+        reach = {first: 0.0, last: 0.0}
+        # A coverage point can only reach past an end of the spine when that
+        # end is its nearest sample of the spine; the exact projection is paid
+        # for those alone (the chart points of every contact curve are tested).
+        samples = [curve.Value(first + (last - first) * k / 64) for k in range(65)]
+        for point in coverage:
+            nearest = min(range(65), key=lambda k: point.SquareDistance(samples[k]))
+            if nearest not in (0, 64):
+                continue
+            parameter, _ = project_curve(curve, point)
+            for end in (first, last):
+                if abs(parameter - end) <= at_end:
+                    reach[end] = max(reach[end], point.Distance(curve.Value(end)))
+        if max(reach.values()) <= self.precision:
+            return None
+        supports = [
+            SupportSurface(surface, max(1e-14, self.precision * 1e-4), flags)
+            for surface, flags in zip(surfaces, periodic, strict=True)
+        ]
+        spacings = sorted(a.Distance(b) for a, b in pairwise(points) if a.Distance(b) > 0)
+        step = spacings[len(spacings) // 2] if spacings else max(reach.values()) / 8
+        extended = list(points)
+        for end, sign in ((last, 1.0), (first, -1.0)):
+            if reach[end] <= self.precision:
+                continue
+            origin, derivative = gp_Pnt(), gp_Vec()
+            curve.D1(end, origin, derivative)
+            if derivative.Magnitude() <= 1e-300:
+                raise ValueError(f"intersection {curve_id} has no tangent at its end")
+            derivative.Normalize()
+            heading = tuple(sign * x for x in derivative.Coord())
+            length = reach[end] * 1.1 + self.precision
+            marched = march_intersection(
+                supports,
+                origin,
+                heading,
+                length,
+                min(step, length / 2),
+                self.precision,
+                tuple(slack),
+            )
+            if sign > 0:
+                extended.extend(marched)
+            else:
+                extended = [*reversed(marched), *extended]
+        return extended if len(extended) > len(points) else None
+
+    def _contact_offsets(self, support_id, support_geometry, radius, spine_id):
+        """The offset of a blend support that its ball centres lie on.
+
+        The spine is cut from the offsets of the two supports, and an offset
+        keeps the parameters of its basis (XT p. 71); the offset from this
+        support therefore names the contact point on the support by the
+        centre's parameters. When the source stores that offset as another
+        surface, both signed offsets are built and the chart's first centre
+        selects one.
+        """
+        from OCP.Geom import Geom_OffsetSurface
+
+        numerical = max(1e-14, self.precision * 1e-3)
+        periodic = self._source_periodicity(support_id)
+        spine_definition = self.curves[spine_id].definition
+        if isinstance(spine_definition, IntersectionCurve):
+            for surface_id in spine_definition.surfaces:
+                definition = self.surfaces[surface_id].definition
+                if isinstance(definition, OffsetSurface) and definition.basis_surface == support_id:
+                    return [SupportSurface(self._surface_geometry(surface_id), numerical, periodic)]
+        return [
+            SupportSurface(
+                Geom_OffsetSurface(support_geometry, sign * radius, True), numerical, periodic
+            )
+            for sign in (1.0, -1.0)
+        ]
+
+    def _support_uncertainty(self, surface_id):
+        """How far a support may sit from the source's own surface.
+
+        Zero for a surface built exactly; for a rebuilt blend pipe the
+        approximation its spine carries (the pipe's own error is a hundredth
+        of the tolerance). The blend is built here so that its spine is known.
+        """
+        definition = self.surfaces[surface_id].definition
+        # An offset keeps the uncertainty of its basis: the offsets a blend
+        # spine is cut from may be offsets of other blends.
+        while isinstance(definition, OffsetSurface):
+            surface_id = definition.basis_surface
+            definition = self.surfaces[surface_id].definition
+        if isinstance(definition, BlendedEdgeSurface):
+            self._surface_geometry(surface_id)
+            return self.approximated_curves.get(definition.spine_curve, self.precision)
+        return 0.0
+
+    def _accept_intersection_deviation(self, curve_id, deviation, cap):
+        source = self.curves[curve_id].source
+        self.diagnostics.append(
+            Diagnostic(
+                code="occt.intersection_deviation",
+                severity=DiagnosticSeverity.WARNING,
+                kind=DiagnosticKind.INVALID,
+                fatal=False,
+                message=(
+                    f"intersection {curve_id} meets its supports only within {deviation:g} "
+                    f"(tolerance {self.precision:g}); accepted within the FIN deviation cap "
+                    f"{cap:g}, the edges on it carry the deviation"
+                ),
+                location=SourceLocation(byte_offset=source.byte_range.start),
+                node_type=source.node_type,
+                schema_key=self.model.schema_key,
+                details={
+                    "curve_id": curve_id,
+                    "deviation": deviation,
+                    "tolerance": self.precision,
+                    "fin_deviation_cap": cap,
+                    "target_unit": self.geometry.options.target_unit,
+                },
+            )
+        )
+        self.operations.append("accept_intersection_deviation_within_cap")
+
+    def _source_periodicity(self, surface_id):
+        """The source's periodic flags of a surface, or of an offset's basis."""
+        definition = self.surfaces[surface_id].definition
+        if isinstance(definition, OffsetSurface):
+            definition = self.surfaces[definition.basis_surface].definition
+        if isinstance(definition, NurbsSurface):
+            return (bool(definition.u_periodic), bool(definition.v_periodic))
+        return (False, False)
+
+    def _blend_contact_curve(self, definition, points, boundary_id, anchors=()):
         """The curve where a rolling-ball blend touches one support.
 
         A blend boundary surface is the construction surface whose
@@ -471,9 +755,13 @@ class ParametricTopologyBuilder(TopologyBuilder):
         for a spine point is the foot of the ball on the support, at the
         blend radius. The source CHART points fix the spine range; the curve
         is interpolated through contact points between them and must pass
-        through every chart point within the precision.
+        through every chart point within the precision. The trim points of
+        the edges on the curve (``anchors``) are source points of it as well
+        and join the chart: between chart points the construction follows a
+        spine that is only within the precision of two offsets, which can
+        put it a few hundredths of a millimetre along the support.
         """
-        from OCP.GeomAPI import GeomAPI_Interpolate, GeomAPI_ProjectPointOnSurf
+        from OCP.GeomAPI import GeomAPI_Interpolate
         from OCP.gp import gp_Pnt
         from OCP.TColgp import TColgp_HArray1OfPnt
 
@@ -485,6 +773,9 @@ class ParametricTopologyBuilder(TopologyBuilder):
         support_definition = self.surfaces[support_id].definition
         spine = self._curve_geometry(blend.spine_curve)
         radius = abs(blend.ranges[0]) * self.geometry.scale
+        # The spine is itself a fit: within the precision of two offsets, or
+        # farther where the cap admitted a gap between them.
+        spine_slack = self.approximated_curves.get(blend.spine_curve, self.precision)
         if isinstance(support_definition, BlendedEdgeSurface):
             # The support is itself a rolling-ball blend: the ball touches that
             # pipe on the line from its centre to the nearest point of the
@@ -496,9 +787,30 @@ class ParametricTopologyBuilder(TopologyBuilder):
             support_spine = self._curve_geometry(support_definition.spine_curve)
             support_radius = abs(support_definition.ranges[0]) * self.geometry.scale
         else:
-            support = self._surface_geometry(support_id)
+            support_geometry = self._surface_geometry(support_id)
+            support = SupportSurface(
+                support_geometry,
+                max(1e-14, self.precision * 1e-3),
+                self._source_periodicity(support_id),
+            )
+            offset_candidates = self._contact_offsets(
+                support_id, support_geometry, radius, blend.spine_curve
+            )
             support_spine = None
             support_radius = 0.0
+        numerical = max(1e-14, self.precision * 1e-3)
+        if anchors and not (spine.IsPeriodic() or spine.IsClosed()):
+            ordered = sorted(
+                ((project_curve(spine, p)[0], p) for p in (*points, *anchors)),
+                key=lambda item: item[0],
+            )
+            merged = []
+            for _, p in ordered:
+                if not merged or p.Distance(merged[-1]) > numerical:
+                    merged.append(p)
+            if len(merged) > len(points):
+                self.operations.append("blend_contact_curve_through_trim_points")
+            points = merged
         parameters = [project_curve(spine, p)[0] for p in points]
         if spine.IsPeriodic() or spine.IsClosed():
             period = (
@@ -511,7 +823,17 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 parameters[index] = (
                     parameters[index - 1] + (step + period / 2) % period - period / 2
                 )
-        numerical = max(1e-14, self.precision * 1e-3)
+
+        offset_support = None
+        if support_spine is None:
+            if len(offset_candidates) == 1:
+                offset_support = offset_candidates[0]
+            else:
+                first_centre = spine.Value(parameters[0])
+                offset_support = min(
+                    offset_candidates,
+                    key=lambda candidate: candidate.project(first_centre, self.precision)[2],
+                )
 
         def contact(parameter):
             centre = spine.Value(parameter)
@@ -526,14 +848,19 @@ class ParametricTopologyBuilder(TopologyBuilder):
                         for f, c in zip(foot.Coord(), centre.Coord(), strict=True)
                     )
                 )
-            else:
-                projection = GeomAPI_ProjectPointOnSurf(centre, support, numerical)
-                if not projection.NbPoints():
-                    raise ValueError("blend contact projection failed")
-                point = projection.NearestPoint()
-            if abs(point.Distance(centre) - radius) > self.precision:
-                raise ValueError("blend contact point is not at the blend radius")
-            return point
+                if abs(point.Distance(centre) - radius) > self.precision + spine_slack:
+                    raise ValueError("blend contact point is not at the blend radius")
+                return point
+            # The centre lies on the offset of the support by the radius, which
+            # shares the support's parameters: the contact is the support at
+            # the centre's parameters there. The nearest point of the support
+            # is not it where the support curves more tightly than the radius
+            # (the offset's swallowtail) or where the contact runs past the
+            # support's domain.
+            _, _, residual = offset_support.project(centre, self.precision + spine_slack)
+            if residual > self.precision + spine_slack:
+                raise ValueError("blend contact centre is not at the blend radius")
+            return support.value(*offset_support.seed)
 
         # The geometric contact is ill-conditioned along the surfaces when the
         # spines are approximations: a spine within e of its source places the
@@ -551,33 +878,48 @@ class ParametricTopologyBuilder(TopologyBuilder):
         # The correction interpolates the residuals between chart points, so
         # they must be small against the chart spacing; a residual of that
         # order means the spine or support is not the one the chart follows.
-        spacing = min(
-            (a.Distance(b) for a, b in pairwise(points) if a.Distance(b) > numerical),
-            default=0.0,
-        )
-        if spacing and drift > 0.01 * spacing:
+        # The typical spacing is the median: a chart can repeat a point within
+        # a few nanometres of its neighbour, which says nothing about how far
+        # the correction is interpolated elsewhere. A tenth of it separates a
+        # spine that is merely ill-conditioned (two offsets meeting at a
+        # shallow angle put the ball centre tens of micrometres along the
+        # support) from a support the chart does not follow at all.
+        spacings = sorted(a.Distance(b) for a, b in pairwise(points) if a.Distance(b) > numerical)
+        spacing = spacings[len(spacings) // 2] if spacings else 0.0
+        # A chart of a few micrometres (a blend that ends almost where it
+        # starts) is still judged against the precision, not against itself.
+        allowed_drift = max(0.1 * spacing, 10 * (self.precision + spine_slack), 0.01 * radius)
+        if spacing and drift > allowed_drift:
             raise ValueError(
-                f"blend contact drift {drift:g} exceeds one percent of the chart spacing "
-                f"{spacing:g}"
+                f"blend contact drift {drift:g} exceeds a tenth of the chart spacing {spacing:g}"
             )
         samples = []
-        for (a, b), (first, second) in zip(pairwise(parameters), pairwise(residuals), strict=True):
+
+        def add(sample):
+            if not samples or sample.Distance(samples[-1]) > numerical:
+                samples.append(sample)
+
+        spans = zip(pairwise(parameters), pairwise(residuals), strict=True)
+        for index, ((a, b), (first, second)) in enumerate(spans):
+            # Every chart point is a sample. Two chart points can share a spine
+            # parameter (both project onto the end of the spine) and still be
+            # micrometres apart; that span has no interior and only its chart
+            # point is kept, instead of losing the point with the span.
+            add(points[index])
             if abs(b - a) <= numerical:
                 continue
-            for k in range(8):
+            for k in range(1, 8):
                 fraction = k / 8
                 geometric = contact(a + (b - a) * fraction)
-                sample = gp_Pnt(
-                    *(
-                        g + (1 - fraction) * x + fraction * y
-                        for g, x, y in zip(geometric.Coord(), first, second, strict=True)
+                add(
+                    gp_Pnt(
+                        *(
+                            g + (1 - fraction) * x + fraction * y
+                            for g, x, y in zip(geometric.Coord(), first, second, strict=True)
+                        )
                     )
                 )
-                if not samples or sample.Distance(samples[-1]) > numerical:
-                    samples.append(sample)
-        last = points[-1]
-        if not samples or last.Distance(samples[-1]) > numerical:
-            samples.append(last)
+        add(points[-1])
         closed = points[0].Distance(points[-1]) <= numerical
         if closed and len(samples) > 2 and samples[0].Distance(samples[-1]) <= numerical:
             samples.pop()
@@ -595,7 +937,7 @@ class ParametricTopologyBuilder(TopologyBuilder):
         # chart points carry the source resolution, so the contact curve may
         # differ from a chart point by both.
         worst = max(project_curve(curve, p)[1] for p in points)
-        if worst > 4 * self.precision:
+        if worst > 4 * self.precision + spine_slack:
             raise ValueError(
                 f"blend contact curve misses a source chart point by {worst:g} "
                 f"(limit {4 * self.precision:g})"
@@ -626,6 +968,68 @@ class ParametricTopologyBuilder(TopologyBuilder):
         elif isinstance(support, SpunSurface):
             section = self.curves[support.profile].definition
         return self.geometry.parameter_curve(curve, support, section=section)
+
+    def _wrapped_trim(self, definition, curve, evaluated, tolerance):
+        """A FIN's trim parameters (start, end), moved by whole periods into its curve's range.
+
+        A trim of a closed basis may be stored a period away from the basis's
+        own parameters: a ring edge's FIN runs from 0 to -1 over a curve whose
+        parameters span [0, 1] and whose image closes, on a periodic surface
+        or as a periodic B-curve. The OCCT curve is not periodic and continues
+        its end polynomials there, so such a trim is moved into the range,
+        where it is the same arc. A basis whose image does not close, or a
+        trim that would straddle the end of the range, keeps its parameters.
+        """
+        start, end = definition.start_parameter, definition.end_parameter
+        lo, hi = min(start, end), max(start, end)
+        if self._within_range(curve, lo, hi):
+            return start, end
+        period = self._closed_period(curve, evaluated, tolerance)
+        first, last = curve.FirstParameter(), curve.LastParameter()
+        slack = 1e-9 * max(1.0, abs(last - first))
+        if period is None or hi - lo > period + slack:
+            return start, end
+        shift = period * floor((lo - first) / period + 1e-9)
+        if hi - shift > last + slack:
+            return start, end
+        self.operations.append("wrap_closed_fin_trim")
+        return (
+            min(max(start - shift, first), last),
+            min(max(end - shift, first), last),
+        )
+
+    @staticmethod
+    def _within_range(curve, lo, hi):
+        """Whether ``[lo, hi]`` lies in the parameter range of ``curve``."""
+        first, last = curve.FirstParameter(), curve.LastParameter()
+        slack = 1e-9 * max(1.0, abs(last - first))
+        return first - slack <= lo and hi <= last + slack
+
+    @staticmethod
+    def _closed_period(curve, evaluated, tolerance):
+        """The parameter range of a FIN curve whose image closes on its surface, or None."""
+        first, last = curve.FirstParameter(), curve.LastParameter()
+        if not last > first:
+            return None
+        p, q = curve.Value(first), curve.Value(last)
+        if evaluated.value(p.X(), p.Y()).Distance(evaluated.value(q.X(), q.Y())) > tolerance:
+            return None
+        return last - first
+
+    @staticmethod
+    def _trim_uv(curve, parameter, period):
+        """The FIN curve's point at ``parameter``, whole periods on where it leaves a closed range.
+
+        A trim that crosses the end of a closed basis (a FIN from 0.999 to
+        1.144 of a curve spanning [0, 1] whose image closes) continues on the
+        curve's start; the OCCT curve would continue its end polynomial.
+        """
+        if period is not None:
+            first, last = curve.FirstParameter(), curve.LastParameter()
+            slack = 1e-9 * max(1.0, period)
+            if parameter < first - slack or parameter > last + slack:
+                parameter = first + (parameter - first) % period
+        return curve.Value(parameter)
 
     def _surface_trim(self, curve_id):
         definition = None if curve_id is None else self.curves[curve_id].definition
@@ -669,28 +1073,91 @@ class ParametricTopologyBuilder(TopologyBuilder):
                         f"edge {edge.id} geometry misses its source endpoint tolerance"
                     )
 
+        fin_trim = None
+        blend_curve = None
         if edge.curve is None:
-            if not edge.half_edges or vs is None:
+            if not edge.half_edges:
                 raise ValueError(f"edge {edge.id} requires finite FIN geometry")
-            trimmed = self._surface_trim(self.half_edges[edge.half_edges[0]].curve)
-            if trimmed is None:
-                raise ValueError(f"edge {edge.id} requires trimmed surface-parametric FIN curves")
-            definition, support = trimmed
+            fin_trim = self._fin_trim_outside_blends(edge)
+            if fin_trim is None:
+                if vs is None:
+                    raise ValueError(f"edge {edge.id} requires finite FIN geometry")
+                blend_curve = self._blend_intersection_curve(edge, vs, ve, tolerance)
+        else:
+            own = self._surface_trim(edge.curve)
+            own_curve = own[1] if own is not None else self.curves[edge.curve].definition
+            if isinstance(own_curve, SurfaceParametricCurve) and self._blend_parameters(own_curve):
+                # The edge's own geometry lives in a blend's parameters, which
+                # the rebuilt blend does not reproduce; the FIN on the adjacent
+                # face carries the same curve in that face's parameters.
+                if vs is None:
+                    raise ValueError(f"edge {edge.id} on a blend parameter curve has no endpoints")
+                fin_trim = self._fin_trim_outside_blends(edge)
+                if fin_trim is None:
+                    # Both faces are blends: the edge is their intersection.
+                    blend_curve = self._blend_intersection_curve(edge, vs, ve, tolerance)
+                else:
+                    self.operations.append("blend_parameter_edge_from_adjacent_fin")
+        if fin_trim is not None:
+            definition, support, fin = fin_trim
             curve = self._parameter_curve(support)
             surface = self._surface_geometry(support.surface)
-            a, b = definition.start_parameter, definition.end_parameter
-            if a == b:
+            evaluated = self._support_surface(support.surface)
+            if definition.start_parameter == definition.end_parameter:
                 raise ValueError(f"edge {edge.id} requires distinct UV trim parameters")
-            q1, q2 = (surface.Value(curve.Value(t).X(), curve.Value(t).Y()) for t in (a, b))
+            a, b = self._wrapped_trim(definition, curve, evaluated, tolerance)
+            period = self._closed_period(curve, evaluated, tolerance)
+            q1, q2 = (
+                evaluated.value(uv.X(), uv.Y())
+                for uv in (self._trim_uv(curve, t, period) for t in (a, b))
+            )
             for point, source in ((q1, definition.start_point), (q2, definition.end_point)):
                 if point.Distance(self.geometry.point(source)) > tolerance:
                     raise ValueError(f"edge {edge.id} UV trim disagrees with its source point")
             # A trim stored against the parameter direction keeps its end
             # points; the edge range is the same interval, so the vertex at
             # the lower parameter comes first.
-            endpoints(q1, q2) if a < b else endpoints(q2, q1)
-            builder = BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, min(a, b), max(a, b))
+            if vs is None:
+                # A ring edge without a curve of its own: the FIN closes.
+                if q1.Distance(q2) > tolerance:
+                    raise ValueError(f"edge {edge.id} without vertices has an open FIN curve")
+                # Nothing else orients its FINs: a FIN's trimmed SP-curve runs
+                # along the FIN, from its start parameter to its end parameter
+                # (backwards when the start is the larger), and the edge is
+                # built in increasing parameter. The edge therefore follows
+                # the source edge direction when the FIN does both or neither.
+                self.ring_edge_directions[edge.id] = (a < b) is (fin.sense is Sense.POSITIVE)
+            else:
+                endpoints(q1, q2) if a < b else endpoints(q2, q1)
+            samples = [
+                self._trim_uv(curve, min(a, b) + abs(b - a) * k / 32, period) for k in range(33)
+            ]
+            if self._within_range(curve, min(a, b), max(a, b)) and all(
+                evaluated.within_bounds(uv.X(), uv.Y()) for uv in samples
+            ):
+                builder = (
+                    BRepBuilderAPI_MakeEdge(curve, surface, min(a, b), max(a, b))
+                    if vs is None
+                    else BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, min(a, b), max(a, b))
+                )
+            else:
+                # The FIN runs past the knots of its B-surface, where OCCT
+                # continues the polynomial and the source the tangent plane
+                # (or the next period), or across the end of its closed
+                # curve: the 3D curve is fitted through the source's points.
+                # The pcurve, added by the face, then meets it only within the
+                # edge tolerance that the same-parameter pass measures.
+                fitted = self._fit_through([evaluated.value(uv.X(), uv.Y()) for uv in samples])
+                builder = (
+                    BRepBuilderAPI_MakeEdge(fitted)
+                    if vs is None
+                    else BRepBuilderAPI_MakeEdge(fitted, vs, ve)
+                )
+                self.operations.append("fin_curve_fitted_on_surface_extension")
             self.operations.append("surface_parametric_curve_3d_approximation")
+        elif blend_curve is not None:
+            builder = BRepBuilderAPI_MakeEdge(blend_curve, vs, ve)
+            self.operations.append("blend_intersection_edge_walked")
         else:
             source = self.curves[edge.curve]
             definition = source.definition
@@ -713,17 +1180,20 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 # surface over the stored interval.
                 if trimmed_parameter:
                     trim, definition = trimmed_parameter
-                    a, b = sorted((trim.start_parameter, trim.end_parameter))
-                    if a == b:
+                    if trim.start_parameter == trim.end_parameter:
                         raise ValueError(f"edge {edge.id} requires distinct UV trim parameters")
                     curve = self._parameter_curve(definition)
                     surface = self._surface_geometry(definition.surface)
+                    evaluated = self._support_surface(definition.surface)
+                    start, end = self._wrapped_trim(trim, curve, evaluated, tolerance)
+                    period = self._closed_period(curve, evaluated, tolerance)
+                    a, b = sorted((start, end))
                     for parameter, source_point in (
-                        (trim.start_parameter, trim.start_point),
-                        (trim.end_parameter, trim.end_point),
+                        (start, trim.start_point),
+                        (end, trim.end_point),
                     ):
-                        uv = curve.Value(parameter)
-                        point = surface.Value(uv.X(), uv.Y())
+                        uv = self._trim_uv(curve, parameter, period)
+                        point = evaluated.value(uv.X(), uv.Y())
                         if point.Distance(self.geometry.point(source_point)) > tolerance:
                             raise ValueError(
                                 f"edge {edge.id} UV trim disagrees with its source point"
@@ -732,14 +1202,40 @@ class ParametricTopologyBuilder(TopologyBuilder):
                     curve = self._parameter_curve(definition)
                     surface = self._surface_geometry(definition.surface)
                     a, b = curve.FirstParameter(), curve.LastParameter()
-                q1, q2 = (surface.Value(curve.Value(t).X(), curve.Value(t).Y()) for t in (a, b))
-                if vs is None:
-                    if q1.Distance(q2) > tolerance:
-                        raise ValueError(f"edge {edge.id} on a surface parameter curve is open")
-                    builder = BRepBuilderAPI_MakeEdge(curve, surface, a, b)
-                else:
+                    period = None
+                evaluated = self._support_surface(definition.surface)
+                q1, q2 = (
+                    evaluated.value(uv.X(), uv.Y())
+                    for uv in (self._trim_uv(curve, t, period) for t in (a, b))
+                )
+                if vs is None and q1.Distance(q2) > tolerance:
+                    raise ValueError(f"edge {edge.id} on a surface parameter curve is open")
+                if vs is not None:
                     endpoints(q1, q2)
-                    builder = BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, a, b)
+                if self._within_range(curve, a, b):
+                    builder = (
+                        BRepBuilderAPI_MakeEdge(curve, surface, a, b)
+                        if vs is None
+                        else BRepBuilderAPI_MakeEdge(curve, surface, vs, ve, a, b)
+                    )
+                else:
+                    # The trim crosses the end of its closed curve: the 3D
+                    # curve is fitted through the source's points around it.
+                    fitted = self._fit_through(
+                        [
+                            evaluated.value(uv.X(), uv.Y())
+                            for uv in (
+                                self._trim_uv(curve, a + (b - a) * k / 32, period)
+                                for k in range(33)
+                            )
+                        ]
+                    )
+                    builder = (
+                        BRepBuilderAPI_MakeEdge(fitted)
+                        if vs is None
+                        else BRepBuilderAPI_MakeEdge(fitted, vs, ve)
+                    )
+                    self.operations.append("sp_curve_fitted_across_its_closure")
                 self.operations.append("surface_parametric_curve_3d_approximation")
             elif isinstance(definition, TrimmedCurve):
                 basis = self.curves[definition.basis_curve]
@@ -821,12 +1317,19 @@ class ParametricTopologyBuilder(TopologyBuilder):
         self.split_edges[edge.id] = pieces
         self.edge_shapes[edge.id] = compound
 
-    def _edge_for_half_edge(self, half_edge):
+    def _half_edge_forward(self, half_edge):
+        """Whether the half-edge runs along the parameter of its built edge."""
         edge = self.edges[half_edge.edge]
         if half_edge.vertex is None:
-            if edge.curve is None:
+            if edge.curve is not None:
+                forward = half_edge.sense is self.curves[edge.curve].sense
+            elif edge.id in self.ring_edge_directions:
+                # A ring edge built from one FIN's curve: the half-edge runs
+                # along it when it agrees with the source edge as the built
+                # edge does.
+                forward = (half_edge.sense is Sense.POSITIVE) is self.ring_edge_directions[edge.id]
+            else:
                 raise ValueError(f"half-edge {half_edge.id} has no orientation reference")
-            forward = half_edge.sense is self.curves[edge.curve].sense
         elif half_edge.vertex == edge.end_vertex:
             forward = True
         elif half_edge.vertex == edge.start_vertex:
@@ -835,6 +1338,11 @@ class ParametricTopologyBuilder(TopologyBuilder):
             raise ValueError(f"half-edge {half_edge.id} does not end at its edge vertex")
         if edge.id in self.reversed_edges:
             forward = not forward
+        return forward
+
+    def _edge_for_half_edge(self, half_edge):
+        edge = self.edges[half_edge.edge]
+        forward = self._half_edge_forward(half_edge)
         orientation = TopAbs_FORWARD if forward else TopAbs_REVERSED
         pieces = self.split_edges.get(edge.id)
         if pieces is None:
@@ -847,15 +1355,254 @@ class ParametricTopologyBuilder(TopologyBuilder):
             builder.Add(wire, piece.Oriented(orientation))
         return wire
 
+    def _make_wire(self, loop_id):
+        """The loop's wire from its oriented edges, in source order.
+
+        BRepBuilderAPI_MakeWire merges vertices that lie within each other's
+        tolerance and replaces the edges it joins there by copies carrying the
+        merged vertex. An edge shorter than its vertex tolerance (a tolerant
+        source sliver) is joined that way in one face only; the neighbouring
+        face keeps the original and the shell no longer closes. The source
+        loop's edges already share their vertex shapes, so the wire is
+        assembled directly; the wire fixes order and connect it afterwards.
+        """
+        loop = self.loops[loop_id]
+        wire = TopoDS_Wire()
+        builder = BRep_Builder()
+        builder.MakeWire(wire)
+        for half_edge_id in loop.half_edges:
+            half_edge = self.half_edges[half_edge_id]
+            target = self._edge_for_half_edge(half_edge)
+            if target.ShapeType() == TopAbs_EDGE:
+                builder.Add(wire, target)
+            else:
+                # The pieces of a split edge arrive as a wire of their own.
+                for piece in subshapes(target, TopAbs_EDGE):
+                    builder.Add(wire, piece)
+            self.half_edge_shapes[half_edge.id] = target
+            self._record(SourceEntityKind.HALF_EDGE, half_edge.id, half_edge.source, target)
+        self.loop_shapes[loop.id] = wire
+        self._record(SourceEntityKind.LOOP, loop.id, loop.source, wire)
+        return wire
+
+    def _support_surface(self, surface_id):
+        """The surface evaluated as the source does (linear past a B-surface's domain)."""
+        return SupportSurface(
+            self._surface_geometry(surface_id),
+            max(1e-14, self.precision * 1e-4),
+            self._source_periodicity(surface_id),
+        )
+
+    def _fit_through(self, points):
+        """A C2 B-spline through ordered points, within the numerical tolerance."""
+        from OCP.GeomAPI import GeomAPI_Interpolate
+        from OCP.TColgp import TColgp_HArray1OfPnt
+
+        numerical = max(1e-14, self.precision * 1e-4)
+        kept = [points[0]]
+        for point in points[1:]:
+            if point.Distance(kept[-1]) > numerical:
+                kept.append(point)
+        if len(kept) < 2:
+            raise ValueError("curve samples do not span a curve")
+        array = TColgp_HArray1OfPnt(1, len(kept))
+        for index, point in enumerate(kept, 1):
+            array.SetValue(index, point)
+        fit = GeomAPI_Interpolate(array, False, numerical)
+        fit.Perform()
+        if not fit.IsDone():
+            raise ValueError("curve interpolation through surface samples failed")
+        return fit.Curve()
+
+    def _blend_intersection_curve(self, edge, vs, ve, tolerance):
+        """The 3D curve of an edge known only in its two blends' parameters.
+
+        An edge between two blend faces can have no curve of its own, its
+        FINs being SP-curves in the blends' parameters, which the rebuilt
+        canal surfaces do not reproduce. The curve is the intersection of the
+        two canal surfaces: it is walked from the start vertex along their
+        common tangent up to the end vertex and interpolated through the
+        points found.
+        """
+        from OCP.GeomAPI import GeomAPI_Interpolate
+        from OCP.TColgp import TColgp_HArray1OfPnt
+
+        faces = {face.id: face for face in self.model.faces}
+        surface_ids = []
+        for half_edge_id in edge.half_edges:
+            half_edge = self.half_edges[half_edge_id]
+            if half_edge.loop is None:
+                continue
+            surface_id = faces[self.loops[half_edge.loop].face].surface
+            if (
+                isinstance(self.surfaces[surface_id].definition, BlendedEdgeSurface)
+                and surface_id not in surface_ids
+            ):
+                surface_ids.append(surface_id)
+        if len(surface_ids) != 2:
+            raise ValueError(f"edge {edge.id} requires trimmed surface-parametric FIN curves")
+        numerical = max(1e-14, self.precision * 1e-4)
+        supports = [
+            SupportSurface(self._surface_geometry(i), numerical, self._source_periodicity(i))
+            for i in surface_ids
+        ]
+        start, end = BRep_Tool.Pnt_s(vs), BRep_Tool.Pnt_s(ve)
+        length = start.Distance(end)
+        if length <= tolerance:
+            raise ValueError(f"edge {edge.id} between two blends has coincident vertices")
+        (a1, a2, a3), (b1, b2, b3) = (support.project(start, tolerance)[1] for support in supports)
+        heading = (a2 * b3 - a3 * b2, a3 * b1 - a1 * b3, a1 * b2 - a2 * b1)
+        magnitude = sum(x * x for x in heading) ** 0.5
+        if magnitude <= 1e-2:
+            # Two blends (nearly) tangent to each other meet along the ball's
+            # cross-section: the edge is that circular arc, which the
+            # intersection of two such surfaces cannot locate.
+            arc = self._blend_section_arc(surface_ids, start, end, tolerance)
+            if arc is not None:
+                return arc
+            if magnitude <= 1e-6:
+                raise ValueError(f"edge {edge.id} lies where its two blends are tangent")
+        towards = tuple((e - s) / length for s, e in zip(start.Coord(), end.Coord(), strict=True))
+        sign = 1.0 if sum(h * t for h, t in zip(heading, towards, strict=True)) >= 0 else -1.0
+        heading = tuple(sign * h / magnitude for h in heading)
+        step = max(length / 16, 10 * tolerance)
+        slack = tuple(self._support_uncertainty(i) for i in surface_ids)
+        chain = [start]
+        walk = march_intersection(supports, start, heading, 1.5 * length, step, tolerance, slack)
+        for point in walk:
+            beyond = zip(point.Coord(), end.Coord(), towards, strict=True)
+            if sum((p - e) * t for p, e, t in beyond) > 0 or point.Distance(end) <= step / 2:
+                break
+            chain.append(point)
+        if chain[-1].Distance(end) > 2 * step:
+            raise ValueError(f"edge {edge.id} walked along its blends misses its end vertex")
+        chain.append(end)
+        array = TColgp_HArray1OfPnt(1, len(chain))
+        for index, point in enumerate(chain, 1):
+            array.SetValue(index, point)
+        fit = GeomAPI_Interpolate(array, False, numerical)
+        fit.Perform()
+        if not fit.IsDone():
+            raise ValueError(f"edge {edge.id} interpolation along its blends failed")
+        return fit.Curve()
+
+    def _blend_section_arc(self, surface_ids, start, end, tolerance):
+        """The arc of a blend's rolling ball through both vertices.
+
+        Where a blend meets another blend tangent to it (consecutive fillets
+        of one radius), their common edge is a cross-section of the rolling
+        ball: the circle of the blend radius about a spine point, in the
+        plane normal to the spine there. The spine point is the one at the
+        radius from both vertices; the arc between them that lies on both
+        blends is returned, or None when no spine has such a point.
+        """
+        from OCP.GC import GC_MakeArcOfCircle
+        from OCP.gp import gp_Pnt, gp_Vec
+
+        numerical = max(1e-14, self.precision * 1e-4)
+        supports = [self._support_surface(i) for i in surface_ids]
+        slack = [self._support_uncertainty(i) for i in surface_ids]
+        for surface_id in surface_ids:
+            definition = self.surfaces[surface_id].definition
+            spine = self._curve_geometry(definition.spine_curve)
+            radius = abs(definition.ranges[0]) * self.geometry.scale
+            allowance = (
+                tolerance
+                + self.approximated_curves.get(definition.spine_curve, 0.0)
+                + max(BRep_Tool.Tolerance_s(v) for v in self._vertex_pair(start, end))
+            )
+            first, last = spine.FirstParameter(), spine.LastParameter()
+
+            def misfit(parameter, spine=spine, radius=radius):
+                centre = spine.Value(parameter)
+                return max(abs(centre.Distance(start) - radius), abs(centre.Distance(end) - radius))
+
+            # Coarse search along the spine, then a golden-section refinement.
+            samples = [first + (last - first) * k / 400 for k in range(401)]
+            best = min(samples, key=misfit)
+            lower = max(first, best - (last - first) / 400)
+            upper = min(last, best + (last - first) / 400)
+            golden = (5**0.5 - 1) / 2
+            for _ in range(60):
+                c = upper - golden * (upper - lower)
+                d = lower + golden * (upper - lower)
+                if misfit(c) < misfit(d):
+                    upper = d
+                else:
+                    lower = c
+            best = (lower + upper) / 2
+            if misfit(best) > allowance:
+                continue
+            centre, tangent = gp_Pnt(), gp_Vec()
+            spine.D1(best, centre, tangent)
+            if tangent.Magnitude() <= 1e-300:
+                continue
+            # Both vertices lie on the circle: try the arc through the middle
+            # of the short way round, then the long way, against both blends.
+            for long_way in (False, True):
+                middle = gp_Pnt((start.XYZ() + end.XYZ()) / 2)
+                radial = gp_Vec(centre, middle)
+                if long_way:
+                    radial.Reverse()
+                if radial.Magnitude() <= numerical:
+                    continue
+                radial.Normalize()
+                arc = GC_MakeArcOfCircle(start, gp_Pnt(centre.XYZ() + radial.XYZ() * radius), end)
+                if not arc.IsDone():
+                    continue
+                curve = arc.Value()
+                probe = curve.Value((curve.FirstParameter() + curve.LastParameter()) / 2)
+                if all(
+                    support.project(probe, tolerance)[2] <= tolerance + extra
+                    for support, extra in zip(supports, slack, strict=True)
+                ):
+                    self.operations.append("blend_section_arc_edge")
+                    return curve
+        return None
+
+    def _vertex_pair(self, start, end):
+        """The vertex shapes at two points, for their tolerances."""
+        return [
+            shape
+            for shape in self.vertex_shapes.values()
+            if BRep_Tool.Pnt_s(shape).Distance(start) <= BRep_Tool.Tolerance_s(shape)
+            or BRep_Tool.Pnt_s(shape).Distance(end) <= BRep_Tool.Tolerance_s(shape)
+        ] or [next(iter(self.vertex_shapes.values()))]
+
+    def _fin_trim_outside_blends(self, edge):
+        """The first FIN trim of the edge whose SP-curve is not in a blend's parameters.
+
+        Returns (trim, SP-curve, half-edge), or None.
+        """
+        for half_edge_id in edge.half_edges:
+            half_edge = self.half_edges[half_edge_id]
+            candidate = self._surface_trim(half_edge.curve)
+            if candidate is not None and not self._blend_parameters(candidate[1]):
+                return (*candidate, half_edge)
+        return None
+
+    def _blend_parameters(self, support):
+        """Whether a FIN's SP-curve lives in a blend's own parameters.
+
+        A blend surface is rebuilt as the canal surface around its spine; its
+        parameters are not the source's, so such a FIN cannot be mapped and
+        the edge's 3D curve is projected instead (the source validation of
+        that FIN is skipped for the same reason).
+        """
+        definition = self.surfaces[support.surface].definition
+        return isinstance(definition, (BlendedEdgeSurface, BlendBoundarySurface))
+
     def _add_pcurve(self, half_edge, face):
         trimmed = self._surface_trim(half_edge.curve)
+        if trimmed is not None and self._blend_parameters(trimmed[1]):
+            trimmed = None
+            self.operations.append("project_blend_fin_curve")
         pieces = self.split_edges.get(half_edge.edge)
         if trimmed is None:
             for shape in pieces or [self.edge_shapes[half_edge.edge]]:
                 ShapeFix_Edge().FixAddPCurve(shape, face, False, self.precision)
                 self._share_seam_pcurves(shape, face)
-                BRep_Builder().SameParameter(shape, False)
-                BRepLib.SameParameter_s(shape, self.precision)
+                self._same_parameter(shape)
             self.operations.append("project_3d_curve_to_surface_parameters")
             return
         if pieces is not None and self.edges[half_edge.edge].start_vertex is None:
@@ -871,17 +1618,49 @@ class ParametricTopologyBuilder(TopologyBuilder):
         if self._surface_geometry(support.surface) is not surface:
             raise ValueError(f"FIN {half_edge.id} support differs from its face surface")
         curve = self._parameter_curve(support)
-        a, b = sorted((definition.start_parameter, definition.end_parameter))
-        curve.Segment(a, b)
+        evaluated = self._support_surface(support.surface)
+        start, end = self._wrapped_trim(
+            definition, curve, evaluated, self._edge_tolerance(self.edges[half_edge.edge])
+        )
+        a, b = sorted((start, end))
+        within = self._within_range(curve, a, b)
+        if within:
+            curve.Segment(a, b)
+        if not within or not all(
+            evaluated.within_bounds(
+                curve.Value(a + (b - a) * k / 32).X(), curve.Value(a + (b - a) * k / 32).Y()
+            )
+            for k in range(33)
+        ):
+            # The FIN leaves the knots of its B-surface (into the source's
+            # linear extension or its next period), where the OCCT surface
+            # differs from the source, or crosses the end of its closed curve,
+            # where no single interval of the OCCT pcurve describes it; the
+            # edge's 3D curve, which followed the source, is projected onto
+            # the surface instead.
+            for shape in shapes:
+                ShapeFix_Edge().FixAddPCurve(shape, face, False, self.precision)
+                self._share_seam_pcurves(shape, face)
+                self._same_parameter(shape)
+            self.operations.append("project_fin_curve_outside_knots")
+            return
         # The trim parameters are mapped linearly onto the edge's own range,
         # which spans every piece of a split edge; the same-parameter check
         # and the source FIN validation measure what that map leaves.
         first_parameter = BRep_Tool.Range_s(shapes[0])[0]
         last_parameter = BRep_Tool.Range_s(shapes[-1])[1]
-        first = BRepAdaptor_Curve(shapes[0]).Value(first_parameter)
-        p1, p2 = (surface.Value(curve.Value(t).X(), curve.Value(t).Y()) for t in (a, b))
-        if first.Distance(p2) < first.Distance(p1):
-            curve.Reverse()
+        if self.edges[half_edge.edge].start_vertex is None:
+            # A ring edge's ends coincide and cannot tell the direction: the
+            # segment runs along the FIN when its trim rises (the FIN's curve
+            # runs from its start parameter to its end), and the FIN along
+            # the built edge when the half-edge is forward.
+            if (start < end) is not self._half_edge_forward(half_edge):
+                curve.Reverse()
+        else:
+            first = BRepAdaptor_Curve(shapes[0]).Value(first_parameter)
+            p1, p2 = (evaluated.value(curve.Value(t).X(), curve.Value(t).Y()) for t in (a, b))
+            if first.Distance(p2) < first.Distance(p1):
+                curve.Reverse()
         knots = curve.Knots()
         BSplCLib.Reparametrize_s(first_parameter, last_parameter, knots)
         curve.SetKnots(knots)
@@ -902,8 +1681,51 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 builder.UpdateEdge(shape, pcurve, face, BRep_Tool.Tolerance_s(shape))
                 builder.Range(shape, face, piece_first, piece_last)
                 self._share_seam_pcurves(shape, face)
-            BRep_Builder().SameParameter(shape, False)
-            BRepLib.SameParameter_s(shape, self.precision)
+            self._same_parameter(shape)
+
+    def _same_parameter(self, edge):
+        """Re-measure the edge's representations without lowering its tolerance.
+
+        BRepLib::SameParameter sets the edge tolerance to the deviation it
+        measures, even below the tolerance the source declares; a ring edge
+        whose circle and pcurves agree to 1e-7 then drops from the declared
+        1e-5, and the planar face it bounds with a second ring fails the
+        orientation check. The declared tolerance is kept as the floor.
+        """
+        declared = BRep_Tool.Tolerance_s(edge)
+        vertices = [TopoDS.Vertex_s(candidate) for candidate in subshapes(edge, TopAbs_VERTEX)]
+        recorded = [BRep_Tool.Tolerance_s(vertex) for vertex in vertices]
+        measured = self._reparametrize(edge, self.precision)
+        # Approx_SameParameter keeps the pcurve it was given when the
+        # reparametrization it finds misses its target. A FIN mapped linearly
+        # onto an edge whose parameter runs at another speed (the 3D curve
+        # follows the other face's FIN) then stays a few tenths of a
+        # millimetre off along the edge while its image is within
+        # micrometres. A looser target installs the reparametrized curve, and
+        # the strict target is reached from it. The target only rises, a
+        # decade at a time, so the rescue ends after at most nine attempts.
+        target = self.precision
+        rescued = False
+        while measured > max(declared, 1e4 * self.precision) and target < 1e5 * self.precision:
+            target *= 10
+            if self._reparametrize(edge, target) < measured:
+                measured = self._reparametrize(edge, self.precision)
+                rescued = True
+        if rescued:
+            # The first pass grew the vertices to the deviation of the pcurve
+            # it then discarded. BRep_Builder only grows a tolerance; the
+            # vertex record itself takes the value the installed pcurve needs.
+            for vertex, before in zip(vertices, recorded, strict=True):
+                vertex.TShape().Tolerance(max(before, measured))
+            self.operations.append("reparametrize_pcurve_through_looser_target")
+        BRep_Builder().UpdateEdge(edge, max(declared, measured))
+
+    @staticmethod
+    def _reparametrize(edge, target):
+        """Re-measure the edge's pcurves against ``target``; the tolerance reached."""
+        BRep_Builder().SameParameter(edge, False)
+        BRepLib.SameParameter_s(edge, target)
+        return BRep_Tool.Tolerance_s(edge)
 
     def _build_face(self, face):
         loops = self._trim_loops(face)
@@ -946,13 +1768,19 @@ class ParametricTopologyBuilder(TopologyBuilder):
         self.face_shapes[face.id] = shape
 
     def _finish_face(self, face):
-        shape = TopoDS.Face_s(self.context.Apply(self.face_shapes[face.id]))
+        shape = self._order_wire_edges(TopoDS.Face_s(self.context.Apply(self.face_shapes[face.id])))
         operation = ShapeFix_Face(shape)
         operation.SetContext(self.context)
         operation.SetPrecision(self.precision)
         operation.SetMaxTolerance(max(self.precision, Precision.Confusion_s()))
         if operation.FixMissingSeam():
             self.operations.append("generate_periodic_surface_seam")
+        split = self._split_self_touching_loops(operation)
+        if split is not None:
+            operation = ShapeFix_Face(split)
+            operation.SetContext(self.context)
+            operation.SetPrecision(self.precision)
+            operation.SetMaxTolerance(max(self.precision, Precision.Confusion_s()))
         if operation.FixOrientation():
             self.operations.append("orient_surface_boundary_wires")
         shape = operation.Face()
@@ -986,11 +1814,74 @@ class ParametricTopologyBuilder(TopologyBuilder):
             # was marked same-parameter; the flag is reset so the deviation of
             # every representation is measured again and the edge tolerance
             # covers it.
-            BRep_Builder().SameParameter(edge, False)
-            BRepLib.SameParameter_s(edge, self.precision)
+            self._same_parameter(edge)
         self.face_shapes[face.id] = TopoDS.Face_s(
             self._orient_shape(shape, face.sense, self.surfaces[face.surface].sense)
         )
+
+    def _split_self_touching_loops(self, operation):
+        """Split a loop that passes through one vertex twice into simple wires.
+
+        A sliver face thinner than its vertex tolerance (a tolerant source
+        loop of two spikes on a strip, every edge paired with another between
+        the same vertices) is one source loop that visits its junction
+        vertices twice. OCCT's wire traversal of such a loop is ambiguous at
+        those vertices and depends on the direction: the face passes forward
+        and fails reversed with its two-dimensional closure. ShapeFix splits
+        the loop at the repeated vertices into the simple wires it is made
+        of, which bound the same region. Returns the rebuilt face, or None.
+        """
+        from OCP.TopTools import TopTools_SequenceOfShape
+
+        shape = TopoDS.Face_s(operation.Face())
+        tool = operation.FixWireTool()
+        rebuilt = TopoDS.Face_s(shape.EmptyCopied())
+        builder = BRep_Builder()
+        split = False
+        for candidate in subshapes(shape, TopAbs_WIRE):
+            wire = TopoDS.Wire_s(candidate)
+            tool.Load(wire)
+            tool.SetFace(shape)
+            tool.SetPrecision(self.precision)
+            pieces = TopTools_SequenceOfShape()
+            if operation.FixLoopWire(pieces) and pieces.Length() > 1:
+                split = True
+                for index in range(1, pieces.Length() + 1):
+                    builder.Add(rebuilt, pieces.Value(index))
+            else:
+                builder.Add(rebuilt, wire)
+        if not split:
+            return None
+        if len(subshapes(rebuilt, TopAbs_EDGE)) != len(subshapes(shape, TopAbs_EDGE)):
+            raise ValueError("splitting a self-touching loop changed the boundary edges")
+        self.operations.append("split_self_touching_loops")
+        self.context.Replace(shape, rebuilt)
+        return rebuilt
+
+    def _order_wire_edges(self, shape):
+        """Store the edges of every wire in traversal order before the orientation fix.
+
+        The seam fix of a periodic face replaces an edge it splits by the two
+        pieces in that edge's own direction, in every face that shares it. A
+        face running the edge backwards then holds the pieces against its
+        traversal. ShapeFix judges a single boundary wire by the signed area
+        of its edges in stored order (ShapeAnalysis::TotCross2D); the swapped
+        pair makes the area of a correctly oriented loop negative and the
+        orientation fix would reverse it. Only the storage order changes.
+        """
+        for candidate in subshapes(shape, TopAbs_WIRE):
+            wire = TopoDS.Wire_s(candidate)
+            repair = ShapeFix_Wire(wire, shape, self.precision)
+            if not repair.FixReorder():
+                continue
+            fixed = repair.Wire()
+            if len(subshapes(fixed, TopAbs_EDGE)) != len(subshapes(wire, TopAbs_EDGE)):
+                raise ValueError("wire edge reordering changed the boundary edges")
+            self.operations.append("order_wire_edges_after_seam_split")
+            if not fixed.IsSame(wire):
+                self.context.Replace(wire, fixed)
+                shape = TopoDS.Face_s(self.context.Apply(shape))
+        return shape
 
     def _cover_wire_crossings(self, shape):
         """Grow edge tolerances over a crossing of two edges just before their vertex.
@@ -1021,15 +1912,47 @@ class ParametricTopologyBuilder(TopologyBuilder):
         # Sample the original FIN geometry, independently of the reparameterized
         # output pcurve. Keep source tolerance and representation error separate.
         exceeded = {}
+        tolerant = {}
         for edge in self.model.edges:
             if edge.id in self.failed_edges:
                 continue
             try:
-                self._validate_edge_boundaries(edge, exceeded)
+                self._validate_edge_boundaries(edge, exceeded, tolerant)
             except (KeyboardInterrupt, SystemExit):
                 raise
             except Exception as error:
                 self._guard_partial(error, self._faces_of_edge(edge))
+        if tolerant:
+            edge_id = max(tolerant, key=lambda i: tolerant[i][0])
+            distance, limit, cap = tolerant[edge_id]
+            source = self.edges[edge_id].source
+            self.geometry_checks["edges_exceeding_conversion_budget"] = len(tolerant)
+            self.diagnostics.append(
+                Diagnostic(
+                    code="occt.source_fin_deviation",
+                    severity=DiagnosticSeverity.WARNING,
+                    kind=DiagnosticKind.INVALID,
+                    fatal=False,
+                    message=(
+                        f"{len(tolerant)} edges have sampled FIN geometry beyond their declared "
+                        "tolerance and the conversion budget; accepted within the FIN deviation "
+                        "cap, the output edge tolerance covers the deviation"
+                    ),
+                    location=SourceLocation(byte_offset=source.byte_range.start),
+                    node_type=source.node_type,
+                    schema_key=self.model.schema_key,
+                    details={
+                        "edge_count": len(tolerant),
+                        "max_deviation_edge_id": edge_id,
+                        "max_deviation": distance,
+                        "conversion_limit": limit,
+                        "fin_deviation_cap": cap,
+                        "samples_per_fin": 33,
+                        "target_unit": self.geometry.options.target_unit,
+                    },
+                )
+            )
+            self.operations.append("accept_source_fin_deviation_within_cap")
         if exceeded:
             edge_id = max(exceeded, key=lambda i: exceeded[i][0])
             distance, tolerance, limit = exceeded[edge_id]
@@ -1061,7 +1984,7 @@ class ParametricTopologyBuilder(TopologyBuilder):
             )
         self.operations.append("validate_source_fin_geometry")
 
-    def _validate_edge_boundaries(self, edge, exceeded):
+    def _validate_edge_boundaries(self, edge, exceeded, tolerant):
         curves = [
             BRep_Tool.Curve_s(shape, 0.0, 0.0)
             for shape in self.split_edges.get(edge.id) or [self.edge_shapes[edge.id]]
@@ -1087,18 +2010,23 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 continue
             try:
                 trimmed = self._surface_trim(self.half_edges[half_edge_id].curve)
-                if trimmed is None:
+                if trimmed is None or self._blend_parameters(trimmed[1]):
                     continue
                 definition, support = trimmed
                 pc = self._parameter_curve(support)
-                surface = self._surface_geometry(support.surface)
+                # Evaluated as the source does: a FIN that runs past the
+                # domain of a B-surface follows its linear extension.
+                surface = SupportSurface(
+                    self._surface_geometry(support.surface),
+                    max(1e-14, self.precision * 1e-4),
+                    self._source_periodicity(support.surface),
+                )
+                start, end = self._wrapped_trim(definition, pc, surface, approximation)
+                period = self._closed_period(pc, surface, approximation)
                 for sample in range(33):
-                    t = (
-                        definition.start_parameter
-                        + (definition.end_parameter - definition.start_parameter) * sample / 32
-                    )
-                    uv = pc.Value(t)
-                    point = surface.Value(uv.X(), uv.Y())
+                    t = start + (end - start) * sample / 32
+                    uv = self._trim_uv(pc, t, period)
+                    point = surface.value(uv.X(), uv.Y())
                     distance = min(project_curve(curve, point)[1] for curve in curves)
                     # Trim endpoints and their vertex neighborhoods carry their
                     # own source tolerances, distinct from the edge interior.
@@ -1113,11 +2041,19 @@ class ParametricTopologyBuilder(TopologyBuilder):
                         ]
                     )
                     if distance > limit:
-                        raise ValueError(
-                            f"FIN {half_edge_id} differs from shared edge {edge.id} "
-                            f"by {distance:g} (conversion limit {limit:g})"
-                        )
-                    if distance > source_tolerance:
+                        cap = self.geometry.options.fin_deviation_cap
+                        if cap is None or distance > cap:
+                            raise ValueError(
+                                f"FIN {half_edge_id} differs from shared edge {edge.id} "
+                                f"by {distance:g} (conversion limit {limit:g})"
+                            )
+                        # The source's own FIN leaves its declared tolerance.
+                        # The output edge is same-parameter with that FIN's
+                        # pcurve, so its tolerance already covers the deviation;
+                        # the diagnostic reports it.
+                        previous = tolerant.get(edge.id, (0.0, limit, cap))
+                        tolerant[edge.id] = max(previous, (distance, limit, cap))
+                    elif distance > source_tolerance:
                         previous = exceeded.get(edge.id, (0.0, source_tolerance, limit))
                         exceeded[edge.id] = max(previous, (distance, source_tolerance, limit))
                     self.geometry_checks["source_uv_samples"] += 1
@@ -1233,9 +2169,20 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 del self.relations[relation_count:]
                 self._guard_partial(error, [face.id])
 
+    def _applied(self, shape):
+        return self.context.Apply(shape)
+
+    def _connection_tolerance(self):
+        return self.precision
+
     def _build_bodies(self):
         results = []
         for body in self.model.bodies:
+            if body.kind is BodyKind.WIRE:
+                shape = self._build_wire_body(body)
+                if shape is not None:
+                    results.append((body.id, shape))
+                continue
             regions = [self.regions[i] for i in body.regions]
             material = [r for r in regions if r.kind is RegionKind.SOLID]
             if body.kind is BodyKind.SHEET:

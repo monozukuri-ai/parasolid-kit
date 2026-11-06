@@ -21,7 +21,16 @@ from ...brep.geometry import (
     TorusSurface,
 )
 from ...brep.model import BrepModel
-from ...brep.topology import BodyKind, Edge, Face, HalfEdge, Sense, SourceNodeRef, Vector3
+from ...brep.topology import (
+    Body,
+    BodyKind,
+    Edge,
+    Face,
+    HalfEdge,
+    Sense,
+    SourceNodeRef,
+    Vector3,
+)
 from ...diagnostics import Diagnostic
 from .geometry import GeometryFactory
 from .model import DroppedFace, FailedBody, ShapeRelationKind, SourceEntityKind, SourceEntityRef
@@ -779,6 +788,89 @@ class TopologyBuilder:
                 relation,
             )
 
+    def _applied(self, shape: object) -> object:
+        """A built shape in its current form; the parametric builder applies its replacements."""
+        return shape
+
+    def _connection_tolerance(self) -> float:
+        from OCP.Precision import Precision
+
+        return Precision.Confusion_s()
+
+    def _build_wire_body(self, body: Body) -> object | None:
+        """A wire body is its edges, chained into wires where they connect.
+
+        Parasolid keeps the edges of a wire body on the shells of its void
+        region (``wire_edges``); there is no face. Edges that meet within the
+        connection tolerance form one wire each, so a closed loop stays one
+        loop and a polyline one chain; separate chains become one compound. A
+        dropped edge (partial mode) leaves the remaining chains and marks the
+        body partial.
+        """
+        from OCP.BRep import BRep_Builder
+        from OCP.ShapeAnalysis import ShapeAnalysis_FreeBounds
+        from OCP.TopAbs import TopAbs_EDGE
+        from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS_Compound
+        from OCP.TopTools import TopTools_HSequenceOfShape
+
+        regions = [self.regions[i] for i in body.regions]
+        shells = [self.shells[i] for region in regions for i in region.shells]
+        edge_ids = list(dict.fromkeys(i for shell in shells for i in shell.wire_edges))
+        if not edge_ids:
+            # A wire body without a shell lists its edges on the body itself.
+            edge_ids = list(dict.fromkeys(body.edges))
+        if not edge_ids:
+            raise ValueError(f"wire body {body.id} has no edges")
+        available = [i for i in edge_ids if i in self.edge_shapes]
+        if not available:
+            self.failed_bodies[body.id] = "every edge was dropped"
+            return None
+        edges = TopTools_HSequenceOfShape()
+        for edge_id in available:
+            explorer = TopExp_Explorer(self._applied(self.edge_shapes[edge_id]), TopAbs_EDGE)
+            while explorer.More():
+                edges.Append(explorer.Current())
+                explorer.Next()
+        wires = TopTools_HSequenceOfShape()
+        ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(
+            edges, self._connection_tolerance(), False, wires
+        )
+        if wires.Length() == 0:
+            raise ValueError(f"wire body {body.id} has no connectable edges")
+        if wires.Length() == 1:
+            body_shape: object = wires.Value(1)
+        else:
+            compound = TopoDS_Compound()
+            builder = BRep_Builder()
+            builder.MakeCompound(compound)
+            for index in range(1, wires.Length() + 1):
+                builder.Add(compound, wires.Value(index))
+            body_shape = compound
+        if len(available) < len(edge_ids):
+            self.partial_bodies.append(body.id)
+            self.operations.append("partial_wire_body")
+        for shell in shells:
+            self._record(
+                SourceEntityKind.SHELL,
+                shell.id,
+                shell.source,
+                body_shape,
+                ShapeRelationKind.MERGED if len(shells) > 1 else ShapeRelationKind.DIRECT,
+            )
+        for region in regions:
+            self._record(
+                SourceEntityKind.REGION,
+                region.id,
+                region.source,
+                body_shape,
+                ShapeRelationKind.MERGED if len(regions) > 1 else ShapeRelationKind.DIRECT,
+                "source region boundary",
+            )
+        self._record(SourceEntityKind.BODY, body.id, body.source, body_shape)
+        self.operations.append("wire_body_from_edges")
+        return body_shape
+
     def _build_bodies(self) -> list[tuple[int, object]]:
         from OCP.BRep import BRep_Builder, BRep_Tool
         from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid
@@ -786,6 +878,11 @@ class TopologyBuilder:
 
         results: list[tuple[int, object]] = []
         for body in self.model.bodies:
+            if body.kind is BodyKind.WIRE:
+                wire_shape = self._build_wire_body(body)
+                if wire_shape is not None:
+                    results.append((body.id, wire_shape))
+                continue
             source_shells = [
                 self.shells[shell_id]
                 for region_id in body.regions

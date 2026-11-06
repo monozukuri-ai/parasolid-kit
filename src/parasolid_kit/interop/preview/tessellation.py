@@ -275,34 +275,49 @@ def _tessellate(
             if pick_id > 0xFFFFFF:
                 _check_limit(brep, "pick_ids", pick_id, 0xFFFFFF)
             edge = TopoDS.Edge_s(item.shape)
-            if not edge_faces.Contains(edge):
-                missing_targets[item.key] = "OCCT edge has no meshed face ancestor"
-                continue
-            face = TopoDS.Face_s(edge_faces.FindFromKey(edge).First())
+            ancestors = edge_faces.FindFromKey(edge) if edge_faces.Contains(edge) else None
             location = TopLoc_Location()
-            triangulation = BRep_Tool.Triangulation_s(face, location)
-            if triangulation is None:
-                missing_targets[item.key] = "OCCT edge face has no triangulation"
-                continue
-            polygon = BRep_Tool.PolygonOnTriangulation_s(edge, triangulation, location)
-            if polygon is None or polygon.NbNodes() < 2:
-                missing_targets[item.key] = "OCCT edge has no bounded mesh polygon"
-                continue
-            sample_count = int(polygon.NbNodes())
+            if ancestors is None or ancestors.IsEmpty():
+                # A free edge (a wire body): the mesher discretised the curve
+                # itself; the ancestor map lists the edge with no face.
+                polygon3d = BRep_Tool.Polygon3D_s(edge, location)
+                if polygon3d is None or polygon3d.NbNodes() < 2:
+                    missing_targets[item.key] = "OCCT free edge has no mesh polygon"
+                    continue
+                sample_count = int(polygon3d.NbNodes())
+                nodes = polygon3d.Nodes()
+                transformation = location.Transformation()
+                points = [
+                    nodes.Value(index).Transformed(transformation)
+                    for index in range(nodes.Lower(), nodes.Upper() + 1)
+                ]
+                if edge.Orientation() == TopAbs_REVERSED:
+                    points.reverse()
+            else:
+                face = TopoDS.Face_s(ancestors.First())
+                triangulation = BRep_Tool.Triangulation_s(face, location)
+                if triangulation is None:
+                    missing_targets[item.key] = "OCCT edge face has no triangulation"
+                    continue
+                polygon = BRep_Tool.PolygonOnTriangulation_s(edge, triangulation, location)
+                if polygon is None or polygon.NbNodes() < 2:
+                    missing_targets[item.key] = "OCCT edge has no bounded mesh polygon"
+                    continue
+                sample_count = int(polygon.NbNodes())
+                node_indices = tuple(polygon.Node(index) for index in range(1, sample_count + 1))
+                if edge.Orientation() == TopAbs_REVERSED:
+                    node_indices = tuple(reversed(node_indices))
+                transformation = location.Transformation()
+                points = [
+                    triangulation.Node(index).Transformed(transformation) for index in node_indices
+                ]
             _check_limit(
                 brep,
                 "max_curve_samples",
                 curve_sample_count + sample_count,
                 limits.max_curve_samples,
             )
-            node_indices = tuple(polygon.Node(index) for index in range(1, sample_count + 1))
-            if edge.Orientation() == TopAbs_REVERSED:
-                node_indices = tuple(reversed(node_indices))
             _check_limit(brep, "max_vertices", vertex_count + sample_count, limits.max_vertices)
-            transformation = location.Transformation()
-            points = [
-                triangulation.Node(index).Transformed(transformation) for index in node_indices
-            ]
             positions = [
                 coordinate for point in points for coordinate in (point.X(), point.Y(), point.Z())
             ]
@@ -357,7 +372,9 @@ def _tessellate(
                 },
             )
         )
-    if not primitives or face_count == 0:
+    # A wire body has no faces to render; its preview is its edges alone.
+    wires_only = bool(brep.bodies) and all(body.kind.value == "wire" for body in brep.bodies)
+    if not primitives or (face_count == 0 and not (wires_only and edge_count > 0)):
         raise PreviewError(
             _diagnostic(
                 brep,

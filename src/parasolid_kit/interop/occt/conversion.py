@@ -562,7 +562,7 @@ def _unsupported_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
     model = context.brep
     result: list[Diagnostic] = []
     for body in model.bodies:
-        if body.kind not in {BodyKind.SOLID, BodyKind.SHEET}:
+        if body.kind not in {BodyKind.SOLID, BodyKind.SHEET, BodyKind.WIRE}:
             result.append(
                 _diagnostic(
                     context,
