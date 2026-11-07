@@ -38,10 +38,14 @@ fn family_digest(family_id: &str, members: &[FamilyMember], base: &[FamilyMember
 fn every_exact_key_belongs_to_one_derived_family() -> support::Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
     // Seventeen standard families (9003 … 33103) and nineteen embedded
-    // families (15003-13006 … 37102-13006) are derived from the 57 exact profiles.
+    // families (15003-13006 … 37102-13006) are derived from 57 profiles;
+    // five TopSolid exact profiles are excluded from family membership.
     assert_eq!(registry.families().len(), 36);
     let mut covered = 0;
-    for profile in registry.profiles() {
+    for profile in registry
+        .profiles()
+        .filter(|profile| !profile.metadata().producer_scope.starts_with("TopSolid"))
+    {
         for key in profile.accepted_schema_keys() {
             let family = registry
                 .family_for_key(key)
@@ -67,7 +71,8 @@ fn every_exact_key_belongs_to_one_derived_family() -> support::Result<()> {
             covered += 1;
         }
     }
-    assert_eq!(covered, registry.len());
+    assert_eq!(covered, 57);
+    assert_eq!(registry.len(), 62);
     Ok(())
 }
 
@@ -96,7 +101,10 @@ fn families_have_recomputable_digests_and_no_disputed_layouts() -> support::Resu
             contributors,
             registry
                 .profiles()
-                .filter(|profile| profile.metadata().provider_schema == metadata.provider_schema)
+                .filter(|profile| {
+                    profile.metadata().provider_schema == metadata.provider_schema
+                        && !profile.metadata().producer_scope.starts_with("TopSolid")
+                })
                 .count()
         );
         assert_eq!(
@@ -210,7 +218,7 @@ fn an_exact_profile_is_completed_by_its_family() -> support::Result<()> {
     let provider = registry.provider_for_key(&key).ok_or("provider")?;
     assert_eq!(
         provider.profile().metadata().profile_id,
-        "icad-1901315-19008-13006-r1"
+        "icad-1901315-19008-13006-r2"
     );
     assert_eq!(
         provider
@@ -246,13 +254,47 @@ fn every_compiled_exact_profile_has_its_canonical_hash() -> support::Result<()> 
     // The per-profile tests pin most digests; this covers the transmit-file
     // profiles too and prints the recomputed digest of any that drifted.
     let mut mismatches = Vec::new();
-    for profile in BuiltinProfileRegistry::compiled()?.profiles() {
+    for profile in BuiltinProfileRegistry::compiled()?
+        .profiles()
+        .filter(|profile| !profile.metadata().producer_scope.starts_with("TopSolid"))
+    {
         let digest = support::profile_hash(profile)?;
         if profile.metadata().profile_sha256 != digest {
             mismatches.push(format!("HASH {} {digest}", profile.metadata().profile_id));
         }
     }
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+
+    // TopSolid profile metadata pins source catalog bytes; these checks pin the
+    // canonical hashes of the exact compiled profile declarations instead.
+    for (raw_key, expected_hash) in [
+        (
+            "SCH_2701192_26105_13006",
+            "770b1861143157ba89cfc0a102965a45dbd46a1df2bc0b996819de85e19c0c49",
+        ),
+        (
+            "SCH_3300259_32001_13006",
+            "d90a16c62e160ea72c0a527c331b8b9c25c1f82419d905edd595d9f4aa9256bc",
+        ),
+        (
+            "SCH_3300261_32001_13006",
+            "7cfe6a78742e4b8d91124f00d06ad30566bf6f6ffd2b55ce96112a29a55e9a3e",
+        ),
+        (
+            "SCH_3700192_36001_13006",
+            "99296c55918d8662c5b6d8bc7ab9201fd8c2e4d06616d123e58d26e0cdbcf95c",
+        ),
+        (
+            "SCH_3600188_36001_13006",
+            "4e6aaaa3b57c1c0964f6fa029562f72547a438eee2a02a9d81fd5f8036266f8b",
+        ),
+    ] {
+        let key = SchemaKey::parse(raw_key)?;
+        let profile = BuiltinProfileRegistry::compiled()?
+            .profile_for_key(&key)
+            .ok_or("TopSolid exact profile")?;
+        assert_eq!(support::profile_hash(profile)?, expected_hash, "{raw_key}");
+    }
     Ok(())
 }
 

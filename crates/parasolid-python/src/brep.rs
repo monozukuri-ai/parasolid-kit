@@ -4,10 +4,11 @@
 
 use parasolid_core::brep::{
     Assembly, Attribute, AttributeField, AttributeOwner, Body, BrepDiagnostic, BrepModel,
-    BrepSourceFormat, CurveGeometry, CurveKind, Edge, Face, HalfEdge, Instance, InstancePart, Loop,
-    NurbsCurve, NurbsSurface, PointGeometry, Region, Shell, SourceNodeRef, SurfaceGeometry,
-    SurfaceKind, Transform, Vector3, Vertex, map_xb_brep_with_diagnostic_limit,
-    map_xt_brep_with_diagnostic_limit,
+    BrepSourceFormat, CurveGeometry, CurveKind, Edge, Face, HalfEdge, Instance, InstancePart,
+    IntersectionData, IntersectionLimitKind, IntersectionUvType, Loop, NurbsCurve, NurbsSurface,
+    PointGeometry, PolylineData, RawIntegerPool, RawMeshData, RawVectorPool, Region, Shell,
+    SourceNodeRef, SurfaceGeometry, SurfaceKind, Transform, TransformNode, Vector3, Vertex,
+    map_xb_brep_with_diagnostic_limit, map_xt_brep_with_diagnostic_limit,
 };
 use pyo3::{
     Bound, Py, PyRef, PyResult, Python, pyfunction,
@@ -538,6 +539,7 @@ fn curve_kind_to_python<'py>(py: Python<'py>, kind: &CurveKind) -> PyResult<Boun
             value.set_item("end_parameter", end_parameter)?;
         }
         CurveKind::Nurbs(nurbs) => nurbs_curve_to_python(py, &value, nurbs)?,
+        CurveKind::Polyline(polyline) => polyline_to_python(py, &value, polyline)?,
         CurveKind::SurfaceParametric {
             surface,
             parameter_curve,
@@ -552,15 +554,44 @@ fn curve_kind_to_python<'py>(py: Python<'py>, kind: &CurveKind) -> PyResult<Boun
         CurveKind::Intersection {
             surfaces,
             chart,
+            chart_parameters,
             chart_points,
             start,
+            start_limit_kind,
+            start_term_use,
             start_points,
             end,
+            end_limit_kind,
+            end_term_use,
             end_points,
+            intersection_uv,
             intersection_data,
         } => {
             value.set_item("surfaces", (surfaces[0], surfaces[1]))?;
             value.set_item("chart", source_to_python(py, chart)?)?;
+            let parameters = PyDict::new(py);
+            parameters.set_item("base_parameter", chart_parameters.base_parameter)?;
+            parameters.set_item("base_scale", chart_parameters.base_scale)?;
+            parameters.set_item("chordal_error", chart_parameters.chordal_error)?;
+            parameters.set_item("angular_error", chart_parameters.angular_error)?;
+            value.set_item("chart_parameters", parameters)?;
+            value.set_item(
+                "start_limit_kind",
+                start_limit_kind.map(intersection_limit_kind_name),
+            )?;
+            value.set_item("start_term_use", start_term_use)?;
+            value.set_item(
+                "end_limit_kind",
+                end_limit_kind.map(intersection_limit_kind_name),
+            )?;
+            value.set_item("end_term_use", end_term_use)?;
+            value.set_item(
+                "intersection_uv",
+                intersection_uv
+                    .as_ref()
+                    .map(|data| intersection_data_to_python(py, data))
+                    .transpose()?,
+            )?;
             for (name, points) in [
                 ("chart_points", chart_points),
                 ("start_points", start_points),
@@ -587,6 +618,86 @@ fn curve_kind_to_python<'py>(py: Python<'py>, kind: &CurveKind) -> PyResult<Boun
         CurveKind::Unsupported { type_name } => value.set_item("type_name", type_name)?,
     }
     Ok(value)
+}
+
+fn polyline_to_python(
+    py: Python<'_>,
+    value: &Bound<'_, PyDict>,
+    polyline: &PolylineData,
+) -> PyResult<()> {
+    value.set_item(
+        "points",
+        polyline
+            .points
+            .iter()
+            .map(|point| vector_tuple(*point))
+            .collect::<Vec<_>>(),
+    )?;
+    value.set_item("closed", polyline.closed)?;
+    value.set_item("sense", polyline.sense.as_str())?;
+    value.set_item("base_parameter", polyline.base_parameter)?;
+    value.set_item("source", source_to_python(py, &polyline.source)?)?;
+    Ok(())
+}
+
+fn intersection_limit_kind_name(kind: IntersectionLimitKind) -> &'static str {
+    match kind {
+        IntersectionLimitKind::Help => "help",
+        IntersectionLimitKind::Limit => "limit",
+        IntersectionLimitKind::Terminator => "terminator",
+        IntersectionLimitKind::Boundary => "boundary",
+    }
+}
+
+fn intersection_data_to_python<'py>(
+    py: Python<'py>,
+    data: &IntersectionData,
+) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    let uv_type = match data.uv_type {
+        IntersectionUvType::None => "none".to_owned(),
+        IntersectionUvType::First => "first".to_owned(),
+        IntersectionUvType::Second => "second".to_owned(),
+        IntersectionUvType::Both => "both".to_owned(),
+        IntersectionUvType::Unsupported(raw) => format!("unsupported:{raw}"),
+    };
+    value.set_item("source", source_to_python(py, &data.source)?)?;
+    value.set_item("uv_type", uv_type)?;
+    value.set_item("raw_values", &data.raw_values)?;
+    value.set_item("start_is_terminator", data.start_is_terminator)?;
+    value.set_item(
+        "start_terminator",
+        data.start_terminator
+            .map(intersection_coordinates_to_python),
+    )?;
+    value.set_item("end_is_terminator", data.end_is_terminator)?;
+    value.set_item(
+        "chart",
+        data.chart.as_ref().map(|coords| {
+            coords
+                .iter()
+                .copied()
+                .map(intersection_coordinates_to_python)
+                .collect::<Vec<_>>()
+        }),
+    )?;
+    value.set_item(
+        "end_terminator",
+        data.end_terminator.map(intersection_coordinates_to_python),
+    )?;
+    Ok(value)
+}
+
+fn intersection_coordinates_to_python(
+    coordinates: parasolid_core::brep::IntersectionUvCoordinates,
+) -> (
+    Option<(Option<f64>, Option<f64>)>,
+    Option<(Option<f64>, Option<f64>)>,
+) {
+    (
+        coordinates.first_surface.map(|[u, v]| (u, v)),
+        coordinates.second_surface.map(|[u, v]| (u, v)),
+    )
 }
 
 fn nurbs_curve_to_python(
@@ -665,6 +776,21 @@ fn surface_kind_to_python<'py>(
             value.set_item("x_axis", vector_tuple(*x_axis))?;
         }
         SurfaceKind::Cone {
+            point,
+            axis,
+            radius,
+            sin_half_angle,
+            cos_half_angle,
+            x_axis,
+        } => {
+            value.set_item("point", vector_tuple(*point))?;
+            value.set_item("axis", vector_tuple(*axis))?;
+            value.set_item("radius", radius)?;
+            value.set_item("sin_half_angle", sin_half_angle)?;
+            value.set_item("cos_half_angle", cos_half_angle)?;
+            value.set_item("x_axis", vector_tuple(*x_axis))?;
+        }
+        SurfaceKind::XtCone {
             point,
             axis,
             radius,
@@ -777,8 +903,131 @@ fn surface_kind_to_python<'py>(
             value.set_item("offset", offset)?;
         }
         SurfaceKind::Nurbs(nurbs) => nurbs_surface_to_python(py, &value, nurbs)?,
+        SurfaceKind::Mesh {
+            source_mesh_index,
+            embedded,
+            transform_index,
+            transform,
+            unembedded_source_fields,
+        } => {
+            value.set_item("source_mesh_index", source_mesh_index)?;
+            value.set_item(
+                "embedded",
+                embedded
+                    .as_ref()
+                    .map(|mesh| raw_mesh_to_python(py, mesh))
+                    .transpose()?,
+            )?;
+            value.set_item("transform_index", transform_index)?;
+            value.set_item(
+                "transform",
+                transform
+                    .as_ref()
+                    .map(|transform| transform_node_to_python(py, transform))
+                    .transpose()?,
+            )?;
+            value.set_item(
+                "unembedded_source_fields",
+                unembedded_source_fields
+                    .as_ref()
+                    .map(|fields| {
+                        fields
+                            .iter()
+                            .map(|field| super::raw_field_to_python(py, field))
+                            .collect::<PyResult<Vec<_>>>()
+                    })
+                    .transpose()?,
+            )?;
+        }
         SurfaceKind::Unsupported { type_name } => value.set_item("type_name", type_name)?,
     }
+    Ok(value)
+}
+
+fn raw_mesh_to_python<'py>(py: Python<'py>, mesh: &RawMeshData) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    value.set_item("mesh_index", mesh.mesh_index)?;
+    value.set_item("transform_index", mesh.transform_index)?;
+    value.set_item("surface_sense", mesh.surface_sense.as_str())?;
+    value.set_item("psm_mesh_index", mesh.psm_mesh_index)?;
+    value.set_item("precision", mesh.precision)?;
+    value.set_item("normal_type", mesh.normal_type)?;
+    value.set_item("positions", raw_vector_pool_to_python(py, &mesh.positions)?)?;
+    value.set_item(
+        "normals",
+        mesh.normals
+            .as_ref()
+            .map(|pool| raw_vector_pool_to_python(py, pool))
+            .transpose()?,
+    )?;
+    value.set_item(
+        "position_indices",
+        raw_integer_pool_to_python(py, &mesh.position_indices)?,
+    )?;
+    value.set_item(
+        "normal_indices",
+        mesh.normal_indices
+            .as_ref()
+            .map(|pool| raw_integer_pool_to_python(py, pool))
+            .transpose()?,
+    )?;
+    Ok(value)
+}
+
+fn raw_vector_pool_to_python<'py>(
+    py: Python<'py>,
+    pool: &RawVectorPool,
+) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    value.set_item("encoding", pool.encoding)?;
+    value.set_item("vector_count", pool.vector_count)?;
+    value.set_item("capacity", pool.capacity)?;
+    value.set_item("shift", pool.shift)?;
+    value.set_item("values", &pool.values)?;
+    Ok(value)
+}
+
+fn raw_integer_pool_to_python<'py>(
+    py: Python<'py>,
+    pool: &RawIntegerPool,
+) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    value.set_item("integer_count", pool.integer_count)?;
+    value.set_item("capacity", pool.capacity)?;
+    value.set_item("shift", pool.shift)?;
+    value.set_item("values", &pool.values)?;
+    Ok(value)
+}
+
+fn transform_node_to_python<'py>(
+    py: Python<'py>,
+    transform: &TransformNode,
+) -> PyResult<Bound<'py, PyDict>> {
+    let value = PyDict::new(py);
+    value.set_item("index", transform.index)?;
+    value.set_item("rotation", transform.rotation)?;
+    value.set_item("translation", transform.translation)?;
+    value.set_item("scale", transform.scale)?;
+    value.set_item("flags", transform.flags)?;
+    value.set_item("perspective", transform.perspective)?;
+    value.set_item(
+        "precision",
+        transform
+            .precision
+            .as_ref()
+            .map(|precision| {
+                let fields = PyDict::new(py);
+                fields.set_item("index", precision.index)?;
+                fields.set_item("rotation_correction", precision.rotation_correction)?;
+                fields.set_item("translation_correction", precision.translation_correction)?;
+                Ok::<_, pyo3::PyErr>(fields)
+            })
+            .transpose()?,
+    )?;
+    value.set_item(
+        "byte_range",
+        (transform.byte_range.start, transform.byte_range.end),
+    )?;
     Ok(value)
 }
 

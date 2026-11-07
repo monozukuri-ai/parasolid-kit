@@ -1,6 +1,9 @@
 //! Strict conversion from schema-framed raw nodes to the native B-Rep model.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use crate::{
     ErrorDetails, ErrorKind, FieldValue, ParseError, RawField, RawNode, XbDocument, XtDocument,
@@ -10,15 +13,38 @@ use super::metrics::derive_metrics;
 use super::model::{
     Assembly, AssemblyKind, Attribute, AttributeField, AttributeOwner, BlendType, Body, BodyKind,
     BrepDiagnostic, BrepId, BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind,
-    Edge, Face, HalfEdge, Instance, InstancePart, Loop, NurbsCurve, NurbsSurface, PointGeometry,
-    Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind,
-    TopologyValidation, Transform, Vector3, Vertex,
+    Edge, Face, HalfEdge, Instance, InstancePart, IntersectionChartParameters, IntersectionData,
+    IntersectionLimitKind, IntersectionUvCoordinates, IntersectionUvType, Loop, NurbsCurve,
+    NurbsSurface, PointGeometry, Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry,
+    SurfaceKind, SweptSurfaceData, TopologyValidation, Transform, Vector3, Vertex,
 };
 use super::profile_roles::RoleAccess;
 
 /// Default modeller linear precision, in metres: the bound within which a trim
 /// point with unset parameters must lie on its basis line.
 const LINE_TRIM_TOLERANCE: f64 = 1.0e-8;
+
+fn nurbs_parameter_range(
+    knots: &[f64],
+    multiplicities: &[u16],
+    control_count: u32,
+    degree: u16,
+) -> Option<(f64, f64)> {
+    let knot_at = |index: u64| {
+        let mut end = 0_u64;
+        knots
+            .iter()
+            .zip(multiplicities)
+            .find_map(|(&knot, &count)| {
+                end += u64::from(count);
+                (index < end).then_some(knot)
+            })
+    };
+    Some((
+        knot_at(u64::from(degree))?,
+        knot_at(u64::from(control_count))?,
+    ))
+}
 
 /// Map a complete `X_B` raw document into the Parasolid-native B-Rep model.
 ///
@@ -90,6 +116,114 @@ pub fn map_xt_brep_with_diagnostic_limit(
     .map()
 }
 
+/// Decode the optional UV data linked by one X_T `INTERSECTION` node.
+///
+/// `intersection_index` is the node's transmit index in the already parsed document.
+/// The curve's chart evaluator parameters remain available through `CurveKind::Intersection`.
+///
+/// # Errors
+/// Returns an error for a missing/non-intersection node, malformed linked records,
+/// unresolved or wrongly typed links, or an invalid value count for a known UV mode.
+pub fn map_xt_intersection_data(
+    document: &XtDocument,
+    intersection_index: u32,
+) -> Result<Option<IntersectionData>, ParseError> {
+    let roles = RoleAccess::select(
+        &document.schema_provider,
+        document.schema_key.raw(),
+        &document.schemas,
+    )?;
+    let mapper = Mapper::new(
+        BrepSourceFormat::Text,
+        document.schema_key.raw(),
+        &document.nodes,
+        roles,
+    );
+    let intersection = mapper
+        .nodes
+        .get(&intersection_index)
+        .copied()
+        .ok_or_else(|| {
+            ParseError::new(
+                ErrorKind::InvalidBrepField,
+                0,
+                format!("X_T node {intersection_index} does not exist"),
+                ErrorDetails::NodeIndex {
+                    node_index: intersection_index,
+                },
+            )
+        })?;
+    if mapper.roles.type_name(intersection) != "INTERSECTION" {
+        return Err(mapper.invalid_field(
+            intersection,
+            "node_type",
+            "requested node is not an INTERSECTION",
+        ));
+    }
+    mapper.map_intersection_uv_data_for(intersection)
+}
+
+/// Decode the raw nullable fields from one X_T `SWEPT_SURF` node.
+///
+/// `surface_index` is the node's transmit index in the parsed document. The
+/// returned section is its raw pointer target, not a resolved B-Rep ID.
+///
+/// # Errors
+/// Returns an error for a missing/non-swept node or malformed `section`, `sweep`,
+/// or `scale` fields.
+pub fn map_xt_swept_data(
+    document: &XtDocument,
+    surface_index: u32,
+) -> Result<SweptSurfaceData, ParseError> {
+    let roles = RoleAccess::select(
+        &document.schema_provider,
+        document.schema_key.raw(),
+        &document.schemas,
+    )?;
+    let mapper = Mapper::new(
+        BrepSourceFormat::Text,
+        document.schema_key.raw(),
+        &document.nodes,
+        roles,
+    );
+    let surface = mapper.nodes.get(&surface_index).copied().ok_or_else(|| {
+        ParseError::new(
+            ErrorKind::InvalidBrepField,
+            0,
+            format!("X_T node {surface_index} does not exist"),
+            ErrorDetails::NodeIndex {
+                node_index: surface_index,
+            },
+        )
+    })?;
+    if mapper.roles.type_name(surface) != "SWEPT_SURF" {
+        return Err(mapper.invalid_field(
+            surface,
+            "node_type",
+            "requested node is not a SWEPT_SURF",
+        ));
+    }
+    let section = match mapper.value(surface, "section")? {
+        FieldValue::PointerIndex(0) => None,
+        FieldValue::PointerIndex(index) => Some(*index),
+        _ => return Err(mapper.invalid_field(surface, "section", "field is not a pointer")),
+    };
+    let sweep = match mapper.value(surface, "sweep")? {
+        FieldValue::Vector(vector) => *vector,
+        _ => return Err(mapper.invalid_field(surface, "sweep", "field is not a vector")),
+    };
+    let scale = match mapper.value(surface, "scale")? {
+        FieldValue::Double(scale) => *scale,
+        _ => return Err(mapper.invalid_field(surface, "scale", "field is not a double")),
+    };
+    Ok(SweptSurfaceData {
+        source: mapper.source(surface),
+        section,
+        sweep,
+        scale,
+    })
+}
+
 fn validate_diagnostic_limit(max_diagnostics: usize) -> Result<(), ParseError> {
     if max_diagnostics == 0 {
         return Err(ParseError::invalid_limit("max_diagnostics", 0));
@@ -148,10 +282,11 @@ fn assign_ids(nodes: &[RawNode], predicate: impl Fn(&RawNode) -> bool) -> BTreeM
 struct Mapper<'a> {
     source_format: BrepSourceFormat,
     schema_key: &'a str,
+    raw_nodes: &'a [RawNode],
     nodes: BTreeMap<u32, &'a RawNode>,
     ids: IdMaps,
     roles: RoleAccess,
-    diagnostics: Vec<BrepDiagnostic>,
+    diagnostics: RefCell<Vec<BrepDiagnostic>>,
     max_diagnostics: usize,
 }
 
@@ -165,10 +300,11 @@ impl<'a> Mapper<'a> {
         Self {
             source_format,
             schema_key,
+            raw_nodes: nodes,
             nodes: nodes.iter().map(|node| (node.index, node)).collect(),
             ids: IdMaps::new(nodes, roles),
             roles,
-            diagnostics: Vec::new(),
+            diagnostics: RefCell::new(Vec::new()),
             max_diagnostics: usize::MAX,
         }
     }
@@ -307,7 +443,7 @@ impl<'a> Mapper<'a> {
                 surface_area: None,
                 volume: None,
             },
-            diagnostics: self.diagnostics,
+            diagnostics: self.diagnostics.into_inner(),
         };
         model.metrics = derive_metrics(&model);
         model.complete = model.topology.valid && model.diagnostics.is_empty();
@@ -585,8 +721,26 @@ impl<'a> Mapper<'a> {
                 _ => None,
             })
             .collect();
+        let value_targets = self.pointer_array(node, "fields")?;
+        if value_targets.len() > declared_kinds.len() {
+            return Err(self.invalid_field(
+                node,
+                "fields",
+                "attribute value count exceeds its definition",
+            ));
+        }
+        let trailing_kinds = &declared_kinds[value_targets.len()..];
+        if (!trailing_kinds.is_empty() && definition.user_fields.is_empty())
+            || trailing_kinds.iter().any(|kind| *kind != 0)
+        {
+            return Err(self.invalid_field(
+                definition,
+                "fields",
+                "attribute definition has nonzero or unexpected trailing value kinds",
+            ));
+        }
         let mut fields = Vec::new();
-        for (position, target) in self.pointer_array(node, "fields")?.into_iter().enumerate() {
+        for (position, target) in value_targets.into_iter().enumerate() {
             if target == 0 {
                 fields.push(match declared_kinds.get(position) {
                     Some(1) => AttributeField::Integers(Vec::new()),
@@ -806,12 +960,31 @@ impl<'a> Mapper<'a> {
             },
             "TRIMMED_CURVE" => self.trimmed_curve(node)?,
             "B_CURVE" => CurveKind::Nurbs(self.nurbs_curve(node)?),
+            "POLYLINE" => CurveKind::Polyline(match self.roles {
+                RoleAccess::Named => {
+                    super::polyline_data::decode_named_polyline(self.raw_nodes, node.index)?
+                }
+                RoleAccess::TopsolidCatalog => {
+                    super::polyline_data::PolylineData::decode_builtin_topsolid(
+                        self.raw_nodes,
+                        self.schema_key,
+                        node.index,
+                    )?
+                }
+                _ => {
+                    return Err(self.invalid_field(
+                        node,
+                        "schema_layout",
+                        "POLYLINE is not reviewed for this built-in profile",
+                    ));
+                }
+            }),
             "SP_CURVE" => self.surface_parametric_curve(node)?,
             "INTERSECTION" => self.intersection_curve(node)?,
             type_name => {
                 let source = self.source(node);
                 push_diagnostic(
-                    &mut self.diagnostics,
+                    &mut self.diagnostics.borrow_mut(),
                     self.max_diagnostics,
                     node.byte_range.start,
                     BrepDiagnostic {
@@ -852,14 +1025,38 @@ impl<'a> Mapper<'a> {
                 radius: self.positive_double(node, "radius")?,
                 x_axis: self.vector(node, "x_axis")?,
             },
-            "CONE" => SurfaceKind::Cone {
-                point: self.vector(node, "pvec")?,
-                axis: self.vector(node, "axis")?,
-                radius: self.nonnegative_double(node, "radius")?,
-                sin_half_angle: self.double(node, "sin_half_angle")?,
-                cos_half_angle: self.double(node, "cos_half_angle")?,
-                x_axis: self.vector(node, "x_axis")?,
-            },
+            "CONE" => {
+                let point = self.vector(node, "pvec")?;
+                let axis = self.vector(node, "axis")?;
+                let radius = self.nonnegative_double(node, "radius")?;
+                let sin_half_angle = self.double(node, "sin_half_angle")?;
+                let cos_half_angle = self.double(node, "cos_half_angle")?;
+                let x_axis = self.vector(node, "x_axis")?;
+                if self.source_format == BrepSourceFormat::Text
+                    && ((self.schema_key == "SCH_3600188_36001_13006"
+                        && matches!(self.roles, RoleAccess::Sch3600188))
+                        || (self.schema_key == "SCH_3700192_36001_13006"
+                            && matches!(self.roles, RoleAccess::TopsolidCatalog)))
+                {
+                    SurfaceKind::Cone {
+                        point,
+                        axis,
+                        radius,
+                        sin_half_angle,
+                        cos_half_angle,
+                        x_axis,
+                    }
+                } else {
+                    SurfaceKind::XtCone {
+                        point,
+                        axis,
+                        radius,
+                        sin_half_angle,
+                        cos_half_angle,
+                        x_axis,
+                    }
+                }
+            }
             "SPHERE" => SurfaceKind::Sphere {
                 center: self.vector(node, "centre")?,
                 radius: self.positive_double(node, "radius")?,
@@ -917,11 +1114,12 @@ impl<'a> Mapper<'a> {
                 )?,
                 offset: self.double(node, "offset")?,
             },
+            "MESH" => self.mesh_surface(node)?,
             "B_SURFACE" => SurfaceKind::Nurbs(self.nurbs_surface(node)?),
             type_name => {
                 let source = self.source(node);
                 push_diagnostic(
-                    &mut self.diagnostics,
+                    &mut self.diagnostics.borrow_mut(),
                     self.max_diagnostics,
                     node.byte_range.start,
                     BrepDiagnostic {
@@ -944,6 +1142,57 @@ impl<'a> Mapper<'a> {
             owner: self.optional_source(node, "owner")?,
             kind,
             source: self.source(node),
+        })
+    }
+
+    fn mesh_surface(&mut self, node: &RawNode) -> Result<SurfaceKind, ParseError> {
+        let embedded =
+            super::mesh_data::decode_embedded_mesh(self.schema_key, self.raw_nodes, node.index)
+                .map_err(|error| {
+                    self.invalid_geometry(
+                        node,
+                        "psm_imesh",
+                        format!("exact-profile MESH decode failed: {error:?}"),
+                    )
+                })?;
+        let transform = super::mesh_data::decode_mesh_linked_transform(
+            self.schema_key,
+            self.raw_nodes,
+            node.index,
+        )
+        .map_err(|error| {
+            self.invalid_geometry(
+                node,
+                "transform",
+                format!("exact-profile TRANSFORM decode failed: {error:?}"),
+            )
+        })?;
+        let transform_index = match self.pointer(node, "transform")? {
+            0 => None,
+            index => Some(index),
+        };
+        if embedded.is_none() {
+            let source = self.source(node);
+            push_diagnostic(
+                &mut self.diagnostics.borrow_mut(),
+                self.max_diagnostics,
+                node.byte_range.start,
+                BrepDiagnostic {
+                    code: "geometry.mesh_data_not_embedded",
+                    message: "MESH has no embedded PSM_MESH; associated-file data, if any, was not loaded"
+                        .to_owned(),
+                    role: "surface",
+                    source,
+                },
+            )?;
+        }
+        let unembedded_source_fields = embedded.is_none().then(|| node.fields.clone());
+        Ok(SurfaceKind::Mesh {
+            source_mesh_index: node.index,
+            embedded,
+            transform_index,
+            transform,
+            unembedded_source_fields,
         })
     }
 
@@ -1020,7 +1269,7 @@ impl<'a> Mapper<'a> {
             self.optional_double(node, "parm_1")?,
             self.optional_double(node, "parm_2")?,
         ];
-        let [start_parameter, end_parameter] = match stored {
+        let [mut start_parameter, mut end_parameter] = match stored {
             [Some(start), Some(end)] => [start, end],
             // Both parameters can be unset on a line. Its published
             // parameterisation R(t) = P + tD, with D a unit vector, gives them
@@ -1074,6 +1323,13 @@ impl<'a> Mapper<'a> {
             }
         };
         let basis_sense = self.sense(basis, "sense")?;
+        if self.roles.type_name(basis) == "POLYLINE" && basis_sense == Sense::Unknown {
+            return Err(self.invalid_geometry(
+                basis,
+                "sense",
+                "trimmed polyline requires a known curve sense",
+            ));
+        }
         if start_parameter == end_parameter
             || (basis_sense == Sense::Positive && end_parameter < start_parameter)
             || (basis_sense == Sense::Negative && end_parameter > start_parameter)
@@ -1083,6 +1339,45 @@ impl<'a> Mapper<'a> {
                 "parm_2",
                 "trim parameters must be distinct and follow the basis curve sense",
             ));
+        }
+        if self.roles.type_name(basis) == "B_CURVE" {
+            let nurbs = self.nurbs_curve(basis)?;
+            if !nurbs.periodic {
+                let (range_start, range_end) = nurbs_parameter_range(
+                    &nurbs.knots,
+                    &nurbs.knot_multiplicities,
+                    nurbs.control_vertex_count,
+                    nurbs.degree,
+                )
+                .ok_or_else(|| {
+                    self.invalid_geometry(
+                        basis,
+                        "knots",
+                        "NURBS active parameter range is unavailable",
+                    )
+                })?;
+                const PARAM_TOLERANCE: f64 = 1e-6;
+                if start_parameter < range_start - PARAM_TOLERANCE
+                    || start_parameter > range_end + PARAM_TOLERANCE
+                    || end_parameter < range_start - PARAM_TOLERANCE
+                    || end_parameter > range_end + PARAM_TOLERANCE
+                {
+                    let field = if start_parameter < range_start - PARAM_TOLERANCE
+                        || start_parameter > range_end + PARAM_TOLERANCE
+                    {
+                        "parm_1"
+                    } else {
+                        "parm_2"
+                    };
+                    return Err(self.invalid_geometry(
+                        node,
+                        field,
+                        "trim parameters must lie in the non-periodic basis curve parameter range",
+                    ));
+                }
+                start_parameter = start_parameter.clamp(range_start, range_end);
+                end_parameter = end_parameter.clamp(range_start, range_end);
+            }
         }
         Ok(CurveKind::Trimmed {
             basis_curve,
@@ -1095,33 +1390,18 @@ impl<'a> Mapper<'a> {
 
     fn intersection_curve(&self, node: &RawNode) -> Result<CurveKind, ParseError> {
         let chart = self.required_typed_node(node, "chart", "CHART")?;
-        // The chart's base parameter and scale are not used by the mapping;
-        // MicroStation leaves the scale unset.
-        self.optional_double(chart, "base_parameter")?;
-        self.optional_double(chart, "base_scale")?;
-        self.optional_double(chart, "chordal_error")?;
-        self.optional_double(chart, "angular_error")?;
+        let chart_parameters = IntersectionChartParameters {
+            base_parameter: self.optional_double(chart, "base_parameter")?,
+            base_scale: self.optional_double(chart, "base_scale")?,
+            chordal_error: self.optional_double(chart, "chordal_error")?,
+            angular_error: self.optional_double(chart, "angular_error")?,
+        };
         let count = self.nonnegative_integer(chart, "chart_count")?;
         let chart_points =
             self.intersection_points(chart, usize::try_from(count).unwrap_or(usize::MAX))?;
-        let [start_points, end_points] = ["start", "end"].map(|field| {
-            let limit = self.required_typed_node(node, field, "LIMIT")?;
-            let count = match self.character(limit, "type")? {
-                // A spine boundary ('B') describes the end of a degenerate
-                // rolling-ball blend; SolidWorks writes one on intersection
-                // curves too, with the single position of an arbitrary limit.
-                b'H' | b'L' | b'B' => 1,
-                b'T' => 2,
-                _ => {
-                    return Err(self.invalid_geometry(
-                        limit,
-                        "type",
-                        "invalid intersection limit kind",
-                    ));
-                }
-            };
-            self.intersection_points(limit, count)
-        });
+        let (start_points, start_limit_kind, start_term_use) =
+            self.intersection_limit(node, "start")?;
+        let (end_points, end_limit_kind, end_term_use) = self.intersection_limit(node, "end")?;
         let surface_indices = self.pointer_array(node, "surface")?;
         if surface_indices.len() != 2 {
             return Err(self.invalid_field(
@@ -1153,12 +1433,174 @@ impl<'a> Mapper<'a> {
         Ok(CurveKind::Intersection {
             surfaces,
             chart: self.required_source(node, "chart")?,
+            chart_parameters,
             chart_points,
             start: self.required_source(node, "start")?,
-            start_points: start_points?,
+            start_limit_kind: Some(start_limit_kind),
+            start_term_use,
+            start_points,
             end: self.required_source(node, "end")?,
-            end_points: end_points?,
+            end_limit_kind: Some(end_limit_kind),
+            end_term_use,
+            end_points,
+            intersection_uv: self.map_intersection_uv_data_for(node)?,
             intersection_data,
+        })
+    }
+
+    fn intersection_limit(
+        &self,
+        intersection: &RawNode,
+        field: &'static str,
+    ) -> Result<(Vec<Vector3>, IntersectionLimitKind, Option<u8>), ParseError> {
+        let limit = self.required_typed_node(intersection, field, "LIMIT")?;
+        let (count, kind) = match self.character(limit, "type")? {
+            b'H' => (1, IntersectionLimitKind::Help),
+            b'L' => (1, IntersectionLimitKind::Limit),
+            b'T' => (2, IntersectionLimitKind::Terminator),
+            // A spine boundary ('B') describes a degenerate blend boundary with one point.
+            b'B' => (1, IntersectionLimitKind::Boundary),
+            _ => {
+                return Err(self.invalid_geometry(limit, "type", "invalid intersection limit kind"));
+            }
+        };
+        let term_use = self.optional_character(limit, "term_use")?;
+        Ok((self.intersection_points(limit, count)?, kind, term_use))
+    }
+
+    fn map_intersection_uv_data_for(
+        &self,
+        intersection: &RawNode,
+    ) -> Result<Option<IntersectionData>, ParseError> {
+        if self
+            .roles
+            .field(intersection, "intersection_data")
+            .is_none()
+            || self.pointer(intersection, "intersection_data")? == 0
+        {
+            return Ok(None);
+        }
+        let data =
+            self.required_typed_node(intersection, "intersection_data", "INTERSECTION_DATA")?;
+        let chart = self.required_typed_node(intersection, "chart", "CHART")?;
+        let chart_count = self.nonnegative_integer(chart, "chart_count")?;
+        let chart_points =
+            self.intersection_points(chart, usize::try_from(chart_count).unwrap_or(usize::MAX))?;
+        let start_terminator = matches!(
+            self.intersection_limit(intersection, "start")?.1,
+            IntersectionLimitKind::Terminator
+        );
+        let end_terminator = matches!(
+            self.intersection_limit(intersection, "end")?.1,
+            IntersectionLimitKind::Terminator
+        );
+        self.map_intersection_data(data, chart_points.len(), start_terminator, end_terminator)
+            .map(Some)
+    }
+
+    fn map_intersection_data(
+        &self,
+        node: &RawNode,
+        chart_count: usize,
+        start_terminator: bool,
+        end_terminator: bool,
+    ) -> Result<IntersectionData, ParseError> {
+        let uv_field = self
+            .roles
+            .field(node, "uv_type")
+            .or_else(|| self.roles.field(node, "uv_kind"))
+            .ok_or_else(|| self.invalid_field(node, "uv_type", "missing UV type field"))?;
+        let uv_field_name = if uv_field.definition.name == "uv_kind" {
+            "uv_kind"
+        } else {
+            "uv_type"
+        };
+        let uv_type = match self.value(node, uv_field_name)? {
+            FieldValue::UnsignedByte(1) => IntersectionUvType::None,
+            FieldValue::UnsignedByte(2) => IntersectionUvType::First,
+            FieldValue::UnsignedByte(3) => IntersectionUvType::Second,
+            FieldValue::UnsignedByte(4) => IntersectionUvType::Both,
+            FieldValue::UnsignedByte(value) => IntersectionUvType::Unsupported(*value),
+            _ => {
+                return Err(self.invalid_field(
+                    node,
+                    uv_field_name,
+                    "UV type is not an unsigned byte",
+                ));
+            }
+        };
+        let raw_values = self
+            .field(node, "values")?
+            .values
+            .iter()
+            .map(|value| match value {
+                FieldValue::Double(value) if value.is_none_or(|value| value.is_finite()) => {
+                    Ok(*value)
+                }
+                _ => Err(self.invalid_geometry(
+                    node,
+                    "values",
+                    "intersection UV array contains a non-double or non-finite value",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let source = self.source(node);
+        let (parameters_per_hvec, has_first, has_second) = match uv_type {
+            IntersectionUvType::None => (0, false, false),
+            IntersectionUvType::First => (2, true, false),
+            IntersectionUvType::Second => (2, false, true),
+            IntersectionUvType::Both => (4, true, true),
+            IntersectionUvType::Unsupported(_) => {
+                return Ok(IntersectionData {
+                    source,
+                    uv_type,
+                    raw_values,
+                    start_is_terminator: start_terminator,
+                    start_terminator: None,
+                    end_is_terminator: end_terminator,
+                    chart: None,
+                    end_terminator: None,
+                });
+            }
+        };
+        let term_count = usize::from(start_terminator) + usize::from(end_terminator);
+        let hvec_count = chart_count.checked_add(term_count).ok_or_else(|| {
+            self.invalid_geometry(node, "values", "intersection hvec count overflow")
+        })?;
+        let expected = hvec_count.checked_mul(parameters_per_hvec).ok_or_else(|| {
+            self.invalid_geometry(node, "values", "intersection UV value count overflow")
+        })?;
+        self.validate_count(node, "values", expected, raw_values.len())?;
+        let mut values = raw_values.chunks_exact(parameters_per_hvec.max(1));
+        let mut take_coordinates = || {
+            if parameters_per_hvec == 0 {
+                IntersectionUvCoordinates {
+                    first_surface: None,
+                    second_surface: None,
+                }
+            } else {
+                let chunk = values.next().expect("validated intersection UV count");
+                IntersectionUvCoordinates {
+                    first_surface: has_first.then(|| [chunk[0], chunk[1]]),
+                    second_surface: has_second.then(|| {
+                        let offset = if has_first { 2 } else { 0 };
+                        [chunk[offset], chunk[offset + 1]]
+                    }),
+                }
+            }
+        };
+        let start_uv = start_terminator.then(&mut take_coordinates);
+        let chart_uv = (0..chart_count).map(|_| take_coordinates()).collect();
+        let end_uv = end_terminator.then(&mut take_coordinates);
+        Ok(IntersectionData {
+            source,
+            uv_type,
+            raw_values,
+            start_is_terminator: start_terminator,
+            start_terminator: start_uv,
+            end_is_terminator: end_terminator,
+            chart: Some(chart_uv),
+            end_terminator: end_uv,
         })
     }
 
@@ -1706,6 +2148,17 @@ impl<'a> Mapper<'a> {
                         }
                     }
                 }
+                BodyKind::Sheet
+                    if body_regions
+                        .iter()
+                        .any(|region| region.kind != RegionKind::Void) =>
+                {
+                    return Err(self.invalid_topology_source(
+                        &body.source,
+                        "sheet_regions",
+                        "sheet body regions must all be void",
+                    ));
+                }
                 BodyKind::Sheet if body_face_ids.is_empty() => {
                     return Err(self.invalid_topology_source(
                         &body.source,
@@ -1894,7 +2347,7 @@ impl<'a> Mapper<'a> {
         ids: &BTreeMap<u32, BrepId>,
     ) -> Result<Option<BrepId>, ParseError> {
         let target = self.pointer(node, field)?;
-        if target == 0 {
+        if target == 0 || self.record_missing_optional_target(node, field, target)? {
             return Ok(None);
         }
         self.id_from_target(node, field, target, expected, ids)
@@ -1937,15 +2390,21 @@ impl<'a> Mapper<'a> {
                 "optional pointer pair must contain exactly two values",
             ));
         }
-        let convert = |target| {
+        let convert = |target, value_index| {
             if target == 0 {
+                Ok(None)
+            } else if self.record_missing_optional_target(
+                node,
+                &format!("{field}[{value_index}]"),
+                target,
+            )? {
                 Ok(None)
             } else {
                 self.id_from_target(node, field, target, expected, ids)
                     .map(Some)
             }
         };
-        Ok([convert(targets[0])?, convert(targets[1])?])
+        Ok([convert(targets[0], 0)?, convert(targets[1], 1)?])
     }
 
     fn required_typed_node(
@@ -2003,7 +2462,7 @@ impl<'a> Mapper<'a> {
         field: &'static str,
     ) -> Result<Option<SourceNodeRef>, ParseError> {
         let target = self.pointer(node, field)?;
-        if target == 0 {
+        if target == 0 || self.record_missing_optional_target(node, field, target)? {
             return Ok(None);
         }
         self.nodes
@@ -2030,6 +2489,31 @@ impl<'a> Mapper<'a> {
             return Ok(None);
         }
         self.optional_source(node, field)
+    }
+
+    fn record_missing_optional_target(
+        &self,
+        node: &RawNode,
+        field: &str,
+        target: u32,
+    ) -> Result<bool, ParseError> {
+        if target == 0 || self.nodes.contains_key(&target) {
+            return Ok(false);
+        }
+        push_diagnostic(
+            &mut self.diagnostics.borrow_mut(),
+            self.max_diagnostics,
+            node.byte_range.start,
+            BrepDiagnostic {
+                code: "reference.unresolved_optional_index",
+                message: format!(
+                    "optional pointer field {field} targets absent node index {target}; interpreted as zero"
+                ),
+                role: "optional_reference",
+                source: self.source(node),
+            },
+        )?;
+        Ok(true)
     }
 
     fn null_chain(
@@ -2140,6 +2624,82 @@ impl<'a> Mapper<'a> {
         match self.value(node, field)? {
             FieldValue::Character(value) => Ok(*value),
             _ => Err(self.invalid_field(node, field, "required field is not a character")),
+        }
+    }
+
+    fn optional_character(
+        &self,
+        node: &RawNode,
+        field: &'static str,
+    ) -> Result<Option<u8>, ParseError> {
+        let mut named = node
+            .fields
+            .iter()
+            .filter(|raw| raw.definition.name == field);
+        let named_field = named.next();
+        if named.next().is_some() {
+            return Err(self.invalid_field(node, field, "optional field name is ambiguous"));
+        }
+        let raw_field = self.roles.field(node, field).or(named_field);
+        let Some(raw_field) = raw_field else {
+            if node
+                .definition
+                .fields
+                .iter()
+                .any(|declared| declared.name == field)
+            {
+                return Err(self.invalid_field(
+                    node,
+                    field,
+                    "declared optional field is absent from the decoded node",
+                ));
+            }
+            return Ok(None);
+        };
+        if node
+            .fields
+            .iter()
+            .filter(|raw| raw.definition.name == raw_field.definition.name)
+            .count()
+            != 1
+        {
+            return Err(self.invalid_field(node, field, "optional field name is ambiguous"));
+        }
+        let mut declarations = node
+            .definition
+            .fields
+            .iter()
+            .filter(|declared| declared.name == raw_field.definition.name);
+        let Some(declared) = declarations.next() else {
+            return Err(self.invalid_field(
+                node,
+                field,
+                "decoded optional field has no schema declaration",
+            ));
+        };
+        if declarations.next().is_some() {
+            return Err(self.invalid_field(node, field, "optional schema field is ambiguous"));
+        }
+        if declared != raw_field.definition.as_ref() {
+            return Err(self.invalid_field(
+                node,
+                field,
+                "decoded optional field definition disagrees with its schema",
+            ));
+        }
+        if declared.field_type != crate::FieldType::Character
+            || declared.element_count != 0
+            || !declared.transmitted
+        {
+            return Err(self.invalid_field(
+                node,
+                field,
+                "optional field schema is not one transmitted character",
+            ));
+        }
+        match raw_field.values.as_slice() {
+            [FieldValue::Character(value)] => Ok(Some(*value)),
+            _ => Err(self.invalid_field(node, field, "optional field is not one character")),
         }
     }
 
@@ -2726,6 +3286,134 @@ mod tests {
         ]
     }
 
+    fn synthetic_attribute(
+        declared_kinds: &[u8],
+        value_targets: &[u32],
+        user_fields: Vec<Option<i32>>,
+    ) -> Result<Attribute, ParseError> {
+        let mut definition = node(
+            2,
+            80,
+            "ATTRIB_DEF",
+            vec![
+                field("identifier", 79, vec![FieldValue::PointerIndex(3)]),
+                field("type_id", 0, vec![FieldValue::Integer(Some(1))]),
+                field(
+                    "fields",
+                    0,
+                    declared_kinds
+                        .iter()
+                        .copied()
+                        .map(FieldValue::UnsignedByte)
+                        .collect(),
+                ),
+            ],
+        );
+        definition.user_fields = user_fields;
+        let nodes = vec![
+            node(
+                1,
+                81,
+                "ATTRIBUTE",
+                vec![
+                    field("node_id", 0, vec![FieldValue::Integer(Some(1))]),
+                    field("definition", 80, vec![FieldValue::PointerIndex(2)]),
+                    field("owner", 0, vec![FieldValue::PointerIndex(4)]),
+                    field(
+                        "fields",
+                        0,
+                        value_targets
+                            .iter()
+                            .copied()
+                            .map(FieldValue::PointerIndex)
+                            .collect(),
+                    ),
+                ],
+            ),
+            definition,
+            node(
+                3,
+                79,
+                "ATT_DEF_ID",
+                vec![field("string", 0, vec![FieldValue::Character(b'x')])],
+            ),
+            node(4, 999, "OWNER", vec![]),
+        ];
+        Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map_attribute(1)
+    }
+
+    #[test]
+    fn validates_attribute_definition_zero_padding() {
+        assert!(synthetic_attribute(&[1, 0], &[0], vec![Some(7)]).is_ok());
+        assert_eq!(
+            synthetic_attribute(&[1, 0], &[0], vec![])
+                .err()
+                .map(|error| error.kind()),
+            Some(ErrorKind::InvalidBrepField)
+        );
+        assert_eq!(
+            synthetic_attribute(&[1, 2], &[0], vec![Some(7)])
+                .err()
+                .map(|error| error.kind()),
+            Some(ErrorKind::InvalidBrepField)
+        );
+        assert_eq!(
+            synthetic_attribute(&[1], &[0, 0], vec![])
+                .err()
+                .map(|error| error.kind()),
+            Some(ErrorKind::InvalidBrepField)
+        );
+    }
+
+    #[test]
+    fn maps_synthetic_intersection_uv_data_with_terminator_slots() {
+        let values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
+        let node = node(
+            10,
+            204,
+            "INTERSECTION_DATA",
+            vec![
+                field("uv_type", 0, vec![FieldValue::UnsignedByte(2)]),
+                field(
+                    "values",
+                    0,
+                    values
+                        .into_iter()
+                        .map(|value| FieldValue::Double(Some(value)))
+                        .collect(),
+                ),
+            ],
+        );
+        let mapper = Mapper::new(
+            BrepSourceFormat::Text,
+            "SCH_TEST",
+            std::slice::from_ref(&node),
+            RoleAccess::Named,
+        );
+        let data = mapper
+            .map_intersection_data(&node, 1, true, true)
+            .expect("decode synthetic UV data");
+        assert_eq!(data.uv_type, IntersectionUvType::First);
+        assert_eq!(
+            data.start_terminator.unwrap().first_surface,
+            Some([Some(0.1), Some(0.2)])
+        );
+        assert_eq!(
+            data.chart.unwrap()[0].first_surface,
+            Some([Some(0.3), Some(0.4)])
+        );
+        assert_eq!(
+            data.end_terminator.unwrap().first_surface,
+            Some([Some(0.5), Some(0.6)])
+        );
+    }
+
     fn wire_acorn_nodes() -> Vec<RawNode> {
         vec![
             node(
@@ -2988,6 +3676,79 @@ mod tests {
             .map()
             .err();
             assert_eq!(error.map(|error| error.kind()), Some(kind));
+        }
+    }
+
+    fn sheet_nodes(region_type: u8) -> Vec<RawNode> {
+        vec![
+            node(
+                1,
+                12,
+                "BODY",
+                vec![
+                    field("body_type", 0, vec![FieldValue::UnsignedByte(3)]),
+                    field("res_size", 0, vec![FieldValue::Double(Some(1.0e-6))]),
+                    field("res_linear", 0, vec![FieldValue::Double(Some(1.0e-8))]),
+                    field("region", 13, vec![FieldValue::PointerIndex(2)]),
+                    field("edge", 17, vec![FieldValue::PointerIndex(0)]),
+                    field("vertex", 26, vec![FieldValue::PointerIndex(0)]),
+                ],
+            ),
+            node(
+                2,
+                13,
+                "REGION",
+                vec![
+                    field("type", 0, vec![FieldValue::Character(region_type)]),
+                    field("body", 12, vec![FieldValue::PointerIndex(1)]),
+                    field("shell", 14, vec![FieldValue::PointerIndex(3)]),
+                    field("next", 13, vec![FieldValue::PointerIndex(0)]),
+                ],
+            ),
+            node(
+                3,
+                14,
+                "SHELL",
+                vec![
+                    field("region", 13, vec![FieldValue::PointerIndex(2)]),
+                    field("face", 15, vec![FieldValue::PointerIndex(4)]),
+                    field("front_face", 15, vec![FieldValue::PointerIndex(4)]),
+                    field("edge", 17, vec![FieldValue::PointerIndex(0)]),
+                    field("vertex", 26, vec![FieldValue::PointerIndex(0)]),
+                    field("next", 14, vec![FieldValue::PointerIndex(0)]),
+                ],
+            ),
+            node(
+                4,
+                15,
+                "FACE",
+                vec![
+                    field("shell", 14, vec![FieldValue::PointerIndex(3)]),
+                    field("front_shell", 14, vec![FieldValue::PointerIndex(3)]),
+                    field("loop", 16, vec![FieldValue::PointerIndex(0)]),
+                    field("surface", 141, vec![FieldValue::PointerIndex(0)]),
+                    field("sense", 0, vec![FieldValue::Character(b'+')]),
+                    field("next", 15, vec![FieldValue::PointerIndex(0)]),
+                    field("next_front", 15, vec![FieldValue::PointerIndex(0)]),
+                ],
+            ),
+        ]
+    }
+
+    #[test]
+    fn sheet_regions_must_be_void_for_text_and_binary_sources() {
+        for source_format in [BrepSourceFormat::Text, BrepSourceFormat::Binary] {
+            let void_nodes = sheet_nodes(b'V');
+            let void_model = Mapper::new(source_format, "SCH_TEST", &void_nodes, RoleAccess::Named)
+                .map()
+                .expect("sheet with one void region and one face is valid");
+            assert!(void_model.topology.valid);
+
+            let solid_nodes = sheet_nodes(b'S');
+            let error = Mapper::new(source_format, "SCH_TEST", &solid_nodes, RoleAccess::Named)
+                .map()
+                .expect_err("sheet with a solid region violates XT topology rules");
+            assert_eq!(error.kind(), ErrorKind::InvalidBrepTopology);
         }
     }
 
@@ -3454,6 +4215,237 @@ mod tests {
     }
 
     #[test]
+    fn cone_kind_uses_only_exact_reviewed_text_profiles() {
+        let vector = |name: &str, values: [f64; 3]| {
+            field(name, 0, vec![FieldValue::Vector(values.map(Some))])
+        };
+        let double = |name: &str, value: f64| field(name, 0, vec![FieldValue::Double(Some(value))]);
+        let mut cone = common_surface_fields(0);
+        cone.extend([
+            vector("pvec", [1.0, 2.0, 3.0]),
+            vector("axis", [0.0, 0.0, 1.0]),
+            double("radius", 2.0),
+            double("sin_half_angle", 0.6),
+            double("cos_half_angle", 0.8),
+            vector("x_axis", [1.0, 0.0, 0.0]),
+        ]);
+        let nodes = [node(1, 52, "CONE", cone)];
+        for (source_format, schema_key, roles, expected_cone) in [
+            (
+                BrepSourceFormat::Text,
+                "SCH_3600188_36001_13006",
+                RoleAccess::Sch3600188,
+                true,
+            ),
+            (
+                BrepSourceFormat::Text,
+                "SCH_3700192_36001_13006",
+                RoleAccess::TopsolidCatalog,
+                true,
+            ),
+            (
+                BrepSourceFormat::Text,
+                "SCH_3700192_36001_13006",
+                RoleAccess::Named,
+                false,
+            ),
+            (
+                BrepSourceFormat::Binary,
+                "SCH_3700192_36001_13006",
+                RoleAccess::TopsolidCatalog,
+                false,
+            ),
+            (
+                BrepSourceFormat::Text,
+                "SCH_OTHER",
+                RoleAccess::Sch3600188,
+                false,
+            ),
+        ] {
+            let surface = Mapper::new(source_format, schema_key, &nodes, roles)
+                .map_surface(1)
+                .expect("map cone");
+            assert_eq!(
+                matches!(surface.kind, SurfaceKind::Cone { .. }),
+                expected_cone
+            );
+        }
+    }
+
+    #[test]
+    fn trims_open_nurbs_only_with_parameters_in_active_range() {
+        fn nodes(basis_sense: u8, periodic: bool, parameters: [f64; 2]) -> Vec<RawNode> {
+            let mut basis = common_curve_fields(0);
+            basis[4] = field("sense", 0, vec![FieldValue::Character(basis_sense)]);
+            basis.push(field("nurbs", 136, vec![FieldValue::PointerIndex(3)]));
+            let mut trimmed = common_curve_fields(0);
+            trimmed.extend([
+                field("basis_curve", 1008, vec![FieldValue::PointerIndex(1)]),
+                field(
+                    "point_1",
+                    0,
+                    vec![FieldValue::Vector([Some(0.0), Some(0.0), Some(0.0)])],
+                ),
+                field(
+                    "point_2",
+                    0,
+                    vec![FieldValue::Vector([Some(1.0), Some(0.0), Some(0.0)])],
+                ),
+                field("parm_1", 0, vec![FieldValue::Double(Some(parameters[0]))]),
+                field("parm_2", 0, vec![FieldValue::Double(Some(parameters[1]))]),
+            ]);
+            vec![
+                node(1, 134, "B_CURVE", basis),
+                node(2, 133, "TRIMMED_CURVE", trimmed),
+                node(
+                    3,
+                    136,
+                    "NURBS_CURVE",
+                    vec![
+                        field("degree", 0, vec![FieldValue::ShortInteger(Some(1))]),
+                        field("n_vertices", 0, vec![FieldValue::Integer(Some(2))]),
+                        field("vertex_dim", 0, vec![FieldValue::ShortInteger(Some(3))]),
+                        field("n_knots", 0, vec![FieldValue::Integer(Some(2))]),
+                        field("knot_type", 0, vec![FieldValue::UnsignedByte(1)]),
+                        field("periodic", 0, vec![FieldValue::Logical(periodic)]),
+                        field("closed", 0, vec![FieldValue::Logical(periodic)]),
+                        field("rational", 0, vec![FieldValue::Logical(false)]),
+                        field("curve_form", 0, vec![FieldValue::UnsignedByte(1)]),
+                        field("bspline_vertices", 45, vec![FieldValue::PointerIndex(4)]),
+                        field("knot_mult", 127, vec![FieldValue::PointerIndex(5)]),
+                        field("knots", 128, vec![FieldValue::PointerIndex(6)]),
+                    ],
+                ),
+                node(
+                    4,
+                    45,
+                    "BSPLINE_VERTICES",
+                    vec![field(
+                        "vertices",
+                        0,
+                        [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+                            .into_iter()
+                            .map(|value| FieldValue::Double(Some(value)))
+                            .collect(),
+                    )],
+                ),
+                node(
+                    5,
+                    127,
+                    "KNOT_MULT",
+                    vec![field(
+                        "mult",
+                        0,
+                        vec![
+                            FieldValue::ShortInteger(Some(2)),
+                            FieldValue::ShortInteger(Some(2)),
+                        ],
+                    )],
+                ),
+                node(
+                    6,
+                    128,
+                    "KNOT_SET",
+                    vec![field(
+                        "knots",
+                        0,
+                        vec![FieldValue::Double(Some(0.0)), FieldValue::Double(Some(1.0))],
+                    )],
+                ),
+            ]
+        }
+
+        let map_trim = |nodes: &[RawNode]| {
+            Mapper::new(BrepSourceFormat::Text, "SCH_TEST", nodes, RoleAccess::Named)
+                .map_curve(2)
+                .map(|curve| curve.kind)
+        };
+        assert!(matches!(
+            map_trim(&nodes(b'+', false, [0.0, 1.0])),
+            Ok(CurveKind::Trimmed {
+                start_parameter: 0.0,
+                end_parameter: 1.0,
+                ..
+            })
+        ));
+        for (sense, parameters) in [(b'+', [-0.1, 0.5]), (b'-', [1.5, -0.1])] {
+            assert_eq!(
+                map_trim(&nodes(sense, false, parameters))
+                    .err()
+                    .map(|error| error.kind()),
+                Some(ErrorKind::InvalidGeometryParameter)
+            );
+        }
+        assert!(matches!(
+            map_trim(&nodes(b'+', true, [0.25, 1.25])),
+            Ok(CurveKind::Trimmed {
+                start_parameter: 0.25,
+                end_parameter: 1.25,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn trimmed_polyline_requires_known_basis_sense() {
+        let mut polyline = common_curve_fields(0);
+        polyline[4] = field("sense", 0, vec![FieldValue::Character(b'?')]);
+        polyline.extend([
+            field("node_id", 0, vec![FieldValue::Integer(Some(77))]),
+            field("data", 185, vec![FieldValue::PointerIndex(2)]),
+        ]);
+        let mut trimmed = common_curve_fields(0);
+        trimmed.extend([
+            field("basis_curve", 1008, vec![FieldValue::PointerIndex(1)]),
+            field("point_1", 0, vec![FieldValue::Vector([Some(0.0); 3])]),
+            field(
+                "point_2",
+                0,
+                vec![FieldValue::Vector([Some(2.0), Some(2.0), Some(0.0)])],
+            ),
+            field("parm_1", 0, vec![FieldValue::Double(Some(17.0))]),
+            field("parm_2", 0, vec![FieldValue::Double(Some(19.0))]),
+        ]);
+        let nodes = vec![
+            node(1, 900, "POLYLINE", polyline),
+            node(
+                2,
+                901,
+                "POLYLINE_DATA",
+                vec![
+                    field("n_pvecs", 0, vec![FieldValue::Integer(Some(3))]),
+                    field("closed", 0, vec![FieldValue::Logical(false)]),
+                    field("base_parm", 0, vec![FieldValue::Double(Some(17.0))]),
+                    field("pvec", 85, vec![FieldValue::PointerIndex(3)]),
+                ],
+            ),
+            node(
+                3,
+                902,
+                "POINT_VALUES",
+                vec![field(
+                    "values",
+                    0,
+                    [[0.0, 0.0, 0.0], [1.0, 2.0, 0.0], [2.0, 2.0, 0.0]]
+                        .into_iter()
+                        .map(|point| FieldValue::Vector(point.map(Some)))
+                        .collect(),
+                )],
+            ),
+            node(4, 133, "TRIMMED_CURVE", trimmed),
+        ];
+        let error = Mapper::new(
+            BrepSourceFormat::Text,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map_curve(4)
+        .expect_err("unknown-sense basis polyline cannot orient a trim");
+        assert_eq!(error.kind(), ErrorKind::InvalidGeometryParameter);
+    }
+
+    #[test]
     fn derives_unset_trim_parameters_only_on_a_line() {
         fn vector(name: &str, values: [f64; 3]) -> (FieldDefinition, Vec<FieldValue>) {
             field(name, 0, vec![FieldValue::Vector(values.map(Some))])
@@ -3568,6 +4560,148 @@ mod tests {
             ));
             assert_eq!(model.curves[0].source.node_index, 6);
         }
+    }
+
+    #[test]
+    fn maps_missing_optional_references_to_null_with_provenance() {
+        for source_format in [BrepSourceFormat::Binary, BrepSourceFormat::Text] {
+            let mut nodes = wire_acorn_nodes();
+            nodes[2]
+                .fields
+                .iter_mut()
+                .find(|field| field.definition.name == "vertex")
+                .expect("shell vertex field")
+                .values = vec![FieldValue::PointerIndex(99)];
+            nodes[4]
+                .fields
+                .iter_mut()
+                .find(|field| field.definition.name == "owner")
+                .expect("point owner field")
+                .values = vec![FieldValue::PointerIndex(98)];
+
+            let model = Mapper::new(source_format, "SCH_TEST", &nodes, RoleAccess::Named)
+                .map()
+                .expect("map document with missing optional references");
+
+            assert_eq!(nodes[2].fields[4].values, [FieldValue::PointerIndex(99)]);
+            assert_eq!(nodes[4].fields[1].values, [FieldValue::PointerIndex(98)]);
+            assert!(model.topology.valid);
+            assert!(!model.complete);
+            assert_eq!(model.shells[0].isolated_vertex, None);
+            assert_eq!(model.points[0].owner, None);
+            assert_eq!(model.diagnostics.len(), 2);
+
+            let shell_diagnostic = model
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.source.node_index == 3)
+                .expect("shell reference diagnostic");
+            assert_eq!(shell_diagnostic.code, "reference.unresolved_optional_index");
+            assert_eq!(shell_diagnostic.role, "optional_reference");
+            assert_eq!(shell_diagnostic.source.type_name, "SHELL");
+            assert!(shell_diagnostic.message.contains("field vertex"));
+            assert!(shell_diagnostic.message.contains("index 99"));
+
+            let point_diagnostic = model
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.source.node_index == 5)
+                .expect("point reference diagnostic");
+            assert!(point_diagnostic.message.contains("field owner"));
+            assert!(point_diagnostic.message.contains("index 98"));
+        }
+    }
+
+    #[test]
+    fn maps_missing_optional_pair_item_to_null_with_provenance() {
+        for source_format in [BrepSourceFormat::Binary, BrepSourceFormat::Text] {
+            let mut blend_fields = common_surface_fields(0);
+            blend_fields.extend([
+                field("blend_type", 0, vec![FieldValue::Character(b'R')]),
+                field(
+                    "surface",
+                    1006,
+                    vec![FieldValue::PointerIndex(1), FieldValue::PointerIndex(2)],
+                ),
+                field("spine", 1008, vec![FieldValue::PointerIndex(3)]),
+                field(
+                    "range",
+                    0,
+                    vec![
+                        FieldValue::Double(Some(0.005)),
+                        FieldValue::Double(Some(-0.005)),
+                    ],
+                ),
+                field(
+                    "thumb_weight",
+                    0,
+                    vec![FieldValue::Double(Some(1.0)), FieldValue::Double(Some(1.0))],
+                ),
+                field(
+                    "boundary",
+                    1006,
+                    vec![FieldValue::PointerIndex(99), FieldValue::PointerIndex(0)],
+                ),
+                field("start", 41, vec![FieldValue::PointerIndex(0)]),
+                field("end", 41, vec![FieldValue::PointerIndex(0)]),
+            ]);
+            let nodes = [
+                node(1, 50, "PLANE", common_surface_fields(4)),
+                node(2, 50, "PLANE", common_surface_fields(4)),
+                node(3, 30, "LINE", common_curve_fields(4)),
+                node(4, 56, "BLENDED_EDGE", blend_fields),
+            ];
+            let mut mapper = Mapper::new(source_format, "SCH_TEST", &nodes, RoleAccess::Named);
+
+            let mapped = mapper.map_surface(4).expect("map blended surface");
+            assert!(matches!(
+                mapped.kind,
+                SurfaceKind::BlendedEdge {
+                    boundary_surfaces: [None, None],
+                    ..
+                }
+            ));
+            let diagnostics = mapper.diagnostics.borrow();
+            assert_eq!(diagnostics.len(), 1);
+            assert_eq!(diagnostics[0].source.node_index, 4);
+            assert_eq!(diagnostics[0].source.type_name, "BLENDED_EDGE");
+            assert_eq!(diagnostics[0].code, "reference.unresolved_optional_index");
+            assert!(diagnostics[0].message.contains("field boundary[0]"));
+            assert!(diagnostics[0].message.contains("index 99"));
+        }
+    }
+
+    #[test]
+    fn unresolved_optional_reference_to_wrong_type_still_errors() {
+        let mut nodes = wire_acorn_nodes();
+        nodes[2]
+            .fields
+            .iter_mut()
+            .find(|field| field.definition.name == "vertex")
+            .expect("shell vertex field")
+            .values = vec![FieldValue::PointerIndex(2)];
+
+        let error = Mapper::new(
+            BrepSourceFormat::Text,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map()
+        .err();
+        assert_eq!(
+            error.as_ref().map(ParseError::kind),
+            Some(ErrorKind::InvalidBrepReference)
+        );
+        assert_eq!(
+            error.as_ref().map(ParseError::details),
+            Some(&ErrorDetails::BrepReference {
+                node_index: 3,
+                field: "vertex",
+                target_index: 2,
+                expected_type: "VERTEX",
+            })
+        );
     }
 
     #[test]

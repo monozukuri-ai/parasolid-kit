@@ -105,6 +105,15 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
     ),
     GeometryCoverage(
         "curve",
+        CurveKind.POLYLINE.value,
+        "exact",
+        "unsupported",
+        "unsupported",
+        "source points, sense, closure flag, and base parameter are retained; "
+        "OCCT polyline edge construction is not implemented",
+    ),
+    GeometryCoverage(
+        "curve",
         CurveKind.UNSUPPORTED.value,
         "unsupported",
         "unsupported",
@@ -131,6 +140,16 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "frustum with two positive-radius circular boundary loops, or face trimmed by "
         "its source loops; the source v is the distance along the axis; an edge "
         "through the apex is split there",
+    ),
+    GeometryCoverage(
+        "surface",
+        SurfaceKind.XT_CONE.value,
+        "exact",
+        "conditional",
+        "conditional",
+        "frustum with two positive-radius circular boundary loops; XT v advances against "
+        "the axis while the radius increases; apex-crossing edge splitting is not covered "
+        "by the current parametric topology path",
     ),
     GeometryCoverage(
         "surface",
@@ -204,6 +223,15 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "conditional",
         "construction surface only: its intersection with a support is the blend's "
         "contact curve, interpolated from the spine within the validation tolerance",
+    ),
+    GeometryCoverage(
+        "surface",
+        SurfaceKind.MESH.value,
+        "exact",
+        "unsupported",
+        "unsupported",
+        "raw embedded pools, linked transform, and unembedded source fields are retained; "
+        "faceted surface conversion is not implemented",
     ),
     GeometryCoverage(
         "surface",

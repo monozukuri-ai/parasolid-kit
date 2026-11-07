@@ -27,6 +27,7 @@ from ...brep.geometry import (
     SweptSurface,
     TorusSurface,
     TrimmedCurve,
+    XtConeSurface,
 )
 from ...brep.topology import Sense, Vector3
 from .options import OcctConversionOptions
@@ -358,11 +359,15 @@ class GeometryFactory:
             radius,
         )
 
-    def cone(self, surface: ConeSurface) -> object:
+    def cone(self, surface: ConeSurface | XtConeSurface) -> object:
         from OCP.gp import gp_Cone
 
         radius = surface.radius * self.scale
         angle = atan2(surface.sin_half_angle, surface.cos_half_angle)
+        if isinstance(surface, XtConeSurface):
+            # XT advances against its axis while its radius increases; OCCT
+            # represents that same surface with a negative semi-angle.
+            angle = -angle
         if not isfinite(radius) or radius < 0.0:
             raise ValueError("cone reference radius must be finite and non-negative")
         if not all(isfinite(value) for value in (surface.sin_half_angle, surface.cos_half_angle)):
@@ -456,14 +461,11 @@ class GeometryFactory:
             u_scale, v_scale = self.scale, self.scale
         elif isinstance(surface, CylinderSurface):
             u_scale, v_scale = 1.0, self.scale
-        elif isinstance(surface, ConeSurface):
-            # The source cone is R(u, v) = P - vA + (X cos u + Y sin u)(r + v tan a)
-            # (XT reference, CONE): v is measured along the axis and the radius
-            # at v is r + v tan a. OCCT measures v along the generator, where
-            # the same point sits at v / cos a.
+        elif isinstance(surface, (ConeSurface, XtConeSurface)):
             if not (isfinite(surface.cos_half_angle) and surface.cos_half_angle > 0.0):
                 raise ValueError("cone half-angle must be non-zero and strictly within pi/2")
-            u_scale, v_scale = 1.0, self.scale / surface.cos_half_angle
+            direction = -1.0 if isinstance(surface, XtConeSurface) else 1.0
+            u_scale, v_scale = 1.0, direction * self.scale / surface.cos_half_angle
         elif isinstance(surface, (SphereSurface, TorusSurface, NurbsSurface)):
             u_scale, v_scale = 1.0, 1.0
         elif isinstance(surface, SweptSurface):
@@ -539,7 +541,7 @@ class GeometryFactory:
             return Geom_Plane(self.plane(definition))
         if isinstance(definition, CylinderSurface):
             return Geom_CylindricalSurface(self.cylinder(definition))
-        if isinstance(definition, ConeSurface):
+        if isinstance(definition, (ConeSurface, XtConeSurface)):
             return Geom_ConicalSurface(self.cone(definition))
         if isinstance(definition, SphereSurface):
             return Geom_SphericalSurface(self.sphere(definition))

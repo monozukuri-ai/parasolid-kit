@@ -55,10 +55,10 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     },
     ProfileSpec {
         key: "SCH_1901315_19008_13006",
-        id: "icad-1901315-19008-13006-r1",
-        revision: 1,
-        sha256: "781de5125a27ee855bd377a456df9f21d2a71099ec231cbd1d67a86b0c637f96",
-        extra_types: &[],
+        id: "icad-1901315-19008-13006-r2",
+        revision: 2,
+        sha256: "e9d776fdc6cd29bdc9b3bbbc05e0b75c10e287d515a5ac7c6cad01547639ded8",
+        extra_types: &[10, 11, 100],
     },
     ProfileSpec {
         key: "SCH_2100293_20000_13006",
@@ -129,7 +129,11 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
 
 impl ProfileSpec {
     pub(crate) fn definitions(&self) -> Vec<TypeDefinition> {
-        base_definitions(self.extra_types)
+        let mut definitions = base_definitions(self.extra_types);
+        if self.key == "SCH_1901315_19008_13006" {
+            definitions.extend(super::assembly_definitions());
+        }
+        definitions
     }
 }
 

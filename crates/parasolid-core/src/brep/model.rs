@@ -2,6 +2,10 @@
 
 use std::ops::Range;
 
+use super::assembly::TransformNode;
+use super::mesh_data::{MeshDataError, MeshIndexOrigin, RawMeshData};
+use crate::RawField;
+
 /// Document-local identifier assigned by the B-Rep mapper.
 pub type BrepId = u32;
 
@@ -512,6 +516,80 @@ pub struct NurbsSurface {
     pub sources: Vec<SourceNodeRef>,
 }
 
+/// Which surface UV parameter pairs are stored for an intersection hvec.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntersectionUvType {
+    /// No UV pairs (`1`).
+    None,
+    /// The first intersection surface's UV pair (`2`).
+    First,
+    /// The second intersection surface's UV pair (`3`).
+    Second,
+    /// Both intersection surfaces' UV pairs (`4`).
+    Both,
+    /// A source UV mode this mapper does not interpret; raw values are retained without grouping.
+    Unsupported(u8),
+}
+
+/// Surface UV pairs associated with one chart hvec or terminator.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IntersectionUvCoordinates {
+    /// `(u, v)` for the first intersection surface, if present; source nulls stay `None`.
+    pub first_surface: Option<[Option<f64>; 2]>,
+    /// `(u, v)` for the second intersection surface, if present; source nulls stay `None`.
+    pub second_surface: Option<[Option<f64>; 2]>,
+}
+
+/// Retained `INTERSECTION_DATA` values associated with one intersection curve.
+///
+/// `chart` and terminator coordinates are populated only when the source mode's
+/// UV grouping is supported; otherwise `raw_values` and `uv_type` remain available.
+#[derive(Debug, Clone, PartialEq)]
+pub struct IntersectionData {
+    /// Raw node provenance, retained alongside the decoded values.
+    pub source: SourceNodeRef,
+    /// Source UV mode.
+    pub uv_type: IntersectionUvType,
+    /// Original variable-length value array in transmit order.
+    pub raw_values: Vec<Option<f64>>,
+    /// Whether the linked start limit has kind `T`.
+    pub start_is_terminator: bool,
+    /// Values for a start limit whose kind is `T`.
+    pub start_terminator: Option<IntersectionUvCoordinates>,
+    /// Whether the linked end limit has kind `T`.
+    pub end_is_terminator: bool,
+    /// Values for chart hvecs, in chart order. `None` means the UV code is unsupported.
+    pub chart: Option<Vec<IntersectionUvCoordinates>>,
+    /// Values for an end limit whose kind is `T`.
+    pub end_terminator: Option<IntersectionUvCoordinates>,
+}
+
+/// Parameterization metadata serialized by an XT `CHART` node.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IntersectionChartParameters {
+    /// Initial parameter for the chart evaluator, if transmitted.
+    pub base_parameter: Option<f64>,
+    /// Parameter scale for the chart evaluator, if transmitted.
+    pub base_scale: Option<f64>,
+    /// Optional chordal error bound.
+    pub chordal_error: Option<f64>,
+    /// Optional angular error bound.
+    pub angular_error: Option<f64>,
+}
+
+/// Transmitted kind of an intersection curve's start or end limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntersectionLimitKind {
+    /// Help point on a closed intersection curve (`H`).
+    Help,
+    /// Arbitrary limit on a potentially infinite branch (`L`).
+    Limit,
+    /// Singular terminator with a branch point (`T`).
+    Terminator,
+    /// Degenerate rolling-ball blend boundary (`B`).
+    Boundary,
+}
+
 /// Curve geometry definition.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CurveKind {
@@ -559,6 +637,8 @@ pub enum CurveKind {
     },
     /// Exact NURBS definition assembled from auxiliary nodes.
     Nurbs(NurbsCurve),
+    /// Exact source-order point list stored by a named-schema `POLYLINE`.
+    Polyline(super::polyline_data::PolylineData),
     /// Curve embedded in a surface parameter space.
     SurfaceParametric {
         surface: BrepId,
@@ -570,14 +650,26 @@ pub enum CurveKind {
     Intersection {
         surfaces: [BrepId; 2],
         chart: SourceNodeRef,
+        /// Parameterization metadata retained from the linked XT `CHART` node.
+        chart_parameters: IntersectionChartParameters,
         /// Ordered source points used to identify the intersection branch, not a fitted curve.
         chart_points: Vec<Vector3>,
         start: SourceNodeRef,
+        /// Transmitted start LIMIT kind when retained by the source format.
+        start_limit_kind: Option<IntersectionLimitKind>,
+        /// Raw transmitted start LIMIT `term_use` character, if present.
+        start_term_use: Option<u8>,
         /// Source limit points: one ordinary point, or singularity then branch point.
         start_points: Vec<Vector3>,
         end: SourceNodeRef,
+        /// Transmitted end LIMIT kind when retained by the source format.
+        end_limit_kind: Option<IntersectionLimitKind>,
+        /// Raw transmitted end LIMIT `term_use` character, if present.
+        end_term_use: Option<u8>,
         /// Source limit points in the same format as `start_points`.
         end_points: Vec<Vector3>,
+        /// Optional mapped surface-parameter values associated with chart and limit points.
+        intersection_uv: Option<IntersectionData>,
         intersection_data: Option<SourceNodeRef>,
     },
     /// Geometry type retained without claiming semantic support.
@@ -596,6 +688,7 @@ impl CurveKind {
             Self::Hyperbola { .. } => "hyperbola",
             Self::Trimmed { .. } => "trimmed",
             Self::Nurbs(_) => "nurbs",
+            Self::Polyline(_) => "polyline",
             Self::SurfaceParametric { .. } => "surface_parametric",
             Self::Intersection { .. } => "intersection",
             Self::Unsupported { .. } => "unsupported",
@@ -663,6 +756,15 @@ pub enum SurfaceKind {
         cos_half_angle: f64,
         x_axis: Vector3,
     },
+    /// Analytic cone using the axis direction and parameterization from XT.
+    XtCone {
+        point: Vector3,
+        axis: Vector3,
+        radius: f64,
+        sin_half_angle: f64,
+        cos_half_angle: f64,
+        x_axis: Vector3,
+    },
     /// Analytic sphere.
     Sphere {
         center: Vector3,
@@ -711,6 +813,25 @@ pub enum SurfaceKind {
     Offset { basis_surface: BrepId, offset: f64 },
     /// Exact NURBS definition assembled from auxiliary nodes.
     Nurbs(NurbsSurface),
+    /// Faceted MESH surface retained without choosing an index origin.
+    ///
+    /// `embedded: None` records that this document has no embedded `PSM_MESH` link; XT allows
+    /// associated mesh-file storage, but that file is not resolved by the B-Rep mapper.
+    /// `transform` is the decoded linked source transform when present. Coordinates are not
+    /// unit-converted.
+    Mesh {
+        /// Source MESH transmit index.
+        source_mesh_index: u32,
+        /// Raw embedded pools, or `None` when `psm_imesh` is null in this document.
+        embedded: Option<RawMeshData>,
+        /// Source transform pointer, including null as `None`.
+        transform_index: Option<u32>,
+        /// Decoded transform linked by the source MESH, if non-null.
+        transform: Option<TransformNode>,
+        /// Raw MESH fields retained when `psm_imesh` is null, without interpreting any
+        /// schema-specific external-file locator.
+        unembedded_source_fields: Option<Vec<RawField>>,
+    },
     /// Geometry type retained without claiming semantic support.
     Unsupported { type_name: String },
 }
@@ -723,6 +844,7 @@ impl SurfaceKind {
             Self::Plane { .. } => "plane",
             Self::Cylinder { .. } => "cylinder",
             Self::Cone { .. } => "cone",
+            Self::XtCone { .. } => "xt_cone",
             Self::Sphere { .. } => "sphere",
             Self::Torus { .. } => "torus",
             Self::BlendedEdge { .. } => "blended_edge",
@@ -731,7 +853,30 @@ impl SurfaceKind {
             Self::Swept { .. } => "swept",
             Self::Offset { .. } => "offset",
             Self::Nurbs(_) => "nurbs",
+            Self::Mesh { .. } => "mesh",
             Self::Unsupported { .. } => "unsupported",
+        }
+    }
+
+    /// Place a mesh surface using an explicit position-index origin and face sense.
+    ///
+    /// Returns `None` for non-mesh surfaces and for MESH records with no embedded PSM data.
+    /// A null transform leaves coordinates in their raw stored frame; no unit conversion is
+    /// applied.
+    pub fn mesh_triangles_with_index_origin(
+        &self,
+        origin: MeshIndexOrigin,
+        face_sense: Sense,
+    ) -> Result<Option<Vec<[[f64; 3]; 3]>>, MeshDataError> {
+        match self {
+            Self::Mesh {
+                embedded: Some(mesh),
+                transform,
+                ..
+            } => mesh
+                .placed_triangles(origin, transform.as_ref(), face_sense)
+                .map(Some),
+            _ => Ok(None),
         }
     }
 }
@@ -749,6 +894,22 @@ pub struct SurfaceGeometry {
     pub kind: SurfaceKind,
     /// Raw-node provenance.
     pub source: SourceNodeRef,
+}
+
+/// Raw decoded fields from one X_T `SWEPT_SURF` node.
+///
+/// This preserves transmitted nullable values and the section transmit index;
+/// it does not validate the section target or evaluate the surface.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SweptSurfaceData {
+    /// Raw-node provenance, retained alongside the decoded fields.
+    pub source: SourceNodeRef,
+    /// Section transmit index, with the null pointer represented as `None`.
+    pub section: Option<u32>,
+    /// Sweep vector components exactly as transmitted, including nulls.
+    pub sweep: [Option<f64>; 3],
+    /// Scale exactly as transmitted, including null.
+    pub scale: Option<f64>,
 }
 
 /// Explicit non-fatal loss or unsupported geometry finding.
@@ -821,6 +982,103 @@ pub struct BrepModel {
     pub metrics: BrepMetrics,
     /// Explicit non-fatal mapping losses.
     pub diagnostics: Vec<BrepDiagnostic>,
+}
+
+impl BrepModel {
+    /// Return the embedded mesh triangles attached to one mapped topological face.
+    ///
+    /// The caller selects the position-index origin explicitly. Missing faces, surfaces,
+    /// non-mesh surfaces, and meshes without embedded data return `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the selected face or its attached surface ID is ambiguous, or if
+    /// the mesh data cannot be interpreted under the selected index origin.
+    pub fn mesh_triangles_for_face_with_index_origin(
+        &self,
+        face_id: BrepId,
+        origin: MeshIndexOrigin,
+    ) -> Result<Option<Vec<[[f64; 3]; 3]>>, MeshDataError> {
+        let mut faces = self.faces.iter().filter(|face| face.id == face_id);
+        let Some(face) = faces.next() else {
+            return Ok(None);
+        };
+        if faces.next().is_some() {
+            return Err(MeshDataError::Invalid {
+                node: face.source.node_index,
+                field: "face_id",
+                reason: "face ID resolves to multiple mapped faces",
+            });
+        }
+        let Some(surface_id) = face.surface else {
+            return Ok(None);
+        };
+        let mut surfaces = self
+            .surfaces
+            .iter()
+            .filter(|surface| surface.id == surface_id);
+        let Some(surface) = surfaces.next() else {
+            return Ok(None);
+        };
+        if surfaces.next().is_some() {
+            return Err(MeshDataError::Invalid {
+                node: surface.source.node_index,
+                field: "surface_id",
+                reason: "surface ID resolves to multiple mapped surfaces",
+            });
+        }
+        surface
+            .kind
+            .mesh_triangles_with_index_origin(origin, face.sense)
+    }
+
+    /// Return embedded mesh triangles for one face, inferring the position-index origin.
+    ///
+    /// Missing faces, surfaces, non-mesh surfaces, and meshes without embedded data return
+    /// `None`. Ambiguous face/surface IDs or an ambiguous index origin return an error.
+    pub fn mesh_triangles_for_face_with_inferred_index_origin(
+        &self,
+        face_id: BrepId,
+    ) -> Result<Option<Vec<[[f64; 3]; 3]>>, MeshDataError> {
+        let mut faces = self.faces.iter().filter(|face| face.id == face_id);
+        let Some(face) = faces.next() else {
+            return Ok(None);
+        };
+        if faces.next().is_some() {
+            return Err(MeshDataError::Invalid {
+                node: face.source.node_index,
+                field: "face_id",
+                reason: "face ID resolves to multiple mapped faces",
+            });
+        }
+        let Some(surface_id) = face.surface else {
+            return Ok(None);
+        };
+        let mut surfaces = self
+            .surfaces
+            .iter()
+            .filter(|surface| surface.id == surface_id);
+        let Some(surface) = surfaces.next() else {
+            return Ok(None);
+        };
+        if surfaces.next().is_some() {
+            return Err(MeshDataError::Invalid {
+                node: surface.source.node_index,
+                field: "surface_id",
+                reason: "surface ID resolves to multiple mapped surfaces",
+            });
+        }
+        match &surface.kind {
+            SurfaceKind::Mesh {
+                embedded: Some(mesh),
+                transform,
+                ..
+            } => mesh
+                .placed_triangles_with_inferred_index_origin(transform.as_ref(), face.sense)
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
 }
 
 /// Entity an attribute is attached to.

@@ -255,6 +255,10 @@ fn read_header(
             },
         ));
     }
+    // shortcut: recognizes only the documented V12.0 header; broaden the version map when other legacy forms are evidenced.
+    reader.set_legacy_literal_characters(
+        modeller_version == ": TRANSMIT FILE created by modeller version 1200000",
+    );
     let schema_offset = reader.source_position();
     let schema_key = reader.integer_string("schema_key", limits.max_string_bytes)?;
     let parsed_schema_key = SchemaKey::parse_at(&schema_key, schema_offset)?;
@@ -670,6 +674,7 @@ fn decode_embedded_schema_text(
     let marker = reader.unsigned_byte("schema_field_count")?;
     let (definition, edits) = match base {
         Some(definition) if marker == u8::MAX => {
+            enforce_field_limit(definition.fields.len(), marker_offset, limits)?;
             let mut definition = definition.clone();
             definition.source = SchemaSource::EmbeddedUnchanged;
             (definition, Vec::new())
@@ -1076,6 +1081,10 @@ mod tests {
 
     fn header(schema: &str) -> Vec<u8> {
         let modeller = ": TRANSMIT FILE created by modeller version 3000000";
+        header_with_modeller(schema, modeller)
+    }
+
+    fn header_with_modeller(schema: &str, modeller: &str) -> Vec<u8> {
         format!(
             "T{} {}{} {}0 ",
             modeller.len(),
@@ -1224,6 +1233,49 @@ mod tests {
     }
 
     #[test]
+    fn v12_text_keeps_literal_backslashes_and_modern_text_decodes_escapes() -> Result<(), ParseError>
+    {
+        let mut provider = InMemorySchemaProvider::new();
+        provider.insert(
+            "12006",
+            definition(12, vec![field("chars", FieldType::Character, 0, 4, true)]),
+        );
+        let mut legacy = header_with_modeller(
+            "SCH_1200000_12006",
+            ": TRANSMIT FILE created by modeller version 1200000",
+        );
+        legacy.extend_from_slice(br"12 1 \n\q1 0 ");
+        let old = parse_with_scan_parity(&legacy, &provider, DocumentLimits::default())?;
+        assert_eq!(
+            old.nodes[0].fields[0].values,
+            vec![
+                FieldValue::Character(b'\\'),
+                FieldValue::Character(b'n'),
+                FieldValue::Character(b'\\'),
+                FieldValue::Character(b'q'),
+            ]
+        );
+
+        let mut modern_provider = InMemorySchemaProvider::new();
+        modern_provider.insert(
+            "30000",
+            definition(12, vec![field("chars", FieldType::Character, 0, 3, true)]),
+        );
+        let mut modern = header("SCH_3000000_30000");
+        modern.extend_from_slice(br"12 1 \n\\q1 0 ");
+        let current = parse_with_scan_parity(&modern, &modern_provider, DocumentLimits::default())?;
+        assert_eq!(
+            current.nodes[0].fields[0].values,
+            vec![
+                FieldValue::Character(b'\r'),
+                FieldValue::Character(b'\\'),
+                FieldValue::Character(b'q'),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn resolves_a_full_embedded_text_schema() {
         let mut provider = InMemorySchemaProvider::new();
         provider.add_schema("13006");
@@ -1268,6 +1320,41 @@ mod tests {
                 vec![FieldValue::Integer(Some(7))]
             );
         }
+    }
+
+    #[test]
+    fn enforces_field_limit_for_unchanged_embedded_text_schema() {
+        let fields = vec![
+            field("first", FieldType::Integer, 0, 0, true),
+            field("second", FieldType::Integer, 0, 0, true),
+        ];
+        let mut provider = InMemorySchemaProvider::new();
+        provider.insert("13006", definition(12, fields));
+        let mut data = embedded_header("SCH_3000000_30000_13006", 205);
+        data.extend_from_slice(b"12 255 1 7 8 1 0 ");
+
+        let exceeded = parse_with_scan_parity(
+            &data,
+            &provider,
+            DocumentLimits {
+                max_fields_per_type: 1,
+                ..DocumentLimits::default()
+            },
+        );
+        assert_eq!(
+            exceeded.as_ref().err().map(ParseError::kind),
+            Some(ErrorKind::LimitExceeded)
+        );
+
+        let boundary = parse_with_scan_parity(
+            &data,
+            &provider,
+            DocumentLimits {
+                max_fields_per_type: 2,
+                ..DocumentLimits::default()
+            },
+        );
+        assert!(boundary.is_ok(), "{boundary:?}");
     }
 
     #[test]

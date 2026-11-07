@@ -146,24 +146,30 @@ def test_parameter_units_and_lemon_torus_follow_source_formulas():
         assert surface.Value(u, v).Coord() == pytest.approx(expected, abs=1e-12)
 
 
-def test_cone_parameter_curve_measures_v_along_the_axis():
-    from parasolid_kit import ConeSurface
+@pytest.mark.parametrize(
+    "surface_type,expected_v,expected_z",
+    [("cone", 37.5, 30.0), ("xt_cone", -37.5, -30.0)],
+)
+def test_cone_parameter_curve_preserves_each_source_axis_convention(surface_type, expected_v, expected_z):
+    from parasolid_kit import ConeSurface, XtConeSurface
 
     factory = GeometryFactory(OcctConversionOptions(source_unit="cm", target_unit="mm"))
-    # The source point at (u, v) = (0.6, 3 cm) lies 3 cm along the axis at the
-    # radius 2 + 3 * tan(half-angle) = 4.25 cm; OCCT reaches it at v / cos.
+    # Cone advances along +axis; XT cone advances against its axis while its
+    # radius increases. OCCT parameter v is the axial distance divided by cos.
     uv = NurbsCurve(
         1, 2, 2, 0, False, False, False, 0, ((0.2, 1.0), (0.6, 3.0)), (0.0, 1.0), (2, 2), ()
     )
-    cone = ConeSurface(
+    cone_type = ConeSurface if surface_type == "cone" else XtConeSurface
+    cone = cone_type(
         Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), 2.0, 0.6, 0.8, Vector3(1.0, 0.0, 0.0)
     )
     pc = factory.parameter_curve(uv, cone)
     surface = factory.surface3d(cone, resolve_basis=lambda _: None)
     u, v = pc.Value(1.0).Coord()
-    assert (u, v) == pytest.approx((0.6, 37.5))
+    assert (u, v) == pytest.approx((0.6, expected_v))
+    # Source formula: P +/- axis*3cm + radial*(2 + 3*tan(a))cm.
     assert surface.Value(u, v).Coord() == pytest.approx(
-        (42.5 * cos(0.6), 42.5 * sin(0.6), 30.0), abs=1e-9
+        (42.5 * cos(0.6), 42.5 * sin(0.6), expected_z), abs=1e-9
     )
     with pytest.raises(ValueError, match="within pi/2"):
         factory.parameter_curve(uv, replace(cone, sin_half_angle=1.0, cos_half_angle=0.0))

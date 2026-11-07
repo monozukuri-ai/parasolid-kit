@@ -8,6 +8,9 @@ mod onshape_current;
 mod sch13006;
 mod sch30000;
 pub(crate) mod solidworks;
+pub mod topsolid;
+mod topsolid_13006;
+mod topsolid_effective;
 pub(crate) mod transmit;
 pub use icad_legacy::icad_legacy_13006;
 pub use icad_standard::icad_legacy_standard;
@@ -30,6 +33,11 @@ pub(crate) use sch13006::sp_curve_definitions as sch13006_sp_curve_definitions;
 pub(crate) use sch13006::value_node_definitions as sch13006_value_node_definitions;
 pub use sch13006::{icad_sch30000_13006, onshape_sch13006};
 pub use sch30000::onshape_sch30000;
+
+pub(crate) use topsolid_13006::topsolid_13006_definitions;
+pub(crate) use topsolid_effective::{
+    topsolid_26105_definitions, topsolid_32001_definitions, topsolid_36001_definitions,
+};
 
 mod icad_v34;
 pub(crate) use icad_v34::PROFILE_SHA256 as ICAD_V34_PROFILE_SHA256;

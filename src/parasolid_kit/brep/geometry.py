@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 from .topology import Sense, SourceNodeRef, Vector3
 
@@ -19,6 +20,7 @@ class CurveKind(str, Enum):
     HYPERBOLA = "hyperbola"
     TRIMMED = "trimmed"
     NURBS = "nurbs"
+    POLYLINE = "polyline"
     SURFACE_PARAMETRIC = "surface_parametric"
     INTERSECTION = "intersection"
     UNSUPPORTED = "unsupported"
@@ -30,6 +32,8 @@ class SurfaceKind(str, Enum):
     PLANE = "plane"
     CYLINDER = "cylinder"
     CONE = "cone"
+    XT_CONE = "xt_cone"
+    MESH = "mesh"
     SPHERE = "sphere"
     TORUS = "torus"
     SPUN = "spun"
@@ -124,6 +128,17 @@ class NurbsCurve:
 
 
 @dataclass(frozen=True, slots=True)
+class PolylineCurve:
+    """Polyline curve retained from the native Parasolid record."""
+
+    points: tuple[Vector3, ...]
+    closed: bool
+    sense: Sense
+    base_parameter: float
+    source: SourceNodeRef
+
+
+@dataclass(frozen=True, slots=True)
 class SurfaceParametricCurve:
     surface: int
     parameter_curve: int
@@ -158,6 +173,7 @@ CurveDefinition: TypeAlias = (
     | HyperbolaCurve
     | TrimmedCurve
     | NurbsCurve
+    | PolylineCurve
     | SurfaceParametricCurve
     | IntersectionCurve
     | UnsupportedGeometry
@@ -193,6 +209,18 @@ class CylinderSurface:
 
 @dataclass(frozen=True, slots=True)
 class ConeSurface:
+    point: Vector3
+    axis: Vector3
+    radius: float
+    sin_half_angle: float
+    cos_half_angle: float
+    x_axis: Vector3
+
+
+@dataclass(frozen=True, slots=True)
+class XtConeSurface:
+    """Cone using the XT axis and parameter convention."""
+
     point: Vector3
     axis: Vector3
     radius: float
@@ -291,10 +319,83 @@ class NurbsSurface:
     sources: tuple[SourceNodeRef, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class RawVectorPool:
+    """Raw transmitted vector pool; values include unused capacity."""
+
+    encoding: int
+    vector_count: int
+    capacity: int
+    shift: int
+    values: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RawIntegerPool:
+    """Raw transmitted integer pool; indices are not origin-adjusted."""
+
+    integer_count: int
+    capacity: int
+    shift: int
+    values: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MeshTransformPrecision:
+    """Optional higher-precision corrections retained on a mesh transform."""
+
+    index: int
+    rotation_correction: tuple[float, ...]
+    translation_correction: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MeshTransformNode:
+    """Uncomposed transform values linked by a source MESH record."""
+
+    index: int
+    rotation: tuple[float, ...]
+    translation: Vector3
+    scale: float
+    flags: int
+    perspective: tuple[float | None, float | None, float | None]
+    precision: MeshTransformPrecision | None
+    byte_range: tuple[int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class RawMeshData:
+    """Embedded raw PSM mesh pools without choosing an index origin."""
+
+    mesh_index: int
+    transform_index: int | None
+    surface_sense: Sense
+    psm_mesh_index: int
+    precision: int
+    normal_type: int
+    positions: RawVectorPool
+    normals: RawVectorPool | None
+    position_indices: RawIntegerPool
+    normal_indices: RawIntegerPool | None
+
+
+@dataclass(frozen=True, slots=True)
+class MeshSurface:
+    """Faceted MESH definition retained in its raw source representation."""
+
+    source_mesh_index: int
+    embedded: RawMeshData | None
+    transform_index: int | None
+    transform: MeshTransformNode | None
+    unembedded_source_fields: tuple[Mapping[str, Any], ...] | None
+
+
 SurfaceDefinition: TypeAlias = (
     PlaneSurface
     | CylinderSurface
     | ConeSurface
+    | XtConeSurface
+    | MeshSurface
     | SphereSurface
     | TorusSurface
     | SpunSurface

@@ -21,12 +21,19 @@ from .geometry import (
     HyperbolaCurve,
     IntersectionCurve,
     LineCurve,
+    MeshSurface,
+    MeshTransformNode,
+    MeshTransformPrecision,
     NurbsCurve,
     NurbsSurface,
     OffsetSurface,
     ParabolaCurve,
     PlaneSurface,
+    PolylineCurve,
     PointGeometry,
+    RawIntegerPool,
+    RawMeshData,
+    RawVectorPool,
     SphereSurface,
     SpunSurface,
     SurfaceDefinition,
@@ -37,6 +44,7 @@ from .geometry import (
     TorusSurface,
     TrimmedCurve,
     UnsupportedGeometry,
+    XtConeSurface,
 )
 from .model import BrepMetrics, BrepModel, BrepSourceFormat, TopologyValidation
 from .topology import (
@@ -379,6 +387,14 @@ def _curve_definition(kind: CurveKind, value: Mapping[str, Any]) -> CurveDefinit
         )
     if kind is CurveKind.NURBS:
         return _nurbs_curve(value)
+    if kind is CurveKind.POLYLINE:
+        return PolylineCurve(
+            points=tuple(_vector({"point": point}, "point") for point in _list(value, "points")),
+            closed=_bool(value, "closed"),
+            sense=Sense(_str(value, "sense")),
+            base_parameter=_float(value, "base_parameter"),
+            source=_source(value.get("source")),
+        )
     if kind is CurveKind.SURFACE_PARAMETRIC:
         return SurfaceParametricCurve(
             surface=_int(value, "surface"),
@@ -466,6 +482,36 @@ def _surface_definition(kind: SurfaceKind, value: Mapping[str, Any]) -> SurfaceD
             cos_half_angle=_float(value, "cos_half_angle"),
             x_axis=_vector(value, "x_axis"),
         )
+    if kind is SurfaceKind.XT_CONE:
+        return XtConeSurface(
+            point=_vector(value, "point"),
+            axis=_vector(value, "axis"),
+            radius=_float(value, "radius"),
+            sin_half_angle=_float(value, "sin_half_angle"),
+            cos_half_angle=_float(value, "cos_half_angle"),
+            x_axis=_vector(value, "x_axis"),
+        )
+    if kind is SurfaceKind.MESH:
+        source_fields = value.get("unembedded_source_fields")
+        if source_fields is not None:
+            if not isinstance(source_fields, list):
+                raise RuntimeError("native mesh source fields are not a list or None")
+            source_fields = tuple(
+                dict(_mapping(field, "unembedded mesh source field")) for field in source_fields
+            )
+        embedded = value.get("embedded")
+        transform = value.get("transform")
+        return MeshSurface(
+            source_mesh_index=_int(value, "source_mesh_index"),
+            embedded=None if embedded is None else _raw_mesh(_mapping(embedded, "embedded mesh")),
+            transform_index=_optional_int(value, "transform_index"),
+            transform=(
+                None
+                if transform is None
+                else _mesh_transform(_mapping(transform, "mesh transform"))
+            ),
+            unembedded_source_fields=source_fields,
+        )
     if kind is SurfaceKind.SPHERE:
         return SphereSurface(
             center=_vector(value, "center"),
@@ -544,6 +590,97 @@ def _nurbs_surface(value: Mapping[str, Any]) -> NurbsSurface:
         v_knot_multiplicities=_int_tuple(value, "v_knot_multiplicities"),
         sources=tuple(_source(item) for item in _list(value, "sources")),
     )
+
+
+def _raw_mesh(value: Mapping[str, Any]) -> RawMeshData:
+    normals = value.get("normals")
+    normal_indices = value.get("normal_indices")
+    return RawMeshData(
+        mesh_index=_int(value, "mesh_index"),
+        transform_index=_optional_int(value, "transform_index"),
+        surface_sense=Sense(_str(value, "surface_sense")),
+        psm_mesh_index=_int(value, "psm_mesh_index"),
+        precision=_int(value, "precision"),
+        normal_type=_int(value, "normal_type"),
+        positions=_raw_vector_pool(_mapping(value.get("positions"), "mesh position pool")),
+        normals=(
+            None
+            if normals is None
+            else _raw_vector_pool(_mapping(normals, "mesh normal pool"))
+        ),
+        position_indices=_raw_integer_pool(
+            _mapping(value.get("position_indices"), "mesh position index pool")
+        ),
+        normal_indices=(
+            None
+            if normal_indices is None
+            else _raw_integer_pool(_mapping(normal_indices, "mesh normal index pool"))
+        ),
+    )
+
+
+def _raw_vector_pool(value: Mapping[str, Any]) -> RawVectorPool:
+    return RawVectorPool(
+        encoding=_int(value, "encoding"),
+        vector_count=_int(value, "vector_count"),
+        capacity=_int(value, "capacity"),
+        shift=_int(value, "shift"),
+        values=_float_tuple(value, "values"),
+    )
+
+
+def _raw_integer_pool(value: Mapping[str, Any]) -> RawIntegerPool:
+    return RawIntegerPool(
+        integer_count=_int(value, "integer_count"),
+        capacity=_int(value, "capacity"),
+        shift=_int(value, "shift"),
+        values=_int_tuple(value, "values"),
+    )
+
+
+def _mesh_transform(value: Mapping[str, Any]) -> MeshTransformNode:
+    rotation = _float_tuple(value, "rotation")
+    if len(rotation) != 9:
+        raise RuntimeError("native mesh transform rotation is not nine floats")
+    perspective = _optional_float_triplet(value, "perspective")
+    raw_range = _int_tuple(value, "byte_range")
+    if len(raw_range) != 2:
+        raise RuntimeError("native mesh transform byte range is not a pair")
+    precision = value.get("precision")
+    parsed_precision = None
+    if precision is not None:
+        item = _mapping(precision, "mesh transform precision")
+        rotation_correction = _float_tuple(item, "rotation_correction")
+        translation_correction = _float_tuple(item, "translation_correction")
+        if len(rotation_correction) != 9 or len(translation_correction) != 3:
+            raise RuntimeError("native mesh transform precision has invalid correction sizes")
+        parsed_precision = MeshTransformPrecision(
+            index=_int(item, "index"),
+            rotation_correction=rotation_correction,
+            translation_correction=translation_correction,
+        )
+    return MeshTransformNode(
+        index=_int(value, "index"),
+        rotation=rotation,
+        translation=_vector(value, "translation"),
+        scale=_float(value, "scale"),
+        flags=_int(value, "flags"),
+        perspective=perspective,
+        precision=parsed_precision,
+        byte_range=(raw_range[0], raw_range[1]),
+    )
+
+
+def _optional_float_triplet(
+    value: Mapping[str, Any], key: str
+) -> tuple[float | None, float | None, float | None]:
+    item = value.get(key)
+    if not isinstance(item, (tuple, list)) or len(item) != 3 or any(
+        part is not None and (isinstance(part, bool) or not isinstance(part, float))
+        for part in item
+    ):
+        raise RuntimeError(f"native B-Rep field {key!r} is not an optional-float triple")
+    return (item[0], item[1], item[2])
 
 
 def _diagnostic(value: object, schema_key: str) -> Diagnostic:

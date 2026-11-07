@@ -33,6 +33,7 @@ from ...brep.geometry import (
     SweptSurface,
     TorusSurface,
     TrimmedCurve,
+    XtConeSurface,
 )
 from ...brep.model import BrepModel
 from ...brep.topology import BodyKind, Sense, SourceNodeRef
@@ -422,7 +423,8 @@ def _preflight_diagnostics(context: _ConversionContext) -> list[Diagnostic]:
         )
     surface_kinds = {surface.id: surface.kind for surface in model.surfaces}
     ring_face_count = sum(
-        surface_kinds.get(face.surface) in {SurfaceKind.CYLINDER, SurfaceKind.CONE}
+        surface_kinds.get(face.surface)
+        in {SurfaceKind.CYLINDER, SurfaceKind.CONE, SurfaceKind.XT_CONE}
         for face in model.faces
     )
     generated_face_count = sum(
@@ -759,6 +761,7 @@ def _supported_surface_definition(kind: SurfaceKind, definition: object) -> bool
                 (SurfaceKind.PLANE, PlaneSurface),
                 (SurfaceKind.CYLINDER, CylinderSurface),
                 (SurfaceKind.CONE, ConeSurface),
+                (SurfaceKind.XT_CONE, XtConeSurface),
                 (SurfaceKind.SPHERE, SphereSurface),
                 (SurfaceKind.TORUS, TorusSurface),
                 (SurfaceKind.SPUN, SpunSurface),

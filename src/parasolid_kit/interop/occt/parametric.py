@@ -62,6 +62,7 @@ from ...brep.geometry import (
     SweptSurface,
     TorusSurface,
     TrimmedCurve,
+    XtConeSurface,
 )
 from ...brep.topology import BodyKind, RegionKind, Sense, Vector3
 from ...diagnostics import Diagnostic, DiagnosticKind, DiagnosticSeverity, SourceLocation
@@ -113,7 +114,8 @@ def _cone_apex(cone):
     # The radius r + v tan(a) vanishes at v = -r cos(a) / sin(a) along the axis.
     point, axis = _xyz(cone.point), _unit(_xyz(cone.axis))
     v = -cone.radius * cone.cos_half_angle / cone.sin_half_angle
-    return tuple(p + v * a for p, a in zip(point, axis, strict=True))
+    direction = -1.0 if isinstance(cone, XtConeSurface) else 1.0
+    return tuple(p + direction * v * a for p, a in zip(point, axis, strict=True))
 
 
 class ParametricTopologyBuilder(TopologyBuilder):
@@ -313,7 +315,7 @@ class ParametricTopologyBuilder(TopologyBuilder):
             definition = self.surfaces[face.surface].definition
             if isinstance(definition, SphereSurface):
                 points.extend(_sphere_poles(definition))
-            elif isinstance(definition, ConeSurface):
+            elif isinstance(definition, (ConeSurface, XtConeSurface)):
                 points.append(_cone_apex(definition))
         return [self.geometry.point(Vector3(*point)) for point in points]
 
@@ -490,7 +492,14 @@ class ParametricTopologyBuilder(TopologyBuilder):
         analytic = all(
             isinstance(
                 self.surfaces[i].definition,
-                (PlaneSurface, CylinderSurface, ConeSurface, SphereSurface, TorusSurface),
+                (
+                    PlaneSurface,
+                    CylinderSurface,
+                    ConeSurface,
+                    XtConeSurface,
+                    SphereSurface,
+                    TorusSurface,
+                ),
             )
             for i in definition.surfaces
         )

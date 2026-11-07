@@ -17,6 +17,7 @@ pub(crate) struct TextReader {
     source_len: usize,
     position: usize,
     character_expansion: Option<CharacterExpansion>,
+    legacy_literal_characters: bool,
 }
 
 impl TextReader {
@@ -67,7 +68,12 @@ impl TextReader {
             source_len: data.len(),
             position: 0,
             character_expansion: None,
+            legacy_literal_characters: false,
         })
+    }
+
+    pub(crate) fn set_legacy_literal_characters(&mut self, enabled: bool) {
+        self.legacy_literal_characters = enabled;
     }
 
     /// Return the absolute byte offset of the next logical character.
@@ -145,7 +151,7 @@ impl TextReader {
 
         let escape_offset = self.source_position();
         let value = self.take("character")?;
-        if value != b'\\' {
+        if self.legacy_literal_characters || value != b'\\' {
             return Ok(value);
         }
         let escaped = self.take("character_escape")?;

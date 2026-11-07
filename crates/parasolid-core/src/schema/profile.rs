@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{ErrorDetails, ErrorKind, ParseError};
 
+use super::profiles::topsolid::{TopSolidV6PsolidCatalogProvider, TopSolidV6PsolidSchemaProvider};
 use super::{
     FieldType, SchemaKey, SchemaProvider, SchemaProviderProvenance, SchemaSource, SchemaTypeLookup,
     TypeDefinition, WireDecodeClass, digest::sha256_hex,
@@ -437,6 +438,7 @@ pub struct BuiltinProfileRegistry {
     schema_key_indices: BTreeMap<String, usize>,
     families: Vec<BuiltinSchemaProfile>,
     family_indices: BTreeMap<String, usize>,
+    topsolid_catalogs: Option<TopSolidV6PsolidCatalogProvider>,
 }
 
 impl BuiltinProfileRegistry {
@@ -461,12 +463,40 @@ impl BuiltinProfileRegistry {
                     super::profiles::solidworks_sch37102_13006()?,
                     super::profiles::onshape_sch37102_13006()?,
                 ];
+                for raw_key in super::profiles::topsolid::SUPPORTED_SCHEMA_KEYS {
+                    let key = SchemaKey::parse(raw_key)?;
+                    let profile = super::profiles::topsolid::topsolid_v6_psolid_base_profile(&key)
+                        .map_err(|error| {
+                            invalid_profile(
+                                "topsolid_profile",
+                                error.to_string(),
+                                "compiled TopSolid profile could not be loaded",
+                            )
+                        })?
+                        .ok_or_else(|| {
+                            invalid_profile(
+                                "topsolid_schema_key",
+                                raw_key,
+                                "compiled TopSolid schema key has no base profile",
+                            )
+                        })?;
+                    profiles.push(profile);
+                }
                 profiles.extend(super::profiles::icad_legacy_13006()?);
                 profiles.extend(super::profiles::icad_legacy_standard()?);
                 profiles.extend(super::profiles::solidworks_partitions_13006()?);
                 profiles.extend(super::profiles::transmit_13006()?);
                 profiles.extend(super::profiles::legacy_standard_keys()?);
-                Self::new(profiles)
+                let mut registry = Self::new(profiles)?;
+                registry.topsolid_catalogs =
+                    Some(TopSolidV6PsolidCatalogProvider::new().map_err(|error| {
+                        invalid_profile(
+                            "topsolid_catalog",
+                            error.to_string(),
+                            "compiled TopSolid catalog provider could not be loaded",
+                        )
+                    })?);
+                Ok(registry)
             })
             .as_ref()
             .map_err(Clone::clone)
@@ -533,6 +563,9 @@ impl BuiltinProfileRegistry {
         // Family id -> provider schema of its keys.
         let mut grouped: BTreeMap<String, String> = BTreeMap::new();
         for profile in &self.profiles {
+            if profile.metadata.producer_scope.starts_with("TopSolid") {
+                continue;
+            }
             for schema_key in &profile.accepted_schema_keys {
                 grouped
                     .entry(schema_key.family_id())
@@ -547,7 +580,10 @@ impl BuiltinProfileRegistry {
             let contributors = self
                 .profiles
                 .iter()
-                .filter(|profile| profile.metadata.provider_schema == provider_schema)
+                .filter(|profile| {
+                    profile.metadata.provider_schema == provider_schema
+                        && !profile.metadata.producer_scope.starts_with("TopSolid")
+                })
                 .collect::<Vec<_>>();
             let family = BuiltinSchemaProfile::new_family(&family_id, &contributors)?;
             if self
@@ -640,6 +676,10 @@ impl BuiltinProfileRegistry {
             profile,
             family: family.filter(|family| !std::ptr::eq(*family, profile)),
             selected_schema_key: schema_key.raw().to_owned(),
+            topsolid: self
+                .topsolid_catalogs
+                .as_ref()
+                .and_then(|catalogs| catalogs.provider_for_key(schema_key)),
         })
     }
 }
@@ -651,6 +691,7 @@ pub struct BuiltinSchemaProvider<'a> {
     profile: &'a BuiltinSchemaProfile,
     family: Option<&'a BuiltinSchemaProfile>,
     selected_schema_key: String,
+    topsolid: Option<TopSolidV6PsolidSchemaProvider<'a>>,
 }
 
 impl BuiltinSchemaProvider<'_> {
@@ -689,11 +730,25 @@ fn lookup_in(profile: &BuiltinSchemaProfile, node_type: u16) -> SchemaTypeLookup
 impl SchemaProvider for BuiltinSchemaProvider<'_> {
     fn contains_schema(&self, schema: &str) -> bool {
         schema == self.profile.metadata.provider_schema
+            || self
+                .topsolid
+                .as_ref()
+                .is_some_and(|provider| provider.contains_schema(schema))
     }
 
     fn type_definition(&self, schema: &str, node_type: u16) -> Option<&TypeDefinition> {
         if !self.contains_schema(schema) {
             return None;
+        }
+        if self
+            .topsolid
+            .as_ref()
+            .is_some_and(|provider| provider.contains_schema(schema))
+        {
+            return self
+                .topsolid
+                .as_ref()
+                .and_then(|provider| provider.type_definition(schema, node_type));
         }
         self.profile
             .definition(node_type)
@@ -703,6 +758,13 @@ impl SchemaProvider for BuiltinSchemaProvider<'_> {
     fn lookup_type(&self, schema: &str, node_type: u16) -> SchemaTypeLookup<'_> {
         if !self.contains_schema(schema) {
             return SchemaTypeLookup::Unknown;
+        }
+        if let Some(provider) = self
+            .topsolid
+            .as_ref()
+            .filter(|provider| provider.contains_schema(schema))
+        {
+            return provider.lookup_type(schema, node_type);
         }
         match lookup_in(self.profile, node_type) {
             SchemaTypeLookup::Unknown => self.family.map_or(SchemaTypeLookup::Unknown, |family| {
@@ -719,6 +781,9 @@ impl SchemaProvider for BuiltinSchemaProvider<'_> {
     }
 
     fn provenance(&self) -> SchemaProviderProvenance<'_> {
+        if let Some(provider) = &self.topsolid {
+            return provider.provenance();
+        }
         SchemaProviderProvenance::Builtin {
             profile_id: &self.profile.metadata.profile_id,
             profile_revision: self.profile.metadata.revision,
@@ -1117,6 +1182,54 @@ mod tests {
             if let Ok(other_schema) = other_schema {
                 assert!(registry.provider_for_key(&other_schema).is_none());
             }
+        }
+    }
+
+    #[test]
+    fn compiled_registry_selects_only_exact_topsolid_keys() {
+        let registry = BuiltinProfileRegistry::compiled();
+        assert!(registry.is_ok(), "{registry:?}");
+        let Ok(registry) = registry else {
+            return;
+        };
+
+        let exact = SchemaKey::parse("SCH_3700192_36001_13006");
+        assert!(exact.is_ok(), "{exact:?}");
+        let Ok(exact) = exact else {
+            return;
+        };
+        let provider = registry.provider_for_key(&exact);
+        assert!(provider.is_some());
+        let Some(provider) = provider else {
+            return;
+        };
+        assert_eq!(provider.selected_schema_key(), exact.raw());
+        assert!(provider.supports_schema_key(&exact));
+        assert!(provider.contains_schema("13006"));
+        assert!(provider.contains_schema("36001"));
+        assert!(matches!(
+            provider.provenance(),
+            SchemaProviderProvenance::Builtin {
+                profile_id: "topsolid-v6-psolid-36001-r1",
+                schema_key: "SCH_3700192_36001_13006",
+                ..
+            }
+        ));
+
+        let unknown = SchemaKey::parse("SCH_3700193_36001_13006");
+        assert!(unknown.is_ok(), "{unknown:?}");
+        let Ok(unknown) = unknown else {
+            return;
+        };
+        if let Some(provider) = registry.provider_for_key(&unknown) {
+            assert!(matches!(
+                provider.provenance(),
+                SchemaProviderProvenance::Builtin {
+                    profile_id,
+                    coverage: BuiltinProfileCoverage::FamilyInferred,
+                    ..
+                } if !profile_id.starts_with("topsolid")
+            ));
         }
     }
 

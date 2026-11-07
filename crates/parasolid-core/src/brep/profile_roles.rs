@@ -18,6 +18,8 @@ pub(super) enum RoleAccess {
     Named,
     OnshapeSch30000,
     Sch13006,
+    TopsolidCatalog,
+    Sch3600188,
 }
 
 impl RoleAccess {
@@ -29,6 +31,57 @@ impl RoleAccess {
     ) -> Result<Self, ParseError> {
         match provenance {
             SchemaProviderResolution::CallerSupplied => Ok(Self::Named),
+            SchemaProviderResolution::Builtin {
+                profile_id,
+                profile_revision,
+                schema_key,
+                coverage,
+                profile_sha256,
+            } if key == schema_key
+                && *profile_revision == 1
+                && *coverage == BuiltinProfileCoverage::VerifiedSubset
+                && matches!(
+                    (
+                        profile_id.as_str(),
+                        schema_key.as_str(),
+                        profile_sha256.as_str()
+                    ),
+                    (
+                        "topsolid-v6-psolid-13006-r1",
+                        "SCH_3600188_36001_13006",
+                        "0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3"
+                    ) | (
+                        "topsolid-v6-psolid-36001-r1",
+                        "SCH_3700192_36001_13006",
+                        "42ec5f0bda547618007f3ebeac1479b73d8444084d24ac228e099eb9c5b67430"
+                    ) | (
+                        "topsolid-v6-psolid-32001-r1",
+                        "SCH_3300259_32001_13006",
+                        "5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159"
+                    ) | (
+                        "topsolid-v6-psolid-32001-r1",
+                        "SCH_3300261_32001_13006",
+                        "5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159"
+                    ) | (
+                        "topsolid-v6-psolid-26105-r1",
+                        "SCH_2701192_26105_13006",
+                        "c21517ad14061ff14e2636bb90842ba74b3ad4980b7d041abd78732d80249e95"
+                    )
+                ) =>
+            {
+                let registry = crate::BuiltinProfileRegistry::compiled()?;
+                let exact_key = crate::SchemaKey::parse(schema_key)?;
+                let profile = registry
+                    .profile_for_key(&exact_key)
+                    .ok_or_else(|| unreviewed(provenance))?;
+                let base = profile.definitions().collect::<Vec<_>>();
+                validate_topsolid_base_roles(schemas, &base)?;
+                Ok(if key == "SCH_3600188_36001_13006" {
+                    Self::Sch3600188
+                } else {
+                    Self::TopsolidCatalog
+                })
+            }
             SchemaProviderResolution::Builtin {
                 profile_id,
                 profile_revision,
@@ -167,65 +220,77 @@ impl RoleAccess {
     pub(super) fn type_name(self, node: &RawNode) -> &str {
         match self {
             Self::Named => &node.definition.name,
-            Self::OnshapeSch30000 | Self::Sch13006 => match node.node_type {
-                10 => "ASSEMBLY",
-                11 => "INSTANCE",
-                12 => "BODY",
-                13 => "SHELL",
-                14 => "FACE",
-                15 => "LOOP",
-                16 => "EDGE",
-                17 => "HALFEDGE",
-                18 => "VERTEX",
-                19 => "REGION",
-                29 => "POINT",
-                30 => "LINE",
-                31 => "CIRCLE",
-                32 => "ELLIPSE",
-                38 => "INTERSECTION",
-                40 => "CHART",
-                41 => "LIMIT",
-                45 => "BSPLINE_VERTICES",
-                124 => "B_SURFACE",
-                126 => "NURBS_SURF",
-                127 => "KNOT_MULT",
-                128 => "KNOT_SET",
-                134 => "B_CURVE",
-                136 => "NURBS_CURVE",
-                137 => "SP_CURVE",
-                50 => "PLANE",
-                51 => "CYLINDER",
-                52 => "CONE",
-                53 => "SPHERE",
-                54 => "TORUS",
-                56 => "BLENDED_EDGE",
-                59 => "BLEND_BOUND",
-                60 => "OFFSET_SURF",
-                67 => "SWEPT_SURF",
-                68 => "SPUN_SURF",
-                133 => "TRIMMED_CURVE",
-                100 => "TRANSFORM",
-                204 => "INTERSECTION_DATA",
-                79 => "ATT_DEF_ID",
-                80 => "ATTRIB_DEF",
-                81 => "ATTRIBUTE",
-                82 => "INT_VALUES",
-                83 => "REAL_VALUES",
-                84 => "CHAR_VALUES",
-                85 => "POINT_VALUES",
-                86 => "VECTOR_VALUES",
-                87 => "AXIS_VALUES",
-                88 => "TAG_VALUES",
-                89 => "DIRECTION_VALUES",
-                98 => "UNICODE_VALUES",
-                _ => "", // List types cannot acquire roles from their names.
-            },
+            Self::TopsolidCatalog
+                if matches!(node.node_type, 118 | 201) && node.definition.name == "MESH" =>
+            {
+                "MESH"
+            }
+            Self::TopsolidCatalog if node.definition.name == "POLYLINE" => "POLYLINE",
+            Self::OnshapeSch30000 | Self::Sch13006 | Self::TopsolidCatalog | Self::Sch3600188 => {
+                match node.node_type {
+                    10 => "ASSEMBLY",
+                    11 => "INSTANCE",
+                    12 => "BODY",
+                    13 => "SHELL",
+                    14 => "FACE",
+                    15 => "LOOP",
+                    16 => "EDGE",
+                    17 => "HALFEDGE",
+                    18 => "VERTEX",
+                    19 => "REGION",
+                    29 => "POINT",
+                    30 => "LINE",
+                    31 => "CIRCLE",
+                    32 => "ELLIPSE",
+                    38 => "INTERSECTION",
+                    40 => "CHART",
+                    41 => "LIMIT",
+                    45 => "BSPLINE_VERTICES",
+                    124 => "B_SURFACE",
+                    126 => "NURBS_SURF",
+                    127 => "KNOT_MULT",
+                    128 => "KNOT_SET",
+                    134 => "B_CURVE",
+                    136 => "NURBS_CURVE",
+                    137 => "SP_CURVE",
+                    50 => "PLANE",
+                    51 => "CYLINDER",
+                    52 => "CONE",
+                    53 => "SPHERE",
+                    54 => "TORUS",
+                    56 => "BLENDED_EDGE",
+                    59 => "BLEND_BOUND",
+                    60 => "OFFSET_SURF",
+                    67 if matches!(self, Self::OnshapeSch30000 | Self::Sch13006) => "SWEPT_SURF",
+                    68 => "SPUN_SURF",
+                    133 => "TRIMMED_CURVE",
+                    100 => "TRANSFORM",
+                    204 => "INTERSECTION_DATA",
+                    79 => "ATT_DEF_ID",
+                    80 => "ATTRIB_DEF",
+                    81 => "ATTRIBUTE",
+                    82 => "INT_VALUES",
+                    83 => "REAL_VALUES",
+                    84 => "CHAR_VALUES",
+                    85 => "POINT_VALUES",
+                    86 => "VECTOR_VALUES",
+                    87 => "AXIS_VALUES",
+                    88 => "TAG_VALUES",
+                    89 => "DIRECTION_VALUES",
+                    90 if matches!(self, Self::TopsolidCatalog) => "GROUP",
+                    91 if matches!(self, Self::TopsolidCatalog) => "MEMBER_OF_GROUP",
+                    98 => "UNICODE_VALUES",
+                    _ => "", // List types cannot acquire roles from their names.
+                }
+            }
         }
     }
 
     pub(super) fn field<'a>(self, node: &'a RawNode, role: &str) -> Option<&'a RawField> {
         match self {
-            Self::Named => node.fields.iter().find(|f| f.definition.name == role),
+            Self::Named | Self::TopsolidCatalog | Self::Sch3600188 => {
+                node.fields.iter().find(|f| f.definition.name == role)
+            }
             Self::OnshapeSch30000 if node.node_type == 38 && role == "intersection_data" => {
                 node.fields.get(11)
             }
@@ -253,7 +318,13 @@ impl RoleAccess {
     pub(super) fn is_curve(self, node: &RawNode) -> bool {
         match self {
             Self::OnshapeSch30000 => matches!(node.node_type, 30..=32 | 38 | 133 | 134 | 137),
-            Self::Sch13006 => matches!(node.node_type, 30..=32 | 38 | 133 | 134 | 137),
+            Self::TopsolidCatalog => {
+                node.definition.name == "POLYLINE"
+                    || matches!(node.node_type, 30..=32 | 38 | 133 | 134 | 137)
+            }
+            Self::Sch13006 | Self::Sch3600188 => {
+                matches!(node.node_type, 30..=32 | 38 | 133 | 134 | 137)
+            }
             Self::Named => {
                 self.has_common_geometry(node)
                     && self
@@ -266,8 +337,16 @@ impl RoleAccess {
     pub(super) fn is_surface(self, node: &RawNode) -> bool {
         match self {
             Self::OnshapeSch30000 => matches!(node.node_type, 50..=54 | 124),
+            Self::TopsolidCatalog
+                if matches!(node.node_type, 118 | 201) && node.definition.name == "MESH" =>
+            {
+                true
+            }
             Self::Sch13006 => {
                 matches!(node.node_type, 50..=54 | 56 | 59 | 60 | 67 | 68 | 124)
+            }
+            Self::TopsolidCatalog | Self::Sch3600188 => {
+                matches!(node.node_type, 50..=54 | 56 | 59 | 60 | 68 | 124)
             }
             Self::Named => {
                 self.has_common_geometry(node)
@@ -286,6 +365,144 @@ impl RoleAccess {
 }
 
 /// The reviewed base definitions behind one exact embedded 13006 key.
+/// TopSolid's exact catalog must retain the base fields used as B-Rep roles.
+fn validate_topsolid_base_roles(
+    schemas: &[SchemaResolution],
+    base: &[&crate::TypeDefinition],
+) -> Result<(), ParseError> {
+    for resolution in schemas {
+        let definition = &resolution.definition;
+        let roles = field_roles(definition.node_type);
+        if roles.is_empty() {
+            continue;
+        }
+        let invalid = || {
+            ParseError::new(
+                ErrorKind::InvalidBrepField,
+                resolution.byte_range.start,
+                "TopSolid definition does not preserve hash-pinned base fields required by B-Rep",
+                ErrorDetails::SchemaLookup {
+                    schema: "13006".to_owned(),
+                    node_type: definition.node_type,
+                },
+            )
+        };
+        let original = base
+            .iter()
+            .find(|candidate| candidate.node_type == definition.node_type)
+            .ok_or_else(invalid)?;
+        let mut copied = Vec::new();
+        match definition.source {
+            SchemaSource::Base | SchemaSource::EmbeddedUnchanged => {
+                if definition.fields != original.fields {
+                    return Err(invalid());
+                }
+                copied.extend(0..original.fields.len());
+            }
+            SchemaSource::EmbeddedDelta => {
+                let mut base_index = 0;
+                let mut output_index = 0;
+                for edit in &resolution.edits {
+                    match edit {
+                        SchemaEdit::Copy { .. } => {
+                            let expected = original.fields.get(base_index).ok_or_else(invalid)?;
+                            if definition.fields.get(output_index) != Some(expected) {
+                                return Err(invalid());
+                            }
+                            copied.push(output_index);
+                            base_index += 1;
+                            output_index += 1;
+                        }
+                        SchemaEdit::Delete { .. } => base_index += 1,
+                        SchemaEdit::Insert { .. } | SchemaEdit::Append { .. } => output_index += 1,
+                        SchemaEdit::End { .. } => break,
+                    }
+                }
+            }
+            SchemaSource::EmbeddedFull => return Err(invalid()),
+        }
+        for (name, _, _, _) in roles {
+            let base_matches: Vec<_> = original
+                .fields
+                .iter()
+                .enumerate()
+                .filter(|(_, field)| field.name == *name)
+                .collect();
+            let definition_matches: Vec<_> = definition
+                .fields
+                .iter()
+                .enumerate()
+                .filter(|(_, field)| field.name == *name)
+                .collect();
+            if base_matches.len() != 1
+                || definition_matches.len() != 1
+                || !copied.contains(&definition_matches[0].0)
+                || definition_matches[0].1 != base_matches[0].1
+            {
+                return Err(invalid());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Caller catalogs may use names as roles only when every transmitted
+/// attribute type exactly matches a reviewed declaration for its schema key.
+pub(super) fn validate_named_attribute_roles(
+    key: &str,
+    schemas: &[SchemaResolution],
+) -> Result<(), ParseError> {
+    let attribute_schemas = schemas
+        .iter()
+        .filter(|resolution| matches!(resolution.definition.node_type, 79..=89 | 98))
+        .collect::<Vec<_>>();
+    if attribute_schemas.is_empty() {
+        return Ok(());
+    }
+    if key == "SCH_3700192_36001_13006" {
+        let definitions = crate::schema::profiles::topsolid_36001_definitions();
+        if attribute_schemas.iter().all(|resolution| {
+            let actual = &resolution.definition;
+            definitions.iter().any(|expected| {
+                actual.node_type == expected.node_type
+                    && actual.name == expected.name
+                    && actual.fields == expected.fields
+                    && actual.variable == expected.variable
+            })
+        }) {
+            return Ok(());
+        }
+    }
+    let registry = crate::BuiltinProfileRegistry::compiled()?;
+    let matches_reviewed_profile = registry.profiles().any(|profile| {
+        let definitions = profile
+            .definitions()
+            .filter(|definition| matches!(definition.node_type, 79..=89 | 98))
+            .collect::<Vec<_>>();
+        attribute_schemas.iter().all(|resolution| {
+            let definition = &resolution.definition;
+            definitions.iter().any(|expected| {
+                definition.node_type == expected.node_type
+                    && definition.name == expected.name
+                    && definition.fields == expected.fields
+                    && definition.variable == expected.variable
+            })
+        })
+    });
+    if !matches_reviewed_profile {
+        let resolution = attribute_schemas[0];
+        return Err(ParseError::new(
+            ErrorKind::InvalidBrepField,
+            resolution.byte_range.start,
+            "caller-supplied attribute definitions do not match one reviewed profile",
+            ErrorDetails::NodeType {
+                node_type: resolution.definition.node_type,
+            },
+        ));
+    }
+    Ok(())
+}
+
 fn reviewed_base_definitions(key: &str) -> Vec<crate::TypeDefinition> {
     if let Some(spec) = crate::schema::profiles::icad_legacy::PROFILES
         .iter()

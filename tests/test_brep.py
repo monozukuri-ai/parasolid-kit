@@ -11,10 +11,12 @@ from parasolid_kit import (
     LineCurve,
     ParseError,
     PlaneSurface,
+    PolylineCurve,
     SchemaCatalog,
     map_brep,
     parse_xb,
 )
+from parasolid_kit.brep import ConeSurface, MeshSurface, XtConeSurface
 from parasolid_kit.brep._native import brep_from_native
 from parasolid_kit.schema import FieldDefinition, FieldType, SchemaSource, TypeDefinition
 from tests.support.parasolid_binary import SyntheticXbBuilder
@@ -141,6 +143,135 @@ def test_native_brep_mapping_builds_typed_geometry_and_provenance() -> None:
     assert model.diagnostics[0].code == "geometry.unsupported_curve"
     assert model.diagnostics[0].details["role"] == "curve"
     assert model.to_dict()["curves"][0]["kind"] == "line"  # type: ignore[index]
+
+
+def test_native_brep_mapping_keeps_xt_cone_distinct_from_cone() -> None:
+    value = _native_model()
+    parameters = {
+        "point": (1.0, 2.0, 3.0),
+        "axis": (0.0, 0.0, 1.0),
+        "radius": 4.0,
+        "sin_half_angle": 0.6,
+        "cos_half_angle": 0.8,
+        "x_axis": (1.0, 0.0, 0.0),
+    }
+    value["surfaces"] = [
+        {
+            "id": 0,
+            "sense": "positive",
+            "owner": None,
+            "kind": "cone",
+            "parameters": parameters,
+            "source": _source(52, "CONE", 2),
+        },
+        {
+            "id": 1,
+            "sense": "positive",
+            "owner": None,
+            "kind": "xt_cone",
+            "parameters": parameters,
+            "source": _source(52, "CONE", 3),
+        },
+    ]
+
+    model = brep_from_native(value)
+
+    assert isinstance(model.surfaces[0].definition, ConeSurface)
+    assert isinstance(model.surfaces[1].definition, XtConeSurface)
+    assert not isinstance(model.surfaces[0].definition, XtConeSurface)
+    assert not isinstance(model.surfaces[1].definition, ConeSurface)
+
+
+def test_native_brep_mapping_decodes_polyline_curve_fields() -> None:
+    value = _native_model()
+    polyline_source = _source(77, "POLYLINE", 5)
+    value["curves"] = [
+        {
+            "id": 0,
+            "sense": "negative",
+            "owner": None,
+            "kind": "polyline",
+            "parameters": {
+                "points": [(0.0, 1.0, 2.0), (3.0, 4.0, 5.0)],
+                "closed": True,
+                "sense": "positive",
+                "base_parameter": 0.25,
+                "source": polyline_source,
+            },
+            "source": polyline_source,
+        }
+    ]
+
+    model = brep_from_native(value)
+
+    curve = model.curves[0]
+    assert isinstance(curve.definition, PolylineCurve)
+    assert tuple(point.to_tuple() for point in curve.definition.points) == (
+        (0.0, 1.0, 2.0),
+        (3.0, 4.0, 5.0),
+    )
+    assert curve.definition.closed
+    assert curve.definition.sense.value == "positive"
+    assert curve.definition.base_parameter == 0.25
+    assert curve.definition.source.node_index == 5
+
+
+def test_native_brep_mapping_preserves_embedded_mesh_indices_and_null_links() -> None:
+    value = _native_model()
+    value["surfaces"] = [
+        {
+            "id": 0,
+            "sense": "positive",
+            "owner": None,
+            "kind": "mesh",
+            "parameters": {
+                "source_mesh_index": 7,
+                "embedded": {
+                    "mesh_index": 9,
+                    "transform_index": None,
+                    "surface_sense": "negative",
+                    "psm_mesh_index": 12,
+                    "precision": 3,
+                    "normal_type": 1,
+                    "positions": {
+                        "encoding": 2,
+                        "vector_count": 3,
+                        "capacity": 3,
+                        "shift": 0,
+                        "values": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+                    },
+                    "normals": None,
+                    "position_indices": {
+                        "integer_count": 3,
+                        "capacity": 3,
+                        "shift": 0,
+                        "values": [1, 2, 3],
+                    },
+                    "normal_indices": None,
+                },
+                "transform_index": None,
+                "transform": None,
+                "unembedded_source_fields": None,
+            },
+            "source": _source(53, "MESH", 6),
+        }
+    ]
+
+    model = brep_from_native(value)
+
+    surface = model.surfaces[0]
+    assert isinstance(surface.definition, MeshSurface)
+    mesh = surface.definition
+    assert mesh.source_mesh_index == 7
+    assert mesh.embedded is not None
+    assert mesh.embedded.mesh_index == 9
+    assert mesh.embedded.psm_mesh_index == 12
+    assert mesh.embedded.position_indices.values == (1, 2, 3)
+    assert mesh.embedded.positions.vector_count == 3
+    assert mesh.embedded.transform_index is None
+    assert mesh.transform_index is None
+    assert mesh.transform is None
+    assert mesh.unembedded_source_fields is None
 
 
 def test_map_brep_reports_missing_required_body_semantics_from_rust() -> None:

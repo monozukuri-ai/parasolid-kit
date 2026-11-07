@@ -19,6 +19,7 @@ from ...brep.geometry import (
     SphereSurface,
     SurfaceGeometry,
     TorusSurface,
+    XtConeSurface,
 )
 from ...brep.model import BrepModel
 from ...brep.topology import (
@@ -451,7 +452,7 @@ class TopologyBuilder:
 
         for face in self._faces():
             surface = self._surface_for_face(face)
-            if not isinstance(surface.definition, ConeSurface):
+            if not isinstance(surface.definition, (ConeSurface, XtConeSurface)):
                 continue
             loop_edges = [
                 self._single_ring_edge(loop_id, face.id) for loop_id in self._trim_loops(face)
@@ -1116,7 +1117,7 @@ class TopologyBuilder:
     def _validate_cone_ring(
         self,
         face_id: int,
-        cone: ConeSurface,
+        cone: ConeSurface | XtConeSurface,
         circle: CircleCurve,
     ) -> float:
         axis = cone.axis.to_tuple()
@@ -1157,7 +1158,11 @@ class TopologyBuilder:
         if abs(cone.cos_half_angle) <= 1.0e-15:
             raise ValueError(f"cone face {face_id} has an invalid half-angle cosine")
         parameter = axis_distance / cone.cos_half_angle
-        expected_radius = cone.radius * self.geometry.scale + (parameter * cone.sin_half_angle)
+        parameter_sign = -1.0 if isinstance(cone, XtConeSurface) else 1.0
+        expected_radius = (
+            cone.radius * self.geometry.scale
+            + parameter_sign * parameter * cone.sin_half_angle
+        )
         if expected_radius <= tolerance:
             raise ValueError(f"cone face {face_id} ring reaches or crosses the cone apex")
         if abs(circle.radius * self.geometry.scale - expected_radius) > tolerance:
@@ -1167,7 +1172,7 @@ class TopologyBuilder:
     def _scaled_cone_v_parameter(
         self,
         point: tuple[float, float, float],
-        cone: ConeSurface,
+        cone: ConeSurface | XtConeSurface,
     ) -> float:
         origin = self.geometry.coordinates(cone.point)
         axis = cone.axis.to_tuple()
