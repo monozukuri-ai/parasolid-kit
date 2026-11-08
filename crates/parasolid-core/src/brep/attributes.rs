@@ -87,6 +87,10 @@ pub struct BrepAttributes {
 /// Only exact built-in profile revisions with reviewed attribute layouts are
 /// accepted. Attribute names and custom schema labels are never used to infer
 /// record roles.
+///
+/// # Errors
+/// Returns a parse error when the attribute schema is unsupported or the
+/// document contains malformed attribute references or values.
 pub fn map_xt_brep_attributes(document: &XtDocument) -> Result<BrepAttributes, ParseError> {
     extract_attributes(
         &document.nodes,
@@ -97,6 +101,10 @@ pub fn map_xt_brep_attributes(document: &XtDocument) -> Result<BrepAttributes, P
 }
 
 /// Extract B-Rep attributes from a complete `X_B` document.
+///
+/// # Errors
+/// Returns a parse error when the attribute schema is unsupported or the
+/// document contains malformed attribute references or values.
 pub fn map_xb_brep_attributes(document: &XbDocument) -> Result<BrepAttributes, ParseError> {
     extract_attributes(
         &document.nodes,

@@ -1812,22 +1812,8 @@ fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
                 sin_half_angle,
                 cos_half_angle,
                 ..
-            },
-        ) => (
-            (point.to_array(), normal.to_array(), a.sense),
-            (
-                cp.to_array(),
-                axis.to_array(),
-                *radius,
-                *sin_half_angle,
-                *cos_half_angle,
-                b.sense,
-            ),
-            1.0,
-        ),
-        (
-            SurfaceKind::Plane { point, normal, .. },
-            SurfaceKind::Cone {
+            }
+            | SurfaceKind::Cone {
                 point: cp,
                 axis,
                 radius,
@@ -1855,22 +1841,8 @@ fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
                 sin_half_angle,
                 cos_half_angle,
                 ..
-            },
-            SurfaceKind::Plane { point, normal, .. },
-        ) => (
-            (point.to_array(), normal.to_array(), b.sense),
-            (
-                cp.to_array(),
-                axis.to_array(),
-                *radius,
-                *sin_half_angle,
-                *cos_half_angle,
-                a.sense,
-            ),
-            -1.0,
-        ),
-        (
-            SurfaceKind::Cone {
+            }
+            | SurfaceKind::Cone {
                 point: cp,
                 axis,
                 radius,
@@ -2261,6 +2233,14 @@ fn plane_xt_cone_inverse_chart_data(
                 sin_half_angle,
                 cos_half_angle,
                 ..
+            }
+            | SurfaceKind::Cone {
+                point: cp,
+                axis,
+                radius,
+                sin_half_angle,
+                cos_half_angle,
+                ..
             },
         ) => (
             (point.to_array(), normal.to_array(), a.sense),
@@ -2282,44 +2262,8 @@ fn plane_xt_cone_inverse_chart_data(
                 sin_half_angle,
                 cos_half_angle,
                 ..
-            },
-            SurfaceKind::Plane { point, normal, .. },
-        ) => (
-            (point.to_array(), normal.to_array(), b.sense),
-            (
-                cp.to_array(),
-                axis.to_array(),
-                *radius,
-                *sin_half_angle,
-                *cos_half_angle,
-                a.sense,
-            ),
-            -1.0,
-        ),
-        (
-            SurfaceKind::Plane { point, normal, .. },
-            SurfaceKind::Cone {
-                point: cp,
-                axis,
-                radius,
-                sin_half_angle,
-                cos_half_angle,
-                ..
-            },
-        ) => (
-            (point.to_array(), normal.to_array(), a.sense),
-            (
-                cp.to_array(),
-                axis.to_array(),
-                *radius,
-                *sin_half_angle,
-                *cos_half_angle,
-                b.sense,
-            ),
-            1.0,
-        ),
-        (
-            SurfaceKind::Cone {
+            }
+            | SurfaceKind::Cone {
                 point: cp,
                 axis,
                 radius,

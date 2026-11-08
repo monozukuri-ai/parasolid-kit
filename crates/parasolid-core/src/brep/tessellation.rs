@@ -144,12 +144,11 @@ fn append_intersection_samples(
     reason = "Exact IEEE equality identifies a duplicate ring-closing vertex without merging nearby geometry."
 )]
 fn remove_ring_closure_duplicate(ring: &mut Vec<[f64; 3]>, exact_only: bool) {
-    if ring.len() > 1 {
-        let last = ring.last().unwrap();
+    if let [first, .., last] = ring.as_slice() {
         let duplicate = if exact_only {
-            ring[0] == *last
+            *first == *last
         } else {
-            dist_sq(&ring[0], last) < 1e-10
+            dist_sq(first, last) < 1e-10
         };
         if duplicate {
             ring.pop();
@@ -3386,9 +3385,9 @@ where
                 cleaned_uv.push(pt);
             }
         }
-        if cleaned_uv.len() > 1 {
-            let du = cleaned_uv[0][0] - cleaned_uv.last().unwrap()[0];
-            let dv = cleaned_uv[0][1] - cleaned_uv.last().unwrap()[1];
+        if let [first, .., last] = cleaned_uv.as_slice() {
+            let du = first[0] - last[0];
+            let dv = first[1] - last[1];
             if if max_sampled_deviation.is_some() {
                 du == 0.0 && dv == 0.0
             } else {
@@ -4407,21 +4406,29 @@ fn split_triangle_uv_by_edge_mask(
             let a = triangle[edge];
             let b = triangle[(edge + 1) % 3];
             let c = triangle[(edge + 2) % 3];
-            let midpoint = midpoints[edge].expect("marked edge has a midpoint");
+            let Some(midpoint) = midpoints[edge] else {
+                unreachable!("marked edge has a midpoint");
+            };
             out.push([a, midpoint, c]);
             out.push([midpoint, b, c]);
         }
         2 => {
-            let vertex = (0..3)
+            let Some(vertex) = (0..3)
                 .find(|&vertex| mask & (1 << vertex) != 0 && mask & (1 << ((vertex + 2) % 3)) != 0)
-                .expect("two marked triangle edges share a vertex");
+            else {
+                unreachable!("two marked triangle edges share a vertex");
+            };
             let previous = (vertex + 2) % 3;
             let next = (vertex + 1) % 3;
             let v0 = triangle[previous];
             let v1 = triangle[vertex];
             let v2 = triangle[next];
-            let midpoint_01 = midpoints[previous].expect("marked edge has a midpoint");
-            let midpoint_12 = midpoints[vertex].expect("marked edge has a midpoint");
+            let Some(midpoint_01) = midpoints[previous] else {
+                unreachable!("marked edge has a midpoint");
+            };
+            let Some(midpoint_12) = midpoints[vertex] else {
+                unreachable!("marked edge has a midpoint");
+            };
             out.push([v1, midpoint_12, midpoint_01]);
             out.push([v0, midpoint_01, v2]);
             out.push([midpoint_01, midpoint_12, v2]);
