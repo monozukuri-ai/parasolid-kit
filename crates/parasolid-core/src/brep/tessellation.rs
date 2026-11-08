@@ -5697,16 +5697,18 @@ fn tessellate_spun_face(
                     let j00 = vec3_dot(du, du);
                     let j01 = vec3_dot(du, dv);
                     let j11 = vec3_dot(dv, dv);
-                    let jr0 = vec3_dot(du, r);
-                    let jr1 = vec3_dot(dv, r);
+                    let first_axis_residual_dot = vec3_dot(du, r);
+                    let second_axis_residual_dot = vec3_dot(dv, r);
 
                     let det = j00 * j11 - j01 * j01;
                     if !det.is_finite() || det.abs() < 1e-14 {
                         break;
                     }
 
-                    let delta_u = -(j11 * jr0 - j01 * jr1) / det;
-                    let delta_v = -(j00 * jr1 - j01 * jr0) / det;
+                    let delta_u =
+                        -(j11 * first_axis_residual_dot - j01 * second_axis_residual_dot) / det;
+                    let delta_v =
+                        -(j00 * second_axis_residual_dot - j01 * first_axis_residual_dot) / det;
                     if !delta_u.is_finite() || !delta_v.is_finite() {
                         break;
                     }
@@ -5728,14 +5730,14 @@ fn tessellate_spun_face(
 
             let delta_u = (u_max - u_min) / f64::from(GRID_STEPS_U);
             let delta_v = (v_max - v_min) / f64::from(GRID_STEPS_V);
-            let delta_uv = delta_u.max(delta_v).max(1e-4);
+            let maximum_parameter_step = delta_u.max(delta_v).max(1e-4);
 
             if try_tessellate_trimmed_surface(
                 surf_kind,
                 project_uv,
                 |u, v| evaluate_surface(brep, surf_kind, u, v),
                 loops_3d,
-                delta_uv,
+                maximum_parameter_step,
                 true,
                 face_sense,
                 result,

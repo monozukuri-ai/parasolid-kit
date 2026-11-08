@@ -840,7 +840,12 @@ mod tests {
     }
 
     #[test]
-    fn periodic_curve_rejects_invalid_period_representation_and_unbounded_wraps() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Equivalent wrapped parameters must preserve exactly equal periodic coordinates."
+    )]
+    fn periodic_curve_rejects_invalid_period_representation_and_unbounded_wraps()
+    -> std::io::Result<()> {
         let mut curve = periodic_curve(false);
         curve.control_vertices[4][0] += 1.0;
         assert!(evaluate_mapped_nurbs_curve_candidate(&curve, 0.5).is_err());
@@ -848,8 +853,8 @@ mod tests {
         let mut curve = periodic_curve(false);
         curve.knots[0] = -3.0;
         assert_eq!(
-            evaluate_mapped_nurbs_curve_candidate(&curve, 0.5).unwrap(),
-            evaluate_mapped_nurbs_curve_candidate(&curve, 4.5).unwrap()
+            evaluate_mapped_nurbs_curve_candidate(&curve, 0.5)?,
+            evaluate_mapped_nurbs_curve_candidate(&curve, 4.5)?
         );
 
         let mut curve = periodic_curve(false);
@@ -858,32 +863,40 @@ mod tests {
 
         let curve = periodic_curve(false);
         assert!(evaluate_mapped_nurbs_curve_candidate(&curve, f64::MAX).is_err());
+        Ok(())
     }
 
     #[test]
-    fn extension_uses_stored_parameter_and_endpoint_tangents_at_both_ends() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "The line fixture's endpoint extensions have exact expected coordinates."
+    )]
+    fn extension_uses_stored_parameter_and_endpoint_tangents_at_both_ends() -> std::io::Result<()> {
         let curve = line_curve();
         assert_eq!(
-            evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(&curve, 0.0)
-                .unwrap(),
+            evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(&curve, 0.0)?,
             [-4.0, 0.0, -3.0]
         );
         assert_eq!(
-            evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(&curve, 8.0)
-                .unwrap(),
+            evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(&curve, 8.0)?,
             [12.0, 8.0, 5.0]
         );
+        Ok(())
     }
 
     #[test]
-    fn extension_opt_in_preserves_strict_default_range() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Opt-in extension must exactly match ordinary evaluation within its valid domain."
+    )]
+    fn extension_opt_in_preserves_strict_default_range() -> std::io::Result<()> {
         let curve = line_curve();
         assert_eq!(
-            evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(&curve, 4.0)
-                .unwrap(),
-            evaluate_mapped_nurbs_curve_candidate(&curve, 4.0).unwrap()
+            evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(&curve, 4.0)?,
+            evaluate_mapped_nurbs_curve_candidate(&curve, 4.0)?
         );
         assert!(evaluate_mapped_nurbs_curve_candidate(&curve, 0.0).is_err());
+        Ok(())
     }
 
     #[test]

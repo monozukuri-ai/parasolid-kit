@@ -5994,12 +5994,12 @@ mod tests {
     }
 
     #[test]
-    fn inverse_cone_cylinder_rejects_multiple_endpoint_matched_roots() {
+    fn inverse_cone_cylinder_rejects_multiple_endpoint_matched_roots()
+    -> Result<(), IntersectionEvaluationError> {
         let (brep, curve) = cone_cylinder_endpoint_fixture();
-        let (_, parameters) = cone_cylinder_inverse_chart_parameters(&brep, &curve, false).unwrap();
+        let (_, parameters) = cone_cylinder_inverse_chart_parameters(&brep, &curve, false)?;
         let parameter = (parameters[0] + parameters[1]) * 0.5;
-        let roots =
-            cone_cylinder_intersection_roots_with_axis(&brep, &curve, parameter, false).unwrap();
+        let roots = cone_cylinder_intersection_roots_with_axis(&brep, &curve, parameter, false)?;
         assert_eq!(roots.len(), 2);
         let midpoint = scale(add(roots[0].point, roots[1].point), 0.5);
         let tolerance = norm(sub(roots[0].point, roots[1].point)) * 0.5 + 1e-8;
@@ -6009,6 +6009,7 @@ mod tests {
                 "multiple chart sections match the requested endpoint within tolerance"
             ))
         );
+        Ok(())
     }
 
     #[test]
