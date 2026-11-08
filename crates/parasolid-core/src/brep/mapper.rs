@@ -4142,7 +4142,7 @@ mod tests {
         assert_eq!(
             surface_kinds,
             Ok(vec![
-                "plane", "cylinder", "cone", "sphere", "torus", "offset", "nurbs",
+                "plane", "cylinder", "xt_cone", "sphere", "torus", "offset", "nurbs",
             ])
         );
         // A spun surface revolves a mapped curve; a null end point stays None.
