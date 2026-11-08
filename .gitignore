@@ -24,3 +24,5 @@ node_modules/
 /data/
 /corpus/local/
 /corpus/downloads/
+
+/docs/
