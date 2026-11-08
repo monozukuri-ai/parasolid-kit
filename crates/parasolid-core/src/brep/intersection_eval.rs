@@ -1,4 +1,4 @@
-//! Bounded exact cases of X_T `INTERSECTION` curve evaluation.
+//! Bounded exact cases of `X_T` `INTERSECTION` curve evaluation.
 
 use std::{error::Error, fmt};
 
@@ -53,6 +53,9 @@ pub struct IntersectionCurveEvaluation {
 ///
 /// This dispatch only selects existing opt-in candidates. XT cone/cylinder
 /// and plane/XT-cone pairs require exactly one mapped-axis convention to validate.
+///
+/// # Errors
+/// Returns an error when the curve, support pair, or selected candidate is invalid or unsupported.
 pub fn evaluate_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -127,8 +130,8 @@ pub fn evaluate_intersection_candidate(
     }
 }
 
-/// Evaluates regular PLANE/OFFSET_SURF branches whose offset basis is a mapped
-/// SWEPT_SURF. The local UV Newton solve is bounded to the adjacent chart UV
+/// Evaluates regular `PLANE`/`OFFSET_SURF` branches whose offset basis is a mapped
+/// `SWEPT_SURF`. The local UV Newton solve is bounded to the adjacent chart UV
 /// rectangle and accepts exactly one root within the transmitted chordal error.
 fn evaluate_plane_swept_offset_intersection_candidate(
     brep: &BrepModel,
@@ -405,7 +408,10 @@ fn evaluate_plane_swept_offset_intersection_candidate(
             tangent: tangents[nearest_index],
         });
     }
-    if parameter < stations[0] || parameter > *stations.last().unwrap() {
+    let last_station = stations
+        .last()
+        .ok_or(IntersectionEvaluationError::OutsideChartDomain)?;
+    if parameter < stations[0] || parameter > *last_station {
         return Err(IntersectionEvaluationError::OutsideChartDomain);
     }
     let index = stations
@@ -517,13 +523,16 @@ fn evaluate_plane_swept_offset_intersection_candidate(
     if let Some(axis) = varying_axis {
         // shortcut: eight samples can miss extra roots; use interval isolation when branch completeness is required.
         const CHART_PLANE_SUBINTERVALS: usize = 8;
+        let subinterval_count = u32::try_from(CHART_PLANE_SUBINTERVALS).map_err(|_| {
+            IntersectionEvaluationError::InvalidInput("chart sample count exceeds u32")
+        })?;
         let fixed_axis = 1 - axis;
         let mut samples = Vec::with_capacity(CHART_PLANE_SUBINTERVALS + 1);
-        for step in 0..=CHART_PLANE_SUBINTERVALS {
+        for step in 0..=subinterval_count {
             let mut uv = [0.0; 2];
             uv[fixed_axis] = low[fixed_axis];
             uv[axis] = low[axis]
-                + (high[axis] - low[axis]) * step as f64 / CHART_PLANE_SUBINTERVALS as f64;
+                + (high[axis] - low[axis]) * f64::from(step) / f64::from(subinterval_count);
             let point = point_at(uv).ok_or(IntersectionEvaluationError::Unsupported(
                 "plane/swept-offset chart-plane sample evaluation failed",
             ))?;
@@ -691,6 +700,9 @@ fn select_unique_axis_candidate(
 ///
 /// This opt-in requires complete two-surface UV data, ordinary `L` limits,
 /// and one sampled chart-plane root in the section-parameter bracket.
+///
+/// # Errors
+/// Returns an error when the chart, support geometry, or selected root is invalid or unsupported.
 pub fn evaluate_torus_ruled_sweep_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1055,6 +1067,9 @@ pub fn evaluate_torus_ruled_sweep_intersection_candidate(
 /// outside the chart interval fail closed. Coordinate consistency uses a
 /// roundoff bound of 64 binary64 epsilons times the largest coordinate scale;
 /// this is not a source geometric tolerance.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or mapped intersection is invalid.
 pub fn evaluate_plane_plane_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1277,6 +1292,9 @@ pub fn evaluate_plane_plane_intersection_candidate(
 /// are the intersections of those supports and the plane through the chart
 /// chord point normal to that chord. Two valid quadratic roots are rejected
 /// unless exactly one lies within the transmitted chordal error of the chord.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or selected root is invalid.
 pub fn evaluate_plane_cylinder_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1563,6 +1581,9 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
 /// The support plane and the plane through the chart chord normal to that
 /// chord define a line; substituting it into the mapped `P - vA` cone equation
 /// gives at most two candidates, selected only when chordal error admits one.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or selected root is invalid.
 pub fn evaluate_plane_xt_cone_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1572,6 +1593,9 @@ pub fn evaluate_plane_xt_cone_intersection_candidate(
 }
 
 /// Evaluates a plane/XT-cone branch with the mapped XT axial direction reversed.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or selected root is invalid.
 pub fn evaluate_plane_xt_cone_intersection_candidate_with_reversed_mapped_axis(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1933,7 +1957,12 @@ fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
         }
     };
     validate_limit(start_limit_kind, start_points, points[0])?;
-    validate_limit(end_limit_kind, end_points, *points.last().unwrap())?;
+    let last_point = *points
+        .last()
+        .ok_or(IntersectionEvaluationError::InvalidInput(
+            "intersection chart has no points",
+        ))?;
+    validate_limit(end_limit_kind, end_points, last_point)?;
     let tangent_at = |point| {
         plane_xt_cone_station_tangent(
             point,
@@ -1985,7 +2014,10 @@ fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
         tolerance,
         &tangents,
     )?;
-    if parameter < parameters[0] || parameter > *parameters.last().unwrap() {
+    let last_parameter = parameters
+        .last()
+        .ok_or(IntersectionEvaluationError::OutsideChartDomain)?;
+    if parameter < parameters[0] || parameter > *last_parameter {
         return Err(IntersectionEvaluationError::OutsideChartDomain);
     }
     if let Some(index) = parameters.iter().position(|value| *value == parameter) {
@@ -2457,6 +2489,9 @@ fn plane_xt_cone_chart_parameters(
 /// Evaluates a regular XT cone/cylinder branch from the chart's section plane.
 /// The cone chart is used only to seed the solve; returned points satisfy the
 /// section plane and both support equations, and must lie within CHART's error.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or selected root is invalid.
 pub fn evaluate_cone_cylinder_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -2467,6 +2502,9 @@ pub fn evaluate_cone_cylinder_intersection_candidate(
 
 /// Evaluates a cone/cylinder branch with the mapped XT axial direction
 /// reversed while retaining its original angular frame.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or selected root is invalid.
 pub fn evaluate_cone_cylinder_intersection_candidate_with_reversed_mapped_axis(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -2669,10 +2707,12 @@ pub(super) fn evaluate_cone_cylinder_intersection_sample_candidate(
         .map(|root| (norm(sub(root.point, trim_chord_point)), root))
         .collect::<Vec<_>>();
     trim_ranked.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let (_, best) = trim_ranked.first().unwrap();
+    let (best_distance, best) = trim_ranked
+        .first()
+        .ok_or(IntersectionEvaluationError::OutsideChartDomain)?;
     if trim_ranked
         .get(1)
-        .is_some_and(|(distance, _)| distance - trim_ranked[0].0 <= EPS_FACTOR * scale)
+        .is_some_and(|(distance, _)| distance - *best_distance <= EPS_FACTOR * scale)
     {
         let mut tangent_ranked = trim_ranked
             .iter()
@@ -2975,16 +3015,12 @@ fn cone_cylinder_intersection_roots_with_axis(
         "invalid cone reference direction"
     }))?;
     let cone_y = cross(stored_axis, cone_x);
-    let axis_correction = if let Some(sense) = cone_sense.multiplier() {
-        sense
-    } else {
+    let Some(axis_correction) = cone_sense.multiplier() else {
         return Err(IntersectionEvaluationError::Unsupported(
             "intersection support has unknown normal sense",
         ));
     };
-    let cylinder_correction = if let Some(sense) = cylinder_sense.multiplier() {
-        sense
-    } else {
+    let Some(cylinder_correction) = cylinder_sense.multiplier() else {
         return Err(IntersectionEvaluationError::Unsupported(
             "intersection support has unknown normal sense",
         ));
@@ -3294,6 +3330,9 @@ fn cone_cylinder_intersection_roots_with_axis(
 /// not prove global root or native-kernel uniqueness. Terminator limits are
 /// unsupported because they carry a second branch point whose selection
 /// semantics are not established here.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or selected root is invalid.
 pub fn evaluate_cylinder_cylinder_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -3531,7 +3570,10 @@ pub fn evaluate_cylinder_cylinder_intersection_candidate(
             }
         }
     }
-    if parameter < stations[0] || parameter > *stations.last().unwrap() {
+    let last_station = stations
+        .last()
+        .ok_or(IntersectionEvaluationError::OutsideChartDomain)?;
+    if parameter < stations[0] || parameter > *last_station {
         return Err(IntersectionEvaluationError::OutsideChartDomain);
     }
     if let Some(index) = stations.iter().position(|station| *station == parameter) {
@@ -3634,6 +3676,9 @@ pub fn evaluate_cylinder_cylinder_intersection_candidate(
 /// kernel-level uniqueness.
 /// Only finite single-point `L` limits are supported; terminator, help, and
 /// boundary limits fail closed.
+///
+/// # Errors
+/// Returns an error when the support pair, chart, parameter, or selected root is invalid.
 pub fn evaluate_cylinder_torus_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -3775,8 +3820,13 @@ pub fn evaluate_cylinder_torus_intersection_candidate(
             "cylinder/torus chart or limit contains a nonfinite point",
         ));
     }
+    let last_point = *points
+        .last()
+        .ok_or(IntersectionEvaluationError::InvalidInput(
+            "cylinder/torus chart has no points",
+        ))?;
     if norm(sub(start_points[0].to_array(), points[0])) > tolerance
-        || norm(sub(end_points[0].to_array(), *points.last().unwrap())) > tolerance
+        || norm(sub(end_points[0].to_array(), last_point)) > tolerance
     {
         return Err(IntersectionEvaluationError::Unsupported(
             "cylinder/torus L limits do not match chart endpoints",
@@ -3954,7 +4004,9 @@ pub fn evaluate_cylinder_torus_intersection_candidate(
         }
     }
     let chart_start = stations[0];
-    let chart_end = *stations.last().unwrap();
+    let chart_end = *stations
+        .last()
+        .ok_or(IntersectionEvaluationError::OutsideChartDomain)?;
     let parameter_roundoff =
         16.0 * f64::EPSILON * parameter.abs().max(chart_start.abs()).max(chart_end.abs());
     let parameter = if parameter < chart_start {
@@ -4334,7 +4386,7 @@ fn nurbs_section_tangent(
         derivative_controls.push(
             (0..3)
                 .map(|axis| {
-                    degree as f64
+                    f64::from(curve.degree)
                         * (curve.control_vertices[index + 1][axis]
                             - curve.control_vertices[index][axis])
                         / denominator

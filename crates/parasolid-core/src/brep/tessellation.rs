@@ -118,7 +118,7 @@ pub struct TessellatedMesh {
     pub wire_edges: Vec<[[f64; 3]; 2]>,
 }
 
-fn unique_entity_map<'a, T>(items: &'a [T], id: impl Fn(&T) -> u32) -> Option<HashMap<u32, &'a T>> {
+fn unique_entity_map<T>(items: &[T], id: impl Fn(&T) -> u32) -> Option<HashMap<u32, &T>> {
     let mut indexed = HashMap::with_capacity(items.len());
     for item in items {
         if indexed.insert(id(item), item).is_some() {
@@ -421,7 +421,7 @@ pub fn tessellate_swept_brep_face_with_explicit_uv(
     (!mesh.triangles.is_empty()).then_some(mesh)
 }
 
-/// Tessellates one X_T swept face from caller-validated UV loops.
+/// Tessellates one `X_T` swept face from caller-validated UV loops.
 ///
 /// The raw swept node, mapped section, and mapped face/support must all come
 /// from the same parsed document. The face and support source indexes and the
@@ -446,7 +446,7 @@ pub fn tessellate_mapped_xt_swept_face_with_explicit_uv(
     .map(|(mesh, _)| mesh)
 }
 
-/// Tessellates one X_T swept face until sampled surface deviation is within
+/// Tessellates one `X_T` swept face until sampled surface deviation is within
 /// `max_deviation_source_units`.
 ///
 /// Every triangle is sampled at its three edge midpoints and centroid against
@@ -551,10 +551,9 @@ fn tessellate_mapped_xt_swept_face_internal(
         _ => return None,
     }
     let direction = [swept.sweep[0]?, swept.sweep[1]?, swept.sweep[2]?];
-    match &section.kind {
-        CurveKind::Nurbs(_) => {}
-        _ => return None,
-    };
+    if !matches!(&section.kind, CurveKind::Nurbs(_)) {
+        return None;
+    }
     let mut loops_3d = Vec::with_capacity(uv_loops.len());
     for uv_loop in uv_loops {
         let mut loop_3d = Vec::with_capacity(uv_loop.len());
@@ -816,8 +815,8 @@ fn tessellate_brep_to_mesh_inner(
                     let (start_vertex, end_vertex) = fin_endpoint_vertices(
                         brep.source_format,
                         he,
-                        prev_he.map(|fin| *fin),
-                        next_he.map(|fin| *fin),
+                        prev_he.copied(),
+                        next_he.copied(),
                     );
                     let mut p_start = start_vertex
                         .and_then(|vid| vertex_map.get(&vid))
@@ -990,7 +989,7 @@ fn tessellate_brep_to_mesh_inner(
                                         r,
                                     ),
                                 );
-                                if ring.last().map_or(true, |last| dist_sq(last, &pt) > 1e-10) {
+                                if ring.last().is_none_or(|last| dist_sq(last, &pt) > 1e-10) {
                                     ring.push(pt);
                                 }
                             }
@@ -1073,7 +1072,7 @@ fn tessellate_brep_to_mesh_inner(
                                         vec3_scale(v_axis, b * t.sin()),
                                     ),
                                 );
-                                if ring.last().map_or(true, |last| dist_sq(last, &pt) > 1e-10) {
+                                if ring.last().is_none_or(|last| dist_sq(last, &pt) > 1e-10) {
                                     ring.push(pt);
                                 }
                             }
@@ -1113,7 +1112,7 @@ fn tessellate_brep_to_mesh_inner(
                                 break;
                             };
                             for pt in samples {
-                                if ring.last().map_or(true, |last| dist_sq(last, &pt) > 1e-10) {
+                                if ring.last().is_none_or(|last| dist_sq(last, &pt) > 1e-10) {
                                     ring.push(pt);
                                 }
                             }
@@ -1577,14 +1576,14 @@ fn tessellate_brep_to_mesh_inner(
                                 break;
                             };
                             for pt in points {
-                                if ring.last().map_or(true, |last| dist_sq(last, &pt) > 1e-10) {
+                                if ring.last().is_none_or(|last| dist_sq(last, &pt) > 1e-10) {
                                     ring.push(pt);
                                 }
                             }
                         }
                         _ => {
                             if let Some(p) = p_start {
-                                if ring.last().map_or(true, |last| dist_sq(last, &p) > 1e-10) {
+                                if ring.last().is_none_or(|last| dist_sq(last, &p) > 1e-10) {
                                     ring.push(p);
                                 }
                             } else {
@@ -2400,11 +2399,10 @@ fn tessellate_planar_face(
         let mut points = Vec::new();
         let mut edges = Vec::new();
 
-        for ring_idx in 0..loops_2d.len() {
-            let ring_2d = &loops_2d[ring_idx];
+        for ring_2d in &loops_2d {
             let start = points.len();
-            for p2 in ring_2d {
-                let [x, y] = to_spade(*p2);
+            for &p2 in ring_2d {
+                let [x, y] = to_spade(p2);
                 points.push(spade::mitigate_underflow(Point2::new(x, y)));
             }
             for i in 0..ring_2d.len() {
@@ -4712,10 +4710,10 @@ pub fn evaluate_surface_point(
     evaluate_surface(brep, surface, u, v).map(|e| e.point)
 }
 
-/// Evaluates a mapped X_T offset surface whose basis is a mapped ruled sweep.
+/// Evaluates a mapped `X_T` offset surface whose basis is a mapped ruled sweep.
 ///
 /// This explicit candidate checks the offset, swept-surface, and section source
-/// links, requires a finite unit X_T sweep direction and known basis sense, and
+/// links, requires a finite unit `X_T` sweep direction and known basis sense, and
 /// uses the mapped section's bounded endpoint-extension profile. Generic
 /// surface evaluation does not route through this helper.
 #[must_use]
@@ -5219,7 +5217,7 @@ fn tessellate_swept_face_projected(
                         let sub_steps = 16;
                         let sub_span = sub_max - sub_min;
                         for s in 0..=sub_steps {
-                            let test_u = sub_min + sub_span * (s as f64 / sub_steps as f64);
+                            let test_u = sub_min + sub_span * (f64::from(s) / f64::from(sub_steps));
                             if let Some(pt) =
                                 crate::brep::evaluate_curve_point(section_kind, test_u)
                             {
@@ -5231,7 +5229,7 @@ fn tessellate_swept_face_projected(
                                 }
                             }
                         }
-                        delta = sub_span / sub_steps as f64;
+                        delta = sub_span / f64::from(sub_steps);
                     }
 
                     let Some(c_u) = crate::brep::evaluate_curve_point(section_kind, cur_u) else {
@@ -5336,11 +5334,10 @@ fn tessellate_swept_face_projected(
         let mut points = Vec::new();
         let mut edges = Vec::new();
 
-        for ring_idx in 0..uv_loops.len() {
-            let ring_2d = &uv_loops[ring_idx];
+        for ring_2d in &uv_loops {
             let start = points.len();
-            for p2 in ring_2d {
-                let [x, y] = to_spade(*p2);
+            for &p2 in ring_2d {
+                let [x, y] = to_spade(p2);
                 points.push(spade::mitigate_underflow(Point2::new(x, y)));
             }
             for i in 0..ring_2d.len() {

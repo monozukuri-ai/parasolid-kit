@@ -6,7 +6,7 @@ use super::NurbsSurface;
 
 const MAX_CONTROLS: usize = 1_048_576;
 const MAX_EVALUATION_WORK: usize = 16_777_216;
-const MAX_PRECISE_PERIODIC_WRAPS: f64 = (1u64 << 52) as f64;
+const MAX_PRECISE_PERIODIC_WRAPS: f64 = 4_503_599_627_370_496.0;
 
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
@@ -261,12 +261,12 @@ fn exact_endpoint_curve_jet(
             return None;
         }
         let mut derivative = [0.0; 4];
-        for axis in 0..4 {
+        for (axis, derivative_component) in derivative.iter_mut().enumerate() {
             let delta = exact_difference(pair[1][axis], pair[0][axis])?;
             let numerator = exact_product_difference(degree as f64, delta, 0.0, 0.0)?;
-            derivative[axis] = numerator / denominator;
-            if !derivative[axis].is_finite()
-                || !exact_products_equal(derivative[axis], denominator, numerator, 1.0)
+            *derivative_component = numerator / denominator;
+            if !derivative_component.is_finite()
+                || !exact_products_equal(*derivative_component, denominator, numerator, 1.0)
             {
                 return None;
             }
@@ -306,12 +306,11 @@ fn validate_sampled_projective_seam(
     {
         return false;
     }
-    let sample_count = match transverse_degree
+    let Some(sample_count) = transverse_degree
         .checked_mul(2)
         .and_then(|n| n.checked_add(1))
-    {
-        Some(n) => n,
-        None => return false,
+    else {
+        return false;
     };
     let denominator = sample_count
         .checked_add(1)
@@ -681,8 +680,10 @@ fn validate_degree_one_projective_seam(
     for index in 0..start.len() - 1 {
         let (s0, s1) = (start[index], start[index + 1]);
         let (e0, e1) = (end[index], end[index + 1]);
-        let (ds0, ds1) = (start_derivative[index], start_derivative[index + 1]);
-        let (de0, de1) = (end_derivative[index], end_derivative[index + 1]);
+        let (start_derivative_0, start_derivative_1) =
+            (start_derivative[index], start_derivative[index + 1]);
+        let (end_derivative_0, end_derivative_1) =
+            (end_derivative[index], end_derivative[index + 1]);
         if [s0[3], s1[3], e0[3], e1[3]]
             .iter()
             .any(|weight| !weight.is_finite() || *weight <= 0.0)
@@ -695,8 +696,8 @@ fn validate_degree_one_projective_seam(
         // the identities on the full span without parameter samples.
         if !exact_wedges_equal(e0, s0, [0.0; 4], [0.0; 4])
             || !exact_wedges_equal(e1, s1, [0.0; 4], [0.0; 4])
-            || !exact_wedges_equal(s0, de0, e0, ds0)
-            || !exact_wedges_equal(s1, de1, e1, ds1)
+            || !exact_wedges_equal(s0, end_derivative_0, e0, start_derivative_0)
+            || !exact_wedges_equal(s1, end_derivative_1, e1, start_derivative_1)
         {
             return false;
         }
@@ -707,16 +708,16 @@ fn validate_degree_one_projective_seam(
                     [(e0[j], s1[i]), (e1[j], s0[i])],
                 ) || !exact_product_terms_sum_to_zero(
                     [
-                        (s0[i], de1[j]),
-                        (s1[i], de0[j]),
-                        (e0[j], ds1[i]),
-                        (e1[j], ds0[i]),
+                        (s0[i], end_derivative_1[j]),
+                        (s1[i], end_derivative_0[j]),
+                        (e0[j], start_derivative_1[i]),
+                        (e1[j], start_derivative_0[i]),
                     ],
                     [
-                        (s0[j], de1[i]),
-                        (s1[j], de0[i]),
-                        (e0[i], ds1[j]),
-                        (e1[i], ds0[j]),
+                        (s0[j], end_derivative_1[i]),
+                        (s1[j], end_derivative_0[i]),
+                        (e0[i], start_derivative_1[j]),
+                        (e1[i], start_derivative_0[j]),
                     ],
                 ) {
                     return false;
@@ -848,7 +849,7 @@ fn degree_one_transverse_seam_within_tolerance(
     let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     let norm = |vector: [f64; 3]| vector[0].hypot(vector[1]).hypot(vector[2]);
     let mut active_span = false;
-    for knot_span in 1..start_points.len() + 1 {
+    for knot_span in 1..=start_points.len() {
         if transverse_knots[knot_span] >= transverse_knots[knot_span + 1] {
             continue;
         }
@@ -1182,6 +1183,11 @@ fn validate_periodic_surface_seam(
 /// The closed flag on a nonperiodic axis is retained metadata and is not
 /// verified against the surface geometry by this point evaluator. Rational
 /// weights must be finite and positive.
+///
+/// # Errors
+/// Returns an error if the parameters are non-finite or the surface uses an
+/// unsupported layout, invalid knot or control data, or a seam that fails the
+/// supported validation rules.
 pub fn evaluate_mapped_nurbs_surface(
     surface: &NurbsSurface,
     u: f64,
@@ -1291,7 +1297,7 @@ impl PreparedNurbsSurface {
                 });
             validate_u_seam = !(matching_knots && matching_controls && u_degree > 1);
         }
-        let mut validate_v_seam = false;
+        let mut check_v_seam = false;
         if periodic_v {
             let unique_v = v_count
                 .checked_sub(v_degree)
@@ -1310,10 +1316,10 @@ impl PreparedNurbsSurface {
                     surface.control_vertices[first..first + v_degree]
                         == surface.control_vertices[repeated..repeated + v_degree]
                 });
-            validate_v_seam = !(matching_knots && matching_controls && v_degree > 1);
+            check_v_seam = !(matching_knots && matching_controls && v_degree > 1);
         }
 
-        if validate_u_seam || validate_v_seam {
+        if validate_u_seam || check_v_seam {
             let mut seam_work = 0usize;
             if validate_u_seam {
                 let basis_work = u_basis_work
@@ -1347,7 +1353,7 @@ impl PreparedNurbsSurface {
                     .and_then(|value| value.checked_add(transverse_samples))
                     .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
             }
-            if validate_v_seam {
+            if check_v_seam {
                 let basis_work = v_basis_work
                     .checked_mul(4)
                     .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
@@ -1434,7 +1440,7 @@ impl PreparedNurbsSurface {
             v_min,
             v_max,
             validate_u_seam,
-            validate_v_seam,
+            validate_v_seam: check_v_seam,
         })
     }
 
@@ -1541,8 +1547,8 @@ impl PreparedNurbsSurface {
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate_mapped_nurbs_surface, exact_evaluate_curve, exact_product_difference, exact_sum,
-        sampled_seam_work, PreparedNurbsSurface,
+        PreparedNurbsSurface, evaluate_mapped_nurbs_surface, exact_evaluate_curve,
+        exact_product_difference, exact_sum, sampled_seam_work,
     };
 
     #[test]
