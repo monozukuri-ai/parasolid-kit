@@ -791,6 +791,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::float_cmp,
+        reason = "The cone fixture's chart values yield exact expected point and normal components, and the unwrap asserts a supported chart evaluation."
+    )]
     fn rejects_xt_cone_apex_and_preserves_generic_cone_chart() {
         let xt_cone = SurfaceKind::XtCone {
             point: Vector3::from_array([0.0, 0.0, 0.0]),

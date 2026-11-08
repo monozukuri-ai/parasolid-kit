@@ -288,6 +288,8 @@ mod tests {
     }
 
     #[test]
+    // The fixture is intentionally valid; the separate tests cover rejected inputs.
+    #[allow(clippy::unwrap_used)]
     fn evaluates_embedded_point_and_chain_rule_tangent_with_orientation() {
         let result =
             evaluate_sp_curve_candidate(&fixture(Sense::Negative, Sense::Negative), 10, 0.4)
