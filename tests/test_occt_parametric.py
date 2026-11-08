@@ -150,7 +150,9 @@ def test_parameter_units_and_lemon_torus_follow_source_formulas():
     "surface_type,expected_v,expected_z",
     [("cone", 37.5, 30.0), ("xt_cone", -37.5, -30.0)],
 )
-def test_cone_parameter_curve_preserves_each_source_axis_convention(surface_type, expected_v, expected_z):
+def test_cone_parameter_curve_preserves_each_source_axis_convention(
+    surface_type, expected_v, expected_z
+):
     from parasolid_kit import ConeSurface, XtConeSurface
 
     factory = GeometryFactory(OcctConversionOptions(source_unit="cm", target_unit="mm"))
