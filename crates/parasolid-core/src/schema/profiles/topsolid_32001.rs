@@ -1,24 +1,77 @@
-//! Complete compiled TopSolid effective-schema TypeDefinitions.
+//! Complete compiled `TopSolid` effective-schema `TypeDefinitions`.
 //!
 //! Exact layouts are checked against the retained hash-pinned catalog sources in `topsolid.rs`.
 
 use crate::schema::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
+use FieldType::{
+    Box3 as B, Character as C, Double as F, Integer as D, IntersectionPoint as H, Interval as I,
+    Logical as L, OpaquePointer as Q, PointerIndex as P, ShortInteger as N, Tag as T,
+    UnicodeCharacter as W, UnsignedByte as U, Vector as V,
+};
+
+fn field(
+    name: &str,
+    field_type: FieldType,
+    pointer_class: u16,
+    element_count: u32,
+    transmitted: bool,
+) -> FieldDefinition {
+    FieldDefinition {
+        name: name.to_owned(),
+        field_type,
+        pointer_class,
+        element_count,
+        transmitted,
+    }
+}
 
 pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
-    use FieldType::{
-        Box3 as B, Character as C, Double as F, Integer as D, IntersectionPoint as H,
-        Interval as I, Logical as L, OpaquePointer as Q, PointerIndex as P, ShortInteger as N,
-        Tag as T, UnicodeCharacter as W, UnsignedByte as U, Vector as V,
-    };
-    let field =
-        |name: &str, field_type, pointer_class, element_count, transmitted| FieldDefinition {
-            name: name.to_owned(),
-            field_type,
-            pointer_class,
-            element_count,
-            transmitted,
-        };
-    vec![
+    let mut definitions = Vec::with_capacity(195);
+    topsolid_32001_definitions_part_1(&mut definitions);
+    topsolid_32001_definitions_part_2(&mut definitions);
+    topsolid_32001_definitions_part_3(&mut definitions);
+    topsolid_32001_definitions_part_4(&mut definitions);
+    topsolid_32001_definitions_part_5(&mut definitions);
+    topsolid_32001_definitions_part_6(&mut definitions);
+    topsolid_32001_definitions_part_7(&mut definitions);
+    topsolid_32001_definitions_part_8(&mut definitions);
+    topsolid_32001_definitions_part_9(&mut definitions);
+    topsolid_32001_definitions_part_10(&mut definitions);
+    topsolid_32001_definitions_part_11(&mut definitions);
+    topsolid_32001_definitions_part_12(&mut definitions);
+    topsolid_32001_definitions_part_13(&mut definitions);
+    topsolid_32001_definitions_part_14(&mut definitions);
+    topsolid_32001_definitions_part_15(&mut definitions);
+    topsolid_32001_definitions_part_16(&mut definitions);
+    topsolid_32001_definitions_part_17(&mut definitions);
+    topsolid_32001_definitions_part_18(&mut definitions);
+    topsolid_32001_definitions_part_19(&mut definitions);
+    topsolid_32001_definitions_part_20(&mut definitions);
+    topsolid_32001_definitions_part_21(&mut definitions);
+    topsolid_32001_definitions_part_22(&mut definitions);
+    topsolid_32001_definitions_part_23(&mut definitions);
+    topsolid_32001_definitions_part_24(&mut definitions);
+    topsolid_32001_definitions_part_25(&mut definitions);
+    topsolid_32001_definitions_part_26(&mut definitions);
+    topsolid_32001_definitions_part_27(&mut definitions);
+    topsolid_32001_definitions_part_28(&mut definitions);
+    topsolid_32001_definitions_part_29(&mut definitions);
+    topsolid_32001_definitions_part_30(&mut definitions);
+    topsolid_32001_definitions_part_31(&mut definitions);
+    topsolid_32001_definitions_part_32(&mut definitions);
+    topsolid_32001_definitions_part_33(&mut definitions);
+    topsolid_32001_definitions_part_34(&mut definitions);
+    topsolid_32001_definitions_part_35(&mut definitions);
+    topsolid_32001_definitions_part_36(&mut definitions);
+    topsolid_32001_definitions_part_37(&mut definitions);
+    topsolid_32001_definitions_part_38(&mut definitions);
+    topsolid_32001_definitions_part_39(&mut definitions);
+    topsolid_32001_definitions_part_40(&mut definitions);
+    definitions
+}
+
+fn topsolid_32001_definitions_part_1(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(1, "NULLP", "Null", vec![], SchemaSource::Base),
         TypeDefinition::from_fields(
             2,
@@ -95,6 +148,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("branch", P, 7, 8192, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_2(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             9,
             "MARK",
@@ -154,6 +212,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_3(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             12,
             "BODY",
@@ -213,6 +276,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_4(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             14,
             "FACE",
@@ -284,6 +352,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_5(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             18,
             "VERTEX",
@@ -347,6 +420,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_6(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             31,
             "CIRCLE",
@@ -425,6 +503,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_7(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             35,
             "PARACURVE",
@@ -499,6 +582,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_8(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             39,
             "SILHOUETTE",
@@ -569,6 +657,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_9(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             44,
             "KNOT_VECTOR",
@@ -634,6 +727,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_10(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             49,
             "OBSOLETE_SP_CURVE",
@@ -712,6 +810,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_11(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             53,
             "SPHERE",
@@ -768,6 +871,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_12(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             56,
             "BLENDED_EDGE",
@@ -835,6 +943,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_13(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             59,
             "BLEND_BOUND",
@@ -911,6 +1024,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_14(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             63,
             "SILH_SURF",
@@ -986,6 +1104,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_15(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             68,
             "SPUN_SURF",
@@ -1057,6 +1180,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_16(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             72,
             "INTEGER_LIS_BLOCK",
@@ -1131,6 +1259,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("string", C, 0, 1, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_17(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             80,
             "ATTRIB_DEF",
@@ -1204,6 +1337,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("values", V, 0, 1, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_18(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             88,
             "TAG_VALUES",
@@ -1276,6 +1414,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("values", B, 0, 1, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_19(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             98,
             "UNICODE_VALUES",
@@ -1353,6 +1496,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_20(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             104,
             "BEZIER_SURF",
@@ -1427,6 +1575,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_21(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             108,
             "UNSANITISED",
@@ -1499,6 +1652,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_22(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             117,
             "OBB_TREE",
@@ -1576,6 +1734,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_23(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             121,
             "INT_PE_DATA",
@@ -1630,6 +1793,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_24(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             125,
             "SURFACE_DATA",
@@ -1708,6 +1876,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("mult", D, 0, 1, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_25(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             130,
             "PE_CURVE",
@@ -1776,6 +1949,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_26(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             134,
             "B_CURVE",
@@ -1842,6 +2020,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_27(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             138,
             "SP_CHART",
@@ -1905,6 +2088,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_28(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             143,
             "MESH_CHART",
@@ -1982,6 +2170,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_29(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             148,
             "COMB_REAL_SUBNODES",
@@ -2050,6 +2243,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_30(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             154,
             "TORUS_FORM",
@@ -2122,6 +2320,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_31(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             160,
             "SU_TREE",
@@ -2165,6 +2368,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_32(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             162,
             "POLYNOMIAL_PATCH",
@@ -2242,6 +2450,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_33(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             171,
             "ROLL_DATA",
@@ -2320,6 +2533,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_34(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             176,
             "PART_XMT_BLOCK",
@@ -2385,6 +2603,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("order", D, 0, 1, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_35(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             184,
             "HELIX_CU_FORM",
@@ -2453,6 +2676,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("values", D, 0, 1, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_36(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             191,
             "INTEGER_COMB",
@@ -2518,6 +2746,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             vec![field("facet_edge_data", P, 197, 0, true)],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_37(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             197,
             "FACET_EDGE_DATA",
@@ -2585,6 +2818,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             SchemaSource::Base,
         ),
         TypeDefinition::from_fields(202, "MESH_BLOCK", "Mesh block", vec![], SchemaSource::Base),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_38(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             203,
             "TAG_MAP",
@@ -2663,6 +2901,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_39(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             210,
             "NEW_FIELD_MAP",
@@ -2735,6 +2978,11 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
+    ]);
+}
+
+fn topsolid_32001_definitions_part_40(definitions: &mut Vec<TypeDefinition>) {
+    definitions.extend([
         TypeDefinition::from_fields(
             222,
             "LATTICE",
@@ -2811,5 +3059,5 @@ pub(crate) fn topsolid_32001_definitions() -> Vec<TypeDefinition> {
             ],
             SchemaSource::Base,
         ),
-    ]
+    ]);
 }

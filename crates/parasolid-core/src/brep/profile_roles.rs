@@ -56,11 +56,7 @@ impl RoleAccess {
                         "42ec5f0bda547618007f3ebeac1479b73d8444084d24ac228e099eb9c5b67430"
                     ) | (
                         "topsolid-v6-psolid-32001-r1",
-                        "SCH_3300259_32001_13006",
-                        "5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159"
-                    ) | (
-                        "topsolid-v6-psolid-32001-r1",
-                        "SCH_3300261_32001_13006",
+                        "SCH_3300259_32001_13006" | "SCH_3300261_32001_13006",
                         "5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159"
                     ) | (
                         "topsolid-v6-psolid-26105-r1",
@@ -394,7 +390,7 @@ fn intersection_data_field<'a>(node: &'a RawNode, role: &str) -> Option<&'a RawF
 }
 
 /// The reviewed base definitions behind one exact embedded 13006 key.
-/// TopSolid's exact catalog must retain the base fields used as B-Rep roles.
+/// `TopSolid`'s exact catalog must retain the base fields used as B-Rep roles.
 fn validate_topsolid_base_roles(
     schemas: &[SchemaResolution],
     base: &[&crate::TypeDefinition],
@@ -1422,7 +1418,7 @@ mod tests {
     }
 
     #[test]
-    fn intersection_data_roles_require_the_reviewed_uv_layout() -> Result<(), ParseError> {
+    fn intersection_data_roles_require_the_reviewed_uv_layout() {
         for uv_name in ["uv_type", "uv_kind"] {
             let definition = TypeDefinition::from_fields(
                 204,
@@ -1479,6 +1475,5 @@ mod tests {
                 assert!(roles.field(&node, "uv_kind").is_none());
             }
         }
-        Ok(())
     }
 }

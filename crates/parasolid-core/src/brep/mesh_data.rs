@@ -161,6 +161,9 @@ impl RawMeshData {
     /// Turn raw position indices into triangle coordinates when exactly one origin fits.
     ///
     /// The raw pools remain unchanged. Ambiguous or out-of-range indices are rejected.
+    ///
+    /// # Errors
+    /// Returns an error when the index origin is ambiguous or the mesh data is malformed.
     pub fn triangles_with_inferred_index_origin(
         &self,
     ) -> Result<Vec<[[f64; 3]; 3]>, MeshDataError> {
@@ -283,6 +286,9 @@ impl RawMeshData {
     ///
     /// The XT reference does not specify the angle convention or normal transforms, so this
     /// preserves the two stored values without converting or orienting them.
+    ///
+    /// # Errors
+    /// Returns an error when normal data is missing, malformed, or incompatible with `origin`.
     pub fn per_corner_normal_parameters_with_index_origin(
         &self,
         origin: MeshIndexOrigin,
@@ -410,6 +416,9 @@ impl RawMeshData {
     /// the caller to provide the already decoded transform with the same transmit index.
     /// The face and surface senses determine winding using the XT rule that orientation is
     /// positive when both senses have the same sign. Unknown senses are rejected.
+    ///
+    /// # Errors
+    /// Returns an error for a missing or mismatched transform, unknown sense, or invalid mesh.
     pub fn placed_triangles(
         &self,
         origin: MeshIndexOrigin,
@@ -475,6 +484,9 @@ impl RawMeshData {
     /// Place raw mesh triangles when exactly one position-index origin fits.
     ///
     /// The raw pools remain unchanged. Ambiguous or out-of-range indices are rejected.
+    ///
+    /// # Errors
+    /// Returns an error when the index origin is ambiguous or the mesh data is malformed.
     pub fn placed_triangles_with_inferred_index_origin(
         &self,
         transform: Option<&TransformNode>,
@@ -495,10 +507,13 @@ pub enum MeshDataError {
     },
 }
 
-/// Decode an embedded `MESH.psm_imesh` for one exact reviewed TopSolid schema key.
+/// Decode an embedded `MESH.psm_imesh` for one exact reviewed `TopSolid` schema key.
 ///
 /// `Ok(None)` means the mesh node has a null embedded link. The XT reference allows
 /// such mesh data to live in an associated mesh file, so this does not classify why.
+///
+/// # Errors
+/// Returns an error when the schema key or mesh fields and links are unsupported or malformed.
 pub fn decode_embedded_mesh(
     schema_key: &str,
     nodes: &[RawNode],
@@ -658,7 +673,9 @@ fn decode_embedded_mesh_with(
     if positions.vector_count == 0
         || position_indices.values[..position_indices.integer_count]
             .iter()
-            .any(|index| *index as usize > positions.vector_count)
+            .any(|index| {
+                usize::try_from(*index).map_or(true, |index| index > positions.vector_count)
+            })
     {
         return Err(invalid(
             psm,
@@ -693,9 +710,9 @@ fn decode_embedded_mesh_with(
             let indices = integer_pool(by_index, definitions, psm, "normal_indices")?;
             if indices.integer_count != position_indices.integer_count
                 || normals.vector_count == 0
-                || indices.values[..indices.integer_count]
-                    .iter()
-                    .any(|index| *index as usize > normals.vector_count)
+                || indices.values[..indices.integer_count].iter().any(|index| {
+                    usize::try_from(*index).map_or(true, |index| index > normals.vector_count)
+                })
             {
                 return Err(invalid(
                     psm,
@@ -723,10 +740,13 @@ fn decode_embedded_mesh_with(
 
 /// Decode the exact-profile TRANSFORM linked from a named MESH node.
 ///
-/// This is an opt-in companion to [`decode_embedded_mesh`]. Raw TopSolid field names are
+/// This is an opt-in companion to [`decode_embedded_mesh`]. Raw `TopSolid` field names are
 /// mapped only from the selected provider's definitions. A profile without a `precision`
 /// field yields `precision: None`; when that field exists, its null/non-null pointer state is
 /// honored and a non-null link must resolve to the exact reviewed `TRANSFORM_PRECISION` type.
+///
+/// # Errors
+/// Returns an error when the schema key or transform fields and links are unsupported or malformed.
 pub fn decode_mesh_linked_transform(
     schema_key: &str,
     nodes: &[RawNode],
@@ -813,8 +833,8 @@ fn decode_mesh_linked_transform_with(
             [FieldValue::PointerIndex(0)] => None,
             [FieldValue::PointerIndex(index)] => {
                 let precision_node = target(
-                    &by_index,
-                    &definitions,
+                    by_index,
+                    definitions,
                     transform.index,
                     229,
                     "TRANSFORM_PRECISION",
@@ -861,6 +881,9 @@ fn decode_mesh_linked_transform_with(
 /// mesh data to be held outside the document, but this function does not resolve that data.
 /// A null `MESH.transform` leaves coordinates raw, with no unit conversion. The caller must
 /// select the position-index origin and provide the face sense; unknown sense is rejected.
+///
+/// # Errors
+/// Returns an error when the schema, mesh, transform, index origin, or face sense is invalid.
 pub fn decode_mesh_triangles(
     schema_key: &str,
     nodes: &[RawNode],
@@ -883,7 +906,9 @@ fn exact_double_array<const N: usize>(
 ) -> Result<[f64; N], MeshDataError> {
     let raw_field = field(node, name, FieldType::Double)?;
     validate_exact_field(node, raw_field, name)?;
-    if raw_field.definition.element_count != N as u32 || raw_field.values.len() != N {
+    if u32::try_from(N).ok() != Some(raw_field.definition.element_count)
+        || raw_field.values.len() != N
+    {
         return Err(invalid(
             node,
             name,
@@ -1003,8 +1028,9 @@ fn vector_pool(
         _ => return Err(invalid(comb, "encoding", "unknown vector encoding")),
     };
     let shift = count(comb, "shift")?;
-    let tooth_capacity = 1usize
-        .checked_shl(shift as u32)
+    let tooth_capacity = u32::try_from(shift)
+        .ok()
+        .and_then(|shift| 1usize.checked_shl(shift))
         .ok_or_else(|| invalid(comb, "shift", "tooth capacity shift is out of range"))?;
     if vector_count > capacity
         || capacity > MAX_POOL_ITEMS / components
@@ -1105,8 +1131,9 @@ fn integer_pool(
         ));
     }
     let shift = count(comb, "shift")?;
-    let tooth_capacity = 1usize
-        .checked_shl(shift as u32)
+    let tooth_capacity = u32::try_from(shift)
+        .ok()
+        .and_then(|shift| 1usize.checked_shl(shift))
         .ok_or_else(|| invalid(comb, "shift", "tooth capacity shift is out of range"))?;
     if integer_count > capacity || capacity > MAX_POOL_ITEMS || tooth_capacity > MAX_POOL_ITEMS {
         return Err(invalid(
@@ -1356,7 +1383,8 @@ fn count(node: &RawNode, name: &'static str) -> Result<usize, MeshDataError> {
         return Err(invalid(node, name, "count field is not scalar"));
     }
     match field.values.as_slice() {
-        [FieldValue::Integer(Some(value))] if *value >= 0 => Ok(*value as usize),
+        [FieldValue::Integer(Some(value))] if *value >= 0 => usize::try_from(*value)
+            .map_err(|_| invalid(node, name, "count exceeds addressable size")),
         _ => Err(invalid(node, name, "count must be one nonnegative integer")),
     }
 }

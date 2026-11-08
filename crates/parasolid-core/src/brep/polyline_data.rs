@@ -24,9 +24,9 @@ pub struct PolylineData {
 }
 
 impl PolylineData {
-    /// Decode one polyline using an exact compiled TopSolid schema profile.
+    /// Decode one polyline using an exact compiled `TopSolid` schema profile.
     ///
-    /// The supplied key must be one of the exact built-in TopSolid v6 keys;
+    /// The supplied key must be one of the exact built-in `TopSolid` v6 keys;
     /// the profile's node definitions must match the parsed nodes. No node
     /// numbers are assigned semantic roles by this decoder.
     ///
@@ -148,12 +148,11 @@ fn decode_named_polyline_fields<'a>(
             ));
         }
     };
-    let point_values = match prevalidated_point_values {
-        Some(point_values) => point_values,
-        None => {
-            let points_index = pointer(data, "pvec")?;
-            target_with_lookup(lookup, data, "pvec", points_index, "POINT_VALUES")?
-        }
+    let point_values = if let Some(point_values) = prevalidated_point_values {
+        point_values
+    } else {
+        let points_index = pointer(data, "pvec")?;
+        target_with_lookup(lookup, data, "pvec", points_index, "POINT_VALUES")?
     };
     let field = required_field(point_values, "values")?;
     if field.definition.field_type != FieldType::Vector {
@@ -478,8 +477,6 @@ fn invalid_reference(
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
-
     use super::*;
     use crate::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
 
@@ -521,9 +518,7 @@ mod tests {
                     byte_range: 0..1,
                 })
                 .collect(),
-            byte_range: Range::from(
-                usize::try_from(index).unwrap()..usize::try_from(index).unwrap() + 1,
-            ),
+            byte_range: index as usize..index as usize + 1,
             user_fields: Vec::new(),
         }
     }
@@ -622,7 +617,7 @@ mod tests {
                 .collect(),
             definition: definition.into(),
             first_schema: None,
-            byte_range: Range::from(index as usize..index as usize + 1),
+            byte_range: index as usize..index as usize + 1,
             user_fields: Vec::new(),
         }
     }

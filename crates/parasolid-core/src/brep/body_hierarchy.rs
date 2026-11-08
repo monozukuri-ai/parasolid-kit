@@ -40,6 +40,9 @@ pub struct BodyHierarchyData {
 
 impl BodyHierarchyData {
     /// Resolves the child head, treating an absent transmit target as XT null.
+    ///
+    /// # Errors
+    /// Returns an error if node indices are ambiguous.
     pub fn effective_child_head(&self, nodes: &[RawNode]) -> Result<Option<u32>, ParseError> {
         effective_pointer(nodes, self.child_head)
     }
@@ -48,6 +51,9 @@ impl BodyHierarchyData {
     ///
     /// XT interprets unresolved indices as zero; the original indices remain in
     /// this value and in the source `RawNode` for diagnostics or later checks.
+    ///
+    /// # Errors
+    /// Returns an error if node indices are ambiguous.
     pub fn unresolved_references(
         &self,
         nodes: &[RawNode],
@@ -69,11 +75,15 @@ impl BodyHierarchyData {
         Ok(unresolved)
     }
 
-    /// Decode BODY hierarchy fields under an exact reviewed TopSolid v6 profile.
+    /// Decode BODY hierarchy fields under an exact reviewed `TopSolid` v6 profile.
     ///
-    /// Only TopSolid keys whose compiled effective BODY definition contains
+    /// Only `TopSolid` keys whose compiled effective BODY definition contains
     /// the complete reviewed hierarchy roles are accepted. The owner target's
     /// type remains unclassified.
+    ///
+    /// # Errors
+    /// Returns an error for an unsupported key, uncovered BODY layout, schema
+    /// mismatch, malformed relationship fields, or invalid referenced BODY nodes.
     pub fn decode_builtin_topsolid(
         nodes: &[RawNode],
         schema_key: &str,
@@ -95,7 +105,7 @@ impl BodyHierarchyData {
         })
     }
 
-    /// Decode ordered child BODY links under an exact reviewed TopSolid profile.
+    /// Decode ordered child BODY links under an exact reviewed `TopSolid` profile.
     ///
     /// The caller must select whether the chain is null-terminated or circular.
     ///
@@ -287,6 +297,10 @@ fn with_builtin_topsolid_provider<T>(
 /// [`BodyHierarchyData::unresolved_references`] exposes such indices. The owner
 /// target type remains unclassified because ownership can refer to a world or
 /// another body. This function does not traverse links or infer chain semantics.
+///
+/// # Errors
+/// Returns an error for duplicate node indices, missing or non-BODY source nodes,
+/// duplicate field names, malformed fields, or references to a non-BODY node.
 pub fn decode_named_body_hierarchy(
     nodes: &[RawNode],
     body_index: u32,
@@ -380,6 +394,11 @@ pub fn decode_named_body_hierarchy(
 /// to the requested parent. Each effective `previous` pointer must reciprocate
 /// the preceding child's effective `next` pointer. XT-unresolved indices act as
 /// null here; no termination convention is selected implicitly.
+///
+/// # Errors
+/// Returns an error for duplicate nodes, invalid BODY references, inconsistent
+/// owner or sibling links, a cycle, or a chain that violates the selected
+/// termination semantics.
 pub fn decode_named_body_children(
     nodes: &[RawNode],
     parent_index: u32,

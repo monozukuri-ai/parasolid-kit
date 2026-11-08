@@ -1,4 +1,4 @@
-//! Opt-in X_T/X_B B-Rep mapping with source-keyed BODY hierarchy sidecars.
+//! Opt-in `X_T`/`X_B` B-Rep mapping with source-keyed BODY hierarchy sidecars.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -54,15 +54,15 @@ pub struct BrepModelWithResolvedBodyHierarchy {
     pub body_children: Vec<MappedBodyChildren>,
 }
 
-/// Map an X_T B-Rep and retain its direct BODY hierarchy fields as a sidecar.
+/// Map an `X_T` B-Rep and retain its direct BODY hierarchy fields as a sidecar.
 ///
-/// This opt-in accepts only the exact reviewed TopSolid v6 profiles supported
+/// This opt-in accepts only the exact reviewed `TopSolid` v6 profiles supported
 /// by [`BodyHierarchyData::decode_builtin_topsolid`]. It preserves raw transmit
 /// links and does not choose child-chain termination or flatten child bodies
 /// into their parents. Ordinary [`map_xt_brep`] behavior is unchanged.
 ///
 /// # Errors
-/// Returns the ordinary X_T B-Rep mapping errors, or the exact-profile,
+/// Returns the ordinary `X_T` B-Rep mapping errors, or the exact-profile,
 /// uncovered-layout, duplicate-index, or reference errors from the hierarchy
 /// decoder and source-index join.
 pub fn map_xt_brep_with_body_hierarchy(
@@ -73,10 +73,14 @@ pub fn map_xt_brep_with_body_hierarchy(
     map_brep_with_body_hierarchy(document.schema_key.raw(), &document.nodes, model)
 }
 
-/// Map an X_B B-Rep and retain its direct BODY hierarchy fields as a sidecar.
+/// Map an `X_B` B-Rep and retain its direct BODY hierarchy fields as a sidecar.
 ///
-/// This accepts only the exact reviewed TopSolid v6 profiles with the complete
+/// This accepts only the exact reviewed `TopSolid` v6 profiles with the complete
 /// effective BODY hierarchy layout. Raw transmit links remain in the sidecar.
+///
+/// # Errors
+/// Returns ordinary X_B mapping errors, or errors from exact-profile validation,
+/// hierarchy decoding, duplicate-index checks, or the source-index join.
 pub fn map_xb_brep_with_body_hierarchy(
     document: &XbDocument,
 ) -> Result<BrepModelWithBodyHierarchy, ParseError> {
@@ -104,11 +108,14 @@ fn map_brep_with_body_hierarchy(
     })
 }
 
-/// Map an X_T B-Rep and resolve compound child chains to mapped BODY IDs.
+/// Map an `X_T` B-Rep and resolve compound child chains to mapped BODY IDs.
 ///
 /// The caller selects the sibling-chain termination convention. Raw hierarchy
 /// records are retained alongside resolved IDs, and ordinary
 /// [`map_xt_brep`] behavior is unchanged.
+///
+/// # Errors
+/// Returns errors from B-Rep mapping, hierarchy decoding, or child-link resolution.
 pub fn map_xt_brep_with_resolved_body_hierarchy(
     document: &XtDocument,
     termination: BodyChildChainTermination,
@@ -122,11 +129,14 @@ pub fn map_xt_brep_with_resolved_body_hierarchy(
     )
 }
 
-/// Map an X_B B-Rep and resolve compound child chains to mapped BODY IDs.
+/// Map an `X_B` B-Rep and resolve compound child chains to mapped BODY IDs.
 ///
 /// The caller selects the sibling-chain termination convention. Raw transmit
 /// links are retained alongside resolved IDs; ordinary [`map_xb_brep`]
 /// behavior is unchanged.
+///
+/// # Errors
+/// Returns errors from B-Rep mapping, hierarchy decoding, or child-link resolution.
 pub fn map_xb_brep_with_resolved_body_hierarchy(
     document: &XbDocument,
     termination: BodyChildChainTermination,
@@ -419,9 +429,13 @@ fn ensure_acyclic_body_children(
     for link in children {
         adjacency.insert(link.parent_brep_body_id, &link.child_brep_body_ids);
         for child in &link.child_brep_body_ids {
-            let degree = indegree
-                .get_mut(child)
-                .expect("child IDs were resolved during join");
+            let degree = indegree.get_mut(child).ok_or_else(|| {
+                invalid_body_link(
+                    link.parent_source_node_index,
+                    *child,
+                    "mapped child BODY ID",
+                )
+            })?;
             *degree += 1;
         }
     }
@@ -435,9 +449,13 @@ fn ensure_acyclic_body_children(
         visited += 1;
         if let Some(child_ids) = adjacency.get(&parent) {
             for child in *child_ids {
-                let degree = indegree
-                    .get_mut(child)
-                    .expect("mapped child ID was checked");
+                let degree = indegree.get_mut(child).ok_or_else(|| {
+                    invalid_body_link(
+                        sources.get(&parent).copied().unwrap_or_default(),
+                        *child,
+                        "mapped child BODY ID",
+                    )
+                })?;
                 *degree -= 1;
                 if *degree == 0 {
                     ready.push_back(*child);
@@ -488,7 +506,7 @@ mod tests {
     use super::*;
     use crate::brep::{BodyKind, BrepMetrics, BrepSourceFormat, SourceNodeRef, TopologyValidation};
     use crate::{DocumentLimits, FieldType, FieldValue, SchemaProvider, parse_xt};
-    use std::ops::Range;
+    use std::fmt::Write as _;
 
     const SYNTHETIC_SCHEMA_KEY: &str = "SCH_3300259_32001_13006";
 
@@ -512,11 +530,13 @@ mod tests {
                 .iter()
                 .find_map(|(name, value)| (*name == field.name.as_str()).then_some(*value))
                 .unwrap_or_else(|| match field.field_type {
-                    FieldType::UnsignedByte | FieldType::ShortInteger => "0",
+                    FieldType::UnsignedByte
+                    | FieldType::ShortInteger
+                    | FieldType::Integer
+                    | FieldType::PointerIndex => "0",
                     FieldType::Character => "+",
                     FieldType::Logical => "F",
                     FieldType::UnicodeCharacter => "0",
-                    FieldType::Integer | FieldType::PointerIndex => "0",
                     FieldType::Tag
                     | FieldType::Double
                     | FieldType::Interval
@@ -612,16 +632,17 @@ mod tests {
     }
 
     fn encoded_delta_field(encoded: &mut String, field: &crate::FieldDefinition) {
-        encoded.push_str(&format!(
+        let _ = write!(
+            encoded,
             "{} {}{} {}",
             field.name.len(),
             field.name,
             field.pointer_class,
             field.element_count
-        ));
+        );
         if field.pointer_class == 0 {
             let code = field.field_type.code();
-            encoded.push_str(&format!(" {} {}", code.len(), code));
+            let _ = write!(encoded, " {} {}", code.len(), code);
         }
         if field.element_count == 1 {
             if field.pointer_class != 0 {
@@ -653,7 +674,7 @@ mod tests {
             node_type: 12,
             type_name: "BODY".into(),
             node_id: None,
-            byte_range: Range::from(node_index as usize..node_index as usize + 1),
+            byte_range: node_index as usize..node_index as usize + 1,
         }
     }
 

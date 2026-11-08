@@ -113,11 +113,7 @@ fn is_topsolid_builtin_profile(provider: &SchemaProviderResolution, key: &str) -
                 "42ec5f0bda547618007f3ebeac1479b73d8444084d24ac228e099eb9c5b67430"
             ) | (
                 "topsolid-v6-psolid-32001-r1",
-                "SCH_3300259_32001_13006",
-                "5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159"
-            ) | (
-                "topsolid-v6-psolid-32001-r1",
-                "SCH_3300261_32001_13006",
+                "SCH_3300259_32001_13006" | "SCH_3300261_32001_13006",
                 "5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159"
             ) | (
                 "topsolid-v6-psolid-26105-r1",
@@ -134,6 +130,9 @@ impl AssemblyStructure {
     /// instance, matching [`Self::place_point`]. `max_expanded_instances`
     /// bounds child-instance visits, including repeated visits through shared
     /// assembly DAGs.
+    /// # Errors
+    /// Returns an error if the root or any referenced instance is invalid, the
+    /// graph contains a cycle, or the expansion cap is exceeded.
     pub fn leaf_body_instance_paths(
         &self,
         root_assembly: u32,
@@ -151,6 +150,10 @@ impl AssemblyStructure {
     /// Place a point through the listed instances, ordered from leaf to root.
     /// A null instance transform acts as identity; an empty path leaves the
     /// point in its current frame.
+    ///
+    /// # Errors
+    /// Returns an error for non-finite points, unresolved references, or a path
+    /// that does not follow nested assemblies.
     pub fn place_point(
         &self,
         mut point: [f64; 3],
@@ -187,6 +190,10 @@ impl AssemblyStructure {
 
     /// Place triangle vertices through the listed instances, ordered from leaf to root.
     /// The input is preserved and the returned triangles retain their vertex order.
+    ///
+    /// # Errors
+    /// Returns an error for non-finite vertices, unresolved references, invalid
+    /// paths, or non-finite composed placements.
     pub fn place_triangles(
         &self,
         triangles: &[[[f64; 3]; 3]],
@@ -263,6 +270,10 @@ impl AssemblyStructure {
     ///
     /// The first instance must target a BODY, joined to `brep` by the BODY's
     /// source transmit index. Triangle vertex order is preserved by placement.
+    ///
+    /// # Errors
+    /// Returns an error for an empty or invalid BODY path, an unresolved BODY,
+    /// failed tessellation, or invalid placement data.
     pub fn tessellate_body_instance(
         &self,
         brep: &super::BrepModel,
@@ -289,6 +300,10 @@ impl AssemblyStructure {
     ///
     /// Triangle order follows the source instance paths and then each body's
     /// tessellation order. Any invalid leaf makes the whole operation fail.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid assembly graph, exceeded expansion cap,
+    /// or any BODY that cannot be tessellated and placed.
     pub fn tessellate_assembly_bodies(
         &self,
         brep: &super::BrepModel,
@@ -310,6 +325,11 @@ impl AssemblyStructure {
 
     /// Tessellate and place every supported leaf BODY occurrence, expanding
     /// any resolved compound BODY children in their source order.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid assembly graph, exceeded expansion cap,
+    /// unresolved BODY hierarchy, or any BODY that cannot be tessellated and
+    /// placed.
     pub fn tessellate_resolved_assembly_bodies(
         &self,
         brep: &super::BrepModelWithResolvedBodyHierarchy,
@@ -533,7 +553,9 @@ fn enumerate_leaf_paths(
             }
             continue;
         }
-        frames.last_mut().expect("assembly frame exists").1 += 1;
+        if let Some(frame) = frames.last_mut() {
+            frame.1 += 1;
+        }
 
         if expanded_instances >= max_expanded_instances {
             return Err(invalid_field(
@@ -631,6 +653,10 @@ impl TransformNode {
     /// Precision corrections are added to the raw matrix and translation once
     /// for this application; stored source values are left untouched. Null or
     /// zero perspective terms are accepted, but nonzero perspective is not.
+    ///
+    /// # Errors
+    /// Returns an error if the point or transform is non-finite, the scale is
+    /// zero, perspective is nonzero, or the placed point is non-finite.
     pub fn transform_point(&self, point: [f64; 3]) -> Result<[f64; 3], ParseError> {
         if point.iter().any(|value| !value.is_finite())
             || self
@@ -684,7 +710,7 @@ pub struct TransformPrecision {
 
 /// Map assembly structure from an `X_B` document.
 ///
-/// Only explicit named caller schemas and exact reviewed SolidWorks or TopSolid
+/// Only explicit named caller schemas and exact reviewed `SolidWorks` or `TopSolid`
 /// profiles are accepted. No placement is composed or applied to B-Rep geometry.
 ///
 /// # Errors
@@ -1342,7 +1368,7 @@ fn validate_layout(
                     node,
                     role,
                     base,
-                    &schema.definition.source,
+                    schema.definition.source,
                     &schema.edits,
                     names,
                 )
@@ -1361,7 +1387,7 @@ fn embedded_roles_are_copies(
     node: &RawNode,
     role: &str,
     base: &TypeDefinition,
-    source: &SchemaSource,
+    source: SchemaSource,
     edits: &[SchemaEdit],
     fields: AssemblyFieldNames,
 ) -> bool {
@@ -1607,11 +1633,7 @@ fn invalid_field(node: Option<&RawNode>, message: &str) -> ParseError {
         }),
     )
 }
-fn unique_by_index<'a, T>(
-    items: &'a [T],
-    index: u32,
-    get_index: impl Fn(&T) -> u32,
-) -> Option<&'a T> {
+fn unique_by_index<T>(items: &[T], index: u32, get_index: impl Fn(&T) -> u32) -> Option<&T> {
     let mut matches = items.iter().filter(|item| get_index(item) == index);
     let item = matches.next()?;
     matches.next().is_none().then_some(item)
