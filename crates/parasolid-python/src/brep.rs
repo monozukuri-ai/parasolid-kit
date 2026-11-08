@@ -895,6 +895,15 @@ fn surface_kind_to_python<'py>(
             value.set_item("section", section)?;
             value.set_item("direction", vector_tuple(*direction))?;
         }
+        SurfaceKind::SweptWithSource {
+            section,
+            sweep,
+            scale,
+        } => {
+            value.set_item("section", section)?;
+            value.set_item("direction", vector_tuple(*sweep))?;
+            value.set_item("scale", scale)?;
+        }
         SurfaceKind::Offset {
             basis_surface,
             offset,
