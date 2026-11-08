@@ -749,10 +749,14 @@ fn tessellate_brep_to_mesh_inner(
                         curve_sampling_failed = true;
                         break;
                     };
+                    let Some(surface) = surf else {
+                        curve_sampling_failed = true;
+                        break;
+                    };
                     match surface_parametric_uv_loop(
                         brep,
                         surface_id,
-                        &surf.unwrap().kind,
+                        &surface.kind,
                         l,
                         &he_map,
                         &edge_map,
@@ -975,8 +979,10 @@ fn tessellate_brep_to_mesh_inner(
                                 };
                                 (t_s, t_e)
                             } else {
-                                let ps = p_start.unwrap();
-                                let pe = p_end.unwrap();
+                                let (Some(ps), Some(pe)) = (p_start, p_end) else {
+                                    curve_sampling_failed = true;
+                                    break;
+                                };
                                 let d_s = vec3_sub(ps, c);
                                 let t_s = vec3_dot(d_s, v_axis).atan2(vec3_dot(d_s, u_axis));
                                 let d_e = vec3_sub(pe, c);
@@ -1058,8 +1064,10 @@ fn tessellate_brep_to_mesh_inner(
                                 };
                                 (t_s, t_e)
                             } else {
-                                let ps = p_start.unwrap();
-                                let pe = p_end.unwrap();
+                                let (Some(ps), Some(pe)) = (p_start, p_end) else {
+                                    curve_sampling_failed = true;
+                                    break;
+                                };
                                 let d_s = vec3_sub(ps, c);
                                 let t_s = (vec3_dot(d_s, v_axis) / b.max(1e-12))
                                     .atan2(vec3_dot(d_s, u_axis) / a.max(1e-12));
@@ -1126,12 +1134,13 @@ fn tessellate_brep_to_mesh_inner(
                             } else {
                                 (p_end_param, p_start_param)
                             };
-                            let Some(samples) = sample_nurbs_trim(
-                                &basis_curve.unwrap().kind,
-                                t_start,
-                                t_end,
-                                chord_error,
-                            ) else {
+                            let Some(basis_curve) = basis_curve else {
+                                curve_sampling_failed = true;
+                                break;
+                            };
+                            let Some(samples) =
+                                sample_nurbs_trim(&basis_curve.kind, t_start, t_end, chord_error)
+                            else {
                                 curve_sampling_failed = true;
                                 break;
                             };

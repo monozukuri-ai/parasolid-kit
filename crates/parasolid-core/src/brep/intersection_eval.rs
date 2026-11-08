@@ -301,13 +301,13 @@ fn evaluate_plane_swept_offset_intersection_candidate(
     let mut tangents = Vec::with_capacity(points.len());
     let mut offset_uvs = Vec::with_capacity(points.len());
     for (point, uv) in points.iter().zip(uv_chart) {
-        let (plane_uv, offset_uv) = if plane_first {
+        let (plane_uv_pair, offset_uv) = if plane_first {
             (uv.first_surface, uv.second_surface)
         } else {
             (uv.second_surface, uv.first_surface)
         };
         let [Some(plane_u), Some(plane_v)] =
-            plane_uv.ok_or(IntersectionEvaluationError::Unsupported(
+            plane_uv_pair.ok_or(IntersectionEvaluationError::Unsupported(
                 "plane/swept-offset chart requires complete UV pairs",
             ))?
         else {
@@ -1355,9 +1355,9 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
             "intersection must reference two distinct support surfaces",
         ));
     }
-    let a = unique_surface(brep, surfaces[0])?;
-    let b = unique_surface(brep, surfaces[1])?;
-    let (plane, cylinder, order) = match (&a.kind, &b.kind) {
+    let surface_a = unique_surface(brep, surfaces[0])?;
+    let surface_b = unique_surface(brep, surfaces[1])?;
+    let (plane, cylinder, order) = match (&surface_a.kind, &surface_b.kind) {
         (
             SurfaceKind::Plane { point, normal, .. },
             SurfaceKind::Cylinder {
@@ -1367,8 +1367,8 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
                 ..
             },
         ) => (
-            (point.to_array(), normal.to_array(), a.sense),
-            (cp.to_array(), axis.to_array(), *radius, b.sense),
+            (point.to_array(), normal.to_array(), surface_a.sense),
+            (cp.to_array(), axis.to_array(), *radius, surface_b.sense),
             1.0,
         ),
         (
@@ -1380,8 +1380,8 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
             },
             SurfaceKind::Plane { point, normal, .. },
         ) => (
-            (point.to_array(), normal.to_array(), b.sense),
-            (cp.to_array(), axis.to_array(), *radius, a.sense),
+            (point.to_array(), normal.to_array(), surface_b.sense),
+            (cp.to_array(), axis.to_array(), *radius, surface_a.sense),
             -1.0,
         ),
         _ => {
@@ -1415,7 +1415,10 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
             "invalid plane/cylinder geometry",
         ));
     }
-    let points: Vec<_> = chart_points.iter().map(|p| p.to_array()).collect();
+    let points: Vec<_> = chart_points
+        .iter()
+        .map(|chart_point| chart_point.to_array())
+        .collect();
     let (Some(&first_point), Some(&last_point)) = (points.first(), points.last()) else {
         return Err(IntersectionEvaluationError::InvalidInput(
             "intersection chart is empty",
@@ -1438,17 +1441,24 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
         .chain(plane.0.iter())
         .fold(1.0_f64, |m, x| m.max(x.abs()));
     let tolerance = EPS_FACTOR * coordinate_scale;
-    for p in &points {
-        let radial = sub(sub(*p, center), scale(axis, dot(sub(*p, center), axis)));
-        if dot(sub(*p, plane.0), pn).abs() > tolerance || (norm(radial) - radius).abs() > tolerance
+    for point in &points {
+        let radial = sub(
+            sub(*point, center),
+            scale(axis, dot(sub(*point, center), axis)),
+        );
+        if dot(sub(*point, plane.0), pn).abs() > tolerance
+            || (norm(radial) - radius).abs() > tolerance
         {
             return Err(IntersectionEvaluationError::InvalidInput(
                 "intersection chart point is not on both support surfaces",
             ));
         }
     }
-    let tangent_at = |p: [f64; 3]| -> Result<[f64; 3], IntersectionEvaluationError> {
-        let radial = sub(sub(p, center), scale(axis, dot(sub(p, center), axis)));
+    let tangent_at = |point: [f64; 3]| -> Result<[f64; 3], IntersectionEvaluationError> {
+        let radial = sub(
+            sub(point, center),
+            scale(axis, dot(sub(point, center), axis)),
+        );
         normalize(scale(cross(pn, scale(radial, cylinder_sense)), order)).ok_or(
             IntersectionEvaluationError::Unsupported(
                 "plane/cylinder intersection is singular at a chart point",
@@ -1468,26 +1478,26 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
         .ok_or(IntersectionEvaluationError::InvalidInput(
             "intersection chart base scale must be finite and positive",
         ))?;
-    for i in 0..points.len() - 1 {
-        let chord = sub(points[i + 1], points[i]);
+    for station_index in 0..points.len() - 1 {
+        let chord = sub(points[station_index + 1], points[station_index]);
         let length = norm(chord);
-        let tangent = tangent_at(points[i])?;
+        let tangent = tangent_at(points[station_index])?;
         if !length.is_finite() || length <= tolerance || dot(tangent, chord) <= 0.0 {
             return Err(IntersectionEvaluationError::InvalidInput(
                 "degenerate or reversed intersection chart chord",
             ));
         }
-        let next_parameter = ts[i] + length * scale_at;
-        if !next_parameter.is_finite() || next_parameter <= ts[i] {
+        let next_parameter = ts[station_index] + length * scale_at;
+        if !next_parameter.is_finite() || next_parameter <= ts[station_index] {
             return Err(IntersectionEvaluationError::InvalidInput(
                 "intersection chart parameter range is degenerate",
             ));
         }
         ts.push(next_parameter);
-        if i + 1 < points.len() - 1 {
+        if station_index + 1 < points.len() - 1 {
             let previous = chord;
-            let next = sub(points[i + 2], points[i + 1]);
-            let station_tangent = tangent_at(points[i + 1])?;
+            let next = sub(points[station_index + 2], points[station_index + 1]);
+            let station_tangent = tangent_at(points[station_index + 1])?;
             let previous_length = norm(previous);
             let next_length = norm(next);
             let cos_b = dot(station_tangent, previous) / previous_length;
@@ -1513,32 +1523,38 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
     if parameter < ts[0] || parameter > last_parameter {
         return Err(IntersectionEvaluationError::OutsideChartDomain);
     }
-    if let Some(i) = ts.iter().position(|t| *t == parameter) {
+    if let Some(station_index) = ts.iter().position(|station| *station == parameter) {
         return Ok(IntersectionCurveEvaluation {
-            point: points[i],
-            tangent: tangent_at(points[i])?,
+            point: points[station_index],
+            tangent: tangent_at(points[station_index])?,
         });
     }
-    let i = ts
+    let station_index = ts
         .windows(2)
         .position(|w| w[0] < parameter && parameter < w[1])
         .ok_or(IntersectionEvaluationError::OutsideChartDomain)?;
-    let f = (parameter - ts[i]) / (ts[i + 1] - ts[i]);
-    let chord_point = add(points[i], scale(sub(points[i + 1], points[i]), f));
-    let chord_normal = normalize(sub(points[i + 1], points[i])).ok_or(
+    let fraction = (parameter - ts[station_index]) / (ts[station_index + 1] - ts[station_index]);
+    let chord_point = add(
+        points[station_index],
+        scale(
+            sub(points[station_index + 1], points[station_index]),
+            fraction,
+        ),
+    );
+    let chord_normal = normalize(sub(points[station_index + 1], points[station_index])).ok_or(
         IntersectionEvaluationError::InvalidInput("zero-length chart chord"),
     )?;
     let line_dir =
         normalize(cross(chord_normal, pn)).ok_or(IntersectionEvaluationError::Unsupported(
             "chart plane and plane support do not define a unique line",
         ))?;
-    let d = dot(pn, plane.0);
-    let q = dot(chord_normal, chord_point);
+    let plane_offset = dot(pn, plane.0);
+    let chord_offset = dot(chord_normal, chord_point);
     let cross_n = cross(chord_normal, pn);
     let line_point = scale(
         add(
-            scale(cross(pn, cross_n), q),
-            scale(cross(cross_n, chord_normal), d),
+            scale(cross(pn, cross_n), chord_offset),
+            scale(cross(cross_n, chord_normal), plane_offset),
         ),
         1.0 / dot(cross_n, cross_n),
     );
@@ -1564,10 +1580,11 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
             scale(line_dir, (-bb + disc.sqrt()) / (2.0 * aa)),
         ),
     ];
-    candidates.dedup_by(|a, b| near(*a, *b));
+    candidates
+        .dedup_by(|first_candidate, second_candidate| near(*first_candidate, *second_candidate));
     let point = match candidates.as_slice() {
-        [p] => *p,
-        [a, b] => {
+        [single_candidate] => *single_candidate,
+        [first_candidate, second_candidate] => {
             let Some(error) = chart_parameters
                 .chordal_error
                 .filter(|e| e.is_finite() && *e >= 0.0)
@@ -1576,12 +1593,12 @@ pub fn evaluate_plane_cylinder_intersection_candidate(
                     "ambiguous plane/cylinder chart-plane roots without chordal error",
                 ));
             };
-            let da = norm(sub(*a, chord_point));
-            let db = norm(sub(*b, chord_point));
+            let first_distance = norm(sub(*first_candidate, chord_point));
+            let second_distance = norm(sub(*second_candidate, chord_point));
             let limit = error + tolerance;
-            match (da <= limit, db <= limit) {
-                (true, false) => *a,
-                (false, true) => *b,
+            match (first_distance <= limit, second_distance <= limit) {
+                (true, false) => *first_candidate,
+                (false, true) => *second_candidate,
                 _ => {
                     return Err(IntersectionEvaluationError::Unsupported(
                         "ambiguous plane/cylinder chart-plane roots",
@@ -2072,15 +2089,21 @@ fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
     let relative = sub(line_point, cone.0);
     let v0 = -dot(relative, axis);
     let vd = -dot(line_direction, axis);
-    let radial0 = sub(relative, scale(axis, dot(relative, axis)));
-    let radiald = sub(line_direction, scale(axis, dot(line_direction, axis)));
-    let radius0 = cone.2 + v0 * tangent_half_angle;
-    let radiusd = vd * tangent_half_angle;
-    let aa = dot(radiald, radiald) - radiusd * radiusd;
-    let bb = 2.0 * (dot(radial0, radiald) - radius0 * radiusd);
-    let cc = dot(radial0, radial0) - radius0 * radius0;
-    let aa_scale = dot(radiald, radiald).abs() + (radiusd * radiusd).abs();
-    let bb_scale = 2.0 * (dot(radial0, radiald).abs() + (radius0 * radiusd).abs());
+    let radial_at_origin = sub(relative, scale(axis, dot(relative, axis)));
+    let radial_along_direction = sub(line_direction, scale(axis, dot(line_direction, axis)));
+    let radius_at_origin = cone.2 + v0 * tangent_half_angle;
+    let radius_along_direction = vd * tangent_half_angle;
+    let aa = dot(radial_along_direction, radial_along_direction)
+        - radius_along_direction * radius_along_direction;
+    let bb = 2.0
+        * (dot(radial_at_origin, radial_along_direction)
+            - radius_at_origin * radius_along_direction);
+    let cc = dot(radial_at_origin, radial_at_origin) - radius_at_origin * radius_at_origin;
+    let aa_scale = dot(radial_along_direction, radial_along_direction).abs()
+        + (radius_along_direction * radius_along_direction).abs();
+    let bb_scale = 2.0
+        * (dot(radial_at_origin, radial_along_direction).abs()
+            + (radius_at_origin * radius_along_direction).abs());
     if ![aa, bb, cc, aa_scale, bb_scale]
         .into_iter()
         .all(f64::is_finite)
@@ -3256,7 +3279,7 @@ fn cone_cylinder_intersection_roots_with_axis(
     let solve = |mut uv: (f64, f64)| -> Option<[f64; 3]> {
         for _ in 0..40 {
             let point = cone_point(uv.0, uv.1);
-            let (du_point, dv_point, _, _) = cone_partials(uv.0, uv.1);
+            let (u_tangent, v_tangent, _, _) = cone_partials(uv.0, uv.1);
             let cylinder_offset = sub(point, cylinder_origin);
             let cylinder_radial = sub(
                 cylinder_offset,
@@ -3264,12 +3287,18 @@ fn cone_cylinder_intersection_roots_with_axis(
             );
             let f1 = dot(sub(point, chord_point), section_normal);
             let f2 = dot(cylinder_radial, cylinder_radial) - cylinder_radius * cylinder_radius;
-            let j11 = dot(du_point, section_normal);
-            let j12 = dot(dv_point, section_normal);
-            let radial_du = sub(du_point, scale(cylinder_axis, dot(du_point, cylinder_axis)));
-            let radial_dv = sub(dv_point, scale(cylinder_axis, dot(dv_point, cylinder_axis)));
-            let j21 = 2.0 * dot(cylinder_radial, radial_du);
-            let j22 = 2.0 * dot(cylinder_radial, radial_dv);
+            let j11 = dot(u_tangent, section_normal);
+            let j12 = dot(v_tangent, section_normal);
+            let radial_u_tangent = sub(
+                u_tangent,
+                scale(cylinder_axis, dot(u_tangent, cylinder_axis)),
+            );
+            let radial_v_tangent = sub(
+                v_tangent,
+                scale(cylinder_axis, dot(v_tangent, cylinder_axis)),
+            );
+            let j21 = 2.0 * dot(cylinder_radial, radial_u_tangent);
+            let j22 = 2.0 * dot(cylinder_radial, radial_v_tangent);
             let determinant = j11 * j22 - j12 * j21;
             let row1_norm = norm([j11, j12, 0.0]);
             let row2_norm = norm([j21, j22, 0.0]);

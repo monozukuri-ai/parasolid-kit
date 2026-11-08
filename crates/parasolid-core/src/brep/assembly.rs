@@ -737,6 +737,10 @@ pub fn map_xt_assembly(document: &XtDocument) -> Result<AssemblyStructure, Parse
     )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Assembly mapping keeps profile, layout, reference, and transform validation in their established order."
+)]
 fn map_assembly(
     nodes: &[RawNode],
     provider: &SchemaProviderResolution,
@@ -954,7 +958,7 @@ fn map_assembly(
         }
         let child = chain(
             node,
-            ChainFields {
+            &ChainFields {
                 head: fields.assembly_sub_instances,
                 next: fields.instance_next_in_assembly,
                 previous: fields.instance_previous_in_assembly,
@@ -966,7 +970,7 @@ fn map_assembly(
         )?;
         let referencing = chain(
             node,
-            ChainFields {
+            &ChainFields {
                 head: fields.assembly_instances,
                 next: fields.instance_next_of_part,
                 previous: fields.instance_previous_of_part,
@@ -1498,7 +1502,7 @@ struct ChainFields {
 
 fn chain(
     owner: &RawNode,
-    fields: ChainFields,
+    fields: &ChainFields,
     by_index: &BTreeMap<u32, &RawNode>,
     instances: &BTreeSet<u32>,
     mapped: &BTreeMap<u32, &InstanceNode>,
