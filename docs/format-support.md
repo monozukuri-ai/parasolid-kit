@@ -36,9 +36,11 @@ words that follow every node are read into `RawNode.user_fields`. A key that
 no exact profile accepts is next matched by its
 [schema family](#schema-families), the key without its modeller build; a
 document read that way reports `family_inferred` coverage. An exact profile is
-completed by its family: a type it does not declare itself is read with the
-declaration of another reviewed profile of the same family or base, while the
-provenance still names the exact profile.
+normally completed by its family: a type it does not declare itself is read
+with the declaration of another reviewed profile of the same family or base,
+while the provenance still names the exact profile. The five TopSolid v6 keys
+below instead use bundled base and effective catalogs selected by exact key;
+they do not establish support for other TopSolid keys or native packages.
 The type and field counts describe compiled base definitions; embedded input
 definitions can change the effective layout. A key without a base suffix
 transmits no schema, so its counts describe the complete layouts. Profile hashes identify the
@@ -46,6 +48,11 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 
 | Exact internal key | Profile / revision | Base types / field groups | Canonical SHA-256 |
 |---|---|---|---|
+| `SCH_2701192_26105_13006` | `topsolid-v6-sch-2701192-26105-13006-r1` / 1 | 140 / 1005 | `0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3` |
+| `SCH_3300259_32001_13006` | `topsolid-v6-sch-3300259-32001-13006-r1` / 1 | 140 / 1005 | `0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3` |
+| `SCH_3300261_32001_13006` | `topsolid-v6-sch-3300261-32001-13006-r1` / 1 | 140 / 1005 | `0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3` |
+| `SCH_3700192_36001_13006` | `topsolid-v6-sch-3700192-36001-13006-r1` / 1 | 140 / 1005 | `0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3` |
+| `SCH_3600188_36001_13006` | `topsolid-v6-sch-3600188-36001-13006-r1` / 1 | 140 / 1005 | `0dd291ea706fc306f16a78140e05e595e75c85ab63e4077e68941b127fcfdcc3` |
 | `SCH_3000000_30000` | `onshape-sch30000-r3` / 3 | 44 / 356 | `67e0f3f90c9025c16269c0b03d2365834d949797e1f4c0eb4255b153960b7bf4` |
 | `SCH_1300000_13006` | `onshape-sch13006-r6` / 6 | 40 / 327 | `2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb` |
 | `SCH_3000310_30000_13006` | `icad-sch30000-13006-r6` / 6 | 43 / 366 | `29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e` |

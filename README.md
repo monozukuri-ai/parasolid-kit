@@ -94,11 +94,13 @@ See [preview controls and saving](docs/api.md#bounded-local-preview),
 ## Supported inputs
 
 Built-in profiles cover exact Onshape V30/V13/current, extracted iCAD and
-SolidWorks partition keys, five transmit-file keys (NX and the Parasolid 24
-and 26 acceptance tests) and six standard keys of Parasolid 9 to 16 (NX,
-MicroStation, IronCAD, SolidWorks). Each has `verified_subset` coverage and is
-completed
-by its schema family; application user fields are read. A key with no exact profile is read with the
+SolidWorks partition keys, five observed TopSolid v6 X_T keys, five transmit-file
+keys (NX and the Parasolid 24 and 26 acceptance tests), and six standard keys
+of Parasolid 9 to 16 (NX, MicroStation, IronCAD, SolidWorks). These profiles
+have `verified_subset` coverage; application user fields are read. The TopSolid
+profiles use bundled base and effective catalogs for the five listed keys,
+not general TopSolid package or model decoding. Other exact profiles are
+completed by their schema family. A key with no exact profile is read with the
 [schema family](docs/format-support.md#schema-families) of its effective
 schema and base (another Parasolid build of a reviewed schema) and reports
 `family_inferred` coverage; its node types must still be covered by the

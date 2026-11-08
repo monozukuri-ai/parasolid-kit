@@ -138,3 +138,15 @@ def test_family_documentation_matches_runtime():
             assert member.profile_id in support
     for name in ("README.md", "docs/api.md", "docs/schema-catalogs.md"):
         assert "family_inferred" in (ROOT / name).read_text(encoding="utf-8"), name
+
+
+def test_topsolid_documentation_lists_exact_profile_metadata():
+    support = (ROOT / "docs/format-support.md").read_text(encoding="utf-8")
+    profiles = [p for p in builtin_profiles() if p.profile_id.startswith("topsolid-v6-")]
+    assert len(profiles) == 5
+    for profile in profiles:
+        key = profile.schema_keys[0]
+        row = next(line for line in support.splitlines() if line.startswith(f"| `{key}` |"))
+        assert f"`{profile.profile_id}` / {profile.profile_revision}" in row
+        assert f"{profile.type_count} / {profile.field_count}" in row
+        assert profile.profile_sha256 in row

@@ -48,8 +48,10 @@ println!("{} bodies; complete={}", brep.bodies.len(), brep.complete);
 The compiled profiles are listed in the
 [shared support matrix](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/format-support.md#supported-profiles),
 with exact keys, revisions, hashes, and separate raw/B-Rep/geometry evidence.
-A supported header, schema key, or raw record does not imply complete
-geometric support. An explicit
+Five observed TopSolid v6 X_T keys use bundled base and effective schema
+catalogs; they cover a verified subset and do not provide general TopSolid
+package or model decoding. A supported header, schema key, or raw record does
+not imply complete geometric support. An explicit
 `SchemaProvider` can supply an exact external catalog. Within the built-in
 registry, only the modeller build may differ from a reviewed key: another
 schema revision or base is never substituted. `SolidWorks` containers and configuration selection belong
