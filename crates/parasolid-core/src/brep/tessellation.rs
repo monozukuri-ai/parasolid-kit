@@ -202,7 +202,7 @@ pub fn tessellate_brep_body_to_mesh(
             continue;
         }
         let region = regions.get(region_id)?;
-        if region.body != body.id {
+        if region.body != body.id || matches!(region.kind, super::RegionKind::Unsupported(_)) {
             return None;
         }
         for shell_id in &region.shells {
@@ -7818,6 +7818,10 @@ mod tests {
         let mut wrong_region_owner = brep.clone();
         wrong_region_owner.regions[0].body = 11;
         assert!(tessellate_brep_body_to_mesh(&wrong_region_owner, 10, 0.1).is_none());
+
+        let mut unsupported_region = brep.clone();
+        unsupported_region.regions[0].kind = RegionKind::Unsupported(0x3f);
+        assert!(tessellate_brep_body_to_mesh(&unsupported_region, 10, 0.1).is_none());
 
         let mut wrong_shell_face = brep;
         wrong_shell_face.shells[0].back_faces[0] = 2;

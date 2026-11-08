@@ -2175,6 +2175,16 @@ impl<'a> Mapper<'a> {
                 .filter_map(|id| shells.get(usize::try_from(*id).ok()?))
                 .flat_map(|shell| shell.back_faces.iter().chain(&shell.front_faces).copied())
                 .collect::<BTreeSet<_>>();
+            if body_regions
+                .iter()
+                .any(|region| matches!(region.kind, RegionKind::Unsupported(_)))
+            {
+                return Err(self.invalid_topology_source(
+                    &body.source,
+                    "unsupported_region_type",
+                    "body contains a region with an unsupported classification",
+                ));
+            }
             match body.kind {
                 BodyKind::Solid => {
                     if body_regions.len() < 2
@@ -3820,6 +3830,54 @@ mod tests {
                 .expect_err("sheet with a solid region violates XT topology rules");
             assert_eq!(error.kind(), ErrorKind::InvalidBrepTopology);
         }
+    }
+
+    #[test]
+    fn unsupported_region_invalidates_body_topology() {
+        let source = SourceNodeRef {
+            node_index: 1,
+            node_type: 12,
+            type_name: "BODY".to_owned(),
+            node_id: None,
+            byte_range: 0..1,
+        };
+        let body = Body {
+            id: 0,
+            kind: BodyKind::Sheet,
+            size_resolution: 0.0,
+            linear_resolution: 0.0,
+            regions: vec![0],
+            edges: vec![],
+            vertices: vec![],
+            attributes: vec![],
+            source: source.clone(),
+        };
+        let region = Region {
+            id: 0,
+            kind: RegionKind::Unsupported(0x3f),
+            body: 0,
+            shells: vec![],
+            source,
+        };
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &[],
+            RoleAccess::Named,
+        );
+
+        let error = mapper
+            .validate_topology(&[body], &[region], &[], &[], &[], &[], &[], &[])
+            .expect_err("unsupported region classifications cannot form a valid body");
+
+        assert_eq!(error.kind(), ErrorKind::InvalidBrepTopology);
+        assert!(matches!(
+            error.details(),
+            ErrorDetails::BrepInvariant {
+                relationship: "unsupported_region_type",
+                ..
+            }
+        ));
     }
 
     #[test]
