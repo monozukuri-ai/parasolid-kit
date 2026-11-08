@@ -110,6 +110,8 @@ pub enum RegionKind {
     Solid,
     /// Void region (`V`).
     Void,
+    /// Unrecognized source classification, retained without interpretation.
+    Unsupported(u8),
 }
 
 impl RegionKind {
@@ -119,7 +121,21 @@ impl RegionKind {
         match self {
             Self::Solid => "solid",
             Self::Void => "void",
+            Self::Unsupported(_) => "unsupported",
         }
+    }
+}
+
+#[cfg(test)]
+mod region_kind_tests {
+    use super::RegionKind;
+
+    #[test]
+    fn unsupported_region_retains_source_value_and_stable_name() {
+        let region = RegionKind::Unsupported(0x3f);
+
+        assert_eq!(region, RegionKind::Unsupported(0x3f));
+        assert_eq!(region.as_str(), "unsupported");
     }
 }
 
