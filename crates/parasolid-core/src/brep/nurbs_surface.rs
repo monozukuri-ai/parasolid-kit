@@ -396,31 +396,47 @@ fn sampled_seam_work(control_count: usize, degree: usize) -> Option<usize> {
         .checked_mul(sample_work)
 }
 
+#[derive(Clone, Copy)]
+struct SurfaceControlGrid<'a> {
+    homogeneous: &'a [[f64; 4]],
+    u_count: usize,
+    v_count: usize,
+}
+
+#[derive(Clone, Copy)]
+struct SeamEndpointData<'a> {
+    start_points: &'a [[f64; 4]],
+    end_points: &'a [[f64; 4]],
+    start_derivatives: &'a [[f64; 4]],
+    end_derivatives: &'a [[f64; 4]],
+}
+
+#[derive(Clone, Copy)]
+struct AxisPeriodicity {
+    periodic: bool,
+    validate_seam: bool,
+}
+
 #[allow(
     clippy::float_cmp,
     reason = "This predicate proves the degree-one seam data is exactly the raw endpoint and derivative data."
 )]
 fn degree_one_periodic_data_is_exact(
-    homogeneous: &[[f64; 4]],
-    u_count: usize,
-    v_count: usize,
+    controls: SurfaceControlGrid<'_>,
     knots: &[f64],
     periodic_u: bool,
-    start_points: &[[f64; 4]],
-    end_points: &[[f64; 4]],
-    start_derivatives: &[[f64; 4]],
-    end_derivatives: &[[f64; 4]],
+    endpoints: SeamEndpointData<'_>,
 ) -> bool {
     let (curve_count, transverse_count) = if periodic_u {
-        (u_count, v_count)
+        (controls.u_count, controls.v_count)
     } else {
-        (v_count, u_count)
+        (controls.v_count, controls.u_count)
     };
     if curve_count < 2
-        || start_points.len() != transverse_count
-        || end_points.len() != transverse_count
-        || start_derivatives.len() != transverse_count
-        || end_derivatives.len() != transverse_count
+        || endpoints.start_points.len() != transverse_count
+        || endpoints.end_points.len() != transverse_count
+        || endpoints.start_derivatives.len() != transverse_count
+        || endpoints.end_derivatives.len() != transverse_count
     {
         return false;
     }
@@ -451,9 +467,9 @@ fn degree_one_periodic_data_is_exact(
     for transverse in 0..transverse_count {
         let control = |index: usize| {
             if periodic_u {
-                homogeneous[index * v_count + transverse]
+                controls.homogeneous[index * controls.v_count + transverse]
             } else {
-                homogeneous[transverse * v_count + index]
+                controls.homogeneous[transverse * controls.v_count + index]
             }
         };
         let (first, next, previous, last) = (
@@ -462,7 +478,7 @@ fn degree_one_periodic_data_is_exact(
             control(curve_count - 2),
             control(curve_count - 1),
         );
-        if start_points[transverse] != first || end_points[transverse] != last {
+        if endpoints.start_points[transverse] != first || endpoints.end_points[transverse] != last {
             return false;
         }
         for axis in 0..4 {
@@ -475,13 +491,13 @@ fn degree_one_periodic_data_is_exact(
             if exact_product_difference(
                 start_delta,
                 start_scale,
-                start_derivatives[transverse][axis],
+                endpoints.start_derivatives[transverse][axis],
                 1.0,
             ) != Some(0.0)
                 || exact_product_difference(
                     end_delta,
                     end_scale,
-                    end_derivatives[transverse][axis],
+                    endpoints.end_derivatives[transverse][axis],
                     1.0,
                 ) != Some(0.0)
             {
@@ -501,30 +517,25 @@ fn degree_one_periodic_data_is_exact(
     reason = "The only caller supplies a degree originating from NurbsSurface's u16 degree fields."
 )]
 fn clamped_periodic_data_is_exact(
-    homogeneous: &[[f64; 4]],
-    u_count: usize,
-    v_count: usize,
+    controls: SurfaceControlGrid<'_>,
     knots: &[f64],
     degree: usize,
     periodic_u: bool,
-    start_points: &[[f64; 4]],
-    end_points: &[[f64; 4]],
-    start_derivatives: &[[f64; 4]],
-    end_derivatives: &[[f64; 4]],
+    endpoints: SeamEndpointData<'_>,
 ) -> bool {
     // shortcut: clamped endpoint jets only; upgrade with checked knot insertion.
     let (curve_count, transverse_count) = if periodic_u {
-        (u_count, v_count)
+        (controls.u_count, controls.v_count)
     } else {
-        (v_count, u_count)
+        (controls.v_count, controls.u_count)
     };
     if degree <= 1
         || curve_count <= degree
         || knots.len() != curve_count + degree + 1
-        || start_points.len() != transverse_count
-        || end_points.len() != transverse_count
-        || start_derivatives.len() != transverse_count
-        || end_derivatives.len() != transverse_count
+        || endpoints.start_points.len() != transverse_count
+        || endpoints.end_points.len() != transverse_count
+        || endpoints.start_derivatives.len() != transverse_count
+        || endpoints.end_derivatives.len() != transverse_count
     {
         return false;
     }
@@ -560,9 +571,9 @@ fn clamped_periodic_data_is_exact(
     for transverse in 0..transverse_count {
         let control = |index: usize| {
             if periodic_u {
-                homogeneous[index * v_count + transverse]
+                controls.homogeneous[index * controls.v_count + transverse]
             } else {
-                homogeneous[transverse * v_count + index]
+                controls.homogeneous[transverse * controls.v_count + index]
             }
         };
         let (first, next, previous, last) = (
@@ -571,7 +582,7 @@ fn clamped_periodic_data_is_exact(
             control(curve_count - 2),
             control(curve_count - 1),
         );
-        if start_points[transverse] != first || end_points[transverse] != last {
+        if endpoints.start_points[transverse] != first || endpoints.end_points[transverse] != last {
             return false;
         }
         for axis in 0..4 {
@@ -584,13 +595,13 @@ fn clamped_periodic_data_is_exact(
             if exact_product_difference(
                 start_delta,
                 start_scale,
-                start_derivatives[transverse][axis],
+                endpoints.start_derivatives[transverse][axis],
                 1.0,
             ) != Some(0.0)
                 || exact_product_difference(
                     end_delta,
                     end_scale,
-                    end_derivatives[transverse][axis],
+                    endpoints.end_derivatives[transverse][axis],
                     1.0,
                 ) != Some(0.0)
             {
@@ -967,9 +978,7 @@ fn degree_one_transverse_seam_within_tolerance(
     reason = "Periodic seam validation keeps its ordered endpoint evaluation and rejection checks together."
 )]
 fn validate_periodic_surface_seam(
-    homogeneous: &[[f64; 4]],
-    u_count: usize,
-    v_count: usize,
+    controls: SurfaceControlGrid<'_>,
     knots: &[f64],
     transverse_knots: &[f64],
     degree: usize,
@@ -978,9 +987,9 @@ fn validate_periodic_surface_seam(
     transverse_parameter: f64,
 ) -> io::Result<()> {
     let (curve_count, transverse_count) = if periodic_u {
-        (u_count, v_count)
+        (controls.u_count, controls.v_count)
     } else {
-        (v_count, u_count)
+        (controls.v_count, controls.u_count)
     };
     let start = knots[degree];
     let end = knots[curve_count];
@@ -1032,9 +1041,9 @@ fn validate_periodic_surface_seam(
         curve.clear();
         for index in 0..curve_count {
             let control = if periodic_u {
-                homogeneous[index * v_count + transverse]
+                controls.homogeneous[index * controls.v_count + transverse]
             } else {
-                homogeneous[transverse * v_count + index]
+                controls.homogeneous[transverse * controls.v_count + index]
             };
             curve.push(control);
         }
@@ -1115,28 +1124,28 @@ fn validate_periodic_surface_seam(
         && knots[curve_count..].iter().all(|&knot| knot == end);
     let exact_raw_seam_data = if degree == 1 {
         degree_one_periodic_data_is_exact(
-            homogeneous,
-            u_count,
-            v_count,
+            controls,
             knots,
             periodic_u,
-            &start_points,
-            &end_points,
-            &start_derivatives,
-            &end_derivatives,
+            SeamEndpointData {
+                start_points: &start_points,
+                end_points: &end_points,
+                start_derivatives: &start_derivatives,
+                end_derivatives: &end_derivatives,
+            },
         )
     } else if clamped {
         clamped_periodic_data_is_exact(
-            homogeneous,
-            u_count,
-            v_count,
+            controls,
             knots,
             degree,
             periodic_u,
-            &start_points,
-            &end_points,
-            &start_derivatives,
-            &end_derivatives,
+            SeamEndpointData {
+                start_points: &start_points,
+                end_points: &end_points,
+                start_derivatives: &start_derivatives,
+                end_derivatives: &end_derivatives,
+            },
         )
     } else {
         exact_endpoint_data
@@ -1257,8 +1266,8 @@ pub(super) struct PreparedNurbsSurface {
     u_count: usize,
     v_count: usize,
     rational: bool,
-    periodic_u: bool,
-    periodic_v: bool,
+    u_axis: AxisPeriodicity,
+    v_axis: AxisPeriodicity,
     u_knots: Vec<f64>,
     v_knots: Vec<f64>,
     homogeneous: Vec<[f64; 4]>,
@@ -1266,8 +1275,6 @@ pub(super) struct PreparedNurbsSurface {
     u_max: f64,
     v_min: f64,
     v_max: f64,
-    validate_u_seam: bool,
-    validate_v_seam: bool,
 }
 
 impl PreparedNurbsSurface {
@@ -1490,8 +1497,14 @@ impl PreparedNurbsSurface {
             u_count,
             v_count,
             rational: surface.rational,
-            periodic_u,
-            periodic_v,
+            u_axis: AxisPeriodicity {
+                periodic: periodic_u,
+                validate_seam: validate_u_seam,
+            },
+            v_axis: AxisPeriodicity {
+                periodic: periodic_v,
+                validate_seam: check_v_seam,
+            },
             u_knots,
             v_knots,
             homogeneous,
@@ -1499,8 +1512,6 @@ impl PreparedNurbsSurface {
             u_max,
             v_min,
             v_max,
-            validate_u_seam,
-            validate_v_seam: check_v_seam,
         })
     }
 
@@ -1514,7 +1525,7 @@ impl PreparedNurbsSurface {
         }
         let mut evaluation_u = u;
         let mut evaluation_v = v;
-        if self.periodic_u {
+        if self.u_axis.periodic {
             let unique_u = self.u_count - self.u_degree;
             let period = self.u_knots[self.u_degree + unique_u] - self.u_min;
             let offset = u - self.u_min;
@@ -1527,7 +1538,7 @@ impl PreparedNurbsSurface {
                 evaluation_u = self.u_min;
             }
         }
-        if self.periodic_v {
+        if self.v_axis.periodic {
             let unique_v = self.v_count - self.v_degree;
             let period = self.v_knots[self.v_degree + unique_v] - self.v_min;
             let offset = v - self.v_min;
@@ -1540,16 +1551,18 @@ impl PreparedNurbsSurface {
                 evaluation_v = self.v_min;
             }
         }
-        if (!self.periodic_u && (u < self.u_min || u > self.u_max))
-            || (!self.periodic_v && (v < self.v_min || v > self.v_max))
+        if (!self.u_axis.periodic && (u < self.u_min || u > self.u_max))
+            || (!self.v_axis.periodic && (v < self.v_min || v > self.v_max))
         {
             return Err(invalid("NURBS surface parameter outside domain"));
         }
-        if self.validate_u_seam {
+        if self.u_axis.validate_seam {
             validate_periodic_surface_seam(
-                &self.homogeneous,
-                self.u_count,
-                self.v_count,
+                SurfaceControlGrid {
+                    homogeneous: &self.homogeneous,
+                    u_count: self.u_count,
+                    v_count: self.v_count,
+                },
                 &self.u_knots,
                 &self.v_knots,
                 self.u_degree,
@@ -1558,11 +1571,13 @@ impl PreparedNurbsSurface {
                 evaluation_v,
             )?;
         }
-        if self.validate_v_seam {
+        if self.v_axis.validate_seam {
             validate_periodic_surface_seam(
-                &self.homogeneous,
-                self.u_count,
-                self.v_count,
+                SurfaceControlGrid {
+                    homogeneous: &self.homogeneous,
+                    u_count: self.u_count,
+                    v_count: self.v_count,
+                },
                 &self.v_knots,
                 &self.u_knots,
                 self.v_degree,
@@ -2022,42 +2037,54 @@ mod tests {
         let end_derivatives = [[1.0, 0.0, 0.0, 0.0], [2.0, 0.0, 0.0, 1.0]];
         let knots = [0.0, 0.0, 1.0, 2.0, 3.0, 3.0];
         assert!(super::degree_one_periodic_data_is_exact(
-            &homogeneous,
-            4,
-            2,
+            super::SurfaceControlGrid {
+                homogeneous: &homogeneous,
+                u_count: 4,
+                v_count: 2,
+            },
             &knots,
             true,
-            &start,
-            &end,
-            &start_derivatives,
-            &end_derivatives,
+            super::SeamEndpointData {
+                start_points: &start,
+                end_points: &end,
+                start_derivatives: &start_derivatives,
+                end_derivatives: &end_derivatives,
+            },
         ));
 
         let mut wrong_start = start_derivatives;
         wrong_start[1][0] = 1.5;
         assert!(!super::degree_one_periodic_data_is_exact(
-            &homogeneous,
-            4,
-            2,
+            super::SurfaceControlGrid {
+                homogeneous: &homogeneous,
+                u_count: 4,
+                v_count: 2,
+            },
             &knots,
             true,
-            &start,
-            &end,
-            &wrong_start,
-            &end_derivatives,
+            super::SeamEndpointData {
+                start_points: &start,
+                end_points: &end,
+                start_derivatives: &wrong_start,
+                end_derivatives: &end_derivatives,
+            },
         ));
         let mut wrong_end = end_derivatives;
         wrong_end[1][0] = 2.5;
         assert!(!super::degree_one_periodic_data_is_exact(
-            &homogeneous,
-            4,
-            2,
+            super::SurfaceControlGrid {
+                homogeneous: &homogeneous,
+                u_count: 4,
+                v_count: 2,
+            },
             &knots,
             true,
-            &start,
-            &end,
-            &start_derivatives,
-            &wrong_end,
+            super::SeamEndpointData {
+                start_points: &start,
+                end_points: &end,
+                start_derivatives: &start_derivatives,
+                end_derivatives: &wrong_end,
+            },
         ));
     }
 

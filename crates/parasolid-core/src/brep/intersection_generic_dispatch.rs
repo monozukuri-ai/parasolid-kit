@@ -372,12 +372,11 @@ pub(crate) fn evaluate_generic_intersection(
         brep,
         &surface_a.kind,
         &surface_b.kind,
-        first_surface_uv_start,
-        first_surface_uv_end,
-        second_surface_uv_start,
-        second_surface_uv_end,
-        points[index],
-        points[index + 1],
+        [
+            [first_surface_uv_start, first_surface_uv_end],
+            [second_surface_uv_start, second_surface_uv_end],
+        ],
+        [points[index], points[index + 1]],
         fraction,
         chordal_error,
     )?;

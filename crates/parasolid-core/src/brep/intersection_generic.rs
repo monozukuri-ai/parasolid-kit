@@ -8,20 +8,22 @@ pub(crate) struct GenericIntersectionEvaluation {
     pub tangent: [f64; 3],
 }
 
+type SurfaceUvEndpoints = [[f64; 2]; 2];
+
 /// Solves the local support pair at one chart-normal section plane.
 pub(crate) fn evaluate_generic_chart_intersection(
     brep: &BrepModel,
     surface_a: &SurfaceKind,
     surface_b: &SurfaceKind,
-    surface_a_uv_start: [f64; 2],
-    surface_a_uv_end: [f64; 2],
-    surface_b_uv_start: [f64; 2],
-    surface_b_uv_end: [f64; 2],
-    chord_start: [f64; 3],
-    chord_end: [f64; 3],
+    surface_uv_endpoints: [SurfaceUvEndpoints; 2],
+    chord_points: [[f64; 3]; 2],
     fraction: f64,
     chordal_error: Option<f64>,
 ) -> Result<GenericIntersectionEvaluation, IntersectionEvaluationError> {
+    let [surface_a_uv, surface_b_uv] = surface_uv_endpoints;
+    let [surface_a_uv_start, surface_a_uv_end] = surface_a_uv;
+    let [surface_b_uv_start, surface_b_uv_end] = surface_b_uv;
+    let [chord_start, chord_end] = chord_points;
     let invalid = |message| Err(IntersectionEvaluationError::InvalidInput(message));
     if surface_a_uv_start
         .into_iter()
@@ -334,12 +336,11 @@ mod tests {
             &brep,
             &cylinder,
             &plane,
-            [0.0, 0.0],
-            [std::f64::consts::FRAC_PI_2, 0.0],
-            [start[0], start[1]],
-            [end[0], end[1]],
-            start,
-            end,
+            [
+                [[0.0, 0.0], [std::f64::consts::FRAC_PI_2, 0.0]],
+                [[start[0], start[1]], [end[0], end[1]]],
+            ],
+            [start, end],
             0.5,
             Some(0.3),
         )
@@ -362,12 +363,11 @@ mod tests {
                 &brep,
                 &cylinder,
                 &plane,
-                [0.0, 0.0],
-                [std::f64::consts::FRAC_PI_2, 0.0],
-                [start[0], start[1]],
-                [end[0], end[1]],
-                start,
-                end,
+                [
+                    [[0.0, 0.0], [std::f64::consts::FRAC_PI_2, 0.0]],
+                    [[start[0], start[1]], [end[0], end[1]]],
+                ],
+                [start, end],
                 0.5,
                 Some(0.2),
             )
