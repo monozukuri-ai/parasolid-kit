@@ -1429,6 +1429,8 @@ mod tests {
     use super::*;
     use crate::{DocumentLimits, FieldDefinition, InMemorySchemaProvider, RawField, parse_xt};
 
+    type MeshDataTestResult = Result<(), MeshDataError>;
+
     #[test]
     fn rejects_unreviewed_schema_before_reading_nodes() {
         assert_eq!(
@@ -1747,23 +1749,28 @@ mod tests {
     }
 
     #[test]
-    fn decodes_embedded_pool_values_and_preserves_capacity_and_raw_indices() {
-        let result = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
-            .unwrap()
-            .unwrap();
+    fn decodes_embedded_pool_values_and_preserves_capacity_and_raw_indices() -> MeshDataTestResult {
+        let result = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)?.ok_or(
+            MeshDataError::Invalid {
+                node: 1,
+                field: "psm_imesh",
+                reason: "fixture should contain embedded mesh data",
+            },
+        )?;
         assert_eq!(result.positions.encoding, 1);
         assert_eq!(result.positions.values, [2.0, 0.0, 0.0, 0.0, 2.0, 0.0]);
         assert_eq!(result.position_indices.values, [0, 1, 1, 99]);
         assert_eq!(result.position_indices.integer_count, 3);
         assert_eq!(result.position_indices.capacity, 4);
+        Ok(())
     }
 
     #[test]
-    fn shared_context_decodes_mesh_and_transform_from_one_validated_index() {
+    fn shared_context_decodes_mesh_and_transform_from_one_validated_index() -> MeshDataTestResult {
         let nodes = fixture(SCHEMA_KEYS[0]);
-        let context = MeshDecodeContext::new(SCHEMA_KEYS[0], &nodes, 1).unwrap();
-        assert!(context.decode_embedded_mesh(1).unwrap().is_some());
-        assert!(context.decode_mesh_linked_transform(1).unwrap().is_none());
+        let context = MeshDecodeContext::new(SCHEMA_KEYS[0], &nodes, 1)?;
+        assert!(context.decode_embedded_mesh(1)?.is_some());
+        assert!(context.decode_mesh_linked_transform(1)?.is_none());
 
         let mut duplicate = nodes.clone();
         duplicate.push(nodes[0].clone());
@@ -1775,6 +1782,7 @@ mod tests {
                 ..
             })
         ));
+        Ok(())
     }
 
     fn text_value(value: &FieldValue) -> String {
@@ -2064,7 +2072,7 @@ mod tests {
     }
 
     #[test]
-    fn decodes_reviewed_mesh_node_201_for_32001_and_36001_profiles() {
+    fn decodes_reviewed_mesh_node_201_for_32001_and_36001_profiles() -> MeshDataTestResult {
         for schema_key in [SCHEMA_KEYS[1], SCHEMA_KEYS[3]] {
             let mesh_type = [118, 201]
                 .into_iter()
@@ -2072,14 +2080,23 @@ mod tests {
                     reviewed_definition(schema_key, *node_type)
                         .is_some_and(|definition| definition.name == "MESH")
                 })
-                .unwrap();
+                .ok_or(MeshDataError::Invalid {
+                    node: 1,
+                    field: "MESH",
+                    reason: "reviewed profile should define MESH",
+                })?;
             assert_eq!(mesh_type, 201);
-            let result = decode_embedded_mesh(schema_key, &fixture(schema_key), 1)
-                .unwrap()
-                .unwrap();
+            let result = decode_embedded_mesh(schema_key, &fixture(schema_key), 1)?.ok_or(
+                MeshDataError::Invalid {
+                    node: 1,
+                    field: "psm_imesh",
+                    reason: "fixture should contain embedded mesh data",
+                },
+            )?;
             assert_eq!(result.mesh_index, 1);
             assert_eq!(result.position_indices.values[..3], [0, 1, 1]);
         }
+        Ok(())
     }
 
     #[test]

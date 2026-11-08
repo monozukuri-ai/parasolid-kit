@@ -2042,13 +2042,12 @@ mod tests {
     }
 
     #[test]
-    fn maps_typed_chains_and_retains_uncomposed_transform_values() {
+    fn maps_typed_chains_and_retains_uncomposed_transform_values() -> Result<(), ParseError> {
         let result = map_assembly(
             &fixture(3),
             &SchemaProviderResolution::CallerSupplied,
             "custom",
-        )
-        .expect("assembly graph");
+        )?;
         assert_eq!(result.assemblies[0].instances, vec![2]);
         assert_eq!(result.instances[0].part, 4);
         assert_eq!(result.instances[0].transform, Some(3));
@@ -2060,6 +2059,7 @@ mod tests {
         assert_eq!(result.transforms[0].scale, 2.0);
         assert_eq!(result.transforms[0].perspective, [None, None, None]);
         assert_eq!(result.transforms[0].precision, None);
+        Ok(())
     }
 
     #[test]
@@ -2074,11 +2074,11 @@ mod tests {
     }
 
     #[test]
-    fn maps_missing_optional_transform_and_precision_targets_as_effective_null() {
+    fn maps_missing_optional_transform_and_precision_targets_as_effective_null()
+    -> Result<(), ParseError> {
         let mut nodes = fixture(99);
         attach_precision(&mut nodes, 98, 229);
-        let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")
-            .expect("missing optional targets are effective null");
+        let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")?;
         assert_eq!(result.instances[0].transform, None);
         assert_eq!(result.transforms[0].precision, None);
         assert_eq!(raw_pointer(&nodes[1], "transform_ref"), 99);
@@ -2088,8 +2088,7 @@ mod tests {
             &fixture(0),
             &SchemaProviderResolution::CallerSupplied,
             "custom",
-        )
-        .expect("literal null transform");
+        )?;
         assert_eq!(result.instances[0].transform, None);
 
         let mut null_precision = fixture(3);
@@ -2098,13 +2097,14 @@ mod tests {
             &null_precision,
             &SchemaProviderResolution::CallerSupplied,
             "custom",
-        )
-        .expect("literal null precision");
+        )?;
         assert_eq!(result.transforms[0].precision, None);
+        Ok(())
     }
 
     #[test]
-    fn maps_missing_assembly_chain_links_as_effective_null_and_rejects_wrong_type_or_cycle() {
+    fn maps_missing_assembly_chain_links_as_effective_null_and_rejects_wrong_type_or_cycle()
+    -> Result<(), ParseError> {
         let mut nodes = fixture(3);
         let mut referenced_assembly = nodes[0].clone();
         referenced_assembly.index = 5;
@@ -2117,8 +2117,7 @@ mod tests {
         set_pointer(&mut nodes, 5, "sub_instances", 0);
         set_pointer(&mut nodes, 2, "next_of_part", 96);
         set_pointer(&mut nodes, 2, "previous_of_part", 95);
-        let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")
-            .expect("missing chain links are effective null");
+        let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")?;
         assert_eq!(result.assemblies[0].instances, vec![2]);
         assert!(result.assemblies[0].referencing_instances.is_empty());
         assert_eq!(result.assemblies[1].referencing_instances, vec![2]);
@@ -2151,6 +2150,7 @@ mod tests {
         let mut cycle = fixture(3);
         set_pointer(&mut cycle, 2, "next_in_assembly", 2);
         assert!(map_assembly(&cycle, &SchemaProviderResolution::CallerSupplied, "custom").is_err());
+        Ok(())
     }
 
     #[test]
@@ -2182,12 +2182,12 @@ mod tests {
     }
 
     #[test]
-    fn maps_referenced_precision_corrections_without_replacing_raw_transform() {
+    fn maps_referenced_precision_corrections_without_replacing_raw_transform()
+    -> Result<(), ParseError> {
         let mut nodes = fixture(3);
         attach_precision(&mut nodes, 5, 229);
         nodes.push(precision_node(5));
-        let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")
-            .expect("assembly graph");
+        let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")?;
         let transform = &result.transforms[0];
         assert_eq!(transform.rotation[0], 1.0);
         assert_eq!(transform.translation, [10.0, 20.0, 30.0]);
@@ -2199,6 +2199,7 @@ mod tests {
                 translation_correction: [0.1, 0.2, 0.3],
             })
         );
+        Ok(())
     }
 
     #[test]
@@ -2626,13 +2627,13 @@ mod tests {
     }
 
     #[test]
-    fn maps_missing_optional_transform_and_rejects_zero_scale_or_unresolved_placements() {
+    fn maps_missing_optional_transform_and_rejects_zero_scale_or_unresolved_placements()
+    -> Result<(), ParseError> {
         let mut mapped = map_assembly(
             &fixture(99),
             &SchemaProviderResolution::CallerSupplied,
             "custom",
-        )
-        .expect("missing optional transform is effective null");
+        )?;
         assert_eq!(mapped.instances[0].transform, None);
         assert_eq!(
             mapped.place_point([1.0, 2.0, 3.0], &[2]),
@@ -2653,10 +2654,12 @@ mod tests {
             .map(|error| error.kind()),
             Some(ErrorKind::InvalidBrepField)
         );
+        Ok(())
     }
 
     #[test]
-    fn enumerates_nested_leaf_paths_in_source_order_and_leaf_to_root_order() {
+    fn enumerates_nested_leaf_paths_in_source_order_and_leaf_to_root_order()
+    -> Result<(), ParseError> {
         let structure = AssemblyStructure {
             assemblies: vec![
                 plain_assembly(1, vec![10, 12], vec![]),
@@ -2670,16 +2673,18 @@ mod tests {
             transforms: vec![],
         };
 
-        let paths = structure.leaf_body_instance_paths(1, 3).unwrap();
+        let paths = structure.leaf_body_instance_paths(1, 3)?;
         assert_eq!(paths, vec![vec![11, 10], vec![12]]);
         assert_eq!(
             structure.place_point([1.0, 2.0, 3.0], &paths[0]),
             Ok([1.0, 2.0, 3.0])
         );
+        Ok(())
     }
 
     #[test]
-    fn tessellates_assembly_leaf_paths_in_order_and_fails_on_invalid_body() {
+    fn tessellates_assembly_leaf_paths_in_order_and_fails_on_invalid_body() -> Result<(), ParseError>
+    {
         let structure = AssemblyStructure {
             assemblies: vec![
                 plain_assembly(1, vec![10, 12], vec![]),
@@ -2787,7 +2792,7 @@ mod tests {
         }
 
         assert_eq!(
-            structure.leaf_body_instance_paths(1, 3).unwrap(),
+            structure.leaf_body_instance_paths(1, 3)?,
             vec![vec![11, 10], vec![12]]
         );
         assert_eq!(
@@ -2802,6 +2807,7 @@ mod tests {
                 .tessellate_assembly_bodies(&body_only_brep(&[90]), 1, 3, 0.1)
                 .is_err()
         );
+        Ok(())
     }
 
     #[test]
@@ -2910,7 +2916,7 @@ mod tests {
     }
 
     #[test]
-    fn enumerates_shared_assembly_dag_once_per_instance_path() {
+    fn enumerates_shared_assembly_dag_once_per_instance_path() -> Result<(), ParseError> {
         let structure = AssemblyStructure {
             assemblies: vec![
                 plain_assembly(1, vec![10, 20], vec![]),
@@ -2925,9 +2931,10 @@ mod tests {
         };
 
         assert_eq!(
-            structure.leaf_body_instance_paths(1, 5).unwrap(),
+            structure.leaf_body_instance_paths(1, 5)?,
             vec![vec![30, 10], vec![30, 20]]
         );
+        Ok(())
     }
 
     #[test]

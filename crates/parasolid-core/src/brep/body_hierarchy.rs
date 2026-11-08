@@ -895,14 +895,15 @@ mod tests {
     }
 
     #[test]
-    fn preserves_raw_links_and_id_values_without_classifying_owner_or_chain() {
+    fn preserves_raw_links_and_id_values_without_classifying_owner_or_chain()
+    -> Result<(), ParseError> {
         let nodes = vec![
             body(1, 2, 3, 0, 0),
             body(2, 0, 1, 4, 0),
             node(3, "WORLD", vec![]),
             body(4, 0, 1, 0, 2),
         ];
-        let data = decode_named_body_hierarchy(&nodes, 1, NAMES).unwrap();
+        let data = decode_named_body_hierarchy(&nodes, 1, NAMES)?;
         assert_eq!(data.child_head, Some(2));
         assert_eq!(data.owner, Some(3));
         assert_eq!(data.next, None);
@@ -910,6 +911,7 @@ mod tests {
         assert_eq!(data.lowest_id, Some(10));
         assert_eq!(data.highest_id, Some(20));
         assert_eq!(data.source.node_index, 1);
+        Ok(())
     }
 
     #[test]
@@ -950,38 +952,35 @@ mod tests {
     }
 
     #[test]
-    fn traverses_null_terminated_children_in_source_link_order() {
+    fn traverses_null_terminated_children_in_source_link_order() -> Result<(), ParseError> {
         let nodes = vec![
             body(1, 2, 0, 0, 0),
             body(2, 0, 1, 3, 0),
             body(3, 0, 1, 0, 2),
         ];
 
-        assert_eq!(
-            decode_named_body_children(
-                &nodes,
-                1,
-                NAMES,
-                BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap(),
-            vec![2, 3]
-        );
+        let children = decode_named_body_children(
+            &nodes,
+            1,
+            NAMES,
+            BodyChildChainTermination::NullTerminated,
+        )?;
+        assert_eq!(children, vec![2, 3]);
+        Ok(())
     }
 
     #[test]
-    fn traverses_circular_children_in_source_link_order() {
+    fn traverses_circular_children_in_source_link_order() -> Result<(), ParseError> {
         let nodes = vec![
             body(1, 2, 0, 0, 0),
             body(2, 0, 1, 3, 3),
             body(3, 0, 1, 2, 2),
         ];
 
-        assert_eq!(
-            decode_named_body_children(&nodes, 1, NAMES, BodyChildChainTermination::Circular,)
-                .unwrap(),
-            vec![2, 3]
-        );
+        let children =
+            decode_named_body_children(&nodes, 1, NAMES, BodyChildChainTermination::Circular)?;
+        assert_eq!(children, vec![2, 3]);
+        Ok(())
     }
 
     #[test]
@@ -1001,7 +1000,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_malformed_child_chains_under_selected_termination() {
+    fn rejects_malformed_child_chains_under_selected_termination() -> Result<(), ParseError> {
         let null_chain = vec![body(1, 2, 0, 0, 0), body(2, 0, 1, 0, 0)];
         assert_eq!(
             decode_named_body_children(&null_chain, 1, NAMES, BodyChildChainTermination::Circular,)
@@ -1058,16 +1057,13 @@ mod tests {
         );
 
         let dangling_next = vec![body(1, 2, 0, 0, 0), body(2, 0, 1, 99, 0)];
-        assert_eq!(
-            decode_named_body_children(
-                &dangling_next,
-                1,
-                NAMES,
-                BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap(),
-            vec![2]
-        );
+        let children = decode_named_body_children(
+            &dangling_next,
+            1,
+            NAMES,
+            BodyChildChainTermination::NullTerminated,
+        )?;
+        assert_eq!(children, vec![2]);
         assert_eq!(
             decode_named_body_children(
                 &dangling_next,
@@ -1081,16 +1077,13 @@ mod tests {
         );
 
         let missing_head_previous = vec![body(1, 2, 0, 0, 0), body(2, 0, 1, 0, 99)];
-        assert_eq!(
-            decode_named_body_children(
-                &missing_head_previous,
-                1,
-                NAMES,
-                BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap(),
-            vec![2]
-        );
+        let children = decode_named_body_children(
+            &missing_head_previous,
+            1,
+            NAMES,
+            BodyChildChainTermination::NullTerminated,
+        )?;
+        assert_eq!(children, vec![2]);
         let missing_sibling_previous = vec![
             body(1, 2, 0, 0, 0),
             body(2, 0, 1, 3, 0),
@@ -1155,6 +1148,7 @@ mod tests {
             .kind(),
             ErrorKind::DuplicateNodeIndex
         );
+        Ok(())
     }
 
     #[test]
