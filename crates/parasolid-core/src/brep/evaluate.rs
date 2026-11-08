@@ -396,24 +396,7 @@ pub fn evaluate_curve(curve: &crate::brep::CurveKind, t: f64) -> Option<CurveEva
             normal,
             x_axis,
             focal_length,
-        } => {
-            let f = *focal_length;
-            if !t.is_finite() || !f.is_finite() || f <= 1e-12 {
-                return None;
-            }
-            let (basis_x, basis_y, _normal) =
-                orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
-            let pt = vec3_add(
-                origin.to_array(),
-                vec3_add(
-                    vec3_scale(basis_x, (t * t) / (4.0 * f)),
-                    vec3_scale(basis_y, t),
-                ),
-            );
-            let tangent = vec3_add(vec3_scale(basis_x, t / (2.0 * f)), basis_y);
-            (pt.into_iter().all(f64::is_finite) && tangent.into_iter().all(f64::is_finite))
-                .then_some(CurveEvaluation { point: pt, tangent })
-        }
+        } => evaluate_parabola(origin, normal, x_axis, *focal_length, t),
         crate::brep::CurveKind::Hyperbola {
             origin,
             normal,
@@ -477,6 +460,33 @@ fn evaluate_hyperbola(
     let tangent = vec3_add(
         vec3_scale(basis_x, transverse_radius * sinh_parameter),
         vec3_scale(basis_y, conjugate_radius * cosh_parameter),
+    );
+    (point.into_iter().all(f64::is_finite) && tangent.into_iter().all(f64::is_finite))
+        .then_some(CurveEvaluation { point, tangent })
+}
+
+fn evaluate_parabola(
+    origin: &crate::brep::Vector3,
+    normal: &crate::brep::Vector3,
+    x_axis: &crate::brep::Vector3,
+    focal_length: f64,
+    parameter: f64,
+) -> Option<CurveEvaluation> {
+    if !parameter.is_finite() || !focal_length.is_finite() || focal_length <= 1e-12 {
+        return None;
+    }
+    let (basis_x, basis_y, _normal) =
+        orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
+    let point = vec3_add(
+        origin.to_array(),
+        vec3_add(
+            vec3_scale(basis_x, (parameter * parameter) / (4.0 * focal_length)),
+            vec3_scale(basis_y, parameter),
+        ),
+    );
+    let tangent = vec3_add(
+        vec3_scale(basis_x, parameter / (2.0 * focal_length)),
+        basis_y,
     );
     (point.into_iter().all(f64::is_finite) && tangent.into_iter().all(f64::is_finite))
         .then_some(CurveEvaluation { point, tangent })

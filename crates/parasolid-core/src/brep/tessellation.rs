@@ -1153,13 +1153,17 @@ fn tessellate_brep_to_mesh_inner(
                         Some((CurveKind::Intersection { .. }, curve_sense))
                             if sample_intersection_curves =>
                         {
+                            let Some(basis_curve) = basis_curve else {
+                                curve_sampling_failed = true;
+                                break;
+                            };
                             sampled_intersection_boundary = true;
                             let direct_intersection = wrapper_ids.is_empty();
                             let mut chart_work_budget = MAX_INTERSECTION_CHART_SAMPLE_WORK;
                             let (t_start, t_end, expected_start, expected_end, endpoint_candidates) =
                                 if direct_intersection {
                                     let CurveKind::Intersection { surfaces, .. } =
-                                        &basis_curve.unwrap().kind
+                                        &basis_curve.kind
                                     else {
                                         curve_sampling_failed = true;
                                         break;
@@ -1314,10 +1318,7 @@ fn tessellate_brep_to_mesh_inner(
                                             .fold(1.0_f64, |scale, value| scale.max(value.abs()));
                                         tolerance.max(256.0 * f64::EPSILON * scale)
                                     };
-                                    let Some(curve) = basis_curve else {
-                                        curve_sampling_failed = true;
-                                        break;
-                                    };
+                                    let curve = basis_curve;
                                     if brep
                                         .curves
                                         .iter()
@@ -1496,7 +1497,7 @@ fn tessellate_brep_to_mesh_inner(
                             };
                             let Some(samples) = sample_intersection_trim(
                                 brep,
-                                &basis_curve.unwrap().kind,
+                                &basis_curve.kind,
                                 t_start,
                                 t_end,
                                 chord_error,
@@ -1699,25 +1700,27 @@ fn tessellate_brep_to_mesh_inner(
                     &mut result,
                 );
             }
-            Some(SurfaceKind::Cylinder {
-                point,
-                axis,
-                radius,
-                ..
-            }) => {
+            Some(
+                kind @ SurfaceKind::Cylinder {
+                    point,
+                    axis,
+                    radius,
+                    ..
+                },
+            ) => {
                 tessellate_cylindrical_face(
                     point.to_array(),
                     axis.to_array(),
                     *radius,
                     effective_sense,
-                    &surf.unwrap().kind,
+                    kind,
                     &loops_3d,
                     chord_error,
                     &mut result,
                 );
             }
             Some(
-                SurfaceKind::Cone {
+                kind @ (SurfaceKind::Cone {
                     point,
                     axis,
                     radius,
@@ -1732,7 +1735,7 @@ fn tessellate_brep_to_mesh_inner(
                     sin_half_angle,
                     cos_half_angle,
                     ..
-                },
+                }),
             ) => {
                 tessellate_conical_face(
                     point.to_array(),
@@ -1741,49 +1744,49 @@ fn tessellate_brep_to_mesh_inner(
                     *sin_half_angle,
                     *cos_half_angle,
                     effective_sense,
-                    &surf.unwrap().kind,
+                    kind,
                     &loops_3d,
                     chord_error,
                     &mut result,
                 );
             }
-            Some(SurfaceKind::Sphere { center, radius, .. }) => {
+            Some(kind @ SurfaceKind::Sphere { center, radius, .. }) => {
                 tessellate_spherical_face(
                     center.to_array(),
                     *radius,
                     effective_sense,
-                    &surf.unwrap().kind,
+                    kind,
                     &loops_3d,
                     chord_error,
                     &mut result,
                 );
             }
-            Some(SurfaceKind::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                ..
-            }) => {
+            Some(
+                kind @ SurfaceKind::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    ..
+                },
+            ) => {
                 tessellate_toroidal_face(
                     center.to_array(),
                     axis.to_array(),
                     *major_radius,
                     *minor_radius,
                     effective_sense,
-                    &surf.unwrap().kind,
+                    kind,
                     &loops_3d,
                     chord_error,
                     &mut result,
                 );
             }
-            Some(SurfaceKind::Nurbs(_)) => {
+            Some(kind @ SurfaceKind::Nurbs(_)) => {
                 tessellate_nurbs_face(
-                    &surf.unwrap().kind,
+                    kind,
                     effective_sense,
                     &loops_3d,
-                    16,
-                    16,
                     all_loops_have_explicit_uv.then_some(explicit_uv_loops.as_slice()),
                     &mut result,
                 );
@@ -2296,8 +2299,7 @@ fn tessellate_brep_to_mesh_inner(
                     }
                 }
             }
-            Some(SurfaceKind::Spun { .. }) => {
-                let current_surf_kind = &surf.unwrap().kind;
+            Some(current_surf_kind @ SurfaceKind::Spun { .. }) => {
                 tessellate_spun_face(
                     brep,
                     current_surf_kind,
@@ -4472,8 +4474,6 @@ fn tessellate_nurbs_face(
     surf_kind: &SurfaceKind,
     face_sense: bool,
     loops_3d: &[Vec<[f64; 3]>],
-    n_u: usize,
-    n_v: usize,
     direct_uv_loops: Option<&[Vec<[f64; 2]>]>,
     result: &mut TessellatedMesh,
 ) {
@@ -4496,13 +4496,13 @@ fn tessellate_nurbs_face(
     };
 
     if !loops_3d.is_empty() {
-        let grid_steps = 16;
+        const GRID_STEPS: usize = 16;
         let mut coarse_samples: Vec<(f64, f64, [f64; 3])> =
-            Vec::with_capacity((grid_steps + 1) * (grid_steps + 1));
-        for j in 0..=grid_steps {
-            let v = v_min + (v_max - v_min) * (j as f64 / grid_steps as f64);
-            for i in 0..=grid_steps {
-                let u = u_min + (u_max - u_min) * (i as f64 / grid_steps as f64);
+            Vec::with_capacity((GRID_STEPS + 1) * (GRID_STEPS + 1));
+        for j in 0_u32..=16 {
+            let v = v_min + (v_max - v_min) * (f64::from(j) / 16.0);
+            for i in 0_u32..=16 {
+                let u = u_min + (u_max - u_min) * (f64::from(i) / 16.0);
                 if let Some(pt) = evaluate_point(u, v) {
                     coarse_samples.push((u, v, pt));
                 }
@@ -4610,8 +4610,8 @@ fn tessellate_nurbs_face(
             best.map(|(_, u, v)| [u, v])
         };
 
-        let delta_u = (u_max - u_min) / n_u as f64;
-        let delta_v = (v_max - v_min) / n_v as f64;
+        let delta_u = (u_max - u_min) / 16.0;
+        let delta_v = (v_max - v_min) / 16.0;
         let delta_uv = delta_u.max(delta_v).max(1e-4);
 
         match try_tessellate_trimmed_surface_with_uv(
@@ -4636,10 +4636,10 @@ fn tessellate_nurbs_face(
         |u, v| evaluate(u, v),
         u_min,
         u_max,
-        n_u,
+        16,
         v_min,
         v_max,
-        n_v,
+        16,
         face_sense,
         result,
     );
@@ -5251,10 +5251,10 @@ fn tessellate_swept_face_projected(
                 return false;
             }
 
-            let num_coarse = 128;
-            let mut coarse_samples: Vec<(f64, [f64; 3])> = Vec::with_capacity(num_coarse + 1);
-            for i in 0..=num_coarse {
-                let u = u_min + u_span * (i as f64 / num_coarse as f64);
+            const NUM_COARSE: usize = 128;
+            let mut coarse_samples: Vec<(f64, [f64; 3])> = Vec::with_capacity(NUM_COARSE + 1);
+            for i in 0_u32..=128 {
+                let u = u_min + u_span * (f64::from(i) / 128.0);
                 if let Some(pt) = crate::brep::evaluate_curve_point(section_kind, u) {
                     if pt.iter().all(|c| c.is_finite()) {
                         let c_perp = vec3_sub(pt, vec3_scale(unit_d, vec3_dot(pt, unit_d)));
@@ -5283,7 +5283,7 @@ fn tessellate_swept_face_projected(
                     // Local refinement around best_u
                     let mut cur_u = best_u;
                     let mut cur_dist = best_dist;
-                    let mut delta = (u_span / num_coarse as f64).max(1e-6);
+                    let mut delta = (u_span / 128.0).max(1e-6);
                     for _ in 0..3 {
                         let sub_min = (cur_u - delta).max(u_min);
                         let sub_max = (cur_u + delta).min(u_max);
@@ -7138,10 +7138,10 @@ fn exact_scaled_axis(values: [f64; 3]) -> Option<[i128; 3]> {
                 if magnitude == 1_u128 << 127 {
                     i128::MIN
                 } else {
-                    -(magnitude as i128)
+                    -i128::try_from(magnitude).ok()?
                 }
             } else {
-                magnitude as i128
+                i128::try_from(magnitude).ok()?
             })
         })
         .into_iter()
