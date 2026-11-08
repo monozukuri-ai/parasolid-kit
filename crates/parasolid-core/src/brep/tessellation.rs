@@ -369,9 +369,11 @@ pub fn tessellate_brep_face_with_explicit_uv(
                 .iter()
                 .find(|surface| surface.id == surface_id)
         })
-        .and_then(|surface| match &surface.kind {
-            SurfaceKind::Swept { direction, .. } => Some(direction.to_array()),
-            _ => None,
+        .and_then(|surface| {
+            surface
+                .kind
+                .swept_section_direction()
+                .map(|(_, direction)| direction.to_array())
         });
     if let Some(direction) = swept_direction {
         let length = direction[0].hypot(direction[1]).hypot(direction[2]);
@@ -410,7 +412,7 @@ pub fn tessellate_swept_brep_face_with_explicit_uv(
         .surfaces
         .iter()
         .find(|surface| surface.id == surface_id)?;
-    if !matches!(&surface.kind, SurfaceKind::Swept { .. }) {
+    if surface.kind.swept_section_direction().is_none() {
         return None;
     }
     if sweep_direction.iter().any(|value| !value.is_finite())
@@ -555,16 +557,15 @@ fn tessellate_mapped_xt_swept_face_internal(
     {
         return None;
     }
-    match &surface.kind {
-        SurfaceKind::Swept {
-            section: mapped_section_id,
-            direction: mapped_direction,
-            ..
-        } if *mapped_section_id == section.id
-            && mapped_direction.to_array()
-                == [swept.sweep[0]?, swept.sweep[1]?, swept.sweep[2]?] => {}
-        SurfaceKind::Unsupported { type_name } if type_name == "SWEPT_SURF" => {}
-        _ => return None,
+    if let Some((mapped_section_id, mapped_direction)) = surface.kind.swept_section_direction() {
+        if mapped_section_id != section.id
+            || mapped_direction.to_array() != [swept.sweep[0]?, swept.sweep[1]?, swept.sweep[2]?]
+        {
+            return None;
+        }
+    } else if !matches!(&surface.kind, SurfaceKind::Unsupported { type_name } if type_name == "SWEPT_SURF")
+    {
+        return None;
     }
     let direction = [swept.sweep[0]?, swept.sweep[1]?, swept.sweep[2]?];
     if !matches!(&section.kind, CurveKind::Nurbs(_)) {
@@ -727,6 +728,7 @@ fn tessellate_brep_to_mesh_inner(
                 SurfaceKind::Nurbs(_)
                     | SurfaceKind::BlendedEdge { .. }
                     | SurfaceKind::Swept { .. }
+                    | SurfaceKind::SweptWithSource { .. }
                     | SurfaceKind::Offset { .. }
             )
         );
@@ -1855,11 +1857,11 @@ fn tessellate_brep_to_mesh_inner(
                     continue;
                 }
             }
-            Some(
-                kind @ SurfaceKind::Swept {
-                    section, direction, ..
-                },
-            ) => {
+            Some(kind) if kind.swept_section_direction().is_some() => {
+                let Some((section, direction)) = kind.swept_section_direction() else {
+                    result.wire_edges.truncate(face_wire_start);
+                    continue;
+                };
                 let direction_raw = swept_direction.unwrap_or_else(|| direction.to_array());
                 let dir_len = vec3_norm(direction_raw);
                 if !dir_len.is_finite() || dir_len <= 1e-12 {
@@ -1868,7 +1870,7 @@ fn tessellate_brep_to_mesh_inner(
                 }
                 let direction = vec3_scale(direction_raw, 1.0 / dir_len);
 
-                let section_geom = curve_map.get(section).copied();
+                let section_geom = curve_map.get(&section).copied();
                 let Some(section_geom) = section_geom else {
                     result.wire_edges.truncate(face_wire_start);
                     continue;
@@ -4893,6 +4895,11 @@ pub fn evaluate_mapped_xt_swept_offset_surface_candidate(
             section: mapped_section,
             direction,
             ..
+        }
+        | SurfaceKind::SweptWithSource {
+            section: mapped_section,
+            sweep: direction,
+            ..
         } if *mapped_section == section.id => Some(direction.to_array()),
         SurfaceKind::Unsupported { type_name } if type_name == "SWEPT_SURF" => None,
         _ => return None,
@@ -5165,6 +5172,11 @@ fn evaluate_surface_recursive(
         }
         SurfaceKind::Swept {
             section, direction, ..
+        }
+        | SurfaceKind::SweptWithSource {
+            section,
+            sweep: direction,
+            ..
         } => {
             let mut section_geom = brep.curves.iter().find(|curve| curve.id == *section)?;
             let mut mapped_u = u;
@@ -6130,12 +6142,9 @@ fn surface_point_in_brep(
     uv: [f64; 2],
     swept_direction: Option<[f64; 3]>,
 ) -> Option<[f64; 3]> {
-    if let SurfaceKind::Swept {
-        section, direction, ..
-    } = surface
-    {
+    if let Some((section, direction)) = surface.swept_section_direction() {
         let direction = swept_direction.unwrap_or_else(|| direction.to_array());
-        let section_geom = brep.curves.iter().find(|curve| curve.id == *section)?;
+        let section_geom = brep.curves.iter().find(|curve| curve.id == section)?;
         evaluate_ruled_sweep_surface_in_brep(
             Some(brep),
             &section_geom.kind,
@@ -9203,6 +9212,41 @@ mod tests {
         };
         assert!(evaluate_surface(&brep, &brep.surfaces[0].kind, 0.5, 0.25).is_none());
         assert!(evaluate_surface(&brep, &brep.surfaces[0].kind, f64::NAN, 0.25).is_none());
+    }
+
+    #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed ruled-sweep fixture must evaluate and tessellate for source-metadata parity assertions."
+    )]
+    fn swept_with_source_retains_scale_and_matches_swept_geometry() {
+        let mut brep = ruled_sweep_face_with_explicit_uv_trim();
+        let section = brep.curves[0].id;
+        let direction = Vector3::from_array([0.0, 0.0, 1.0]);
+        let original_kind = SurfaceKind::Swept { section, direction };
+        let source_kind = SurfaceKind::SweptWithSource {
+            section,
+            sweep: direction,
+            scale: Some(2.5),
+        };
+        let original_eval = evaluate_surface(&brep, &original_kind, 0.5, 0.25)
+            .expect("evaluate existing swept representation");
+        let source_eval = evaluate_surface(&brep, &source_kind, 0.5, 0.25)
+            .expect("evaluate source-retaining swept representation");
+        assert_eq!(source_eval, original_eval);
+        let SurfaceKind::SweptWithSource { scale, .. } = &source_kind else {
+            unreachable!();
+        };
+        assert_eq!(*scale, Some(2.5));
+
+        brep.surfaces[0].kind = source_kind;
+        assert!(tessellate_brep_face_with_explicit_uv(&brep, 7, 0.01).is_some());
+        brep.surfaces[0].kind = SurfaceKind::SweptWithSource {
+            section,
+            sweep: Vector3::from_array([0.0, 0.0, 2.0]),
+            scale: Some(2.5),
+        };
+        assert!(tessellate_brep_face_with_explicit_uv(&brep, 7, 0.01).is_none());
     }
 
     #[test]

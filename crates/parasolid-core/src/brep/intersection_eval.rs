@@ -120,10 +120,14 @@ pub fn evaluate_intersection_candidate(
         | (SurfaceKind::Torus { .. }, SurfaceKind::Cylinder { .. }) => {
             evaluate_cylinder_torus_intersection_candidate(brep, curve, parameter)
         }
-        (SurfaceKind::Torus { .. }, SurfaceKind::Swept { .. })
-        | (SurfaceKind::Swept { .. }, SurfaceKind::Torus { .. }) => {
-            evaluate_torus_ruled_sweep_intersection_candidate(brep, curve, parameter)
-        }
+        (
+            SurfaceKind::Torus { .. },
+            SurfaceKind::Swept { .. } | SurfaceKind::SweptWithSource { .. },
+        )
+        | (
+            SurfaceKind::Swept { .. } | SurfaceKind::SweptWithSource { .. },
+            SurfaceKind::Torus { .. },
+        ) => evaluate_torus_ruled_sweep_intersection_candidate(brep, curve, parameter),
         _ => super::intersection_generic_dispatch::evaluate_generic_intersection(
             brep, curve, parameter,
         ),
@@ -254,16 +258,12 @@ fn evaluate_plane_swept_offset_intersection_candidate(
         unreachable!()
     };
     let swept_surface = unique_surface(brep, *basis_surface)?;
-    let SurfaceKind::Swept {
-        section: section_id,
-        direction,
-    } = &swept_surface.kind
-    else {
+    let Some((section_id, direction)) = swept_surface.kind.swept_section_direction() else {
         return Err(IntersectionEvaluationError::Unsupported(
             "offset basis is not a mapped SWEPT_SURF",
         ));
     };
-    let section = unique_curve(brep, *section_id)?;
+    let section = unique_curve(brep, section_id)?;
     if !matches!(&section.kind, CurveKind::Nurbs(_)) {
         return Err(IntersectionEvaluationError::Unsupported(
             "plane/swept-offset candidate requires a mapped NURBS section",
@@ -824,8 +824,14 @@ pub fn evaluate_torus_ruled_sweep_intersection_candidate(
     let support_a = unique_surface(brep, surfaces[0])?;
     let support_b = unique_surface(brep, surfaces[1])?;
     let (torus, swept, torus_first) = match (&support_a.kind, &support_b.kind) {
-        (SurfaceKind::Torus { .. }, SurfaceKind::Swept { .. }) => (support_a, support_b, true),
-        (SurfaceKind::Swept { .. }, SurfaceKind::Torus { .. }) => (support_b, support_a, false),
+        (
+            SurfaceKind::Torus { .. },
+            SurfaceKind::Swept { .. } | SurfaceKind::SweptWithSource { .. },
+        ) => (support_a, support_b, true),
+        (
+            SurfaceKind::Swept { .. } | SurfaceKind::SweptWithSource { .. },
+            SurfaceKind::Torus { .. },
+        ) => (support_b, support_a, false),
         _ => {
             return Err(IntersectionEvaluationError::Unsupported(
                 "candidate supports only torus/ruled-sweep intersections",
@@ -854,10 +860,10 @@ pub fn evaluate_torus_ruled_sweep_intersection_candidate(
     else {
         unreachable!();
     };
-    let SurfaceKind::Swept { section, direction } = &swept.kind else {
+    let Some((section, direction)) = swept.kind.swept_section_direction() else {
         unreachable!();
     };
-    let section_geometry = unique_curve(brep, *section)?;
+    let section_geometry = unique_curve(brep, section)?;
     let CurveKind::Nurbs(section_curve) = &section_geometry.kind else {
         return Err(IntersectionEvaluationError::Unsupported(
             "torus/swept candidate requires a mapped NURBS section curve",

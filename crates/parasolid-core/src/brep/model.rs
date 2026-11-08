@@ -833,6 +833,19 @@ pub enum SurfaceKind {
     },
     /// Mapped section curve swept along a unit direction: `R(u, v) = C(u) + vD`.
     Swept { section: BrepId, direction: Vector3 },
+    /// TopSolid-style swept surface retaining its raw source scale metadata.
+    ///
+    /// `sweep` has the same unit-direction contract as `Swept::direction` for geometric
+    /// evaluation. `scale` is retained metadata and is never applied to the direction or
+    /// evaluated surface.
+    SweptWithSource {
+        /// Mapped section curve identifier.
+        section: BrepId,
+        /// Semantic unit sweep direction, retained as supplied.
+        sweep: Vector3,
+        /// Raw source scale metadata; not applied during geometry evaluation.
+        scale: Option<f64>,
+    },
     /// Offset of another mapped surface.
     Offset { basis_surface: BrepId, offset: f64 },
     /// Exact NURBS definition assembled from auxiliary nodes.
@@ -874,11 +887,21 @@ impl SurfaceKind {
             Self::BlendedEdge { .. } => "blended_edge",
             Self::BlendBoundary { .. } => "blend_boundary",
             Self::Spun { .. } => "spun",
-            Self::Swept { .. } => "swept",
+            Self::Swept { .. } | Self::SweptWithSource { .. } => "swept",
             Self::Offset { .. } => "offset",
             Self::Nurbs(_) => "nurbs",
             Self::Mesh { .. } => "mesh",
             Self::Unsupported { .. } => "unsupported",
+        }
+    }
+
+    /// Returns the section and semantic unit direction for either swept representation.
+    #[must_use]
+    pub(crate) const fn swept_section_direction(&self) -> Option<(BrepId, Vector3)> {
+        match self {
+            Self::Swept { section, direction } => Some((*section, *direction)),
+            Self::SweptWithSource { section, sweep, .. } => Some((*section, *sweep)),
+            _ => None,
         }
     }
 

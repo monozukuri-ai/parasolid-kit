@@ -67,6 +67,11 @@ standard profile declares only the node types checked under its key.
 `complete == false`; `BLEND_BOUND` (59), its blend dependency, and `SP_CURVE` (137)
 use the qualified source B-Rep mappings. This does not add OCCT conversion.
 
+`SurfaceKind::SweptWithSource` retains a swept surface's source direction and
+optional scale. Geometric evaluation still requires the direction to be a unit
+vector and rejects non-unit values; the retained scale is metadata only and is
+never applied to the direction or geometry.
+
 The candidate intersection evaluator handles the supported rolling-ball blend
 offset-contact cases and uses exact UV chart stations when they are present in
 the mapped chart. These bounded cases do not imply general APPLIO coverage or
