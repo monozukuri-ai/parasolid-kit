@@ -809,6 +809,11 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "Fixture schemas are reviewed compiled profiles and must contain their expected BODY definition."
+    )]
     fn builtin_body_definition(key: &SchemaKey) -> TypeDefinition {
         let registry = BuiltinProfileRegistry::compiled().unwrap();
         let provider = registry.provider_for_key(key).unwrap();
@@ -825,6 +830,10 @@ mod tests {
             .expect("compiled TopSolid BODY definition")
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        reason = "Test fixture variable-field values are small controlled vectors whose lengths fit the wire u32 field."
+    )]
     fn builtin_body(
         key: &SchemaKey,
         index: u32,
@@ -1137,6 +1146,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "This test asserts both duplicate-target errors and retained unresolved source indices."
+    )]
     fn rejects_ambiguous_source_or_link_targets_but_retains_unresolved_indices() {
         let duplicate_source = vec![body(1, 0, 0, 0, 0), body(1, 0, 0, 0, 0)];
         assert_eq!(
@@ -1181,6 +1195,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "The test uses valid BODY fixtures to verify that owner indices remain unclassified."
+    )]
     fn resolves_owner_without_inferring_its_node_type() {
         let nodes = vec![body(1, 0, 2, 0, 0), node(2, "WORLD", vec![])];
         assert_eq!(
@@ -1197,6 +1215,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "Reviewed fixture schemas drive both supported-layout checks and asserted rejection cases."
+    )]
     fn exact_topsolid_profiles_gate_body_hierarchy_roles_and_layouts() {
         let supported = [
             "SCH_2701192_26105_13006",
@@ -1302,6 +1324,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "A reviewed schema fixture is mutated deliberately to assert raw-layout and key rejection."
+    )]
     fn builtin_topsolid_rejects_raw_body_layout_mismatch_and_unreviewed_key() {
         let schema_key = "SCH_3700192_36001_13006";
         let key = SchemaKey::parse(schema_key).unwrap();

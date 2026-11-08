@@ -7974,6 +7974,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixture's uniquely owned body is required for this tolerance assertion."
+    )]
     fn xt_null_entity_tolerance_requires_one_valid_body_owner() {
         let mut brep = intersection_face_with_tolerances(None, None, 0.0, 0.0, false);
         let body_owner = brep.bodies[0].source.clone();
@@ -8826,6 +8830,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed reversed-winding fixture must refine for its output assertions."
+    )]
     fn uv_refinement_preserves_reversed_winding_and_rejects_limits() {
         let clockwise = [[0.0, 0.0], [0.0, 1.0], [4.0, 0.0]];
         let input_area = signed_area_2d(&clockwise);
@@ -9560,6 +9568,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed tiny-edge fixture must produce its expected sampled wire."
+    )]
     fn sampled_wire_preserves_tiny_edges_and_rejects_collapsed_loops() {
         let tiny = 1e-20;
         let loop_uv = vec![[0.0, 0.0], [tiny, 0.0], [1.0, 0.0], [1.0, 1.0]];
@@ -10169,6 +10181,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The valid swept-face fixture must tessellate before unsupported inputs are checked."
+    )]
     fn swept_face_api_rejects_non_swept_support_even_with_valid_uv_trims() {
         let mut brep = ruled_sweep_face_with_explicit_uv_trim();
         let CurveKind::Nurbs(uv_trim) = &mut brep
@@ -10227,6 +10243,10 @@ mod tests {
     #[allow(
         clippy::float_cmp,
         reason = "Assertions preserve exact boundary behavior for the deliberately scaled fixture."
+    )]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed ruled-sweep fixture must evaluate for its scale assertions."
     )]
     fn ruled_sweep_normal_is_independent_of_small_units_and_knot_domain_scale() {
         let section = NurbsCurve {
@@ -10926,6 +10946,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed spun-surface fixture must tessellate for its mesh assertions."
+    )]
     fn test_tessellate_brep_face_spun_surface() {
         let source = |node_index: u32| SourceNodeRef {
             node_index,
@@ -11545,6 +11569,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "The fixed cone fixture must tessellate to construct the boundary-conflict case."
+    )]
     fn xt_cone_tessellation_rejects_boundary_conflicting_with_chart_support() {
         let point = [0.0; 3];
         let axis = [0.0, -1.0, 0.0];
@@ -11886,6 +11914,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "The fixed periodic-hole fixtures must align for the seam assertions."
+    )]
     fn periodic_hole_alignment_checks_both_seams() {
         let outer = vec![[3.0, 3.0], [3.5, 3.0], [3.5, 3.5], [3.0, 3.5]];
         let hole_across_u = vec![[-3.18, 3.1], [-3.08, 3.1], [-3.08, 3.2], [-3.18, 3.2]];
@@ -11985,6 +12017,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed periodic-cone fixture must produce its boundary polygon."
+    )]
     fn variable_v_periodic_cone_band_stays_inside_its_boundary() {
         let period = 2.0 * std::f64::consts::PI;
         let sample_count = 48;
@@ -12077,6 +12113,10 @@ mod tests {
     #[allow(
         clippy::float_cmp,
         reason = "Assertions verify exact boundary samples from the deterministic blend fixture."
+    )]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed blend-boundary fixtures must evaluate for their exact boundary assertions."
     )]
     fn blend_boundary_surface_evaluation() {
         let source = || SourceNodeRef {
@@ -12179,6 +12219,10 @@ mod tests {
     #[allow(
         clippy::float_cmp,
         reason = "Assertions preserve exact surface samples from the deterministic swept fixture."
+    )]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed swept parabola and hyperbola fixtures must evaluate for their assertions."
     )]
     fn swept_surface_with_trimmed_parabola_and_hyperbola() {
         let source = || SourceNodeRef {

@@ -2668,6 +2668,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the valid fixture supports both index-origin conversions before ambiguity is tested"
+    )]
     fn placed_triangle_conversion_infers_only_a_unique_index_origin() {
         let mut raw = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
             .unwrap()
@@ -2710,6 +2715,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the fixture mesh is valid before encoding and non-finite position failures are introduced"
+    )]
     fn triangle_conversion_requires_finite_cartesian_positions() {
         let mut raw = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
             .unwrap()
@@ -2728,6 +2738,11 @@ mod tests {
         );
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the normal fixture requires the reviewed embedded mesh data"
+    )]
     fn mesh_with_raw_per_corner_normals() -> RawMeshData {
         let mut raw = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
             .unwrap()
@@ -2754,6 +2769,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the normal fixture supplies valid linked pools for both explicit index origins"
+    )]
     fn per_corner_normal_parameters_follow_the_explicit_index_origin() {
         let raw = mesh_with_raw_per_corner_normals();
         let raw_normals = raw.normals.clone();
@@ -2774,6 +2794,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "each malformed-normal case starts from the same valid linked-pool fixture"
+    )]
     fn per_corner_normal_parameters_reject_missing_links_and_malformed_indices() {
         let mut raw = mesh_with_raw_per_corner_normals();
         raw.normals = None;
