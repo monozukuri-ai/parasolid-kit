@@ -1989,6 +1989,11 @@ fn tessellate_brep_to_mesh_inner(
                         continue;
                     }
                 } else if !loops_3d.is_empty() {
+                    if matches!(kind, SurfaceKind::SweptWithSource { .. }) {
+                        // No source tolerance currently justifies accepting a projected trim residual.
+                        result.wire_edges.truncate(face_wire_start);
+                        continue;
+                    }
                     let success = tessellate_swept_face_projected(
                         brep,
                         section_kind,
@@ -12666,7 +12671,7 @@ mod tests {
             source: source(),
         };
 
-        let brep = BrepModel {
+        let mut brep = BrepModel {
             source_format: BrepSourceFormat::Text,
             schema_key: "13006".into(),
             complete: true,
@@ -12722,5 +12727,18 @@ mod tests {
             2,
             "quad polygon should triangulate to 2 triangles"
         );
+
+        let (section, direction) = match &brep.surfaces[0].kind {
+            SurfaceKind::Swept { section, direction } => (*section, *direction),
+            _ => unreachable!(),
+        };
+        brep.surfaces[0].kind = SurfaceKind::SweptWithSource {
+            section,
+            sweep: direction,
+            scale: Some(1.0),
+        };
+        let source_swept_mesh = tessellate_brep_to_mesh(&brep, 0.1);
+        assert!(source_swept_mesh.triangles.is_empty());
+        assert!(source_swept_mesh.wire_edges.is_empty());
     }
 }
