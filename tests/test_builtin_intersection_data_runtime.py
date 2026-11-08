@@ -102,7 +102,10 @@ def intersection_with_data(
             payload = payload[:2] + struct.pack(">i", 73) + payload[2:]
         new = struct.pack(">H", 38) + delta + payload + positive_integer(target) * max(count, 1)
     assert data.count(old) == 1
-    data = data.replace(old, new, 1) + data_record(encoding)
+    data = data.replace(old, new, 1) + data_record(
+        encoding,
+        values=(0.125, 0.25, 0.5, 0.75, 0.375, 0.625, 0.875, 1.0),
+    )
     return data + (b"1 0 " if encoding == "x_t" else bytes([0, 1, 0, 1]))
 
 

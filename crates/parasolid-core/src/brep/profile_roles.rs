@@ -295,6 +295,7 @@ impl RoleAccess {
                 node.fields.get(11)
             }
             Self::OnshapeSch30000 if node.node_type == 41 && role == "hvec" => node.fields.get(2),
+            Self::OnshapeSch30000 if node.node_type == 204 => intersection_data_field(node, role),
             Self::OnshapeSch30000 => field_roles(node.node_type)
                 .iter()
                 .find(|(name, _, _, _)| *name == role)
@@ -304,6 +305,7 @@ impl RoleAccess {
             Self::Sch13006 if node.node_type == 38 && role == "intersection_data" => {
                 node.fields.iter().find(|f| f.definition.name == role)
             }
+            Self::Sch13006 if node.node_type == 204 => intersection_data_field(node, role),
             // Only copied/unchanged base fields acquire these identities; the
             // resolution check below prevents inserted names from claiming roles.
             Self::Sch13006 => field_roles(node.node_type)
@@ -361,6 +363,33 @@ impl RoleAccess {
         ["owner", "next", "previous", "geometric_owner", "sense"]
             .into_iter()
             .all(|role| self.field(node, role).is_some())
+    }
+}
+
+fn intersection_data_field<'a>(node: &'a RawNode, role: &str) -> Option<&'a RawField> {
+    let [uv_type, values] = node.fields.as_slice() else {
+        return None;
+    };
+    let uv_name = uv_type.definition.name.as_str();
+    if node.definition.name != "INTERSECTION_DATA"
+        || !matches!(uv_name, "uv_type" | "uv_kind")
+        || uv_type.definition.field_type != crate::FieldType::UnsignedByte
+        || uv_type.definition.pointer_class != 0
+        || uv_type.definition.element_count != 0
+        || !uv_type.definition.transmitted
+        || values.definition.name != "values"
+        || values.definition.field_type != crate::FieldType::Double
+        || values.definition.pointer_class != 0
+        || values.definition.element_count != 1
+        || !values.definition.transmitted
+    {
+        return None;
+    }
+    match role {
+        "uv_type" if uv_name == "uv_type" => Some(uv_type),
+        "uv_kind" if uv_name == "uv_kind" => Some(uv_type),
+        "values" => Some(values),
+        _ => None,
     }
 }
 
@@ -1045,6 +1074,8 @@ fn field_roles(node_type: u16) -> &'static [(&'static str, usize, &'static str, 
 
 #[cfg(test)]
 mod tests {
+    use crate::{FieldDefinition, TypeDefinition};
+
     use super::*;
 
     fn base_body() -> Result<crate::TypeDefinition, Box<dyn std::error::Error>> {
@@ -1387,6 +1418,67 @@ mod tests {
             }
         }
         assert_eq!(mapped_types, 38);
+        Ok(())
+    }
+
+    #[test]
+    fn intersection_data_roles_require_the_reviewed_uv_layout() -> Result<(), ParseError> {
+        for uv_name in ["uv_type", "uv_kind"] {
+            let definition = TypeDefinition::from_fields(
+                204,
+                "INTERSECTION_DATA",
+                "Intersection data",
+                vec![
+                    FieldDefinition {
+                        name: uv_name.to_owned(),
+                        field_type: crate::FieldType::UnsignedByte,
+                        pointer_class: 0,
+                        element_count: 0,
+                        transmitted: true,
+                    },
+                    FieldDefinition {
+                        name: "values".to_owned(),
+                        field_type: crate::FieldType::Double,
+                        pointer_class: 0,
+                        element_count: 1,
+                        transmitted: true,
+                    },
+                ],
+                SchemaSource::EmbeddedFull,
+            );
+            let definition = std::sync::Arc::new(definition);
+            let fields = definition
+                .fields
+                .iter()
+                .map(|field| RawField {
+                    definition: std::sync::Arc::new(field.clone()),
+                    values: vec![],
+                    byte_range: 0..0,
+                })
+                .collect();
+            let mut node = RawNode {
+                node_type: 204,
+                index: 1,
+                definition: std::sync::Arc::clone(&definition),
+                fields,
+                variable_length: Some(0),
+                first_schema: None,
+                user_fields: vec![],
+                byte_range: 0..0,
+            };
+            for roles in [RoleAccess::OnshapeSch30000, RoleAccess::Sch13006] {
+                assert!(roles.field(&node, uv_name).is_some());
+                assert!(roles.field(&node, "values").is_some());
+            }
+            node.fields[0].definition = std::sync::Arc::new(crate::FieldDefinition {
+                name: "unexpected".to_owned(),
+                ..(*node.fields[0].definition).clone()
+            });
+            for roles in [RoleAccess::OnshapeSch30000, RoleAccess::Sch13006] {
+                assert!(roles.field(&node, "uv_type").is_none());
+                assert!(roles.field(&node, "uv_kind").is_none());
+            }
+        }
         Ok(())
     }
 }

@@ -71,7 +71,7 @@ reviewed definitions, not the bytes or geometric correctness of an input.
 | `SCH_1700223_16100_13006` | `icad-1700223-16100-13006-r1` / 1 | 31 / 252 | `a27d8216055fe16425438c854482ec8dfac5e6f2e0aea1e1b7ce3605bc6ac633` |
 | `SCH_1700256_16100_13006` | `icad-1700256-16100-13006-r1` / 1 | 39 / 305 | `30fc3f141639819bb6c76a4585056c7b274a6103d6c3924f71c448603796e802` |
 | `SCH_1901261_19008_13006` | `icad-1901261-19008-13006-r1` / 1 | 31 / 252 | `f8913a60054dd7f29049a46c4b57ec6e7be048a2c112230453d31fe8587b6e22` |
-| `SCH_1901315_19008_13006` | `icad-1901315-19008-13006-r1` / 1 | 31 / 252 | `781de5125a27ee855bd377a456df9f21d2a71099ec231cbd1d67a86b0c637f96` |
+| `SCH_1901315_19008_13006` | `icad-1901315-19008-13006-r2` / 2 | 34 / 288 | `e9d776fdc6cd29bdc9b3bbbc05e0b75c10e287d515a5ac7c6cad01547639ded8` |
 | `SCH_2100293_20000_13006` | `icad-2100293-20000-13006-r2` / 2 | 44 / 375 | `52f7f986db1d2851aaf5c4a9938a5ade7a3c3daaa008cc8811247556a059f31f` |
 | `SCH_2100311_20000_13006` | `icad-2100311-20000-13006-r1` / 1 | 43 / 363 | `09ac64c00702f713b5ef2eaccffe003ce6e073a1b2694dd4184178cbd9399dff` |
 | `SCH_2401260_20000_13006` | `icad-2401260-20000-13006-r1` / 1 | 31 / 252 | `d89bae93d6a526d92c022933d332b88b9c7083561b0e7cecec79c7a94e24a149` |
@@ -185,7 +185,7 @@ families; this table is checked against it.
 | `9008` | 44 / 377 | `microstation-901297-9008-r1` | none | `0423090b256712358e99f211eac964a01bde5bdc6977504e1de868cd301c18c6` |
 | `15003-13006` | 58 / 474 | `icad-1500137-15003-13006-r1`, `icad-1500245-15003-13006-r1` | the other 39 profiles of base 13006 | `35343490a6876a49868a4351a6f809c99eee4b76840a6cca78b6a085033d8b40` |
 | `16100-13006` | 58 / 474 | `icad-1700223-16100-13006-r1`, `icad-1700256-16100-13006-r1` | the other 39 profiles of base 13006 | `859ba17153c523dee68d759b51536edb0e61b9ec59bebc93cf7901c65ac06506` |
-| `19008-13006` | 58 / 474 | `icad-1901261-19008-13006-r1`, `icad-1901315-19008-13006-r1` | the other 39 profiles of base 13006 | `e3762e619bbee2f4145cd747aacfda744881f1dfcbfec261757b358f59379962` |
+| `19008-13006` | 58 / 474 | `icad-1901261-19008-13006-r1`, `icad-1901315-19008-13006-r2` | the other 39 profiles of base 13006 | `031f75d59786510b29d8067f6d8e510c9f3fc1a6d0910a2b045ef634022bac47` |
 | `20000-13006` | 58 / 474 | `icad-2100293-20000-13006-r2`, `icad-2100311-20000-13006-r1`, `icad-2401260-20000-13006-r1`, `parasolid-2400164-20000-13006-r2` | the other 37 profiles of base 13006 | `cc48d2f53ccd66dd7074961e5347ee4ab9a7f84157715e97ba10964421725da2` |
 | `25001-13006` | 58 / 474 | `nx-2600169-25001-13006-r2`, `parasolid-2600217-25001-13006-r2` | the other 39 profiles of base 13006 | `035da6ba6a75a432353c786afb9d8574620bd319248f05d389aa0e333ff7531c` |
 | `26105-13006` | 58 / 474 | `icad-2601246-26105-13006-r1`, `solidworks-2700199-26105-13006-r2` | the other 39 profiles of base 13006 | `a1414c458175d697895dcf0faff66ac545b079e0274a35c90366676a54c679af` |
@@ -449,10 +449,12 @@ recorded, while unsupported variants remain rejected.
 | curve | `nurbs` | exact | conditional | conditional | nonrational or rational 3D curves, open or in the stored periodic form, or 2D curves used by SP_CURVE |
 | curve | `surface_parametric` | exact | conditional | conditional | nonrational or rational 2D NURBS on a supported surface, as FIN or edge curve; bounded 3D approximation and source FIN checks |
 | curve | `intersection` | exact | conditional | conditional | source-identified CHART/LIMIT branch on two supports, open or closed; bounded numerical fitting |
+| curve | `polyline` | exact | unsupported | unsupported | source points, sense, closure flag, and base parameter are retained; OCCT polyline edge construction is not implemented |
 | curve | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
 | surface | `plane` | exact | exact | exact | explicit trim loops |
 | surface | `cylinder` | exact | exact | exact | two vertex-free circular boundary loops, or face trimmed by its source loops |
 | surface | `cone` | exact | exact | exact | frustum with two positive-radius circular boundary loops, or face trimmed by its source loops; the source v is the distance along the axis; an edge through the apex is split there |
+| surface | `xt_cone` | exact | conditional | conditional | frustum with two positive-radius circular boundary loops; XT v advances against the axis while the radius increases; apex-crossing edge splitting is not covered by the current parametric topology path |
 | surface | `sphere` | exact | exact | exact | untrimmed closed face, or face trimmed by its source loops; OCCT seam and pole topology is generated; an edge through a pole is split there and an edge on the seam carries a pcurve per orientation |
 | surface | `torus` | exact | exact | exact | closed ring torus, or ring, horn, apple or lemon torus trimmed by its source loops |
 | surface | `spun` | exact | conditional | conditional | revolution of a mapped profile curve about the spin axis; faces trimmed by their source loops |
@@ -461,6 +463,7 @@ recorded, while unsupported variants remain rejected.
 | surface | `offset` | exact | conditional | conditional | supported exact basis surface, offset along its normal and against it for a basis of negative sense; I7 verifies a non-periodic NURBS basis |
 | surface | `blended_edge` | exact | conditional | conditional | rolling-ball and cliff-edge blends of equal offsets as the B-spline pipe of the blend radius around the spine, within the validation tolerance; a zero-offset blend is a construction reference only |
 | surface | `blend_boundary` | exact | conditional | conditional | construction surface only: its intersection with a support is the blend's contact curve, interpolated from the spine within the validation tolerance |
+| surface | `mesh` | exact | unsupported | unsupported | raw embedded pools, linked transform, and unembedded source fields are retained; faceted surface conversion is not implemented |
 | surface | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
 <!-- END GENERATED I7 GEOMETRY COVERAGE -->
 

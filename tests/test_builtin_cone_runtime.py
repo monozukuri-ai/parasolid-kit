@@ -6,7 +6,7 @@ import struct
 import pytest
 
 from parasolid_kit import ParseError, compare_documents, parse_xb, parse_xt, read_brep
-from parasolid_kit.brep import ConeSurface
+from parasolid_kit.brep import XtConeSurface
 from parasolid_kit.schema import SchemaSource
 from tests.support.parasolid_schema import positive_integer
 from tests.test_builtin_embedded_runtime import BASE, EMBEDDED, general_body
@@ -71,7 +71,8 @@ def test_cone_fields_and_brep_roles_survive_base_and_embedded_copy(key, edits, r
         )
         surface = result.brep.surfaces[0]
         assert surface.sense.value == "negative"
-        assert isinstance(surface.definition, ConeSurface)
+        assert surface.kind.value == "xt_cone"
+        assert isinstance(surface.definition, XtConeSurface)
         assert surface.source.node_index == 2
         geometry = surface.definition
         assert (geometry.point.x, geometry.point.y, geometry.point.z) == (-0.011, 0.017, -0.023)

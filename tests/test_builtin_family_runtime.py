@@ -36,7 +36,7 @@ def test_family_listing_follows_the_exact_profiles():
     profiles = builtin_profiles()
     exact = [p for p in profiles if p.coverage == "verified_subset"]
     families = [p for p in profiles if p.coverage == "family_inferred"]
-    assert len(exact) == 57
+    assert len(exact) == 62
     assert len(families) == 36
     by_id = {p.profile_id: p for p in profiles}
     assert len(by_id) == len(profiles)
@@ -44,6 +44,8 @@ def test_family_listing_follows_the_exact_profiles():
         assert profile.family_id is None
         assert profile.members == ()
         assert profile.schema_keys
+        if profile.producer_scope.startswith("TopSolid"):
+            continue
         for key in profile.schema_keys:
             family = by_id[f"family-{SchemaKey.parse(key).family_id}"]
             assert profile.profile_id in {m.profile_id for m in family.members}

@@ -45,7 +45,7 @@ KEYS = (
     "SCH_2601246_26105_13006",
 )
 # Profiles whose reviewed type set grew after their first release.
-REVISIONS = {KEYS[5]: 2, KEYS[12]: 2}
+REVISIONS = {KEYS[5]: 2, KEYS[4]: 2, KEYS[12]: 2}
 # Keys under which B-spline surfaces (124-126) were observed.
 SURFACE_KEYS = (KEYS[5], KEYS[6], KEYS[9], KEYS[11], KEYS[12], KEYS[14])
 # Keys under which offset surfaces (60) were observed.
