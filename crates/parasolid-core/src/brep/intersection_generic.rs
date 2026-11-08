@@ -13,21 +13,21 @@ pub(crate) fn evaluate_generic_chart_intersection(
     brep: &BrepModel,
     surface_a: &SurfaceKind,
     surface_b: &SurfaceKind,
-    uv_a0: [f64; 2],
-    uv_a1: [f64; 2],
-    uv_b0: [f64; 2],
-    uv_b1: [f64; 2],
+    surface_a_uv_start: [f64; 2],
+    surface_a_uv_end: [f64; 2],
+    surface_b_uv_start: [f64; 2],
+    surface_b_uv_end: [f64; 2],
     chord_start: [f64; 3],
     chord_end: [f64; 3],
     fraction: f64,
     chordal_error: Option<f64>,
 ) -> Result<GenericIntersectionEvaluation, IntersectionEvaluationError> {
     let invalid = |message| Err(IntersectionEvaluationError::InvalidInput(message));
-    if uv_a0
+    if surface_a_uv_start
         .into_iter()
-        .chain(uv_a1)
-        .chain(uv_b0)
-        .chain(uv_b1)
+        .chain(surface_a_uv_end)
+        .chain(surface_b_uv_start)
+        .chain(surface_b_uv_end)
         .chain(chord_start)
         .chain(chord_end)
         .chain([fraction])
@@ -45,10 +45,10 @@ pub(crate) fn evaluate_generic_chart_intersection(
     let chord_normal = scale(chord, 1.0 / chord_length);
     let chord_point = add(chord_start, scale(chord, fraction));
     let seed = [
-        (uv_a0[0] + (uv_a1[0] - uv_a0[0]) * fraction),
-        (uv_a0[1] + (uv_a1[1] - uv_a0[1]) * fraction),
-        (uv_b0[0] + (uv_b1[0] - uv_b0[0]) * fraction),
-        (uv_b0[1] + (uv_b1[1] - uv_b0[1]) * fraction),
+        (surface_a_uv_start[0] + (surface_a_uv_end[0] - surface_a_uv_start[0]) * fraction),
+        (surface_a_uv_start[1] + (surface_a_uv_end[1] - surface_a_uv_start[1]) * fraction),
+        (surface_b_uv_start[0] + (surface_b_uv_end[0] - surface_b_uv_start[0]) * fraction),
+        (surface_b_uv_start[1] + (surface_b_uv_end[1] - surface_b_uv_start[1]) * fraction),
     ];
     let scale_at = chord_start
         .into_iter()
@@ -58,10 +58,10 @@ pub(crate) fn evaluate_generic_chart_intersection(
     let tolerance = 1.0e-9 * scale_at;
     let bounds: [[f64; 2]; 4] = std::array::from_fn(|axis| {
         let (a, b) = match axis {
-            0 => (uv_a0[0], uv_a1[0]),
-            1 => (uv_a0[1], uv_a1[1]),
-            2 => (uv_b0[0], uv_b1[0]),
-            _ => (uv_b0[1], uv_b1[1]),
+            0 => (surface_a_uv_start[0], surface_a_uv_end[0]),
+            1 => (surface_a_uv_start[1], surface_a_uv_end[1]),
+            2 => (surface_b_uv_start[0], surface_b_uv_end[0]),
+            _ => (surface_b_uv_start[1], surface_b_uv_end[1]),
         };
         let span = (a - b).abs();
         let (surface, uv) = if axis < 2 {
@@ -78,9 +78,9 @@ pub(crate) fn evaluate_generic_chart_intersection(
             .zip(evaluate_brep_surface(brep, surface, before[0], before[1]))
             .map(|(after, before)| norm(sub(after.point, before.point)) / (2.0 * step))
             .filter(|value| value.is_finite() && *value > 1.0e-12);
-        let error_margin = derivative
-            .map(|value| chordal_error.unwrap_or(tolerance).max(tolerance) / value)
-            .unwrap_or(0.0);
+        let error_margin = derivative.map_or(0.0, |value| {
+            chordal_error.unwrap_or(tolerance).max(tolerance) / value
+        });
         let margin = (span * 0.05)
             .max(error_margin)
             .max(a.abs().max(b.abs()).max(1.0) * 1.0e-6);
@@ -179,9 +179,7 @@ pub(crate) fn evaluate_generic_chart_intersection(
         }
     }
     let mut in_bound = roots.into_iter().filter(|(_, point)| {
-        chordal_error.map_or(true, |error| {
-            norm(sub(*point, chord_point)) <= error + tolerance
-        })
+        chordal_error.is_none_or(|error| norm(sub(*point, chord_point)) <= error + tolerance)
     });
     let Some((root, point)) = in_bound.next() else {
         return Err(IntersectionEvaluationError::OutsideChartDomain);

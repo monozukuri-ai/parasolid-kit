@@ -35,16 +35,13 @@ pub fn evaluate_surface(
             normal,
             x_axis,
         } => {
-            let (x, y, norm) =
+            let (basis_x, basis_y, normal) =
                 orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
             let pt = vec3_add(
                 point.to_array(),
-                vec3_add(vec3_scale(x, u), vec3_scale(y, v)),
+                vec3_add(vec3_scale(basis_x, u), vec3_scale(basis_y, v)),
             );
-            Some(SurfaceEvaluation {
-                point: pt,
-                normal: norm,
-            })
+            Some(SurfaceEvaluation { point: pt, normal })
         }
         crate::brep::SurfaceKind::Cylinder {
             point,
@@ -52,12 +49,12 @@ pub fn evaluate_surface(
             radius,
             x_axis,
         } => {
-            let (x, y, ax) =
+            let (basis_x, basis_y, axis) =
                 orthonormal_frame_from_axis_and_ref(axis.to_array(), x_axis.to_array());
-            let radial = vec3_add(vec3_scale(x, u.cos()), vec3_scale(y, u.sin()));
+            let radial = vec3_add(vec3_scale(basis_x, u.cos()), vec3_scale(basis_y, u.sin()));
             let pt = vec3_add(
                 point.to_array(),
-                vec3_add(vec3_scale(ax, v), vec3_scale(radial, *radius)),
+                vec3_add(vec3_scale(axis, v), vec3_scale(radial, *radius)),
             );
             Some(SurfaceEvaluation {
                 point: pt,
@@ -70,13 +67,14 @@ pub fn evaluate_surface(
             axis,
             x_axis,
         } => {
-            let (x, y, z) = orthonormal_frame_from_axis_and_ref(axis.to_array(), x_axis.to_array());
+            let (basis_x, basis_y, basis_z) =
+                orthonormal_frame_from_axis_and_ref(axis.to_array(), x_axis.to_array());
             let rad_dir = vec3_add(
                 vec3_add(
-                    vec3_scale(x, v.cos() * u.cos()),
-                    vec3_scale(y, v.cos() * u.sin()),
+                    vec3_scale(basis_x, v.cos() * u.cos()),
+                    vec3_scale(basis_y, v.cos() * u.sin()),
                 ),
-                vec3_scale(z, v.sin()),
+                vec3_scale(basis_z, v.sin()),
             );
             let pt = vec3_add(center.to_array(), vec3_scale(rad_dir, *radius));
             Some(SurfaceEvaluation {
@@ -84,89 +82,8 @@ pub fn evaluate_surface(
                 normal: rad_dir,
             })
         }
-        crate::brep::SurfaceKind::Cone {
-            point,
-            axis,
-            radius,
-            sin_half_angle,
-            cos_half_angle,
-            x_axis,
-        } => {
-            let (x, y, ax) =
-                orthonormal_frame_from_axis_and_ref(axis.to_array(), x_axis.to_array());
-            let rad_dir = vec3_add(vec3_scale(x, u.cos()), vec3_scale(y, u.sin()));
-            let tan_half_angle = if cos_half_angle.abs() > 1e-12 {
-                sin_half_angle / cos_half_angle
-            } else {
-                0.0
-            };
-            let r = radius + v * tan_half_angle;
-            let pt = vec3_add(
-                vec3_add(point.to_array(), vec3_scale(ax, v)),
-                vec3_scale(rad_dir, r),
-            );
-            let norm = vec3_normalize(vec3_sub(
-                vec3_scale(rad_dir, *cos_half_angle),
-                vec3_scale(ax, *sin_half_angle),
-            ));
-            Some(SurfaceEvaluation {
-                point: pt,
-                normal: norm,
-            })
-        }
-        crate::brep::SurfaceKind::XtCone {
-            point,
-            axis,
-            radius,
-            sin_half_angle,
-            cos_half_angle,
-            x_axis,
-        } => {
-            let axis = axis.to_array();
-            let point = point.to_array();
-            let x_axis = x_axis.to_array();
-            let angle_norm = sin_half_angle.hypot(*cos_half_angle);
-            if !u.is_finite()
-                || !v.is_finite()
-                || !radius.is_finite()
-                || !sin_half_angle.is_finite()
-                || !cos_half_angle.is_finite()
-                || !angle_norm.is_finite()
-                || angle_norm <= 1e-12
-                || cos_half_angle.abs() <= 1e-12
-                || !point.into_iter().all(f64::is_finite)
-                || !axis.into_iter().all(f64::is_finite)
-                || !x_axis.into_iter().all(f64::is_finite)
-                || vec3_norm(axis) <= 1e-12
-            {
-                return None;
-            }
-            let (x, y, ax) = orthonormal_frame_from_axis_and_ref(axis, x_axis);
-            let radial = vec3_add(vec3_scale(x, u.cos()), vec3_scale(y, u.sin()));
-            let tan_half_angle = sin_half_angle / cos_half_angle;
-            let section_radius = radius + v * tan_half_angle;
-            let normal_scale = -section_radius;
-            if !tan_half_angle.is_finite()
-                || !section_radius.is_finite()
-                || section_radius.abs() <= 1e-12
-            {
-                return None;
-            }
-            let pt = vec3_add(
-                vec3_add(point, vec3_scale(ax, -v)),
-                vec3_scale(radial, section_radius),
-            );
-            let norm = vec3_normalize(vec3_scale(
-                vec3_add(radial, vec3_scale(ax, tan_half_angle)),
-                normal_scale,
-            ));
-            (pt.into_iter().all(f64::is_finite) && norm.into_iter().all(f64::is_finite)).then_some(
-                SurfaceEvaluation {
-                    point: pt,
-                    normal: norm,
-                },
-            )
-        }
+        crate::brep::SurfaceKind::Cone { .. } => evaluate_cone_surface(surface, u, v),
+        crate::brep::SurfaceKind::XtCone { .. } => evaluate_xt_cone_surface(surface, u, v),
         crate::brep::SurfaceKind::Torus {
             center,
             axis,
@@ -174,10 +91,10 @@ pub fn evaluate_surface(
             minor_radius,
             x_axis,
         } => {
-            let (x, y, ax) =
+            let (basis_x, basis_y, axis) =
                 orthonormal_frame_from_axis_and_ref(axis.to_array(), x_axis.to_array());
-            let major_dir = vec3_add(vec3_scale(x, u.cos()), vec3_scale(y, u.sin()));
-            let outward = vec3_add(vec3_scale(major_dir, v.cos()), vec3_scale(ax, v.sin()));
+            let major_dir = vec3_add(vec3_scale(basis_x, u.cos()), vec3_scale(basis_y, u.sin()));
+            let outward = vec3_add(vec3_scale(major_dir, v.cos()), vec3_scale(axis, v.sin()));
             let pt = vec3_add(
                 vec3_add(center.to_array(), vec3_scale(major_dir, *major_radius)),
                 vec3_scale(outward, *minor_radius),
@@ -195,6 +112,97 @@ pub fn evaluate_surface(
     }
 }
 
+fn evaluate_cone_surface(
+    surface: &crate::brep::SurfaceKind,
+    u: f64,
+    v: f64,
+) -> Option<SurfaceEvaluation> {
+    let crate::brep::SurfaceKind::Cone {
+        point,
+        axis,
+        radius,
+        sin_half_angle,
+        cos_half_angle,
+        x_axis,
+    } = surface
+    else {
+        return None;
+    };
+    let (basis_x, basis_y, axis) =
+        orthonormal_frame_from_axis_and_ref(axis.to_array(), x_axis.to_array());
+    let radial = vec3_add(vec3_scale(basis_x, u.cos()), vec3_scale(basis_y, u.sin()));
+    let tan_half_angle = if cos_half_angle.abs() > 1e-12 {
+        sin_half_angle / cos_half_angle
+    } else {
+        0.0
+    };
+    let section_radius = radius + v * tan_half_angle;
+    let point = vec3_add(
+        vec3_add(point.to_array(), vec3_scale(axis, v)),
+        vec3_scale(radial, section_radius),
+    );
+    let normal = vec3_normalize(vec3_sub(
+        vec3_scale(radial, *cos_half_angle),
+        vec3_scale(axis, *sin_half_angle),
+    ));
+    Some(SurfaceEvaluation { point, normal })
+}
+
+fn evaluate_xt_cone_surface(
+    surface: &crate::brep::SurfaceKind,
+    u: f64,
+    v: f64,
+) -> Option<SurfaceEvaluation> {
+    let crate::brep::SurfaceKind::XtCone {
+        point,
+        axis,
+        radius,
+        sin_half_angle,
+        cos_half_angle,
+        x_axis,
+    } = surface
+    else {
+        return None;
+    };
+    let axis = axis.to_array();
+    let point = point.to_array();
+    let x_axis = x_axis.to_array();
+    let angle_norm = sin_half_angle.hypot(*cos_half_angle);
+    if !u.is_finite()
+        || !v.is_finite()
+        || !radius.is_finite()
+        || !sin_half_angle.is_finite()
+        || !cos_half_angle.is_finite()
+        || !angle_norm.is_finite()
+        || angle_norm <= 1e-12
+        || cos_half_angle.abs() <= 1e-12
+        || !point.into_iter().all(f64::is_finite)
+        || !axis.into_iter().all(f64::is_finite)
+        || !x_axis.into_iter().all(f64::is_finite)
+        || vec3_norm(axis) <= 1e-12
+    {
+        return None;
+    }
+    let (basis_x, basis_y, axis) = orthonormal_frame_from_axis_and_ref(axis, x_axis);
+    let radial = vec3_add(vec3_scale(basis_x, u.cos()), vec3_scale(basis_y, u.sin()));
+    let tan_half_angle = sin_half_angle / cos_half_angle;
+    let section_radius = radius + v * tan_half_angle;
+    let normal_scale = -section_radius;
+    if !tan_half_angle.is_finite() || !section_radius.is_finite() || section_radius.abs() <= 1e-12 {
+        return None;
+    }
+    let point = vec3_add(
+        vec3_add(point, vec3_scale(axis, -v)),
+        vec3_scale(radial, section_radius),
+    );
+    let normal = vec3_normalize(vec3_scale(
+        vec3_add(radial, vec3_scale(axis, tan_half_angle)),
+        normal_scale,
+    ));
+    (point.into_iter().all(f64::is_finite) && normal.into_iter().all(f64::is_finite))
+        .then_some(SurfaceEvaluation { point, normal })
+}
+
 pub(super) fn evaluate_prepared_nurbs_surface(
     surface: &crate::brep::NurbsSurface,
     prepared: &super::nurbs_surface::PreparedNurbsSurface,
@@ -203,8 +211,24 @@ pub(super) fn evaluate_prepared_nurbs_surface(
 ) -> Option<SurfaceEvaluation> {
     let point = prepared.point(u, v).ok()?;
     let (u_min, u_max, v_min, v_max) = prepared.active_bounds();
-    let du = nurbs_tangent(prepared, u, v, (u_min, u_max), surface.u_periodic, true, point)?;
-    let dv = nurbs_tangent(prepared, u, v, (v_min, v_max), surface.v_periodic, false, point)?;
+    let du = nurbs_tangent(
+        prepared,
+        u,
+        v,
+        (u_min, u_max),
+        surface.u_periodic,
+        true,
+        point,
+    )?;
+    let dv = nurbs_tangent(
+        prepared,
+        u,
+        v,
+        (v_min, v_max),
+        surface.v_periodic,
+        false,
+        point,
+    )?;
     let normal = normalize_nonzero(vec3_cross(du, dv)).unwrap_or([0.0, 0.0, 1.0]);
     Some(SurfaceEvaluation { point, normal })
 }
@@ -330,17 +354,17 @@ pub fn evaluate_curve(curve: &crate::brep::CurveKind, t: f64) -> Option<CurveEva
             x_axis,
             radius,
         } => {
-            let (x, y, _n) =
+            let (basis_x, basis_y, _normal) =
                 orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
             let pt = vec3_add(
                 center.to_array(),
                 vec3_scale(
-                    vec3_add(vec3_scale(x, t.cos()), vec3_scale(y, t.sin())),
+                    vec3_add(vec3_scale(basis_x, t.cos()), vec3_scale(basis_y, t.sin())),
                     *radius,
                 ),
             );
             let tangent = vec3_scale(
-                vec3_add(vec3_scale(x, -t.sin()), vec3_scale(y, t.cos())),
+                vec3_add(vec3_scale(basis_x, -t.sin()), vec3_scale(basis_y, t.cos())),
                 *radius,
             );
             Some(CurveEvaluation { point: pt, tangent })
@@ -352,18 +376,18 @@ pub fn evaluate_curve(curve: &crate::brep::CurveKind, t: f64) -> Option<CurveEva
             major_radius,
             minor_radius,
         } => {
-            let (x, y, _n) =
+            let (basis_x, basis_y, _normal) =
                 orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
             let pt = vec3_add(
                 center.to_array(),
                 vec3_add(
-                    vec3_scale(x, *major_radius * t.cos()),
-                    vec3_scale(y, *minor_radius * t.sin()),
+                    vec3_scale(basis_x, *major_radius * t.cos()),
+                    vec3_scale(basis_y, *minor_radius * t.sin()),
                 ),
             );
             let tangent = vec3_add(
-                vec3_scale(x, -*major_radius * t.sin()),
-                vec3_scale(y, *minor_radius * t.cos()),
+                vec3_scale(basis_x, -*major_radius * t.sin()),
+                vec3_scale(basis_y, *minor_radius * t.cos()),
             );
             Some(CurveEvaluation { point: pt, tangent })
         }
@@ -377,13 +401,16 @@ pub fn evaluate_curve(curve: &crate::brep::CurveKind, t: f64) -> Option<CurveEva
             if !t.is_finite() || !f.is_finite() || f <= 1e-12 {
                 return None;
             }
-            let (x, y, _n) =
+            let (basis_x, basis_y, _normal) =
                 orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
             let pt = vec3_add(
                 origin.to_array(),
-                vec3_add(vec3_scale(x, (t * t) / (4.0 * f)), vec3_scale(y, t)),
+                vec3_add(
+                    vec3_scale(basis_x, (t * t) / (4.0 * f)),
+                    vec3_scale(basis_y, t),
+                ),
             );
-            let tangent = vec3_add(vec3_scale(x, t / (2.0 * f)), y);
+            let tangent = vec3_add(vec3_scale(basis_x, t / (2.0 * f)), basis_y);
             (pt.into_iter().all(f64::is_finite) && tangent.into_iter().all(f64::is_finite))
                 .then_some(CurveEvaluation { point: pt, tangent })
         }
@@ -393,24 +420,14 @@ pub fn evaluate_curve(curve: &crate::brep::CurveKind, t: f64) -> Option<CurveEva
             x_axis,
             transverse_radius,
             conjugate_radius,
-        } => {
-            let a = *transverse_radius;
-            let b = *conjugate_radius;
-            if !t.is_finite() || !a.is_finite() || !b.is_finite() || a <= 1e-12 || b <= 1e-12 {
-                return None;
-            }
-            let (x, y, _n) =
-                orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
-            let cosh_t = t.cosh();
-            let sinh_t = t.sinh();
-            let pt = vec3_add(
-                origin.to_array(),
-                vec3_add(vec3_scale(x, a * cosh_t), vec3_scale(y, b * sinh_t)),
-            );
-            let tangent = vec3_add(vec3_scale(x, a * sinh_t), vec3_scale(y, b * cosh_t));
-            (pt.into_iter().all(f64::is_finite) && tangent.into_iter().all(f64::is_finite))
-                .then_some(CurveEvaluation { point: pt, tangent })
-        }
+        } => evaluate_hyperbola(
+            origin,
+            normal,
+            x_axis,
+            *transverse_radius,
+            *conjugate_radius,
+            t,
+        ),
         crate::brep::CurveKind::Nurbs(nurbs) => {
             let pt = crate::brep::evaluate_mapped_nurbs_curve_candidate(nurbs, t).ok()?;
             let eps = 1e-4;
@@ -428,6 +445,41 @@ pub fn evaluate_curve(curve: &crate::brep::CurveKind, t: f64) -> Option<CurveEva
         }
         _ => None,
     }
+}
+
+fn evaluate_hyperbola(
+    origin: &crate::brep::Vector3,
+    normal: &crate::brep::Vector3,
+    x_axis: &crate::brep::Vector3,
+    transverse_radius: f64,
+    conjugate_radius: f64,
+    parameter: f64,
+) -> Option<CurveEvaluation> {
+    if !parameter.is_finite()
+        || !transverse_radius.is_finite()
+        || !conjugate_radius.is_finite()
+        || transverse_radius <= 1e-12
+        || conjugate_radius <= 1e-12
+    {
+        return None;
+    }
+    let (basis_x, basis_y, _normal) =
+        orthonormal_frame_from_axis_and_ref(normal.to_array(), x_axis.to_array());
+    let cosh_parameter = parameter.cosh();
+    let sinh_parameter = parameter.sinh();
+    let point = vec3_add(
+        origin.to_array(),
+        vec3_add(
+            vec3_scale(basis_x, transverse_radius * cosh_parameter),
+            vec3_scale(basis_y, conjugate_radius * sinh_parameter),
+        ),
+    );
+    let tangent = vec3_add(
+        vec3_scale(basis_x, transverse_radius * sinh_parameter),
+        vec3_scale(basis_y, conjugate_radius * cosh_parameter),
+    );
+    (point.into_iter().all(f64::is_finite) && tangent.into_iter().all(f64::is_finite))
+        .then_some(CurveEvaluation { point, tangent })
 }
 
 /// Evaluates a point on an analytical or mapped 3D curve at parameter `t`.
