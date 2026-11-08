@@ -213,12 +213,17 @@ mod tests {
     }
 
     #[test]
-    fn mapped_xt_swept_evaluator_uses_linked_section_and_ignores_nullable_scale() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed mapped fixture pins the evaluator's exact output coordinates"
+    )]
+    fn mapped_xt_swept_evaluator_uses_linked_section_and_ignores_nullable_scale()
+    -> std::io::Result<()> {
         assert_eq!(
-            evaluate_mapped_xt_swept_point_candidate(&swept(), Some(&mapped_section()), 4.0, 2.0)
-                .unwrap(),
+            evaluate_mapped_xt_swept_point_candidate(&swept(), Some(&mapped_section()), 4.0, 2.0)?,
             [4.0, 5.6, 2.2]
         );
+        Ok(())
     }
 
     #[test]

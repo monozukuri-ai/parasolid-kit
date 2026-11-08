@@ -4693,6 +4693,10 @@ fn emit_isoparametric_grid(
     );
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "All callers bound grid counts to at most 64 in U and 48 in V, so indices and denominators are exactly representable as f64."
+)]
 fn emit_isoparametric_grid_with<E>(
     eval_surface: E,
     u_min: f64,

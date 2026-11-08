@@ -2094,22 +2094,25 @@ mod tests {
     }
 
     #[test]
-    fn degree_one_transverse_varying_projective_seam_is_exact_and_perturbation_fails() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Equivalent periodic seam parameters must produce exactly equal surface points."
+    )]
+    fn degree_one_transverse_varying_projective_seam_is_exact_and_perturbation_fails()
+    -> std::io::Result<()> {
         let surface = degree_one_transverse_varying_projective_seam();
-        let seam = evaluate_mapped_nurbs_surface(&surface, 0.0, 0.5).unwrap();
+        let seam = evaluate_mapped_nurbs_surface(&surface, 0.0, 0.5)?;
         assert_eq!(seam, [0.0; 3]);
+        assert_eq!(seam, evaluate_mapped_nurbs_surface(&surface, 3.0, 0.5)?);
         assert_eq!(
-            seam,
-            evaluate_mapped_nurbs_surface(&surface, 3.0, 0.5).unwrap()
-        );
-        assert_eq!(
-            evaluate_mapped_nurbs_surface(&surface, 0.5, 0.5).unwrap(),
-            evaluate_mapped_nurbs_surface(&surface, 3.5, 0.5).unwrap()
+            evaluate_mapped_nurbs_surface(&surface, 0.5, 0.5)?,
+            evaluate_mapped_nurbs_surface(&surface, 3.5, 0.5)?
         );
 
         let mut perturbed = surface;
         perturbed.control_vertices[7][0] = 0.5;
         assert!(evaluate_mapped_nurbs_surface(&perturbed, 0.5, 0.5).is_err());
+        Ok(())
     }
 
     #[test]
