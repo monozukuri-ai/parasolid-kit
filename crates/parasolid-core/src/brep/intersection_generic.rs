@@ -13,6 +13,10 @@ pub(crate) struct GenericIntersectionEvaluation {
 type SurfaceUvEndpoints = [[f64; 2]; 2];
 
 /// Solves the local support pair at one chart-normal section plane.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep the geometry calculation and its established parameter contract together."
+)]
 pub(crate) fn evaluate_generic_chart_intersection(
     brep: &BrepModel,
     surface_a: &SurfaceKind,
@@ -281,6 +285,11 @@ fn normalize(a: [f64; 3]) -> Option<[f64; 3]> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::brep::{BrepMetrics, BrepSourceFormat, TopologyValidation, Vector3};

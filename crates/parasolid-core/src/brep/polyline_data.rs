@@ -476,6 +476,11 @@ fn invalid_reference(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
@@ -518,7 +523,10 @@ mod tests {
                     byte_range: 0..1,
                 })
                 .collect(),
-            byte_range: index as usize..index as usize + 1,
+            byte_range: std::ops::Range {
+                start: index as usize,
+                end: index as usize + 1,
+            },
             user_fields: Vec::new(),
         }
     }
@@ -617,7 +625,10 @@ mod tests {
                 .collect(),
             definition: definition.into(),
             first_schema: None,
-            byte_range: index as usize..index as usize + 1,
+            byte_range: std::ops::Range {
+                start: index as usize,
+                end: index as usize + 1,
+            },
             user_fields: Vec::new(),
         }
     }

@@ -578,6 +578,12 @@ fn orthonormal_frame_from_axis_and_ref(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::{
         evaluate_curve, evaluate_surface, orthonormal_frame_from_axis_and_ref, vec3_add,
@@ -643,7 +649,7 @@ mod tests {
 
         for (u, v) in [(0.0, 0.0), (domain * 0.5, domain * 0.5), (domain, domain)] {
             let evaluated = evaluate_surface(&surface, u, v).expect("evaluate NURBS plane");
-            assert!(evaluated.normal[1] < -0.999999999999);
+            assert!(evaluated.normal[1] < -0.999_999_999_999);
             assert!(evaluated.normal[0].abs() < 1e-12);
             assert!(evaluated.normal[2].abs() < 1e-12);
         }

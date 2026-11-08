@@ -735,6 +735,10 @@ fn invalid_reference(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use std::ops::Range;
 
@@ -804,7 +808,10 @@ mod tests {
             .into(),
             first_schema: None,
             fields,
-            byte_range: Range::from(index as usize..index as usize + 1),
+            byte_range: Range {
+                start: index as usize,
+                end: index as usize + 1,
+            },
             user_fields: Vec::new(),
         }
     }
@@ -883,7 +890,10 @@ mod tests {
             fields,
             definition: definition.into(),
             first_schema: None,
-            byte_range: index as usize..index as usize + 1,
+            byte_range: Range {
+                start: index as usize,
+                end: index as usize + 1,
+            },
             user_fields: Vec::new(),
         }
     }

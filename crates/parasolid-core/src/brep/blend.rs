@@ -581,6 +581,10 @@ fn nurbs_domain(curve: &NurbsCurve) -> Option<(f64, f64)> {
     (lo.is_finite() && hi.is_finite() && lo < hi).then_some((lo, hi))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep the geometry calculation and its established parameter contract together."
+)]
 fn support_contact(
     sense: Sense,
     surface: &SurfaceKind,
@@ -807,6 +811,11 @@ fn vec3_norm(a: [f64; 3]) -> f64 {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::too_many_lines,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::brep::{

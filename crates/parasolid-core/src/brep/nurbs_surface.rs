@@ -1620,6 +1620,11 @@ impl PreparedNurbsSurface {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::{
         PreparedNurbsSurface, evaluate_mapped_nurbs_surface, exact_evaluate_curve,
@@ -1892,7 +1897,7 @@ mod tests {
             [0.0, 0.0, 4.0, 0.0],
         ];
         let middle = std::array::from_fn(|index| {
-            std::array::from_fn(|axis| (start[index][axis] + end[index][axis]) / 2.0)
+            std::array::from_fn(|axis| f64::midpoint(start[index][axis], end[index][axis]))
         });
         let rows = [
             start,

@@ -2241,6 +2241,10 @@ struct PlaneXtConeInverseChartData {
     geometric_tolerance: f64,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep the geometry calculation and its established parameter contract together."
+)]
 fn plane_xt_cone_inverse_chart_data(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -4653,12 +4657,24 @@ fn scale(a: [f64; 3], factor: f64) -> [f64; 3] {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::needless_range_loop,
+    reason = "Fixture indices and values are bounded and kept explicit for regression checks."
+)]
+#[allow(
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::too_many_lines,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
 
     #[test]
     fn chart_parameter_at_station_returns_stored_float_exactly() {
-        let parameters = [-92.87466166493647, 38.57189721181492];
+        let parameters = [-92.874_661_664_936_47, 38.571_897_211_814_92];
         assert_eq!(
             chart_parameter_at_fraction(&parameters, 0, 0.0),
             parameters[0]
@@ -5780,8 +5796,8 @@ mod tests {
             point: Vector3::from_array([0.0; 3]),
             axis: Vector3::from_array([0.0, 0.0, 1.0]),
             radius: 1.0,
-            sin_half_angle: 0.4472135954999579,
-            cos_half_angle: 0.8944271909999159,
+            sin_half_angle: 0.447_213_595_499_957_9,
+            cos_half_angle: 0.894_427_190_999_915_9,
             x_axis: Vector3::from_array([1.0, 0.0, 0.0]),
         };
         brep.surfaces[0].sense = Sense::Negative;
@@ -5862,8 +5878,8 @@ mod tests {
                     point: Vector3::from_array([0.0; 3]),
                     axis: Vector3::from_array([0.0, 0.0, 1.0]),
                     radius: 1.0,
-                    sin_half_angle: 0.4472135954999579,
-                    cos_half_angle: 0.8944271909999159,
+                    sin_half_angle: 0.447_213_595_499_957_9,
+                    cos_half_angle: 0.894_427_190_999_915_9,
                     x_axis: Vector3::from_array([1.0, 0.0, 0.0]),
                 };
                 brep.surfaces[0].sense = Sense::Negative;
@@ -5955,8 +5971,8 @@ mod tests {
             point: Vector3::from_array([0.0; 3]),
             axis: Vector3::from_array([0.0, 0.0, 1.0]),
             radius: 1.0,
-            sin_half_angle: 0.4472135954999579,
-            cos_half_angle: 0.8944271909999159,
+            sin_half_angle: 0.447_213_595_499_957_9,
+            cos_half_angle: 0.894_427_190_999_915_9,
             x_axis: Vector3::from_array([1.0, 0.0, 0.0]),
         };
         brep.surfaces[0].sense = Sense::Negative;
@@ -6047,8 +6063,8 @@ mod tests {
             point: Vector3::from_array([0.0; 3]),
             axis: Vector3::from_array([0.0, 0.0, 1.0]),
             radius: 1.0,
-            sin_half_angle: 0.4472135954999579,
-            cos_half_angle: 0.8944271909999159,
+            sin_half_angle: 0.447_213_595_499_957_9,
+            cos_half_angle: 0.894_427_190_999_915_9,
             x_axis: Vector3::from_array([1.0, 0.0, 0.0]),
         };
         brep.surfaces[0].sense = Sense::Negative;

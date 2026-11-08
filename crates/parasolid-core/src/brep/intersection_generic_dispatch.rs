@@ -522,6 +522,13 @@ fn normalize(a: [f64; 3]) -> Option<[f64; 3]> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::too_many_lines,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::brep::{

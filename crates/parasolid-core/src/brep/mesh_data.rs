@@ -1429,6 +1429,17 @@ fn invalid_at(node: u32, field: &'static str, reason: &'static str) -> MeshDataE
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::map_unwrap_or,
+    clippy::format_push_string,
+    reason = "Fixture indices and values are bounded and kept explicit for regression checks."
+)]
+#[allow(
+    clippy::float_cmp,
+    clippy::panic,
+    clippy::too_many_lines,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::{DocumentLimits, FieldDefinition, InMemorySchemaProvider, RawField, parse_xt};

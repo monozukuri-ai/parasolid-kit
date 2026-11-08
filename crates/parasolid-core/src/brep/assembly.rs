@@ -1714,6 +1714,18 @@ fn invalid_reference(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    reason = "Fixture indices and values are bounded and kept explicit for regression checks."
+)]
+#[allow(
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::too_many_lines,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::brep::{
@@ -1870,7 +1882,7 @@ mod tests {
                     9,
                     0,
                     (1..=9)
-                        .map(|value| FieldValue::Double(Some(value as f64 / 100.0)))
+                        .map(|value| FieldValue::Double(Some(f64::from(value) / 100.0)))
                         .collect(),
                 ),
                 (
@@ -2022,7 +2034,7 @@ mod tests {
                         9,
                         0,
                         (1..=9)
-                            .map(|value| FieldValue::Double(Some(value as f64)))
+                            .map(|value| FieldValue::Double(Some(f64::from(value))))
                             .collect(),
                     ),
                     (

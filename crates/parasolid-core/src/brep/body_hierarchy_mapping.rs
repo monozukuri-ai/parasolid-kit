@@ -502,6 +502,15 @@ fn invalid_body_link(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::match_same_arms,
+    reason = "Fixture indices and values are bounded and kept explicit for regression checks."
+)]
+#[allow(
+    clippy::panic,
+    clippy::too_many_lines,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::brep::{BodyKind, BrepMetrics, BrepSourceFormat, SourceNodeRef, TopologyValidation};
@@ -684,7 +693,10 @@ mod tests {
             node_type: 12,
             type_name: "BODY".into(),
             node_id: None,
-            byte_range: node_index as usize..node_index as usize + 1,
+            byte_range: std::ops::Range {
+                start: node_index as usize,
+                end: node_index as usize + 1,
+            },
         }
     }
 

@@ -224,6 +224,11 @@ fn torus_residual(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    clippy::unwrap_used,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::*;
     use crate::brep::Vector3;

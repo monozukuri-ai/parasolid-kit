@@ -122,6 +122,11 @@ pub fn evaluate_mapped_xt_swept_point_candidate(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::float_cmp,
+    reason = "Tests use explicit fixture failures and exact expected values."
+)]
 mod tests {
     use super::{evaluate_mapped_xt_swept_point_candidate, evaluate_ruled_sweep_point_candidate};
     use crate::brep::{CurveGeometry, CurveKind, NurbsCurve, SourceNodeRef, SweptSurfaceData};

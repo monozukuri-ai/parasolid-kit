@@ -688,12 +688,11 @@ fn intersection_data_to_python<'py>(
     Ok(value)
 }
 
+type PythonSurfaceUv = Option<(Option<f64>, Option<f64>)>;
+
 fn intersection_coordinates_to_python(
     coordinates: parasolid_core::brep::IntersectionUvCoordinates,
-) -> (
-    Option<(Option<f64>, Option<f64>)>,
-    Option<(Option<f64>, Option<f64>)>,
-) {
+) -> (PythonSurfaceUv, PythonSurfaceUv) {
     (
         coordinates.first_surface.map(|[u, v]| (u, v)),
         coordinates.second_surface.map(|[u, v]| (u, v)),
