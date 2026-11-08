@@ -82,7 +82,7 @@ documented source selection, keep that process running and, in another terminal
 from `viewer/`, substitute its URL below:
 
 ```sh
-node tests/screenshot.mjs http://127.0.0.1:PORT/ ../upstream-docs/images/viewer.png
+node tests/screenshot.mjs http://127.0.0.1:PORT/ ../docs/images/viewer.png
 ```
 
 The script uses a real canvas click on face 102, compares its source fields with
@@ -248,5 +248,5 @@ Linux CI is configured to run these checks and retain their reports. The existin
 optional/release matrices continue to check generation and installs; this does not
 claim browser/GPU qualification on those operating systems. Local browser evidence
 uses synthetic B-Reps and SwiftShader, not real parsed X_T/X_B files or physical GPUs.
-See the [validation record](../upstream-docs/viewer-validation.md) for the local run results,
+See the [validation record](../docs/viewer-validation.md) for the local run results,
 fixture and artifact hashes, screenshot provenance, and checks not yet run.

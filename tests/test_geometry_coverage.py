@@ -118,7 +118,7 @@ def test_geometry_coverage_is_enum_complete_immutable_and_dependency_free() -> N
 
 
 def test_format_support_embeds_the_machine_rendered_coverage_table() -> None:
-    text = (ROOT / "upstream-docs" / "format-support.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "format-support.md").read_text(encoding="utf-8")
     assert text.count(DOC_BEGIN) == 1
     assert text.count(DOC_END) == 1
     embedded = text.split(DOC_BEGIN, 1)[1].split(DOC_END, 1)[0].strip()

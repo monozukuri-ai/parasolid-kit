@@ -131,10 +131,10 @@ def test_cli_check_reports_the_family(tmp_path, capsys):
 
 
 def test_family_documentation_matches_runtime():
-    support = (ROOT / "upstream-docs/format-support.md").read_text(encoding="utf-8")
+    support = (ROOT / "docs/format-support.md").read_text(encoding="utf-8")
     for family in (p for p in builtin_profiles() if p.coverage == "family_inferred"):
         assert f"| `{family.family_id}` |" in support, family.family_id
         for member in family.members:
             assert member.profile_id in support
-    for name in ("README.md", "upstream-docs/api.md", "upstream-docs/schema-catalogs.md"):
+    for name in ("README.md", "docs/api.md", "docs/schema-catalogs.md"):
         assert "family_inferred" in (ROOT / name).read_text(encoding="utf-8"), name

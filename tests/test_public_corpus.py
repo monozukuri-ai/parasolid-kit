@@ -1,7 +1,7 @@
 """Regression over a local corpus of real transmit files, when one is configured.
 
 Set ``PARASOLID_KIT_CORPUS`` to a directory of X_T/X_B files (for example the
-public files named in ``upstream-docs/format-support.md``, which are not redistributed
+public files named in ``docs/format-support.md``, which are not redistributed
 here). Every file must parse, map a complete B-Rep and convert strictly unless
 ``expected.json`` in that directory lists it, as ``{"<file name>": "<reason>"}``.
 Without the variable the test is skipped, so CI never depends on files it

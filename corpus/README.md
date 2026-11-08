@@ -114,7 +114,7 @@ and the source model's maximum edge tolerance. Both declared tolerances have
 explicit upper bounds in the sidecar. A `report_only` STEP surface check needs a
 recorded exception reason; a failed distance remains visible and does not
 certify STEP accuracy. This oracle certifies neither curved metrics nor
-continuous error bounds. See the [compound evidence](../upstream-docs/onshape-composite.md)
+continuous error bounds. See the [compound evidence](../docs/onshape-composite.md)
 for the measured limitations. The optional OCP oracle environment remains
 separate from the parser-only runtime.
 

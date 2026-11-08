@@ -269,11 +269,11 @@ def test_profile_provenance_documentation_matches_runtime():
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    document = (root / "upstream-docs/builtin-profiles.md").read_text()
+    document = (root / "docs/builtin-profiles.md").read_text()
     metadata = json.loads(re.search(r"```json\n(.*?)\n```", document, re.DOTALL).group(1))
     assert parse_xt(payload("x_t")).schema_resolution.to_dict() == metadata
-    support = (root / "upstream-docs/format-support.md").read_text()
+    support = (root / "docs/format-support.md").read_text()
     assert KEY in support and "verified_subset" in support
-    for name in ("README.md", "upstream-docs/api.md"):
+    for name in ("README.md", "docs/api.md"):
         text = (root / name).read_text()
         assert "format-support.md#supported-profiles" in text and "verified_subset" in text

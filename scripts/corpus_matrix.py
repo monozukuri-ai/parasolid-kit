@@ -4,7 +4,7 @@ Each file runs in its own process with a timeout, so one failure or hang does
 not stop the run. The result is one JSON object per file, printed as a table
 and written to ``--json``. Nothing is downloaded and no file is copied: point
 the script at a local corpus such as the public files named in
-``upstream-docs/format-support.md``.
+``docs/format-support.md``.
 
     python scripts/corpus_matrix.py DIR [DIR ...] --json matrix.json
 
