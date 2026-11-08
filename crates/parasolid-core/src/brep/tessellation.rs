@@ -139,6 +139,10 @@ fn append_intersection_samples(
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact IEEE equality identifies a duplicate ring-closing vertex without merging nearby geometry."
+)]
 fn remove_ring_closure_duplicate(ring: &mut Vec<[f64; 3]>, exact_only: bool) {
     if ring.len() > 1 {
         let last = ring.last().unwrap();
@@ -489,6 +493,10 @@ pub fn tessellate_mapped_xt_swept_face_with_sampled_chord_error(
 const MAX_SAMPLED_SWEEP_TRIANGLES: usize = 500_000;
 const MAX_SAMPLED_SWEEP_DEPTH: usize = 7;
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact direction equality preserves the mapped sweep's source-defined orientation."
+)]
 fn tessellate_mapped_xt_swept_face_internal(
     brep: &BrepModel,
     swept: &crate::brep::SweptSurfaceData,
@@ -624,6 +632,10 @@ fn tessellate_mapped_xt_swept_face_internal(
     Some((result, sampled_depth))
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact parameter equality detects collapsed trim intervals without changing source parameter semantics."
+)]
 fn tessellate_brep_to_mesh_inner(
     brep: &BrepModel,
     chord_error_mm: f64,
@@ -2462,6 +2474,10 @@ fn tessellate_planar_face(
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact coordinate equality preserves the cylindrical tessellator's source vertex identity checks."
+)]
 fn tessellate_cylindrical_face(
     point: [f64; 3],
     axis: [f64; 3],
@@ -4019,6 +4035,10 @@ fn cone_periodic_band_polygon(
 
 /// Splits a 2D UV polygon along a periodic seam line `axis = seam_coord`
 /// using Sutherland-Hodgman polygon clipping into left (`<= seam`) and right (`>= seam`) parts.
+#[allow(
+    clippy::float_cmp,
+    reason = "Floored periodic cell indices are compared exactly to preserve seam selection."
+)]
 pub fn split_polygon_at_periodic_seam(polygon: &[[f64; 2]], period: f64) -> Vec<Vec<[f64; 2]>> {
     if polygon.len() < 3 || !period.is_finite() || period <= 0.0 {
         return vec![polygon.to_vec()];
@@ -4728,6 +4748,10 @@ pub fn evaluate_surface_point(
 /// uses the mapped section's bounded endpoint-extension profile. Generic
 /// surface evaluation does not route through this helper.
 #[must_use]
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact mapped direction equality is part of the source candidate match."
+)]
 pub fn evaluate_mapped_xt_swept_offset_surface_candidate(
     brep: &BrepModel,
     offset_surface: &SurfaceGeometry,
@@ -6256,6 +6280,10 @@ fn within_source_endpoint_tolerance(a: [f64; 3], b: [f64; 3], source_tolerance: 
     vec3_norm(vec3_sub(a, b)) <= tolerance
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact knot and endpoint equality preserves NURBS trim boundary identity."
+)]
 fn sample_nurbs_trim_2d<F>(
     curve: &crate::brep::NurbsCurve,
     t_start: f64,
@@ -6479,6 +6507,10 @@ fn intersection_chart_solver_visits(brep: &BrepModel, curve: &CurveKind) -> usiz
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact knot and endpoint equality preserves NURBS trim boundary identity."
+)]
 fn sample_nurbs_trim(
     curve: &CurveKind,
     t_start: f64,
@@ -6542,6 +6574,10 @@ fn sample_nurbs_trim(
     Some(samples)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact midpoint equality preserves the deterministic sampled trim split."
+)]
 fn subdivide_sampled_trim<E>(
     t0: f64,
     p0: [f64; 3],
@@ -6609,6 +6645,10 @@ fn evaluate_nurbs_trim_sample(
         .then_some(point)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact parameter equality detects collapsed intersection trim intervals."
+)]
 fn sample_intersection_trim(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -6872,6 +6912,10 @@ enum PolylinePosition {
     Segment(usize, [f64; 3]),
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact coordinate equality preserves source polyline vertex identity."
+)]
 fn locate_polyline_trim(
     points: &[[f64; 3]],
     point: [f64; 3],
@@ -6917,6 +6961,10 @@ fn locate_polyline_trim(
     Some(PolylinePosition::Segment(*index, point))
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact coordinate equality preserves source polyline position ordering."
+)]
 fn compare_polyline_positions(
     left: PolylinePosition,
     right: PolylinePosition,
@@ -6960,6 +7008,10 @@ fn compare_polyline_positions(
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "This helper deliberately tests exact endpoint and coordinate equality."
+)]
 fn exact_point_on_segment(point: [f64; 3], start: [f64; 3], end: [f64; 3]) -> Option<bool> {
     if !point
         .iter()
@@ -9124,6 +9176,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Assertions verify exact source direction matching and preserve IEEE equality semantics."
+    )]
     fn mapped_xt_swept_offset_candidate_checks_links_senses_and_degeneracy() {
         for (sense, expected_y) in [(Sense::Positive, -0.25), (Sense::Negative, 0.25)] {
             let (brep, section, swept) = mapped_xt_swept_offset_fixture(sense, [0.0, 0.0, 1.0]);
@@ -9342,6 +9398,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Assertions verify exact deterministic subdivision coordinates."
+    )]
     fn sampled_wire_uses_recursive_triangle_midpoints() {
         let start = [1e16, 0.0];
         let end = [1.0, 0.0];
@@ -9667,6 +9727,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Assertions verify exact mapped geometry generated from the fixture coordinates."
+    )]
     fn mapped_xt_swept_face_binds_exact_nodes_and_uses_supplied_uv_loop() {
         use crate::brep::{
             SweptSurfaceData, tessellate_mapped_xt_swept_face_with_explicit_uv,
@@ -10092,6 +10156,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Assertions preserve exact boundary behavior for the deliberately scaled fixture."
+    )]
     fn ruled_sweep_normal_is_independent_of_small_units_and_knot_domain_scale() {
         let section = NurbsCurve {
             degree: 1,
@@ -11926,6 +11994,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Assertions verify exact boundary samples from the deterministic blend fixture."
+    )]
     fn blend_boundary_surface_evaluation() {
         let source = || SourceNodeRef {
             node_index: 0,
@@ -12024,6 +12096,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "Assertions preserve exact surface samples from the deterministic swept fixture."
+    )]
     fn swept_surface_with_trimmed_parabola_and_hyperbola() {
         let source = || SourceNodeRef {
             node_index: 0,

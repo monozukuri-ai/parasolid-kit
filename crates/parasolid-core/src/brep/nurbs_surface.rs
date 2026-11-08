@@ -61,6 +61,10 @@ fn expand_knots(
     Ok(expanded)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "The final knot span is selected only by exact endpoint equality, preserving IEEE comparison behavior."
+)]
 fn evaluate_curve(
     points: &[[f64; 4]],
     knots: &[f64],
@@ -158,6 +162,10 @@ fn homogeneous_sequence_matches_scale(
         })
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "The error-free subtraction check requires exact equality of the computed roundoff terms."
+)]
 fn exact_product_difference(a: f64, b: f64, c: f64, d: f64) -> Option<f64> {
     let left = a * b;
     let right = c * d;
@@ -223,6 +231,10 @@ fn exact_evaluate_curve(
     Some(values[degree])
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact knot equality determines the span at repeated endpoint knots without changing knot ownership."
+)]
 fn exact_endpoint_curve_value(
     points: &[[f64; 4]],
     knots: &[f64],
@@ -372,6 +384,10 @@ fn sampled_seam_work(control_count: usize, degree: usize) -> Option<usize> {
         .checked_mul(sample_work)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "This predicate proves the degree-one seam data is exactly the raw endpoint and derivative data."
+)]
 fn degree_one_periodic_data_is_exact(
     homogeneous: &[[f64; 4]],
     u_count: usize,
@@ -464,6 +480,10 @@ fn degree_one_periodic_data_is_exact(
     true
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Clamped endpoint multiplicity and homogeneous control equality are exact schema conditions here."
+)]
 fn clamped_periodic_data_is_exact(
     homogeneous: &[[f64; 4]],
     u_count: usize,
@@ -815,6 +835,10 @@ fn seam_matches_at_parameter(
     angle.is_finite() && angle <= 1e-11
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Projective seam recognition requires exact unit endpoint weights and zero derivative weights."
+)]
 fn degree_one_transverse_seam_within_tolerance(
     start_points: &[[f64; 4]],
     end_points: &[[f64; 4]],
@@ -914,6 +938,10 @@ fn degree_one_transverse_seam_within_tolerance(
     active_span
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Clamped knot detection must preserve exact endpoint-knot equality semantics."
+)]
 fn validate_periodic_surface_seam(
     homogeneous: &[[f64; 4]],
     u_count: usize,
@@ -1219,6 +1247,10 @@ pub(super) struct PreparedNurbsSurface {
 }
 
 impl PreparedNurbsSurface {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Periodic profile detection requires exact repeated-knot differences to match the period."
+    )]
     pub(super) fn new(surface: &NurbsSurface) -> io::Result<Self> {
         let (u_degree, v_degree) = (usize::from(surface.u_degree), usize::from(surface.v_degree));
         let (u_count, v_count) = (

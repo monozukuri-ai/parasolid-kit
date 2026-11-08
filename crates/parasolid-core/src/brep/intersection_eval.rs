@@ -133,6 +133,10 @@ pub fn evaluate_intersection_candidate(
 /// Evaluates regular `PLANE`/`OFFSET_SURF` branches whose offset basis is a mapped
 /// `SWEPT_SURF`. The local UV Newton solve is bounded to the adjacent chart UV
 /// rectangle and accepts exactly one root within the transmitted chordal error.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter equality identifies fixed chart bounds and endpoints"
+)]
 fn evaluate_plane_swept_offset_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -703,6 +707,10 @@ fn select_unique_axis_candidate(
 ///
 /// # Errors
 /// Returns an error when the chart, support geometry, or selected root is invalid or unsupported.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter equality identifies stored chart stations"
+)]
 pub fn evaluate_torus_ruled_sweep_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1070,6 +1078,10 @@ pub fn evaluate_torus_ruled_sweep_intersection_candidate(
 ///
 /// # Errors
 /// Returns an error when the support pair, chart, parameter, or mapped intersection is invalid.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter equality identifies a stored chart station"
+)]
 pub fn evaluate_plane_plane_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1295,6 +1307,10 @@ pub fn evaluate_plane_plane_intersection_candidate(
 ///
 /// # Errors
 /// Returns an error when the support pair, chart, parameter, or selected root is invalid.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter and endpoint equality preserve chart selection semantics"
+)]
 pub fn evaluate_plane_cylinder_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1604,6 +1620,10 @@ pub fn evaluate_plane_xt_cone_intersection_candidate_with_reversed_mapped_axis(
     evaluate_plane_xt_cone_intersection_candidate_with_axis(brep, curve, parameter, true)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the exact endpoint fraction selects the stored chart endpoint"
+)]
 fn chart_parameter_at_fraction(parameters: &[f64], index: usize, fraction: f64) -> f64 {
     if fraction == 0.0 {
         parameters[index]
@@ -1617,6 +1637,10 @@ fn chart_parameter_at_fraction(parameters: &[f64], index: usize, fraction: f64) 
 /// Recovers a mapped parameter for a point on a regular plane/XT-cone chart.
 /// Each chart chord contributes only its orthogonal section; the generic
 /// evaluator must reproduce the requested point within the caller's tolerance.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact point and parameter equality select chart endpoints and deduplicate roots"
+)]
 pub fn inverse_plane_xt_cone_intersection_parameter(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1725,6 +1749,10 @@ fn intersection_is_plane_regular_cone(
     ))
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter equality identifies a stored chart station"
+)]
 fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -2514,6 +2542,10 @@ pub fn evaluate_cone_cylinder_intersection_candidate_with_reversed_mapped_axis(
 }
 
 /// Recovers the unique chart parameter and qualified root point matching `point`.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact point and parameter equality select chart endpoints and deduplicate roots"
+)]
 pub fn inverse_cone_cylinder_intersection_parameter(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -2859,6 +2891,10 @@ fn evaluate_cone_cylinder_intersection_candidate_with_axis(
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter equality identifies a stored chart station"
+)]
 fn cone_cylinder_intersection_roots_with_axis(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -3333,6 +3369,10 @@ fn cone_cylinder_intersection_roots_with_axis(
 ///
 /// # Errors
 /// Returns an error when the support pair, chart, parameter, or selected root is invalid.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter equality identifies a stored chart station and endpoint locator"
+)]
 pub fn evaluate_cylinder_cylinder_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -3679,6 +3719,10 @@ pub fn evaluate_cylinder_cylinder_intersection_candidate(
 ///
 /// # Errors
 /// Returns an error when the support pair, chart, parameter, or selected root is invalid.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact parameter equality identifies a stored chart station"
+)]
 pub fn evaluate_cylinder_torus_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -4473,6 +4517,10 @@ fn unique_curve(
     Ok(curve)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "exact geometric coordinate equality distinguishes duplicate support values"
+)]
 fn unique_surface(
     brep: &BrepModel,
     id: u32,
@@ -4554,6 +4602,11 @@ mod tests {
     };
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn stable_quadratic_roots_preserve_small_ill_conditioned_root() {
         let roots = stable_quadratic_roots(1.0, 1.0e16, 1.0, 1.0e16).unwrap();
         let small_root = roots[1];
@@ -4582,6 +4635,10 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        reason = "test fixture construction requires nonempty point arrays"
+    )]
     fn fixture(points: &[[f64; 3]], normals: [[f64; 3]; 2]) -> (BrepModel, CurveKind) {
         let point = |p| Vector3::from_array(p);
         let surfaces = normals
@@ -4655,6 +4712,10 @@ mod tests {
         (brep, curve)
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        reason = "test fixture construction requires nonempty point arrays"
+    )]
     fn torus_swept_fixture() -> (BrepModel, CurveKind) {
         let section = NurbsCurve {
             degree: 2,
@@ -4791,6 +4852,11 @@ mod tests {
         (brep, curve)
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::float_cmp,
+        reason = "fixture construction and exact chart coordinates are intentional"
+    )]
     fn cylinder_torus_fixture() -> (BrepModel, CurveKind) {
         let angles = [0.0_f64, 0.2, 0.5];
         let points = angles
@@ -4878,6 +4944,11 @@ mod tests {
         (brep, curve)
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::float_cmp,
+        reason = "the fixture supplies a second segment and exact chart stations"
+    )]
     fn cylinder_torus_second_segment_midpoint_parameter(curve: &CurveKind) -> f64 {
         let CurveKind::Intersection { chart_points, .. } = curve else {
             unreachable!();
@@ -4898,6 +4969,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::float_cmp,
+        reason = "fixture setup and exact floating-point outputs are intentional in this focused test"
+    )]
     fn evaluates_exact_straight_branch_and_closed_chart_domain() {
         let (brep, curve) = fixture(
             &[[0.0, 0.0, 0.0], [0.0, 0.0, 2.0], [0.0, 0.0, 4.0]],
@@ -4925,6 +5002,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn evaluates_plane_cylinder_chart_plane_and_rejects_ambiguous_roots() {
         let (mut brep, mut curve) = fixture(
             &[[0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 2.0]],
@@ -4994,6 +5076,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn evaluates_plane_xt_cone_chart_plane_with_support_order_and_sense() {
         let (mut brep, mut curve) = fixture(
             &[[1.0, 0.0, 0.0], [0.625, 0.0, 0.5], [0.25, 0.0, 1.0]],
@@ -5034,6 +5121,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn inverse_plane_xt_cone_parameter_is_bounded_and_requires_one_section_match() {
         let cone_fixture = |ys: &[f64], chordal_error: f64| {
             let points = ys
@@ -5156,6 +5248,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn inverse_plane_xt_cone_parameter_supports_reversed_mapped_axis() {
         let (mut brep, mut curve) = fixture(
             &[[1.75, 0.0, 1.0], [1.375, 0.0, 0.5], [1.0, 0.0, 0.0]],
@@ -5182,6 +5279,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn plane_xt_cone_candidate_supports_explicit_reversed_axis_convention() {
         let evaluate = |points: &[[f64; 3]], axis: [f64; 3], reversed: bool| {
             let (mut brep, mut curve) = fixture(points, [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]]);
@@ -5304,6 +5406,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn rejects_ambiguous_or_degenerate_plane_xt_cone_charts() {
         let (mut brep, mut curve) = fixture(
             &[[1.0, 0.0, 0.0], [0.625, 0.0, 0.5], [0.25, 0.0, 1.0]],
@@ -5382,6 +5489,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn dispatches_plane_xt_cone_generator_with_independent_terminator_limits() {
         let points = [[0.1, 0.0, 1.2], [0.04, 0.0, 1.28]];
         let apex = [0.0, 0.0, 4.0 / 3.0];
@@ -5443,6 +5555,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn dispatches_plane_cylinder_candidate() {
         let (mut brep, curve) = fixture(
             &[[0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 2.0]],
@@ -5468,6 +5585,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn dispatches_cylinder_cylinder_and_rejects_unsupported_or_duplicate_supports() {
         let (brep, curve, stations) = perpendicular_cylinder_fixture(&[0.1, 0.4, 0.7]);
         let parameter = (stations[0] + stations[1]) * 0.5;
@@ -5500,6 +5622,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn curved_plane_cylinder_chart_uses_interior_station_tangent_for_scale() {
         let point_at = |theta: f64| [theta.cos(), theta.sin(), 0.5 * theta.cos()];
         let tangent_at =
@@ -5563,6 +5690,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn solves_xt_cone_cylinder_section_instead_of_returning_chord_point() {
         let cone_point = |u: f64| [1.5 * u.cos(), 1.5 * u.sin(), -1.0];
         let points = [0.15, 0.8, 1.9].map(cone_point);
@@ -5638,6 +5770,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn inverse_cone_cylinder_handles_axis_conventions_support_order_and_unique_matches() {
         for reverse_axis in [false, true] {
             for reverse_order in [false, true] {
@@ -5729,6 +5866,10 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        reason = "fixture construction requires a nonempty endpoint list"
+    )]
     fn cone_cylinder_endpoint_fixture() -> (BrepModel, CurveKind) {
         let point_at = |u: f64| [1.5 * u.cos(), 1.5 * u.sin(), -1.0];
         let points = [0.15, 0.8, 1.9].map(point_at);
@@ -5760,6 +5901,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::float_cmp,
+        reason = "fixture setup and exact floating-point outputs are intentional in this focused test"
+    )]
     fn inverse_cone_cylinder_selects_one_of_two_chord_qualified_roots_by_endpoint() {
         let (brep, curve) = cone_cylinder_endpoint_fixture();
         let (_, parameters) = cone_cylinder_inverse_chart_parameters(&brep, &curve, false).unwrap();
@@ -5850,6 +5997,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn cone_axis_dispatch_rejects_two_successful_conventions() {
         let mapped = IntersectionCurveEvaluation {
             point: [1.0, 2.0, 3.0],
@@ -5868,6 +6020,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn cone_axis_dispatch_preserves_matching_errors_and_hides_mixed_errors() {
         assert_eq!(
             select_unique_cone_axis_candidate(
@@ -5889,6 +6046,10 @@ mod tests {
         );
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        reason = "fixture construction seeds stations before extending them"
+    )]
     fn perpendicular_cylinder_fixture(z_values: &[f64]) -> (BrepModel, CurveKind, Vec<f64>) {
         let points: Vec<_> = z_values
             .iter()
@@ -5925,6 +6086,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::float_cmp,
+        reason = "fixture setup and exact floating-point outputs are intentional in this focused test"
+    )]
     fn evaluates_cylinder_cylinder_chart_plane_and_checks_domain_and_limits() {
         let (brep, curve, stations) = perpendicular_cylinder_fixture(&[0.1, 0.4, 0.7]);
         let parameter = (stations[0] + stations[1]) * 0.5;
@@ -5971,6 +6138,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn cylinder_cylinder_accepts_only_closed_help_limits() {
         let (mut brep, mut curve, _) = perpendicular_cylinder_fixture(&[0.1, 0.4, 0.7]);
         brep.surfaces[0].kind = SurfaceKind::Cylinder {
@@ -6064,6 +6236,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::float_cmp,
+        reason = "fixture setup and exact floating-point outputs are intentional in this focused test"
+    )]
     fn rejects_off_cylinder_chart_when_translation_exceeds_local_precision() {
         let (mut brep, mut curve, stations) = perpendicular_cylinder_fixture(&[0.1, 0.4, 0.7]);
         let translation = [1.0e12; 3];
@@ -6100,6 +6278,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn evaluates_small_cylinder_chart_near_the_origin() {
         let (mut brep, mut curve, _) = perpendicular_cylinder_fixture(&[0.1, 0.4, 0.7]);
         let radius = 1.0e-6;
@@ -6135,6 +6318,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::float_cmp,
+        reason = "fixture setup and exact floating-point outputs are intentional in this focused test"
+    )]
     fn rejects_limit_mismatch_at_modest_translation() {
         let (mut brep, mut curve, _) = perpendicular_cylinder_fixture(&[0.1, 0.4, 0.7]);
         let translation = [100.0; 3];
@@ -6219,6 +6408,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::float_cmp,
+        reason = "fixture setup and exact floating-point outputs are intentional in this focused test"
+    )]
     fn rejects_nonfinite_geometry_and_nonunique_or_missing_supports() {
         let points = [[0.0, 0.0, 0.0], [0.0, 0.0, 2.0]];
         let normals = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
@@ -6281,6 +6476,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn evaluates_torus_swept_chart_interval_and_oriented_tangent() {
         let (brep, curve) = torus_swept_fixture();
         let chart_length = norm([0.1, 0.0, 0.1]);
@@ -6370,6 +6570,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn cylinder_torus_evaluator_fails_closed_on_limits_singularities_and_chordal_ambiguity() {
         let (brep, mut terminator_curve) = cylinder_torus_fixture();
         let CurveKind::Intersection {
@@ -6434,6 +6639,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "this focused test uses unwrap and expect for established fixture invariants"
+    )]
     fn evaluates_torus_swept_regular_intervals_with_start_or_end_terminator() {
         let chart_length = norm([0.1, 0.0, 0.1]);
         let parameter = 10.0 + chart_length * 0.5;
