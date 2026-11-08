@@ -119,6 +119,7 @@ public CI. The detailed evidence and its retained failures are in
 
 | Profile scope | Raw decoding | Source B-Rep | Independent geometry evidence | OCCT / STEP / preview | Native saved state |
 |---|---|---|---|---|---|
+| **TopSolid v6 — five exact X_T keys** | Bundled base 13006 and effective 26105, 32001 or 36001 definitions; exact-key and schema-layout tests | Mapped subset includes topology, analytic and NURBS geometry, selected intersection and swept data, polylines and meshes; support depends on source records and schema layout | Synthetic and schema-layout tests; no independent TopSolid CAD/STEP measurement campaign is claimed | General OCCT/STEP/preview compatibility for TopSolid is not established; individual geometry types have the separate limits below | Native TopSolid packages, saved state and model reconstruction are not supported |
 | Onshape V30 | Paired X_T / neutral X_B for basic solids, spheres, elliptical edges, a frustum and a ring torus; revision-3 complex X_T has exact-catalog parity | Topology, analytic, NURBS and curve-wrapper definitions in the reviewed subset | Producer / STEP comparisons, including two new analytic models under revision 3; complex parametric geometry has no new independent producer campaign; earlier metric failures remain | Planar box/prism validation plus bounded UV/intersection conversion and preview of one local complex model; source-tolerance warnings remain | CAD container/configuration reconstruction is outside the parser |
 | Onshape current (`SCH_3701212_37102_13006`) | Paired X_T / X_B for analytic solids, direct NURBS sheets and [compound shapes](onshape-composite.md) | Analytic/NURBS geometry, intersection/trimmed/SP_CURVE wrappers and multiple source bodies | Native coefficients and sampled geometry; auxiliary-surface evidence is bounded; strict STEP and integrated-metric failures remain recorded | No new general curved-solid or rational/periodic NURBS adapter conversion | CAD container/configuration reconstruction is outside the parser |
 | Onshape V13 | Paired X_T / neutral X_B, including the documented NURBS / SP_CURVE campaigns | Topology, analytic and bounded NURBS / wrapper definitions | Producer / STEP and sampled surface evidence; recorded curve-tolerance failures remain | Bounded open nonrational UV and intersection conversion; rational/periodic NURBS remain unsupported | CAD container/configuration reconstruction is outside the parser |
@@ -137,10 +138,31 @@ separate from parser runtime inputs. The implementation does not download
 catalogs. Development provenance includes optional catalog comparisons and a
 membership-only audits for types 176 and 204 in base 13006; see
 [that evidence boundary](builtin-profiles.md#embedded-intersection-data-revision-4).
-Historical catalog comparisons did not generate the profiles. The V30 revision-3
+Historical catalog comparisons for the earlier profiles did not generate those profiles.
+The bundled TopSolid definitions have a separate provenance described in
+[Built-in profile provenance](builtin-profiles.md#topsolid-v6-exact-catalogs).
+The V30 revision-3
 developer audit and its version-specific definitions are documented separately.
 
 ### Schema families
+
+**TopSolid v6 is selected by exact key, not by a TopSolid family.** The
+compiled registry excludes the five TopSolid profiles from generic family
+members and base contributors. These keys select the bundled 13006 base and
+one effective catalog directly. Their base-profile IDs and hashes appear in
+[Supported profiles](#supported-profiles); the runtime schema resolution
+reports the effective catalog identity below instead.
+
+| Effective / base | Exact TopSolid v6 X_T keys | Runtime provider / revision | Effective catalog SHA-256 |
+|---|---|---|---|
+| `26105-13006` | `SCH_2701192_26105_13006` | `topsolid-v6-psolid-26105-r1` / 1 | `c21517ad14061ff14e2636bb90842ba74b3ad4980b7d041abd78732d80249e95` |
+| `32001-13006` | `SCH_3300259_32001_13006`, `SCH_3300261_32001_13006` | `topsolid-v6-psolid-32001-r1` / 1 | `5ffe6a8942c686e400b3cad1edc19fbe39457589079769d9f7dbcafec535a159` |
+| `36001-13006` | `SCH_3600188_36001_13006`, `SCH_3700192_36001_13006` | `topsolid-v6-psolid-36001-r1` / 1 | `42ec5f0bda547618007f3ebeac1479b73d8444084d24ac228e099eb9c5b67430` |
+
+An unlisted build may match a **generic** family in the table below and report
+`family_inferred`; that does not select a TopSolid provider or establish
+TopSolid compatibility. A different effective schema or base is not substituted.
+The TopSolid built-in decoding helpers require one of the five exact keys.
 
 A transmit key is `SCH_<modeller>_<effective>[_<base>]`. The effective schema
 and, for embedded keys, the base fix the node layouts; the modeller component
@@ -148,15 +170,15 @@ is the producer's Parasolid build number, which changes with every CAD release
 and service pack (SolidWorks 2024 exports carry `SCH_3501251_35102_13006`, its
 saved Parts `SCH_3501210_35102_13006` and `SCH_3501256_35102_13006`). The
 registry therefore derives one family profile per `<effective>[-<base>]` from
-the exact profiles that share it, its members, and, for an embedded family,
-from every other reviewed profile of the same base, its base contributors: the
+the non-TopSolid exact profiles that share it, its members, and, for an embedded family,
+from every other reviewed non-TopSolid profile of the same base, its base contributors: the
 union of their reviewed definitions and base-membership claims. Base 13006
 declarations describe the same base whichever effective schema a key names, so
 a type reviewed under one 13006 key (TORUS, OFFSET_SURF, WORLD, the B-spline
 surfaces) is available under every 13006 family. A node type whose layout or
 membership the contributors dispute is excluded from the family and stays
-unknown. Exact profiles are selected first and are completed by their family;
-a key with no exact profile is read with its family profile and reports
+unknown. Exact profiles are selected first; non-TopSolid exact profiles are completed
+by their family. A key with no exact profile is read with its family profile and reports
 `coverage: family_inferred`, `profile_id: family-<family>` and the requested
 key. Types outside the merged declarations still fail closed with
 `schema.builtin_profile_uncovered_type` or `schema.unknown_base_type`, and a

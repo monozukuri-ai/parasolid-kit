@@ -4,7 +4,10 @@ Header inspection needs no catalog. Default parsing selects an exact-key
 built-in profile from the [supported profiles](format-support.md#supported-profiles),
 or, for another Parasolid build of a reviewed schema, the derived
 [schema family](format-support.md#schema-families) profile (`family_inferred`
-coverage). These profiles cover verified subsets, read application user fields
+coverage). The five exact TopSolid v6 X_T keys use bundled base and effective
+catalog definitions; they are not contributors to the generic families. An
+unlisted build may receive a generic family match, not TopSolid-specific coverage.
+These profiles cover verified subsets, read application user fields
 and require no external catalog or CAD installation at runtime or build time. See
 [profile provenance](builtin-profiles.md) for sources and validation limits.
 
@@ -15,7 +18,9 @@ empty provider fails without switching to a built-in profile.
 revisions and the human-readable X_T common-header `SCH` value are never
 substitutes.
 
-Siemens catalogs are not included in this repository or its packages. Obtain
+Raw Siemens catalog files are not included in this repository or its packages.
+The built-in TopSolid definitions described above are compiled into the parser.
+For an external provider, obtain
 the matching catalog from a Parasolid SDK or a Parasolid-based product available
 to you. The parser reads it in place without copying it or accessing the network.
 

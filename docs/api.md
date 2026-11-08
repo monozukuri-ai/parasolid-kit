@@ -42,9 +42,11 @@ success alone does not establish conversion.
 The [SolidWorks profile](solidworks-partitions.md) does not apply delta streams
 or determine final configuration state. Unsupported delta records fail explicitly.
 
-Each has `verified_subset` coverage; an exact profile's declarations are
-completed by its [schema family](format-support.md#schema-families), the other
-reviewed profiles of the same provider schema. The embedded profiles supply the
+Each exact profile has `verified_subset` coverage. Non-TopSolid exact profile
+declarations are completed by their [schema family](format-support.md#schema-families).
+Five observed TopSolid v6 X_T keys select bundled base and effective catalogs
+by exact key, independently of generic families; nearby builds may use a generic
+family but do not select a TopSolid catalog. The embedded profiles supply the
 reviewed 13006 base before applying stream edits. Runtime,
 build, and installation require no external catalog; the parser does not use
 the network. Development-only catalog comparisons and membership evidence
@@ -314,7 +316,8 @@ preview = write_faceted_preview(stored, "faceted.preview", source_unit="mm")
 `decode_polyline(document, node_index)`, `decode_embedded_mesh(document,
 node_index)`, and `faceted_geometry(document)` are opt-in decoders for explicit
 caller-supplied **named** catalogs. They do not infer roles from names in
-built-in numeric profiles and do not install TopSolid catalogs. Both X_T and
+built-in numeric profiles or consume the bundled TopSolid catalogs through these
+Python helpers. The built-in TopSolid mapping is a separate path. Both X_T and
 X_B use the same decoded-field contract. These operations are independent of
 `map_brep`, so an unsupported or absent BODY does not prevent inspecting these
 stored records. `max_pool_values` defaults to 1,000,000 and bounds the aggregate

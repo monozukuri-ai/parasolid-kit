@@ -150,3 +150,23 @@ def test_topsolid_documentation_lists_exact_profile_metadata():
         assert f"`{profile.profile_id}` / {profile.profile_revision}" in row
         assert f"{profile.type_count} / {profile.field_count}" in row
         assert profile.profile_sha256 in row
+
+
+def test_topsolid_schema_family_and_coverage_documentation():
+    support = (ROOT / "docs/format-support.md").read_text(encoding="utf-8")
+    assert "| **TopSolid v6 — five exact X_T keys** |" in support
+    section = support.split("### Schema families", 1)[1].split("A transmit key", 1)[0]
+    profiles = builtin_profiles()
+    for profile in profiles:
+        if profile.profile_id.startswith("topsolid-v6-"):
+            key = profile.schema_keys[0]
+            effective = key.split("_")[2]
+            row = next(line for line in section.splitlines() if f"`{key}`" in line)
+            assert f"topsolid-v6-psolid-{effective}-r1" in row
+        elif profile.coverage == "family_inferred":
+            assert all(
+                not member.profile_id.startswith("topsolid-v6-")
+                for member in (*profile.members, *profile.base_members)
+            )
+    assert "family_inferred" in section
+    assert "not select a TopSolid provider" in section

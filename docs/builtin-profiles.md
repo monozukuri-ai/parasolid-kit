@@ -3,8 +3,9 @@
 The [SolidWorks partition profile](solidworks-partitions.md) documents the
 additional exact V37 key, WORLD base layout, local validation and delta boundary.
 
-Thirty-two profiles are registered for default parsing. The complete internal
-stream key must match; a caller-selected provider always takes priority. The
+The built-in registry contains exact profiles and derived families for default
+parsing. The complete internal stream key selects an exact profile; a
+caller-selected provider always takes priority. The
 [shared support matrix](format-support.md#supported-profiles) records their
 current identities and separate raw, B-Rep, independent-geometry, conversion,
 and saved-state evidence. The campaign results below retain their original
@@ -25,9 +26,27 @@ The maintained definitions are in
 [`sch30000.rs`](../crates/parasolid-core/src/schema/profiles/sch30000.rs).
 The source model's field roles are in
 [`profile_roles.rs`](../crates/parasolid-core/src/brep/profile_roles.rs).
-The profile is project-owned code, not an embedded Siemens schema catalog.
+The Onshape V30 profile is project-owned code, not an embedded Siemens schema catalog.
 Build, installation, and runtime use neither external catalogs, local evidence
 files, nor a CAD installation. Normal build/package dependencies remain separate.
+
+## TopSolid v6 exact catalogs
+
+Five observed TopSolid v6 X_T keys use compiled base 13006 and effective 26105,
+32001, or 36001 catalog definitions. The [coverage and provider matrix](format-support.md#schema-families)
+lists the exact keys, base-profile identities, runtime provider identities and
+hashes. The registry excludes these profiles from generic family contributors;
+a nearby key can only select a generic `family_inferred` provider, not the
+TopSolid-specific catalog. The source declarations are in
+[`topsolid.rs`](../crates/parasolid-core/src/schema/profiles/topsolid.rs) and
+its associated per-schema definition files.
+
+Exact-key selection, catalog layouts and selected mapping paths have Rust tests,
+including [`topsolid_profiles.rs`](../crates/parasolid-core/tests/topsolid_profiles.rs).
+These checks do not establish full TopSolid package or model decoding, an
+independent TopSolid CAD/STEP geometry campaign, or compatibility with every
+record under an observed key. Unsupported or unreviewed records can fail or
+remain partial; source bytes and diagnostics should be retained.
 
 ## Sources and method
 
