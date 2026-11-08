@@ -1,4 +1,4 @@
-//! Hash-pinned base and effective `psolid` catalogs for observed TopSolid v6 X_T keys.
+//! Hash-pinned base and effective `psolid` catalogs for observed `TopSolid` v6 `X_T` keys.
 
 use std::{collections::BTreeMap, io};
 
@@ -37,7 +37,7 @@ pub const SUPPORTED_SCHEMA_KEYS: [&str; 5] = [
     "SCH_3600188_36001_13006",
 ];
 
-/// Construct the compiled 13006 base subset for one exact observed TopSolid v6 key.
+/// Construct the compiled 13006 base subset for one exact observed `TopSolid` v6 key.
 ///
 /// This profile exposes only the base 13006 definitions. Use
 /// [`TopSolidV6PsolidCatalogProvider`] when effective 36001, 32001, or 26105
@@ -107,7 +107,7 @@ pub fn topsolid_v6_psolid_base_profile(
     .map_err(|error| invalid_catalog_data(CATALOG_13006_ID, &error.to_string()))
 }
 
-/// Compiled exact-catalog provider for X_T streams.
+/// Compiled exact-catalog provider for `X_T` streams.
 #[derive(Debug, Clone)]
 pub struct TopSolidV6PsolidCatalogProvider {
     definitions: BTreeMap<u16, TypeDefinition>,
@@ -117,6 +117,9 @@ pub struct TopSolidV6PsolidCatalogProvider {
 
 impl TopSolidV6PsolidCatalogProvider {
     /// Build the provider from compiled exact base and effective definitions.
+    ///
+    /// # Errors
+    /// Returns invalid data if any compiled catalog has duplicate definitions.
     pub fn new() -> io::Result<Self> {
         let definitions =
             index_catalog_definitions(topsolid_13006_definitions(), CATALOG_13006_ID)?;
@@ -143,6 +146,10 @@ impl TopSolidV6PsolidCatalogProvider {
     }
 
     /// Validate a caller-supplied effective catalog alongside bundled base 13006.
+    ///
+    /// # Errors
+    /// Returns invalid data if parsing fails or definitions are duplicated in
+    /// the supplied or compiled catalogs.
     pub fn new_with_effective_schema_bytes(bytes: &[u8]) -> io::Result<Self> {
         let mut provider = Self::new()?;
         let catalog = parse_schema_catalog(
@@ -180,7 +187,6 @@ impl TopSolidV6PsolidCatalogProvider {
             .find(|supported| key.raw() == *supported)?;
         let effective_schema_id = match schema_key {
             "SCH_3700192_36001_13006" => Some(CATALOG_36001_ID),
-            "SCH_3600188_36001_13006" => None,
             "SCH_3300261_32001_13006" | "SCH_3300259_32001_13006" => Some(CATALOG_32001_ID),
             "SCH_2701192_26105_13006" => Some(CATALOG_26105_ID),
             _ => None,
@@ -228,13 +234,13 @@ pub struct TopSolidV6PsolidSchemaProvider<'a> {
 
 impl SchemaProvider for TopSolidV6PsolidSchemaProvider<'_> {
     fn contains_schema(&self, schema: &str) -> bool {
-        schema == CATALOG_13006_ID || self.effective_schema_id.map_or(false, |id| schema == id)
+        schema == CATALOG_13006_ID || self.effective_schema_id == Some(schema)
     }
 
     fn type_definition(&self, schema: &str, node_type: u16) -> Option<&TypeDefinition> {
         if schema == CATALOG_13006_ID {
             self.definitions.get(&node_type)
-        } else if self.effective_schema_id.map_or(false, |id| schema == id) {
+        } else if self.effective_schema_id == Some(schema) {
             self.effective_definitions
                 .and_then(|definitions| definitions.get(&node_type))
         } else {

@@ -18,6 +18,7 @@ pub struct RollingBallSection {
 }
 
 impl RollingBallSection {
+    #[must_use]
     pub fn point(&self, v: f64) -> Option<[f64; 3]> {
         if !v.is_finite() || !(0.0..=1.0).contains(&v) {
             return None;
@@ -38,11 +39,13 @@ impl RollingBallSection {
         ))
     }
 
+    #[must_use]
     pub fn radius(&self) -> f64 {
         0.5 * (self.radius_start + self.radius_end)
     }
 }
 
+#[must_use]
 pub fn rolling_ball_section(
     center: [f64; 3],
     tangent: [f64; 3],
@@ -60,6 +63,7 @@ pub fn rolling_ball_section(
     )
 }
 
+#[must_use]
 pub fn rolling_ball_section_variable(
     center: [f64; 3],
     tangent: [f64; 3],
@@ -133,6 +137,7 @@ pub fn rolling_ball_section_variable(
     })
 }
 
+#[must_use]
 pub fn evaluate_spine_with_brep(
     brep: Option<&BrepModel>,
     kind: &CurveKind,
@@ -215,10 +220,12 @@ pub fn evaluate_spine_with_brep(
     Some(evaluated)
 }
 
+#[must_use]
 pub fn evaluate_spine(kind: &CurveKind, sense: Sense, u: f64) -> Option<CurveEvaluation> {
     evaluate_spine_with_brep(None, kind, sense, u)
 }
 
+#[must_use]
 pub fn evaluate_spine_in_brep(
     brep: &BrepModel,
     kind: &CurveKind,
@@ -228,6 +235,7 @@ pub fn evaluate_spine_in_brep(
     evaluate_spine_with_brep(Some(brep), kind, sense, u)
 }
 
+#[must_use]
 pub fn evaluate_rolling_ball(
     brep: &BrepModel,
     supporting_surfaces: [u32; 2],
@@ -256,6 +264,7 @@ pub fn evaluate_rolling_ball(
     )
 }
 
+#[must_use]
 pub fn evaluate_rolling_ball_with_spine(
     brep: &BrepModel,
     supporting_surfaces: [u32; 2],

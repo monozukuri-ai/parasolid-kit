@@ -592,6 +592,10 @@ pub enum IntersectionLimitKind {
 
 /// Curve geometry definition.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Boxing public curve variants would change their field types and break existing callers"
+)]
 pub enum CurveKind {
     /// `R(t) = point + t * direction`.
     Line { point: Vector3, direction: Vector3 },
@@ -733,6 +737,10 @@ impl BlendType {
 
 /// Surface geometry definition.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Boxing public surface variants would change their field types and break existing callers"
+)]
 pub enum SurfaceKind {
     /// Analytic plane.
     Plane {

@@ -39,6 +39,7 @@ fn point_strictly_in_triangle_2d(
 ///
 /// Returns a list of vertex index triplets `[i0, i1, i2]` indexing into `polygon`.
 /// All emitted triangles have positive (counter-clockwise) winding in the 2D plane.
+#[must_use]
 pub fn triangulate_polygon_2d(polygon: &[[f64; 2]]) -> Vec<[usize; 3]> {
     let n_in = polygon.len();
     if n_in < 3 {
@@ -61,9 +62,11 @@ pub fn triangulate_polygon_2d(polygon: &[[f64; 2]]) -> Vec<[usize; 3]> {
     }
     if cleaned_indices.len() >= 2 {
         let first = polygon[cleaned_indices[0]];
-        let last = polygon[*cleaned_indices.last().unwrap()];
-        if (first[0] - last[0]).hypot(first[1] - last[1]) < 1e-7 {
-            cleaned_indices.pop();
+        if let Some(&last_index) = cleaned_indices.last() {
+            let last = polygon[last_index];
+            if (first[0] - last[0]).hypot(first[1] - last[1]) < 1e-7 {
+                cleaned_indices.pop();
+            }
         }
     }
 
@@ -152,48 +155,59 @@ pub fn triangulate_polygon_2d(polygon: &[[f64; 2]]) -> Vec<[usize; 3]> {
 
         if !ear_found {
             // Fallback: clip the most convex vertex to avoid infinite looping
-            let mut best_idx = 0;
-            let mut best_cp = if ccw { -f64::INFINITY } else { f64::INFINITY };
-
-            for i in 0..ring_len {
-                let prev = ring[(i + ring_len - 1) % ring_len];
-                let curr = ring[i];
-                let next = ring[(i + 1) % ring_len];
-
-                let a = cleaned_pts[prev];
-                let b = cleaned_pts[curr];
-                let c = cleaned_pts[next];
-
-                let cp = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
-                if ccw && cp > best_cp {
-                    best_cp = cp;
-                    best_idx = i;
-                } else if !ccw && cp < best_cp {
-                    best_cp = cp;
-                    best_idx = i;
-                }
-            }
-
-            let prev = ring[(best_idx + ring_len - 1) % ring_len];
-            let curr = ring[best_idx];
-            let next = ring[(best_idx + 1) % ring_len];
-
-            if ccw {
-                triangles.push([
-                    cleaned_indices[prev],
-                    cleaned_indices[curr],
-                    cleaned_indices[next],
-                ]);
-            } else {
-                triangles.push([
-                    cleaned_indices[prev],
-                    cleaned_indices[next],
-                    cleaned_indices[curr],
-                ]);
-            }
-            ring.remove(best_idx);
+            clip_most_convex_vertex(
+                &mut ring,
+                &cleaned_pts,
+                &cleaned_indices,
+                ccw,
+                &mut triangles,
+            );
         }
     }
 
     triangles
+}
+
+fn clip_most_convex_vertex(
+    ring: &mut Vec<usize>,
+    points: &[[f64; 2]],
+    cleaned_indices: &[usize],
+    ccw: bool,
+    triangles: &mut Vec<[usize; 3]>,
+) {
+    let ring_len = ring.len();
+    let mut best_idx = 0;
+    let mut best_cross = if ccw { -f64::INFINITY } else { f64::INFINITY };
+
+    for index in 0..ring_len {
+        let prev = ring[(index + ring_len - 1) % ring_len];
+        let curr = ring[index];
+        let next = ring[(index + 1) % ring_len];
+        let a = points[prev];
+        let b = points[curr];
+        let c = points[next];
+        let cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+        if (ccw && cross > best_cross) || (!ccw && cross < best_cross) {
+            best_cross = cross;
+            best_idx = index;
+        }
+    }
+
+    let prev = ring[(best_idx + ring_len - 1) % ring_len];
+    let curr = ring[best_idx];
+    let next = ring[(best_idx + 1) % ring_len];
+    if ccw {
+        triangles.push([
+            cleaned_indices[prev],
+            cleaned_indices[curr],
+            cleaned_indices[next],
+        ]);
+    } else {
+        triangles.push([
+            cleaned_indices[prev],
+            cleaned_indices[next],
+            cleaned_indices[curr],
+        ]);
+    }
+    ring.remove(best_idx);
 }
