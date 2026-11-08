@@ -219,6 +219,137 @@ only when their exact preconditions are met; curved shapes are not estimated
 from endpoints. See [format support and limitations](format-support.md) for the
 current geometry coverage.
 
+## Dependency-free geometry operations
+
+The following Python APIs operate on parsed immutable source values and do
+not import OCCT, CadQuery, or NumPy. Coordinates remain in source transmit
+units. They do not alter parser defaults, stored geometry kinds, or B-Rep
+mapping completeness.
+
+```python
+from parasolid_kit import LineCurve, Vector3, evaluate_curve, sample_curve
+
+line = LineCurve(Vector3(0.0, 0.0, 0.0), Vector3(1.0, 0.0, 0.0))
+value = evaluate_curve(line, 2.5)
+print(value.point, value.tangent)  # P(t), dP/dt
+points = sample_curve(line, start=0.0, end=10.0, count=101)
+```
+
+`evaluate_curve(curve, parameter, *, model=None)` accepts a `CurveGeometry`
+or its definition. Supported definitions are line, circle, ellipse, parabola,
+hyperbola, and nonperiodic 3D NURBS. A `TrimmedCurve` additionally requires its
+owning `BrepModel` to resolve its basis; parameters use the stored basis
+interval, never a guessed normalized 0–1 range. The tangent is the derivative
+with respect to increasing parameter; source curve sense does not reverse it.
+
+`sample_curve(curve, start, end, count=100, *, model=None)` includes both
+endpoints and prepares NURBS knots/controls once per call. Spacing is uniform
+in parameter, **not arc length**. Descending intervals are supported; counts
+must be between 2 and 1,000,000.
+
+`evaluate_surface(surface, u, v)` accepts a `SurfaceGeometry` or plane,
+cylinder, sphere, ring torus, or nonperiodic NURBS definition. It returns
+`SurfaceEvaluation(point, du, dv, normal)`. NURBS derivatives use the exact
+homogeneous derivative and quotient rule, including at active-domain endpoints.
+The normal follows `du × dv`; a sphere pole uses its analytic limiting normal.
+Face/surface senses and trim containment are not applied. Rational controls
+contain homogeneous weighted coordinates and require positive finite weights.
+
+Periodic NURBS forms, cones, intersection/SP_CURVE evaluation, and compound
+surface definitions are not yet qualified for these new APIs. Invalid knots,
+out-of-domain parameters, unsupported definitions, cyclic trim references,
+and singular NURBS normals raise `GeometryEvaluationError`; they never fall
+back to a straight chord or an invented normal.
+
+### Assembly occurrences and placement
+
+```python
+from parasolid_kit import assembly_occurrences, read_brep, Vector3
+
+parsed = read_brep("assembly.x_t")
+for occurrence in assembly_occurrences(parsed.brep):
+    print(occurrence.body_id, occurrence.instance_path)
+    world_point = occurrence.placement.apply_point(Vector3(1.0, 2.0, 3.0))
+```
+
+`assembly_occurrences(model, root_assembly=None, *, max_instances=100_000)`
+returns `BodyOccurrence` values. `instance_path` and `assembly_path` run from
+root to leaf. Repeated references yield distinct occurrences; with no root
+selected, uninstanced bodies also appear once at identity. Graph validation
+rejects missing/duplicate IDs, nonreciprocal ownership, cycles, excessive
+expansion and paths deeper than 64. Negative-instance signs are retained.
+
+`Placement` stores a row-major 3×4 affine matrix. `from_transform` applies the
+source `(R · point + translation) · scale` formula; `compose(local)` applies
+the local transform first. `apply_normal` uses inverse transpose, including
+nonuniform affine scale and reflection. Singular/nonfinite matrices,
+perspective transforms and unknown flag bits raise `AssemblyPlacementError`.
+
+To apply occurrences in the viewer, generate an **unplaced** OCCT conversion
+and call `write_preview(converted, model, destination, assembly=True)`, or use:
+
+```bash
+parasolid-kit viewer assembly.x_t --source-unit mm --assembly
+```
+
+The GLB retains one source-body tessellation; its companion manifest supplies
+placements. The viewer expands them within display budgets, transforms
+normals, reverses reflected triangle winding, and tracks instance paths for
+selection and per-occurrence visibility. The bare GLB alone remains unplaced.
+An already-placed OCCT result is rejected to prevent double placement. Shared
+or unknown body membership and negative instances require interpretation
+beyond this display route and are rejected.
+
+### Stored polylines and embedded meshes
+
+```python
+from parasolid_kit import DirectorySchemaProvider, parse_xt, faceted_geometry
+from parasolid_kit.interop.preview import write_faceted_preview
+
+document = parse_xt("faceted.x_t", schema_provider=DirectorySchemaProvider("schemas"))
+stored = faceted_geometry(document)
+preview = write_faceted_preview(stored, "faceted.preview", source_unit="mm")
+```
+
+`decode_polyline(document, node_index)`, `decode_embedded_mesh(document,
+node_index)`, and `faceted_geometry(document)` are opt-in decoders for explicit
+caller-supplied **named** catalogs. They do not infer roles from names in
+built-in numeric profiles and do not install TopSolid catalogs. Both X_T and
+X_B use the same decoded-field contract. These operations are independent of
+`map_brep`, so an unsupported or absent BODY does not prevent inspecting these
+stored records. `max_pool_values` defaults to 1,000,000 and bounds the aggregate
+decoded scalar pool values.
+
+`Polyline` retains source-order points, closure, sense, base parameter and node
+provenance. Its `display_points()` applies known sense and explicit closure
+without assuming parameter spacing between vertices. Embedded meshes retain
+pool encoding, used count, capacity, shift, unused values, normal pools and
+indices. Supported storage is double-precision positions, 32-bit integer
+indices, and absent or per-corner normal pools. Encoded two-component normal
+values are retained without inventing decoded normal directions.
+
+`EmbeddedMesh.triangles(index_origin=None)` selects 0- or 1-based indexing only
+when the active position indices make it unambiguous; otherwise pass
+`index_origin=0` or `1`. Linked affine transforms and surface sense are applied,
+including reflected winding. Non-null transform precision corrections and
+unsupported pool layouts are rejected. A mesh with no embedded PSM_MESH remains
+inspectable, but cannot produce triangles; associated external files are not
+loaded.
+
+```bash
+parasolid-kit viewer faceted.x_t --source-unit mm --stored-geometry --schema-dir schemas
+# Add --mesh-index-origin 0 or 1 only when the source origin is known.
+```
+
+`write_faceted_preview` uses stored triangles and connected line strips,
+computes flat triangle normals, and needs no OCCT. `--no-edges` omits polylines.
+This is always labelled a **stored geometry subset** with `occt_valid=null`;
+it does not establish full-document coverage, B-Rep face trims, watertightness,
+solid volume, or kernel validity. Degenerate triangles, missing external data,
+ambiguous indices and resource-limit failures stop generation before output
+is installed. This route does not combine with `--assembly`, because stored
+records alone do not establish topological BODY ownership.
+
 ## Optional interoperability boundary
 
 `parasolid_kit.interop` is importable from the parser-only installation. Its

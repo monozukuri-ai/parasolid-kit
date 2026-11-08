@@ -1,21 +1,21 @@
 {
-  "version": "2.0.0",
+  "version": "2.1.0",
   "threeCadViewer": "5.0.6",
   "protocol": 3,
-  "lockSha256": "91e35a4f0673e02207c21cdc13d110db7477ccdad606be44345771a642785103",
+  "lockSha256": "1c15c6e8a869fdaaea2ba7823e1400fabc434ac0c834372b838230a44fbf7dfa",
   "licensesSha256": "9b026e94966520885579386f6147d0388014bd7c77e47e8543b7459ffb734501",
   "assets": {
     "viewer.js": {
-      "bytes": 1459750,
-      "sha256": "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d"
+      "bytes": 1464241,
+      "sha256": "b17baf838240b6b187544d45b4a69119971174e2f643c3e633a1c9ad4ed9eb9b"
     },
     "viewer.css": {
       "bytes": 130463,
-      "sha256": "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791"
+      "sha256": "013357963a9d136452e91e51a641c6cea9ac1309bfae0f3c19a99cd6d0da3da8"
     },
     "index.html": {
       "bytes": 4704,
-      "sha256": "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e"
+      "sha256": "635549800cf67309ccf0f982a2e2aef0b10c218509c4c7b17af906d8d5ef3069"
     }
   }
 }

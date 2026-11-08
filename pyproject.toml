@@ -90,6 +90,8 @@ include = [
   { path = "viewer/tests/fixtures/two-boxes/*", format = "sdist" },
   { path = "viewer/tests/fixtures/sheet/*", format = "sdist" },
   { path = "upstream-docs/**/*", format = "sdist" },
+  { path = "viewer/tests/fixtures/assembly/*", format = "sdist" },
+  { path = "viewer/tests/fixtures/stored/*", format = "sdist" },
   { path = "scripts/verify_release.py", format = "sdist" },
   { path = "scripts/bump_version.py", format = "sdist" },
   { path = "scripts/verify_artifacts.py", format = "sdist" },

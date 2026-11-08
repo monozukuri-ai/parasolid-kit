@@ -17,6 +17,15 @@
   data and selected operations; this is not a claim of complete Parasolid
   geometry coverage or CAD-kernel compatibility.
 - Expose intersection chart parameters, limit metadata, and UV data as immutable Python values while retaining unknown UV modes and raw values.
+- Add dependency-free Python curve evaluation and parameter sampling, analytic
+  surface evaluation, and exact nonperiodic rational/nonrational NURBS derivatives.
+- Add bounded assembly occurrence traversal and affine placement APIs. The
+  viewer's `--assembly` option places repeated/nested bodies while retaining
+  occurrence paths in picking metadata and sharing the source tessellation.
+- Add opt-in named-catalog POLYLINE and embedded MESH/PSM_MESH pool decoding,
+  with explicit index-origin selection when ambiguous. `viewer --stored-geometry`
+  displays selected stored geometry without OCCT and labels its narrower scope.
+  Existing built-in schema and B-Rep mapping contracts are unchanged.
 
 - Fix #13: declare the public-reference HELIX_CU_FORM (163) base layout for
   the SolidWorks and standalone-transmit profiles over schema 13006. Embedded

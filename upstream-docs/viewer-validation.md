@@ -1,5 +1,26 @@
 # Viewer validation record
 
+## Geometry operations and viewer 2.1.0 extension (2026-11-09)
+
+Local working-tree validation covers dependency-free curve/surface evaluation,
+assembly occurrences, and named-catalog stored mesh/polyline decoding. Analytic
+and rational NURBS oracles include derivatives, endpoints and tiny knot domains.
+Nested and reflected placements, invalid graphs, bounded expansion, ambiguous
+mesh origins and missing external data are checked independently of OCCT.
+
+The TypeScript suite passes 46 tests. The browser suite passes the existing
+eight cases and seven rejection/lifecycle cases, plus two feature cases using
+author-created fixtures: nested assembly picking/visibility and stored geometry
+display with source picking and no OCCT-validity claim. Real pointer clicks
+and screenshots verify both feature paths. Browser: Chrome 156.0.8078.73,
+Linux x64, SwiftShader; bundle 2.1.0 retains three-cad-viewer 5.0.6.
+
+Python/OCCT full-suite, import isolation, actual named-catalog CLI generation,
+wheel/sdist content gates, Ruff, formatting and deterministic frontend builds
+were run locally. This record does not establish remote CI, publication,
+general TopSolid coverage, or arbitrary native CAD compatibility. The earlier
+qualification below remains a historical record for bundle 2.0.0.
+
 Local implementation evidence, recorded on 2026-09-12. The Python package is
 `0.1.0`, the viewer bundle is `2.0.0`, and the pinned three-cad-viewer version is
 `5.0.6` (protocol 3). This records the V4 runtime qualification and the V5

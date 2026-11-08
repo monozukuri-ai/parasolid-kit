@@ -19,7 +19,7 @@ from .glb import validate_glb_bytes
 from .model import PreviewArtifact, PreviewOptions, PreviewReport, PreviewResult
 from .tessellation import tessellate_preview
 
-ASSET_BUNDLE_VERSION: Final = "2.0.0"
+ASSET_BUNDLE_VERSION: Final = "2.1.0"
 # Notice summary, not a single SPDX expression: retain n8ao's upstream discrepancy.
 ASSET_LICENSE: Final = "MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice"
 STATIC_ASSET_NAMES: Final = ("index.html", "viewer.css", "viewer.js")
@@ -27,9 +27,9 @@ STATIC_ASSET_NAMES: Final = ("index.html", "viewer.css", "viewer.js")
 # Updated deliberately whenever the reviewed, bundled UI changes. Keeping
 # this allowlist here makes unexpected wheel resources fail before being served.
 STATIC_ASSET_SHA256: Final[dict[str, str]] = {
-    "index.html": "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e",
-    "viewer.css": "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791",
-    "viewer.js": "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d",
+    "index.html": "635549800cf67309ccf0f982a2e2aef0b10c218509c4c7b17af906d8d5ef3069",
+    "viewer.css": "013357963a9d136452e91e51a641c6cea9ac1309bfae0f3c19a99cd6d0da3da8",
+    "viewer.js": "b17baf838240b6b187544d45b4a69119971174e2f643c3e633a1c9ad4ed9eb9b",
 }
 
 
@@ -41,6 +41,8 @@ def write_preview(
     options: PreviewOptions | None = None,
     limits: InteropLimits = DEFAULT_INTEROP_LIMITS,
     overwrite: bool = False,
+    assembly: bool = False,
+    root_assembly: int | None = None,
 ) -> PreviewResult:
     """Write GLB, manifest, and bundled UI without exposing source bytes or paths."""
 
@@ -73,6 +75,8 @@ def write_preview(
         brep,
         options=resolved_options,
         limits=limits,
+        assembly=assembly,
+        root_assembly=root_assembly,
     )
     validation = validate_glb_bytes(tessellated.glb)
     if not validation.valid:

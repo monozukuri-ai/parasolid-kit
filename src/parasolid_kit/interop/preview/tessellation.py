@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import sqrt
 from typing import Any
 
@@ -44,6 +44,8 @@ def tessellate_preview(
     *,
     options: PreviewOptions | None = None,
     limits: InteropLimits = DEFAULT_INTEROP_LIMITS,
+    assembly: bool = False,
+    root_assembly: int | None = None,
 ) -> TessellationResult:
     """Tessellate one owned OCCT result without inferring or dropping geometry."""
 
@@ -51,7 +53,19 @@ def tessellate_preview(
     _validate_inputs(converted, brep, resolved_options, limits)
     require_occt()
     try:
-        return _tessellate(converted, brep, resolved_options, limits)
+        result = _tessellate(converted, brep, resolved_options, limits)
+        if not isinstance(assembly, bool) or (root_assembly is not None and not assembly):
+            raise ValueError("root_assembly requires assembly=True")
+        if assembly:
+            from .assembly import add_assembly_manifest
+
+            result = replace(
+                result,
+                manifest=add_assembly_manifest(
+                    result.manifest, brep, converted, limits, root_assembly
+                ),
+            )
+        return result
     except PreviewError:
         raise
     except OverflowError as error:

@@ -368,7 +368,7 @@ def validate_glb_bytes(payload: bytes) -> GlbValidationReport:
                 if entity_kind != expected_kind:
                     errors.append("preview GLB primitive entityKind differs from its mode")
                 if not isinstance(target_key, str) or not target_key.startswith(
-                    f"occt:{expected_kind}:"
+                    (f"occt:{expected_kind}:", f"native:{expected_kind}:")
                 ):
                     errors.append("preview GLB primitive has an invalid targetKey")
                 if not isinstance(pick_id, int) or not 1 <= pick_id <= 0xFFFFFF:
