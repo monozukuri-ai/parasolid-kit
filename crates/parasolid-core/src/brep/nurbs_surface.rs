@@ -1187,295 +1187,362 @@ pub fn evaluate_mapped_nurbs_surface(
     u: f64,
     v: f64,
 ) -> io::Result<[f64; 3]> {
-    let (u_degree, v_degree) = (usize::from(surface.u_degree), usize::from(surface.v_degree));
-    let (u_count, v_count) = (
-        usize::try_from(surface.u_control_vertex_count)
-            .map_err(|_| invalid("invalid NURBS surface U control count"))?,
-        usize::try_from(surface.v_control_vertex_count)
-            .map_err(|_| invalid("invalid NURBS surface V control count"))?,
-    );
-    let dimension = usize::from(surface.vertex_dimension);
-    let controls = u_count
-        .checked_mul(v_count)
-        .ok_or_else(|| invalid("NURBS surface control grid overflow"))?;
-    let u_basis_work = u_degree
-        .checked_add(1)
-        .and_then(|value| value.checked_mul(value))
-        .ok_or_else(|| invalid("NURBS surface work estimate overflow"))?;
-    let v_basis_work = v_degree
-        .checked_add(1)
-        .and_then(|value| value.checked_mul(value))
-        .ok_or_else(|| invalid("NURBS surface work estimate overflow"))?;
-    let work = v_count
-        .checked_mul(u_basis_work)
-        .and_then(|value| value.checked_add(v_basis_work))
-        .ok_or_else(|| invalid("NURBS surface work estimate overflow"))?;
-    let periodic_u = surface.u_periodic;
-    let periodic_v = surface.v_periodic;
-    if (periodic_u && !surface.u_closed)
-        || (periodic_v && !surface.v_closed)
-        || u_degree == 0
-        || v_degree == 0
-        || u_count <= u_degree
-        || v_count <= v_degree
-        || controls > MAX_CONTROLS
-        || work > MAX_EVALUATION_WORK
-        || dimension != if surface.rational { 4 } else { 3 }
-        || surface.control_vertices.len() != controls
-        || !u.is_finite()
-        || !v.is_finite()
-    {
+    if !u.is_finite() || !v.is_finite() {
         return Err(invalid("unsupported NURBS surface profile or parameters"));
     }
-    let u_knots = expand_knots(
-        &surface.u_knots,
-        &surface.u_knot_multiplicities,
-        u_count,
-        u_degree,
-        periodic_u,
-    )?;
-    let v_knots = expand_knots(
-        &surface.v_knots,
-        &surface.v_knot_multiplicities,
-        v_count,
-        v_degree,
-        periodic_v,
-    )?;
-    let u_min = u_knots[u_degree];
-    let u_max = u_knots[u_count];
-    let mut evaluation_u = u;
-    let mut evaluation_v = v;
-    let mut validate_u_seam = false;
-    if periodic_u {
-        let unique_u = u_count
-            .checked_sub(u_degree)
-            .ok_or_else(|| invalid("invalid periodic U control count"))?;
-        let period = u_knots[u_degree + unique_u] - u_min;
-        if !period.is_finite() || period <= 0.0 {
-            return Err(invalid("invalid periodic U knot extension"));
+    PreparedNurbsSurface::new(surface)?.point(u, v)
+}
+
+pub(super) struct PreparedNurbsSurface {
+    u_degree: usize,
+    v_degree: usize,
+    u_count: usize,
+    v_count: usize,
+    rational: bool,
+    periodic_u: bool,
+    periodic_v: bool,
+    u_knots: Vec<f64>,
+    v_knots: Vec<f64>,
+    homogeneous: Vec<[f64; 4]>,
+    u_min: f64,
+    u_max: f64,
+    v_min: f64,
+    v_max: f64,
+    validate_u_seam: bool,
+    validate_v_seam: bool,
+}
+
+impl PreparedNurbsSurface {
+    pub(super) fn new(surface: &NurbsSurface) -> io::Result<Self> {
+        let (u_degree, v_degree) = (usize::from(surface.u_degree), usize::from(surface.v_degree));
+        let (u_count, v_count) = (
+            usize::try_from(surface.u_control_vertex_count)
+                .map_err(|_| invalid("invalid NURBS surface U control count"))?,
+            usize::try_from(surface.v_control_vertex_count)
+                .map_err(|_| invalid("invalid NURBS surface V control count"))?,
+        );
+        let dimension = usize::from(surface.vertex_dimension);
+        let controls = u_count
+            .checked_mul(v_count)
+            .ok_or_else(|| invalid("NURBS surface control grid overflow"))?;
+        let u_basis_work = u_degree
+            .checked_add(1)
+            .and_then(|value| value.checked_mul(value))
+            .ok_or_else(|| invalid("NURBS surface work estimate overflow"))?;
+        let v_basis_work = v_degree
+            .checked_add(1)
+            .and_then(|value| value.checked_mul(value))
+            .ok_or_else(|| invalid("NURBS surface work estimate overflow"))?;
+        let work = v_count
+            .checked_mul(u_basis_work)
+            .and_then(|value| value.checked_add(v_basis_work))
+            .ok_or_else(|| invalid("NURBS surface work estimate overflow"))?;
+        let periodic_u = surface.u_periodic;
+        let periodic_v = surface.v_periodic;
+        if (periodic_u && !surface.u_closed)
+            || (periodic_v && !surface.v_closed)
+            || u_degree == 0
+            || v_degree == 0
+            || u_count <= u_degree
+            || v_count <= v_degree
+            || controls > MAX_CONTROLS
+            || work > MAX_EVALUATION_WORK
+            || dimension != if surface.rational { 4 } else { 3 }
+            || surface.control_vertices.len() != controls
+        {
+            return Err(invalid("unsupported NURBS surface profile or parameters"));
         }
-        let repeated_profile_possible = unique_u > u_degree;
-        let matching_knots = repeated_profile_possible
-            && (0..=u_degree).all(|index| u_knots[index + unique_u] - u_knots[index] == period);
-        let matching_controls = repeated_profile_possible
-            && (0..u_degree).all(|row| {
-                let first = row * v_count;
-                let repeated = (unique_u + row) * v_count;
-                surface.control_vertices[first..first + v_count]
-                    == surface.control_vertices[repeated..repeated + v_count]
-            });
-        validate_u_seam = !(matching_knots && matching_controls && u_degree > 1);
-        let offset = u - u_min;
-        let wraps = offset / period;
-        if !wraps.is_finite() || wraps.abs() > MAX_PRECISE_PERIODIC_WRAPS {
-            return Err(invalid("periodic U wrap count exceeds precise range"));
-        }
-        evaluation_u = u_min + offset.rem_euclid(period);
-        if evaluation_u >= u_max {
-            evaluation_u = u_min;
-        }
-    }
-    let mut validate_v_seam = false;
-    if periodic_v {
-        let unique_v = v_count
-            .checked_sub(v_degree)
-            .ok_or_else(|| invalid("invalid periodic V control count"))?;
+        let u_knots = expand_knots(
+            &surface.u_knots,
+            &surface.u_knot_multiplicities,
+            u_count,
+            u_degree,
+            periodic_u,
+        )?;
+        let v_knots = expand_knots(
+            &surface.v_knots,
+            &surface.v_knot_multiplicities,
+            v_count,
+            v_degree,
+            periodic_v,
+        )?;
+        let u_min = u_knots[u_degree];
+        let u_max = u_knots[u_count];
         let v_min = v_knots[v_degree];
         let v_max = v_knots[v_count];
-        let period = v_knots[v_degree + unique_v] - v_min;
-        if !period.is_finite() || period <= 0.0 {
-            return Err(invalid("invalid periodic V knot extension"));
+        let mut validate_u_seam = false;
+        if periodic_u {
+            let unique_u = u_count
+                .checked_sub(u_degree)
+                .ok_or_else(|| invalid("invalid periodic U control count"))?;
+            let period = u_knots[u_degree + unique_u] - u_min;
+            if !period.is_finite() || period <= 0.0 {
+                return Err(invalid("invalid periodic U knot extension"));
+            }
+            let repeated_profile_possible = unique_u > u_degree;
+            let matching_knots = repeated_profile_possible
+                && (0..=u_degree).all(|index| u_knots[index + unique_u] - u_knots[index] == period);
+            let matching_controls = repeated_profile_possible
+                && (0..u_degree).all(|row| {
+                    let first = row * v_count;
+                    let repeated = (unique_u + row) * v_count;
+                    surface.control_vertices[first..first + v_count]
+                        == surface.control_vertices[repeated..repeated + v_count]
+                });
+            validate_u_seam = !(matching_knots && matching_controls && u_degree > 1);
         }
-        let repeated_profile_possible = unique_v > v_degree;
-        let matching_knots = repeated_profile_possible
-            && (0..=v_degree).all(|index| v_knots[index + unique_v] - v_knots[index] == period);
-        let matching_controls = repeated_profile_possible
-            && (0..u_count).all(|row| {
-                let first = row * v_count;
-                let repeated = first + unique_v;
-                surface.control_vertices[first..first + v_degree]
-                    == surface.control_vertices[repeated..repeated + v_degree]
-            });
-        validate_v_seam = !(matching_knots && matching_controls && v_degree > 1);
-        let offset = v - v_min;
-        let wraps = offset / period;
-        if !wraps.is_finite() || wraps.abs() > MAX_PRECISE_PERIODIC_WRAPS {
-            return Err(invalid("periodic V wrap count exceeds precise range"));
+        let mut validate_v_seam = false;
+        if periodic_v {
+            let unique_v = v_count
+                .checked_sub(v_degree)
+                .ok_or_else(|| invalid("invalid periodic V control count"))?;
+            let period = v_knots[v_degree + unique_v] - v_min;
+            if !period.is_finite() || period <= 0.0 {
+                return Err(invalid("invalid periodic V knot extension"));
+            }
+            let repeated_profile_possible = unique_v > v_degree;
+            let matching_knots = repeated_profile_possible
+                && (0..=v_degree).all(|index| v_knots[index + unique_v] - v_knots[index] == period);
+            let matching_controls = repeated_profile_possible
+                && (0..u_count).all(|row| {
+                    let first = row * v_count;
+                    let repeated = first + unique_v;
+                    surface.control_vertices[first..first + v_degree]
+                        == surface.control_vertices[repeated..repeated + v_degree]
+                });
+            validate_v_seam = !(matching_knots && matching_controls && v_degree > 1);
         }
-        evaluation_v = v_min + offset.rem_euclid(period);
-        if evaluation_v >= v_max {
-            evaluation_v = v_min;
-        }
-    }
-    if (!periodic_u && (u < u_min || u > u_max))
-        || (!periodic_v && (v < v_knots[v_degree] || v > v_knots[v_count]))
-    {
-        return Err(invalid("NURBS surface parameter outside domain"));
-    }
 
-    if validate_u_seam || validate_v_seam {
-        let mut seam_work = 0usize;
-        if validate_u_seam {
-            let basis_work = u_basis_work
-                .checked_mul(4)
-                .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
-            let exact_jet_work = if u_degree > 1 {
-                u_count
+        if validate_u_seam || validate_v_seam {
+            let mut seam_work = 0usize;
+            if validate_u_seam {
+                let basis_work = u_basis_work
                     .checked_mul(4)
-                    .and_then(|value| {
-                        u_basis_work
-                            .checked_mul(4)
-                            .and_then(|basis| value.checked_add(basis))
-                    })
-                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
-            } else {
-                0
-            };
-            let per_column = u_count
-                .checked_mul(2)
-                .and_then(|value| value.checked_add(basis_work))
-                .and_then(|value| value.checked_add(exact_jet_work))
-                .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
-            let transverse_samples = if u_degree == 1 && v_degree > 1 {
-                sampled_seam_work(v_count, v_degree)
-                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
-            } else {
-                0
-            };
-            seam_work = v_count
-                .checked_mul(per_column)
-                .and_then(|value| value.checked_add(transverse_samples))
-                .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
-        }
-        if validate_v_seam {
-            let basis_work = v_basis_work
-                .checked_mul(4)
-                .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
-            let exact_jet_work = if v_degree > 1 {
-                v_count
-                    .checked_mul(4)
-                    .and_then(|value| {
-                        v_basis_work
-                            .checked_mul(4)
-                            .and_then(|basis| value.checked_add(basis))
-                    })
-                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
-            } else {
-                0
-            };
-            let per_row = v_count
-                .checked_mul(2)
-                .and_then(|value| value.checked_add(basis_work))
-                .and_then(|value| value.checked_add(exact_jet_work))
-                .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
-            let transverse_samples = if v_degree == 1 && u_degree > 1 {
-                sampled_seam_work(u_count, u_degree)
-                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
-            } else {
-                0
-            };
-            seam_work = seam_work
-                .checked_add(
+                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
+                let exact_jet_work = if u_degree > 1 {
                     u_count
-                        .checked_mul(per_row)
-                        .and_then(|value| value.checked_add(transverse_samples))
-                        .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?,
-                )
-                .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
+                        .checked_mul(4)
+                        .and_then(|value| {
+                            u_basis_work
+                                .checked_mul(4)
+                                .and_then(|basis| value.checked_add(basis))
+                        })
+                        .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
+                } else {
+                    0
+                };
+                let per_column = u_count
+                    .checked_mul(2)
+                    .and_then(|value| value.checked_add(basis_work))
+                    .and_then(|value| value.checked_add(exact_jet_work))
+                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
+                let transverse_samples = if u_degree == 1 && v_degree > 1 {
+                    sampled_seam_work(v_count, v_degree)
+                        .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
+                } else {
+                    0
+                };
+                seam_work = v_count
+                    .checked_mul(per_column)
+                    .and_then(|value| value.checked_add(transverse_samples))
+                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
+            }
+            if validate_v_seam {
+                let basis_work = v_basis_work
+                    .checked_mul(4)
+                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
+                let exact_jet_work = if v_degree > 1 {
+                    v_count
+                        .checked_mul(4)
+                        .and_then(|value| {
+                            v_basis_work
+                                .checked_mul(4)
+                                .and_then(|basis| value.checked_add(basis))
+                        })
+                        .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
+                } else {
+                    0
+                };
+                let per_row = v_count
+                    .checked_mul(2)
+                    .and_then(|value| value.checked_add(basis_work))
+                    .and_then(|value| value.checked_add(exact_jet_work))
+                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
+                let transverse_samples = if v_degree == 1 && u_degree > 1 {
+                    sampled_seam_work(u_count, u_degree)
+                        .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?
+                } else {
+                    0
+                };
+                seam_work = seam_work
+                    .checked_add(
+                        u_count
+                            .checked_mul(per_row)
+                            .and_then(|value| value.checked_add(transverse_samples))
+                            .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?,
+                    )
+                    .ok_or_else(|| invalid("NURBS surface seam work estimate overflow"))?;
+            }
+            if work
+                .checked_add(seam_work)
+                .is_none_or(|total| total > MAX_EVALUATION_WORK)
+            {
+                return Err(invalid("NURBS surface seam work limit exceeded"));
+            }
         }
-        if work
-            .checked_add(seam_work)
-            .is_none_or(|total| total > MAX_EVALUATION_WORK)
+
+        let mut homogeneous = Vec::new();
+        homogeneous
+            .try_reserve_exact(controls)
+            .map_err(|_| invalid("NURBS surface control allocation failed"))?;
+        for control in &surface.control_vertices {
+            if control.len() != dimension || control.iter().any(|value| !value.is_finite()) {
+                return Err(invalid("invalid NURBS surface control vertex"));
+            }
+            let mut point = [0.0; 4];
+            point[..dimension].copy_from_slice(control);
+            if surface.rational {
+                let weight = point[3];
+                if weight <= 0.0 {
+                    return Err(invalid("invalid rational NURBS surface weight"));
+                }
+                for coordinate in &mut point[..3] {
+                    *coordinate *= weight;
+                }
+            } else {
+                point[3] = 1.0;
+            }
+            if point.iter().any(|value| !value.is_finite()) {
+                return Err(invalid("nonfinite homogeneous NURBS surface control"));
+            }
+            homogeneous.push(point);
+        }
+
+        Ok(Self {
+            u_degree,
+            v_degree,
+            u_count,
+            v_count,
+            rational: surface.rational,
+            periodic_u,
+            periodic_v,
+            u_knots,
+            v_knots,
+            homogeneous,
+            u_min,
+            u_max,
+            v_min,
+            v_max,
+            validate_u_seam,
+            validate_v_seam,
+        })
+    }
+
+    pub(super) fn active_bounds(&self) -> (f64, f64, f64, f64) {
+        (self.u_min, self.u_max, self.v_min, self.v_max)
+    }
+
+    pub(super) fn point(&self, u: f64, v: f64) -> io::Result<[f64; 3]> {
+        if !u.is_finite() || !v.is_finite() {
+            return Err(invalid("unsupported NURBS surface profile or parameters"));
+        }
+        let mut evaluation_u = u;
+        let mut evaluation_v = v;
+        if self.periodic_u {
+            let unique_u = self.u_count - self.u_degree;
+            let period = self.u_knots[self.u_degree + unique_u] - self.u_min;
+            let offset = u - self.u_min;
+            let wraps = offset / period;
+            if !wraps.is_finite() || wraps.abs() > MAX_PRECISE_PERIODIC_WRAPS {
+                return Err(invalid("periodic U wrap count exceeds precise range"));
+            }
+            evaluation_u = self.u_min + offset.rem_euclid(period);
+            if evaluation_u >= self.u_max {
+                evaluation_u = self.u_min;
+            }
+        }
+        if self.periodic_v {
+            let unique_v = self.v_count - self.v_degree;
+            let period = self.v_knots[self.v_degree + unique_v] - self.v_min;
+            let offset = v - self.v_min;
+            let wraps = offset / period;
+            if !wraps.is_finite() || wraps.abs() > MAX_PRECISE_PERIODIC_WRAPS {
+                return Err(invalid("periodic V wrap count exceeds precise range"));
+            }
+            evaluation_v = self.v_min + offset.rem_euclid(period);
+            if evaluation_v >= self.v_max {
+                evaluation_v = self.v_min;
+            }
+        }
+        if (!self.periodic_u && (u < self.u_min || u > self.u_max))
+            || (!self.periodic_v && (v < self.v_min || v > self.v_max))
         {
-            return Err(invalid("NURBS surface seam work limit exceeded"));
+            return Err(invalid("NURBS surface parameter outside domain"));
         }
-    }
+        if self.validate_u_seam {
+            validate_periodic_surface_seam(
+                &self.homogeneous,
+                self.u_count,
+                self.v_count,
+                &self.u_knots,
+                &self.v_knots,
+                self.u_degree,
+                true,
+                self.v_degree,
+                evaluation_v,
+            )?;
+        }
+        if self.validate_v_seam {
+            validate_periodic_surface_seam(
+                &self.homogeneous,
+                self.u_count,
+                self.v_count,
+                &self.v_knots,
+                &self.u_knots,
+                self.v_degree,
+                false,
+                self.u_degree,
+                evaluation_u,
+            )?;
+        }
 
-    let mut homogeneous = Vec::new();
-    homogeneous
-        .try_reserve_exact(controls)
-        .map_err(|_| invalid("NURBS surface control allocation failed"))?;
-    for control in &surface.control_vertices {
-        if control.len() != dimension || control.iter().any(|value| !value.is_finite()) {
-            return Err(invalid("invalid NURBS surface control vertex"));
-        }
-        let mut point = [0.0; 4];
-        point[..dimension].copy_from_slice(control);
-        if surface.rational {
-            let weight = point[3];
-            if weight <= 0.0 {
-                return Err(invalid("invalid rational NURBS surface weight"));
+        let mut along_u = Vec::new();
+        along_u
+            .try_reserve_exact(self.v_count)
+            .map_err(|_| invalid("NURBS surface intermediate allocation failed"))?;
+        for column in 0..self.v_count {
+            let mut points = Vec::new();
+            points
+                .try_reserve_exact(self.u_count)
+                .map_err(|_| invalid("NURBS surface column allocation failed"))?;
+            for row in 0..self.u_count {
+                points.push(self.homogeneous[row * self.v_count + column]);
             }
-            for coordinate in &mut point[..3] {
-                *coordinate *= weight;
-            }
-        } else {
-            point[3] = 1.0;
+            along_u.push(evaluate_curve(
+                &points,
+                &self.u_knots,
+                self.u_degree,
+                evaluation_u,
+            )?);
         }
-        if point.iter().any(|value| !value.is_finite()) {
-            return Err(invalid("nonfinite homogeneous NURBS surface control"));
+        let point = evaluate_curve(&along_u, &self.v_knots, self.v_degree, evaluation_v)?;
+        let weight = if self.rational { point[3] } else { 1.0 };
+        if weight <= 0.0 || !weight.is_finite() {
+            return Err(invalid("invalid NURBS surface evaluation denominator"));
         }
-        homogeneous.push(point);
-    }
-
-    if validate_u_seam {
-        validate_periodic_surface_seam(
-            &homogeneous,
-            u_count,
-            v_count,
-            &u_knots,
-            &v_knots,
-            u_degree,
-            true,
-            v_degree,
-            evaluation_v,
-        )?;
-    }
-    if validate_v_seam {
-        validate_periodic_surface_seam(
-            &homogeneous,
-            u_count,
-            v_count,
-            &v_knots,
-            &u_knots,
-            v_degree,
-            false,
-            u_degree,
-            evaluation_u,
-        )?;
-    }
-
-    let mut along_u = Vec::new();
-    along_u
-        .try_reserve_exact(v_count)
-        .map_err(|_| invalid("NURBS surface intermediate allocation failed"))?;
-    for column in 0..v_count {
-        let mut points = Vec::new();
-        points
-            .try_reserve_exact(u_count)
-            .map_err(|_| invalid("NURBS surface column allocation failed"))?;
-        for row in 0..u_count {
-            points.push(homogeneous[row * v_count + column]);
+        let result = [point[0] / weight, point[1] / weight, point[2] / weight];
+        if result.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("nonfinite NURBS surface result"));
         }
-        along_u.push(evaluate_curve(&points, &u_knots, u_degree, evaluation_u)?);
+        Ok(result)
     }
-    let point = evaluate_curve(&along_u, &v_knots, v_degree, evaluation_v)?;
-    let weight = if surface.rational { point[3] } else { 1.0 };
-    if weight <= 0.0 || !weight.is_finite() {
-        return Err(invalid("invalid NURBS surface evaluation denominator"));
-    }
-    let result = [point[0] / weight, point[1] / weight, point[2] / weight];
-    if result.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("nonfinite NURBS surface result"));
-    }
-    Ok(result)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         evaluate_mapped_nurbs_surface, exact_evaluate_curve, exact_product_difference, exact_sum,
-        sampled_seam_work,
+        sampled_seam_work, PreparedNurbsSurface,
     };
 
     #[test]
@@ -1535,6 +1602,23 @@ mod tests {
         surface.v_knots = vec![0.0, 1.0, 2.0, 3.0];
         surface.v_knot_multiplicities = vec![2, 1, 1, 2];
         surface
+    }
+
+    #[test]
+    fn prepared_surface_reuses_controls_and_validates_each_sample() {
+        let periodic = periodic_v_surface();
+        let prepared = PreparedNurbsSurface::new(&periodic).unwrap();
+        assert_eq!(prepared.active_bounds(), (0.0, 1.0, 1.0, 4.0));
+        for (u, v) in [(0.25, 1.5), (0.75, 2.5), (0.25, 4.5)] {
+            assert_eq!(
+                prepared.point(u, v).unwrap(),
+                evaluate_mapped_nurbs_surface(&periodic, u, v).unwrap()
+            );
+        }
+        assert!(prepared.point(0.5, f64::MAX).is_err());
+
+        let bounded = PreparedNurbsSurface::new(&closed_nonperiodic_v_surface()).unwrap();
+        assert!(bounded.point(0.5, 3.1).is_err());
     }
 
     fn closed_nonperiodic_uv_surface() -> NurbsSurface {

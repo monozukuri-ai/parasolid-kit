@@ -188,56 +188,29 @@ pub fn evaluate_surface(
             })
         }
         crate::brep::SurfaceKind::Nurbs(nurbs) => {
-            let pt = crate::brep::evaluate_mapped_nurbs_surface(nurbs, u, v).ok()?;
-            let u_domain = nurbs_active_domain(
-                &nurbs.u_knots,
-                &nurbs.u_knot_multiplicities,
-                usize::try_from(nurbs.u_control_vertex_count).ok()?,
-                usize::from(nurbs.u_degree),
-            )?;
-            let v_domain = nurbs_active_domain(
-                &nurbs.v_knots,
-                &nurbs.v_knot_multiplicities,
-                usize::try_from(nurbs.v_control_vertex_count).ok()?,
-                usize::from(nurbs.v_degree),
-            )?;
-            let du = nurbs_tangent(nurbs, u, v, u_domain, nurbs.u_periodic, true, pt)?;
-            let dv = nurbs_tangent(nurbs, u, v, v_domain, nurbs.v_periodic, false, pt)?;
-            let cross = vec3_cross(du, dv);
-            let normal = normalize_nonzero(cross).unwrap_or([0.0, 0.0, 1.0]);
-            Some(SurfaceEvaluation { point: pt, normal })
+            let prepared = super::nurbs_surface::PreparedNurbsSurface::new(nurbs).ok()?;
+            evaluate_prepared_nurbs_surface(nurbs, &prepared, u, v)
         }
         _ => None,
     }
 }
 
-fn nurbs_active_domain(
-    knots: &[f64],
-    multiplicities: &[u16],
-    control_count: usize,
-    degree: usize,
-) -> Option<(f64, f64)> {
-    let mut active = [None; 2];
-    let mut index = 0usize;
-    for (&knot, &multiplicity) in knots.iter().zip(multiplicities) {
-        let next = index.checked_add(usize::from(multiplicity))?;
-        if index <= degree && degree < next {
-            active[0] = Some(knot);
-        }
-        if index <= control_count && control_count < next {
-            active[1] = Some(knot);
-            break;
-        }
-        index = next;
-    }
-    let (Some(min), Some(max)) = (active[0], active[1]) else {
-        return None;
-    };
-    (min.is_finite() && max.is_finite() && max > min).then_some((min, max))
+pub(super) fn evaluate_prepared_nurbs_surface(
+    surface: &crate::brep::NurbsSurface,
+    prepared: &super::nurbs_surface::PreparedNurbsSurface,
+    u: f64,
+    v: f64,
+) -> Option<SurfaceEvaluation> {
+    let point = prepared.point(u, v).ok()?;
+    let (u_min, u_max, v_min, v_max) = prepared.active_bounds();
+    let du = nurbs_tangent(prepared, u, v, (u_min, u_max), surface.u_periodic, true, point)?;
+    let dv = nurbs_tangent(prepared, u, v, (v_min, v_max), surface.v_periodic, false, point)?;
+    let normal = normalize_nonzero(vec3_cross(du, dv)).unwrap_or([0.0, 0.0, 1.0]);
+    Some(SurfaceEvaluation { point, normal })
 }
 
 fn nurbs_tangent(
-    surface: &crate::brep::NurbsSurface,
+    prepared: &super::nurbs_surface::PreparedNurbsSurface,
     u: f64,
     v: f64,
     (min, max): (f64, f64),
@@ -249,9 +222,9 @@ fn nurbs_tangent(
     let step = (max - min) * 1e-4;
     let evaluate = |parameter| {
         if along_u {
-            crate::brep::evaluate_mapped_nurbs_surface(surface, parameter, v)
+            prepared.point(parameter, v)
         } else {
-            crate::brep::evaluate_mapped_nurbs_surface(surface, u, parameter)
+            prepared.point(u, parameter)
         }
     };
     if !step.is_finite() || step <= 0.0 {

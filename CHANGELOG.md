@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reuse prepared NURBS surface knots and homogeneous controls across repeated point samples.
 - Reuse indexed POLYLINE lookups and one lazily initialized exact-schema MESH decode context during B-rep mapping.
 - Compute mapped NURBS surface normals from knot-domain-scaled tangents, including at parameter bounds and on tiny domains.
 - Split compiled TopSolid effective schema definitions by schema ID while preserving their layouts.

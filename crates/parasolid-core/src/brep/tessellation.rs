@@ -1,4 +1,6 @@
 use super::polyline_data::PolylineData;
+use super::evaluate::evaluate_prepared_nurbs_surface;
+use super::nurbs_surface::PreparedNurbsSurface;
 use super::{
     BrepModel, BrepModelWithResolvedBodyHierarchy, BrepSourceFormat, CurveEvaluation,
     CurveGeometry, CurveKind, Sense, SurfaceEvaluation, SurfaceGeometry, SurfaceKind,
@@ -4409,6 +4411,14 @@ fn tessellate_nurbs_face(
     direct_uv_loops: Option<&[Vec<[f64; 2]>]>,
     result: &mut TessellatedMesh,
 ) {
+    let SurfaceKind::Nurbs(nurbs) = surf_kind else {
+        return;
+    };
+    let Ok(prepared) = PreparedNurbsSurface::new(nurbs) else {
+        return;
+    };
+    let evaluate_point = |u, v| prepared.point(u, v).ok();
+    let evaluate = |u, v| evaluate_prepared_nurbs_surface(nurbs, &prepared, u, v);
     let (u_min, u_max, v_min, v_max) = match surf_kind {
         SurfaceKind::Nurbs(nurbs) => (
             nurbs.u_knots.first().copied().unwrap_or(0.0),
@@ -4427,7 +4437,7 @@ fn tessellate_nurbs_face(
             let v = v_min + (v_max - v_min) * (j as f64 / grid_steps as f64);
             for i in 0..=grid_steps {
                 let u = u_min + (u_max - u_min) * (i as f64 / grid_steps as f64);
-                if let Some(pt) = evaluate_surface_point_kind(surf_kind, u, v) {
+                if let Some(pt) = evaluate_point(u, v) {
                     coarse_samples.push((u, v, pt));
                 }
             }
@@ -4457,7 +4467,7 @@ fn tessellate_nurbs_face(
             let eps_v = (v_span * 1e-4).clamp(1e-7, 1e-3);
 
             for _ in 0..5 {
-                let Some(pt) = evaluate_surface_point_kind(surf_kind, u, v) else {
+                let Some(pt) = evaluate_point(u, v) else {
                     break;
                 };
                 let r = vec3_sub(pt, p);
@@ -4468,10 +4478,10 @@ fn tessellate_nurbs_face(
                 let u_plus = (u + eps_u).min(u_max);
                 let u_minus = (u - eps_u).max(u_min);
                 let du_step = u_plus - u_minus;
-                let Some(s_u_plus) = evaluate_surface_point_kind(surf_kind, u_plus, v) else {
+                let Some(s_u_plus) = evaluate_point(u_plus, v) else {
                     break;
                 };
-                let Some(s_u_minus) = evaluate_surface_point_kind(surf_kind, u_minus, v) else {
+                let Some(s_u_minus) = evaluate_point(u_minus, v) else {
                     break;
                 };
                 let du = vec3_scale(vec3_sub(s_u_plus, s_u_minus), 1.0 / du_step.max(1e-12));
@@ -4479,10 +4489,10 @@ fn tessellate_nurbs_face(
                 let v_plus = (v + eps_v).min(v_max);
                 let v_minus = (v - eps_v).max(v_min);
                 let dv_step = v_plus - v_minus;
-                let Some(s_v_plus) = evaluate_surface_point_kind(surf_kind, u, v_plus) else {
+                let Some(s_v_plus) = evaluate_point(u, v_plus) else {
                     break;
                 };
-                let Some(s_v_minus) = evaluate_surface_point_kind(surf_kind, u, v_minus) else {
+                let Some(s_v_minus) = evaluate_point(u, v_minus) else {
                     break;
                 };
                 let dv = vec3_scale(vec3_sub(s_v_plus, s_v_minus), 1.0 / dv_step.max(1e-12));
@@ -4519,7 +4529,7 @@ fn tessellate_nurbs_face(
         match try_tessellate_trimmed_surface_with_uv(
             surf_kind,
             project_uv,
-            |u, v| evaluate_surface_kind(surf_kind, u, v),
+            |u, v| evaluate(u, v),
             loops_3d,
             direct_uv_loops,
             [delta_uv; 2],
@@ -4534,8 +4544,16 @@ fn tessellate_nurbs_face(
         }
     }
 
-    emit_isoparametric_grid(
-        surf_kind, u_min, u_max, n_u, v_min, v_max, n_v, face_sense, result,
+    emit_isoparametric_grid_with(
+        |u, v| evaluate(u, v),
+        u_min,
+        u_max,
+        n_u,
+        v_min,
+        v_max,
+        n_v,
+        face_sense,
+        result,
     );
 }
 
