@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reuse indexed POLYLINE lookups and one lazily initialized exact-schema MESH decode context during B-rep mapping.
 - Compute mapped NURBS surface normals from knot-domain-scaled tangents, including at parameter bounds and on tiny domains.
 - Split compiled TopSolid effective schema definitions by schema ID while preserving their layouts.
 - Restrict XT `BLENDED_EDGE` rolling-ball evaluation to equal absolute range magnitudes (within relative `1e-12`) and `thumb_weights == [1, 1]`; preserve signed per-support offsets and fail closed otherwise.

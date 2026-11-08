@@ -18,6 +18,98 @@ const SCHEMA_KEYS: [&str; 5] = [
     "SCH_3600188_36001_13006",
 ];
 
+/// Validated schema definitions and transmit-index view shared by mesh decoders.
+pub(super) struct MeshDecodeContext<'a> {
+    definitions: HashMap<u16, TypeDefinition>,
+    by_index: HashMap<u32, &'a RawNode>,
+    mesh_type: u16,
+    owner_class: Option<u16>,
+}
+
+impl<'a> MeshDecodeContext<'a> {
+    pub(super) fn new(
+        schema_key: &str,
+        nodes: &'a [RawNode],
+        mesh_index: u32,
+    ) -> Result<Self, MeshDataError> {
+        if !SCHEMA_KEYS.contains(&schema_key) {
+            return Err(MeshDataError::UnsupportedSchema(schema_key.to_owned()));
+        }
+        let key = SchemaKey::parse(schema_key)
+            .map_err(|_| MeshDataError::UnsupportedSchema(schema_key.to_owned()))?;
+        let catalog = TopSolidV6PsolidCatalogProvider::new().map_err(|_| {
+            invalid_at(
+                mesh_index,
+                "schema",
+                "reviewed schema catalog could not be initialized",
+            )
+        })?;
+        let profile = catalog
+            .provider_for_key(&key)
+            .ok_or_else(|| MeshDataError::UnsupportedSchema(schema_key.to_owned()))?;
+        let schema = if profile.contains_schema(key.effective()) {
+            key.effective()
+        } else {
+            key.provider_schema()
+        };
+        let mut definitions = HashMap::new();
+        for node_type in [100, 118, 189, 190, 191, 192, 193, 201, 229] {
+            if let Some(definition) = profile.type_definition(schema, node_type) {
+                definitions.insert(node_type, definition.clone());
+            }
+        }
+        let mesh_type = [118, 201]
+            .into_iter()
+            .find(|node_type| {
+                definitions
+                    .get(node_type)
+                    .is_some_and(|definition| definition.name == "MESH")
+            })
+            .ok_or_else(|| {
+                invalid_at(
+                    mesh_index,
+                    "schema",
+                    "exact profile has no reviewed MESH definition",
+                )
+            })?;
+        if nodes.len() > MAX_INDEXED_NODES {
+            return Err(invalid_at(mesh_index, "nodes", "node index limit exceeded"));
+        }
+        let mut by_index = HashMap::with_capacity(nodes.len());
+        for node in nodes {
+            if by_index.insert(node.index, node).is_some() {
+                return Err(invalid(node, "node_index", "node index is ambiguous"));
+            }
+        }
+        let owner_class = definitions
+            .get(&189)
+            .and_then(|definition| definition.fields.iter().find(|field| field.name == "owner"))
+            .filter(|field| field.field_type == FieldType::PointerIndex)
+            .map(|field| field.pointer_class)
+            .filter(|class| *class != 0);
+        Ok(Self {
+            definitions,
+            by_index,
+            mesh_type,
+            owner_class,
+        })
+    }
+
+    pub(super) fn decode_embedded_mesh(
+        &self,
+        mesh_index: u32,
+    ) -> Result<Option<RawMeshData>, MeshDataError> {
+        decode_embedded_mesh_with(self, mesh_index)
+    }
+
+    pub(super) fn decode_mesh_linked_transform(
+        &self,
+        mesh_index: u32,
+    ) -> Result<Option<TransformNode>, MeshDataError> {
+        decode_mesh_linked_transform_with(self, mesh_index)
+    }
+}
+
 /// Raw vector comb data in its transmitted encoding, order, and allocated capacity.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawVectorPool {
@@ -412,72 +504,26 @@ pub fn decode_embedded_mesh(
     nodes: &[RawNode],
     mesh_index: u32,
 ) -> Result<Option<RawMeshData>, MeshDataError> {
-    if !SCHEMA_KEYS.contains(&schema_key) {
-        return Err(MeshDataError::UnsupportedSchema(schema_key.to_owned()));
-    }
-    let key = SchemaKey::parse(schema_key)
-        .map_err(|_| MeshDataError::UnsupportedSchema(schema_key.to_owned()))?;
-    let catalog = TopSolidV6PsolidCatalogProvider::new().map_err(|_| {
+    MeshDecodeContext::new(schema_key, nodes, mesh_index)?.decode_embedded_mesh(mesh_index)
+}
+
+fn decode_embedded_mesh_with(
+    context: &MeshDecodeContext<'_>,
+    mesh_index: u32,
+) -> Result<Option<RawMeshData>, MeshDataError> {
+    let definitions = &context.definitions;
+    let by_index = &context.by_index;
+    let mesh_type = context.mesh_type;
+    let owner_class = context.owner_class.ok_or_else(|| {
         invalid_at(
             mesh_index,
             "schema",
-            "reviewed schema catalog could not be initialized",
+            "exact profile has no reviewed PSM_MESH owner link",
         )
     })?;
-    let profile = catalog
-        .provider_for_key(&key)
-        .ok_or_else(|| MeshDataError::UnsupportedSchema(schema_key.to_owned()))?;
-    let schema = if profile.contains_schema(key.effective()) {
-        key.effective()
-    } else {
-        key.provider_schema()
-    };
-    let mut definitions = HashMap::new();
-    for node_type in [100, 118, 189, 190, 191, 192, 193, 201] {
-        if let Some(definition) = profile.type_definition(schema, node_type) {
-            definitions.insert(node_type, definition.clone());
-        }
-    }
-    let mesh_type = [118, 201]
-        .into_iter()
-        .find(|node_type| {
-            definitions
-                .get(node_type)
-                .is_some_and(|definition| definition.name == "MESH")
-        })
-        .ok_or_else(|| {
-            invalid_at(
-                mesh_index,
-                "schema",
-                "exact profile has no reviewed MESH definition",
-            )
-        })?;
-    let owner_class = definitions
-        .get(&189)
-        .and_then(|definition| definition.fields.iter().find(|field| field.name == "owner"))
-        .filter(|field| field.field_type == FieldType::PointerIndex)
-        .map(|field| field.pointer_class)
-        .filter(|class| *class != 0)
-        .ok_or_else(|| {
-            invalid_at(
-                mesh_index,
-                "schema",
-                "exact profile has no reviewed PSM_MESH owner link",
-            )
-        })?;
-    if nodes.len() > MAX_INDEXED_NODES {
-        return Err(invalid_at(mesh_index, "nodes", "node index limit exceeded"));
-    }
-    let mut by_index = HashMap::with_capacity(nodes.len());
-    for node in nodes {
-        if by_index.insert(node.index, node).is_some() {
-            return Err(invalid(node, "node_index", "node index is ambiguous"));
-        }
-    }
-
     let mesh = target(
-        &by_index,
-        &definitions,
+        by_index,
+        definitions,
         mesh_index,
         mesh_type,
         "MESH",
@@ -564,8 +610,8 @@ pub fn decode_embedded_mesh(
     };
     if let Some(transform_index) = transform_index {
         target(
-            &by_index,
-            &definitions,
+            by_index,
+            definitions,
             mesh_index,
             100,
             "TRANSFORM",
@@ -577,8 +623,8 @@ pub fn decode_embedded_mesh(
         return Ok(None);
     };
     let psm = target(
-        &by_index,
-        &definitions,
+        by_index,
+        definitions,
         mesh_index,
         189,
         "PSM_MESH",
@@ -597,8 +643,8 @@ pub fn decode_embedded_mesh(
         ));
     }
 
-    let positions = vector_pool(&by_index, &definitions, psm, "position_pool")?;
-    let position_indices = integer_pool(&by_index, &definitions, psm, "position_indices")?;
+    let positions = vector_pool(by_index, definitions, psm, "position_pool")?;
+    let position_indices = integer_pool(by_index, definitions, psm, "position_indices")?;
     if position_indices.integer_count == 0 || position_indices.integer_count % 3 != 0 {
         return Err(invalid(
             psm,
@@ -643,8 +689,8 @@ pub fn decode_embedded_mesh(
             ));
         }
         3 => {
-            let normals = vector_pool(&by_index, &definitions, psm, "normal_pool")?;
-            let indices = integer_pool(&by_index, &definitions, psm, "normal_indices")?;
+            let normals = vector_pool(by_index, definitions, psm, "normal_pool")?;
+            let indices = integer_pool(by_index, definitions, psm, "normal_indices")?;
             if indices.integer_count != position_indices.integer_count
                 || normals.vector_count == 0
                 || indices.values[..indices.integer_count]
@@ -686,58 +732,19 @@ pub fn decode_mesh_linked_transform(
     nodes: &[RawNode],
     mesh_index: u32,
 ) -> Result<Option<TransformNode>, MeshDataError> {
-    if !SCHEMA_KEYS.contains(&schema_key) {
-        return Err(MeshDataError::UnsupportedSchema(schema_key.to_owned()));
-    }
-    let key = SchemaKey::parse(schema_key)
-        .map_err(|_| MeshDataError::UnsupportedSchema(schema_key.to_owned()))?;
-    let catalog = TopSolidV6PsolidCatalogProvider::new().map_err(|_| {
-        invalid_at(
-            mesh_index,
-            "schema",
-            "reviewed schema catalog could not be initialized",
-        )
-    })?;
-    let profile = catalog
-        .provider_for_key(&key)
-        .ok_or_else(|| MeshDataError::UnsupportedSchema(schema_key.to_owned()))?;
-    let schema = if profile.contains_schema(key.effective()) {
-        key.effective()
-    } else {
-        key.provider_schema()
-    };
-    let mut definitions = HashMap::new();
-    for node_type in [100, 118, 201, 229] {
-        if let Some(definition) = profile.type_definition(schema, node_type) {
-            definitions.insert(node_type, definition.clone());
-        }
-    }
-    let mesh_type = [118, 201]
-        .into_iter()
-        .find(|node_type| {
-            definitions
-                .get(node_type)
-                .is_some_and(|definition| definition.name == "MESH")
-        })
-        .ok_or_else(|| {
-            invalid_at(
-                mesh_index,
-                "schema",
-                "exact profile has no reviewed MESH definition",
-            )
-        })?;
-    if nodes.len() > MAX_INDEXED_NODES {
-        return Err(invalid_at(mesh_index, "nodes", "node index limit exceeded"));
-    }
-    let mut by_index = HashMap::with_capacity(nodes.len());
-    for node in nodes {
-        if by_index.insert(node.index, node).is_some() {
-            return Err(invalid(node, "node_index", "node index is ambiguous"));
-        }
-    }
+    MeshDecodeContext::new(schema_key, nodes, mesh_index)?.decode_mesh_linked_transform(mesh_index)
+}
+
+fn decode_mesh_linked_transform_with(
+    context: &MeshDecodeContext<'_>,
+    mesh_index: u32,
+) -> Result<Option<TransformNode>, MeshDataError> {
+    let definitions = &context.definitions;
+    let by_index = &context.by_index;
+    let mesh_type = context.mesh_type;
     let mesh = target(
-        &by_index,
-        &definitions,
+        by_index,
+        definitions,
         mesh_index,
         mesh_type,
         "MESH",
@@ -767,8 +774,8 @@ pub fn decode_mesh_linked_transform(
         }
     };
     let transform = target(
-        &by_index,
-        &definitions,
+        by_index,
+        definitions,
         mesh_index,
         100,
         "TRANSFORM",
@@ -861,10 +868,11 @@ pub fn decode_mesh_triangles(
     origin: MeshIndexOrigin,
     face_sense: Sense,
 ) -> Result<Option<Vec<[[f64; 3]; 3]>>, MeshDataError> {
-    let Some(mesh) = decode_embedded_mesh(schema_key, nodes, mesh_index)? else {
+    let context = MeshDecodeContext::new(schema_key, nodes, mesh_index)?;
+    let Some(mesh) = context.decode_embedded_mesh(mesh_index)? else {
         return Ok(None);
     };
-    let transform = decode_mesh_linked_transform(schema_key, nodes, mesh_index)?;
+    let transform = context.decode_mesh_linked_transform(mesh_index)?;
     mesh.placed_triangles(origin, transform.as_ref(), face_sense)
         .map(Some)
 }
@@ -1697,6 +1705,25 @@ mod tests {
         assert_eq!(result.position_indices.values, [0, 1, 1, 99]);
         assert_eq!(result.position_indices.integer_count, 3);
         assert_eq!(result.position_indices.capacity, 4);
+    }
+
+    #[test]
+    fn shared_context_decodes_mesh_and_transform_from_one_validated_index() {
+        let nodes = fixture(SCHEMA_KEYS[0]);
+        let context = MeshDecodeContext::new(SCHEMA_KEYS[0], &nodes, 1).unwrap();
+        assert!(context.decode_embedded_mesh(1).unwrap().is_some());
+        assert!(context.decode_mesh_linked_transform(1).unwrap().is_none());
+
+        let mut duplicate = nodes.clone();
+        duplicate.push(nodes[0].clone());
+        assert!(matches!(
+            MeshDecodeContext::new(SCHEMA_KEYS[0], &duplicate, 1),
+            Err(MeshDataError::Invalid {
+                field: "node_index",
+                reason: "node index is ambiguous",
+                ..
+            })
+        ));
     }
 
     fn text_value(value: &FieldValue) -> String {

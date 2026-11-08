@@ -284,6 +284,8 @@ struct Mapper<'a> {
     schema_key: &'a str,
     raw_nodes: &'a [RawNode],
     nodes: BTreeMap<u32, &'a RawNode>,
+    duplicate_nodes: BTreeMap<u32, &'a RawNode>,
+    mesh_context: Option<super::mesh_data::MeshDecodeContext<'a>>,
     ids: IdMaps,
     roles: RoleAccess,
     diagnostics: RefCell<Vec<BrepDiagnostic>>,
@@ -297,11 +299,20 @@ impl<'a> Mapper<'a> {
         nodes: &'a [RawNode],
         roles: RoleAccess,
     ) -> Self {
+        let mut indexed_nodes = BTreeMap::new();
+        let mut duplicate_nodes = BTreeMap::new();
+        for node in nodes {
+            if indexed_nodes.insert(node.index, node).is_some() {
+                duplicate_nodes.entry(node.index).or_insert(node);
+            }
+        }
         Self {
             source_format,
             schema_key,
             raw_nodes: nodes,
-            nodes: nodes.iter().map(|node| (node.index, node)).collect(),
+            nodes: indexed_nodes,
+            duplicate_nodes,
+            mesh_context: None,
             ids: IdMaps::new(nodes, roles),
             roles,
             diagnostics: RefCell::new(Vec::new()),
@@ -961,14 +972,17 @@ impl<'a> Mapper<'a> {
             "TRIMMED_CURVE" => self.trimmed_curve(node)?,
             "B_CURVE" => CurveKind::Nurbs(self.nurbs_curve(node)?),
             "POLYLINE" => CurveKind::Polyline(match self.roles {
-                RoleAccess::Named => {
-                    super::polyline_data::decode_named_polyline(self.raw_nodes, node.index)?
-                }
+                RoleAccess::Named => super::polyline_data::decode_named_polyline_indexed(
+                    node.index,
+                    &self.nodes,
+                    &self.duplicate_nodes,
+                )?,
                 RoleAccess::TopsolidCatalog => {
-                    super::polyline_data::PolylineData::decode_builtin_topsolid(
-                        self.raw_nodes,
+                    super::polyline_data::decode_builtin_topsolid_polyline_indexed(
                         self.schema_key,
                         node.index,
+                        &self.nodes,
+                        &self.duplicate_nodes,
                     )?
                 }
                 _ => {
@@ -1146,27 +1160,38 @@ impl<'a> Mapper<'a> {
     }
 
     fn mesh_surface(&mut self, node: &RawNode) -> Result<SurfaceKind, ParseError> {
-        let embedded =
-            super::mesh_data::decode_embedded_mesh(self.schema_key, self.raw_nodes, node.index)
-                .map_err(|error| {
-                    self.invalid_geometry(
-                        node,
-                        "psm_imesh",
-                        format!("exact-profile MESH decode failed: {error:?}"),
-                    )
-                })?;
-        let transform = super::mesh_data::decode_mesh_linked_transform(
-            self.schema_key,
-            self.raw_nodes,
-            node.index,
-        )
-        .map_err(|error| {
+        if self.mesh_context.is_none() {
+            let context = super::mesh_data::MeshDecodeContext::new(
+                self.schema_key,
+                self.raw_nodes,
+                node.index,
+            )
+            .map_err(|error| {
+                self.invalid_geometry(
+                    node,
+                    "psm_imesh",
+                    format!("exact-profile MESH decode failed: {error:?}"),
+                )
+            })?;
+            self.mesh_context = Some(context);
+        }
+        let context = self.mesh_context.as_ref().expect("mesh context initialized");
+        let embedded = context.decode_embedded_mesh(node.index).map_err(|error| {
             self.invalid_geometry(
                 node,
-                "transform",
-                format!("exact-profile TRANSFORM decode failed: {error:?}"),
+                "psm_imesh",
+                format!("exact-profile MESH decode failed: {error:?}"),
             )
         })?;
+        let transform = context
+            .decode_mesh_linked_transform(node.index)
+            .map_err(|error| {
+                self.invalid_geometry(
+                    node,
+                    "transform",
+                    format!("exact-profile TRANSFORM decode failed: {error:?}"),
+                )
+            })?;
         let transform_index = match self.pointer(node, "transform")? {
             0 => None,
             index => Some(index),

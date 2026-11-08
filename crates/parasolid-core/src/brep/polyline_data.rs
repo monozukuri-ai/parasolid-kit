@@ -4,6 +4,7 @@ use crate::{
     BuiltinProfileCoverage, BuiltinProfileRegistry, ErrorDetails, ErrorKind, FieldType, FieldValue,
     ParseError, RawField, RawNode, SchemaKey, SchemaProvider,
 };
+use std::collections::BTreeMap;
 
 use super::model::{Sense, SourceNodeRef, Vector3};
 
@@ -54,7 +55,26 @@ pub fn decode_named_polyline(
     nodes: &[RawNode],
     polyline_index: u32,
 ) -> Result<PolylineData, ParseError> {
-    let polyline = node_by_index(nodes, polyline_index)?.ok_or_else(|| {
+    decode_named_polyline_with_lookup(polyline_index, |index| node_by_index(nodes, index))
+}
+
+/// Indexed mapper path. `duplicates` stores the second occurrence of every
+/// duplicated index so errors retain the slice decoder's byte offset.
+pub(super) fn decode_named_polyline_indexed<'a>(
+    polyline_index: u32,
+    nodes: &BTreeMap<u32, &'a RawNode>,
+    duplicates: &BTreeMap<u32, &'a RawNode>,
+) -> Result<PolylineData, ParseError> {
+    decode_named_polyline_with_lookup(polyline_index, |index| {
+        indexed_node(nodes, duplicates, index)
+    })
+}
+
+fn decode_named_polyline_with_lookup<'a>(
+    polyline_index: u32,
+    mut lookup: impl FnMut(u32) -> Result<Option<&'a RawNode>, ParseError>,
+) -> Result<PolylineData, ParseError> {
+    let polyline = lookup(polyline_index)?.ok_or_else(|| {
         ParseError::new(
             ErrorKind::InvalidBrepField,
             0,
@@ -73,7 +93,16 @@ pub fn decode_named_polyline(
     }
 
     let data_index = pointer(polyline, "data")?;
-    let data = target(nodes, polyline, "data", data_index, "POLYLINE_DATA")?;
+    let data = target_with_lookup(&mut lookup, polyline, "data", data_index, "POLYLINE_DATA")?;
+    decode_named_polyline_fields(polyline, data, None, &mut lookup)
+}
+
+fn decode_named_polyline_fields<'a>(
+    polyline: &'a RawNode,
+    data: &'a RawNode,
+    prevalidated_point_values: Option<&'a RawNode>,
+    lookup: &mut impl FnMut(u32) -> Result<Option<&'a RawNode>, ParseError>,
+) -> Result<PolylineData, ParseError> {
     let sense = match value(polyline, "sense")? {
         FieldValue::Character(b'+') => Sense::Positive,
         FieldValue::Character(b'-') => Sense::Negative,
@@ -119,8 +148,13 @@ pub fn decode_named_polyline(
             ));
         }
     };
-    let points_index = pointer(data, "pvec")?;
-    let point_values = target(nodes, data, "pvec", points_index, "POINT_VALUES")?;
+    let point_values = match prevalidated_point_values {
+        Some(point_values) => point_values,
+        None => {
+            let points_index = pointer(data, "pvec")?;
+            target_with_lookup(lookup, data, "pvec", points_index, "POINT_VALUES")?
+        }
+    };
     let field = required_field(point_values, "values")?;
     if field.definition.field_type != FieldType::Vector {
         return Err(invalid_field(
@@ -175,6 +209,27 @@ fn decode_builtin_topsolid_polyline(
     schema_key: &str,
     polyline_index: u32,
 ) -> Result<PolylineData, ParseError> {
+    decode_builtin_topsolid_polyline_with_lookup(schema_key, polyline_index, |index| {
+        node_by_index(nodes, index)
+    })
+}
+
+pub(super) fn decode_builtin_topsolid_polyline_indexed<'a>(
+    schema_key: &str,
+    polyline_index: u32,
+    nodes: &BTreeMap<u32, &'a RawNode>,
+    duplicates: &BTreeMap<u32, &'a RawNode>,
+) -> Result<PolylineData, ParseError> {
+    decode_builtin_topsolid_polyline_with_lookup(schema_key, polyline_index, |index| {
+        indexed_node(nodes, duplicates, index)
+    })
+}
+
+fn decode_builtin_topsolid_polyline_with_lookup<'a>(
+    schema_key: &str,
+    polyline_index: u32,
+    mut lookup: impl FnMut(u32) -> Result<Option<&'a RawNode>, ParseError>,
+) -> Result<PolylineData, ParseError> {
     let key = SchemaKey::parse(schema_key)?;
     if !crate::schema::profiles::topsolid::SUPPORTED_SCHEMA_KEYS.contains(&schema_key) {
         return Err(unsupported_builtin_key(schema_key));
@@ -194,7 +249,7 @@ fn decode_builtin_topsolid_polyline(
         return Err(unsupported_builtin_key(schema_key));
     }
 
-    let polyline = node_by_index(nodes, polyline_index)?.ok_or_else(|| {
+    let polyline = lookup(polyline_index)?.ok_or_else(|| {
         ParseError::new(
             ErrorKind::InvalidBrepField,
             0,
@@ -206,13 +261,13 @@ fn decode_builtin_topsolid_polyline(
     })?;
     validate_builtin_node(&provider, &key, polyline, "POLYLINE")?;
     let data_index = pointer(polyline, "data")?;
-    let data = target(nodes, polyline, "data", data_index, "POLYLINE_DATA")?;
+    let data = target_with_lookup(&mut lookup, polyline, "data", data_index, "POLYLINE_DATA")?;
     validate_builtin_node(&provider, &key, data, "POLYLINE_DATA")?;
     let points_index = pointer(data, "pvec")?;
-    let point_values = target(nodes, data, "pvec", points_index, "POINT_VALUES")?;
+    let point_values = target_with_lookup(&mut lookup, data, "pvec", points_index, "POINT_VALUES")?;
     validate_builtin_node(&provider, &key, point_values, "POINT_VALUES")?;
 
-    decode_named_polyline(nodes, polyline_index)
+    decode_named_polyline_fields(polyline, data, Some(point_values), &mut lookup)
 }
 
 fn validate_builtin_node(
@@ -274,14 +329,29 @@ fn node_by_index(nodes: &[RawNode], index: u32) -> Result<Option<&RawNode>, Pars
         return Ok(None);
     };
     if let Some(duplicate) = matching.next() {
-        return Err(ParseError::new(
-            ErrorKind::DuplicateNodeIndex,
-            duplicate.byte_range.start,
-            format!("node index {index} is ambiguous"),
-            ErrorDetails::NodeIndex { node_index: index },
-        ));
+        return Err(duplicate_node_index(index, duplicate));
     }
     Ok(Some(node))
+}
+
+fn indexed_node<'a>(
+    nodes: &BTreeMap<u32, &'a RawNode>,
+    duplicates: &BTreeMap<u32, &'a RawNode>,
+    index: u32,
+) -> Result<Option<&'a RawNode>, ParseError> {
+    if let Some(duplicate) = duplicates.get(&index) {
+        return Err(duplicate_node_index(index, duplicate));
+    }
+    Ok(nodes.get(&index).copied())
+}
+
+fn duplicate_node_index(index: u32, duplicate: &RawNode) -> ParseError {
+    ParseError::new(
+        ErrorKind::DuplicateNodeIndex,
+        duplicate.byte_range.start,
+        format!("node index {index} is ambiguous"),
+        ErrorDetails::NodeIndex { node_index: index },
+    )
 }
 
 fn required_field<'a>(node: &'a RawNode, name: &'static str) -> Result<&'a RawField, ParseError> {
@@ -324,14 +394,14 @@ fn pointer(node: &RawNode, name: &'static str) -> Result<u32, ParseError> {
     }
 }
 
-fn target<'a>(
-    nodes: &'a [RawNode],
+fn target_with_lookup<'a>(
+    lookup: &mut impl FnMut(u32) -> Result<Option<&'a RawNode>, ParseError>,
     source: &RawNode,
     field: &'static str,
     index: u32,
     expected: &'static str,
 ) -> Result<&'a RawNode, ParseError> {
-    let node = node_by_index(nodes, index)?.ok_or_else(|| {
+    let node = lookup(index)?.ok_or_else(|| {
         invalid_reference(
             source,
             field,
@@ -718,6 +788,42 @@ mod tests {
                 .kind(),
             ErrorKind::DuplicateNodeIndex
         );
+    }
+
+    #[test]
+    fn indexed_decode_matches_slice_duplicate_errors() {
+        let nodes = fixture(
+            vec![FieldValue::Vector([Some(1.0), Some(2.0), Some(3.0)])],
+            1,
+        );
+        let index = nodes.iter().map(|node| (node.index, node)).collect();
+        let duplicates = BTreeMap::new();
+        assert!(decode_named_polyline_indexed(1, &index, &duplicates).is_ok());
+
+        let mut duplicate_nodes = nodes.clone();
+        duplicate_nodes.push(nodes[1].clone());
+        duplicate_nodes.last_mut().unwrap().byte_range = 40..41;
+        let index = duplicate_nodes
+            .iter()
+            .map(|node| (node.index, node))
+            .collect();
+        let duplicates = BTreeMap::from([(2, &duplicate_nodes[3])]);
+        let indexed_error = decode_named_polyline_indexed(1, &index, &duplicates).unwrap_err();
+        let slice_error = decode_named_polyline(&duplicate_nodes, 1).unwrap_err();
+        assert_eq!(indexed_error.kind(), slice_error.kind());
+        assert_eq!(indexed_error.details(), slice_error.details());
+        assert_eq!(indexed_error.offset(), slice_error.offset());
+
+        let mut unrelated_duplicate = nodes.clone();
+        unrelated_duplicate.push(node(99, 999, "OTHER", vec![]));
+        unrelated_duplicate.push(unrelated_duplicate[3].clone());
+        let index = unrelated_duplicate
+            .iter()
+            .map(|node| (node.index, node))
+            .collect();
+        let duplicates = BTreeMap::from([(99, &unrelated_duplicate[4])]);
+        assert!(decode_named_polyline_indexed(1, &index, &duplicates).is_ok());
+        assert!(decode_named_polyline(&unrelated_duplicate, 1).is_ok());
     }
 
     #[test]
