@@ -2241,17 +2241,6 @@ struct PlaneXtConeInverseChartData {
     geometric_tolerance: f64,
 }
 
-struct PlaneXtConeInverseSupportData {
-    plane_origin: [f64; 3],
-    plane_normal: [f64; 3],
-    cone_origin: [f64; 3],
-    xt_axis: [f64; 3],
-    radius: f64,
-    tangent_half_angle: f64,
-    cone_sense: f64,
-    order: f64,
-}
-
 fn plane_xt_cone_inverse_chart_data(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -2274,65 +2263,6 @@ fn plane_xt_cone_inverse_chart_data(
     }
     let a = unique_surface(brep, surfaces[0])?;
     let b = unique_surface(brep, surfaces[1])?;
-    let support = plane_xt_cone_inverse_support_data(a, b)?;
-    let points = chart_points
-        .iter()
-        .map(|p| p.to_array())
-        .collect::<Vec<_>>();
-    if points.iter().flatten().any(|x| !x.is_finite()) {
-        return Err(IntersectionEvaluationError::InvalidInput(
-            "intersection chart or limit contains a nonfinite point",
-        ));
-    }
-    let coordinate_scale = points
-        .iter()
-        .flatten()
-        .chain(support.plane_origin.iter())
-        .chain(support.cone_origin.iter())
-        .fold(1.0_f64, |m, x| m.max(x.abs()));
-    let geometric_tolerance = EPS_FACTOR * coordinate_scale;
-    let axis = if reverse_xt_axis {
-        scale(support.xt_axis, -1.0)
-    } else {
-        support.xt_axis
-    };
-    let tangent_context = PlaneXtConeTangentContext {
-        cone_origin: support.cone_origin,
-        axis,
-        xt_axis: support.xt_axis,
-        radius: support.radius,
-        tangent_half_angle: support.tangent_half_angle,
-        cone_sense: support.cone_sense,
-        plane_normal: support.plane_normal,
-        order: support.order,
-        tolerance: geometric_tolerance,
-    };
-    let mut tangents = Vec::with_capacity(points.len() - 1);
-    for point in &points[..points.len() - 1] {
-        let relative = sub(*point, support.cone_origin);
-        let radial = sub(relative, scale(axis, dot(relative, axis)));
-        let cone_radius = support.radius - dot(relative, axis) * support.tangent_half_angle;
-        if dot(sub(*point, support.plane_origin), support.plane_normal).abs() > geometric_tolerance
-            || (norm(radial) - cone_radius.abs()).abs() > geometric_tolerance
-            || cone_radius <= geometric_tolerance
-        {
-            return Err(IntersectionEvaluationError::InvalidInput(
-                "intersection chart point is not on both support surfaces",
-            ));
-        }
-        tangents.push(plane_xt_cone_station_tangent(*point, tangent_context)?);
-    }
-    Ok(PlaneXtConeInverseChartData {
-        points,
-        tangents,
-        geometric_tolerance,
-    })
-}
-
-fn plane_xt_cone_inverse_support_data(
-    a: &super::SurfaceGeometry,
-    b: &super::SurfaceGeometry,
-) -> Result<PlaneXtConeInverseSupportData, IntersectionEvaluationError> {
     let (plane, cone, order) = match (&a.kind, &b.kind) {
         (
             SurfaceKind::Plane { point, normal, .. },
@@ -2436,15 +2366,57 @@ fn plane_xt_cone_inverse_support_data(
             "invalid plane/XT-cone geometry",
         ));
     }
-    Ok(PlaneXtConeInverseSupportData {
-        plane_origin: plane.0,
-        plane_normal,
+    let points = chart_points
+        .iter()
+        .map(|p| p.to_array())
+        .collect::<Vec<_>>();
+    if points.iter().flatten().any(|x| !x.is_finite()) {
+        return Err(IntersectionEvaluationError::InvalidInput(
+            "intersection chart or limit contains a nonfinite point",
+        ));
+    }
+    let coordinate_scale = points
+        .iter()
+        .flatten()
+        .chain(plane.0.iter())
+        .chain(cone.0.iter())
+        .fold(1.0_f64, |m, x| m.max(x.abs()));
+    let geometric_tolerance = EPS_FACTOR * coordinate_scale;
+    let axis = if reverse_xt_axis {
+        scale(xt_axis, -1.0)
+    } else {
+        xt_axis
+    };
+    let tangent_context = PlaneXtConeTangentContext {
         cone_origin: cone.0,
+        axis,
         xt_axis,
         radius: cone.2,
         tangent_half_angle,
         cone_sense,
+        plane_normal,
         order,
+        tolerance: geometric_tolerance,
+    };
+    let mut tangents = Vec::with_capacity(points.len() - 1);
+    for point in &points[..points.len() - 1] {
+        let relative = sub(*point, cone.0);
+        let radial = sub(relative, scale(axis, dot(relative, axis)));
+        let cone_radius = cone.2 - dot(relative, axis) * tangent_half_angle;
+        if dot(sub(*point, plane.0), plane_normal).abs() > geometric_tolerance
+            || (norm(radial) - cone_radius.abs()).abs() > geometric_tolerance
+            || cone_radius <= geometric_tolerance
+        {
+            return Err(IntersectionEvaluationError::InvalidInput(
+                "intersection chart point is not on both support surfaces",
+            ));
+        }
+        tangents.push(plane_xt_cone_station_tangent(*point, tangent_context)?);
+    }
+    Ok(PlaneXtConeInverseChartData {
+        points,
+        tangents,
+        geometric_tolerance,
     })
 }
 
@@ -2763,11 +2735,11 @@ pub(super) fn evaluate_cone_cylinder_intersection_sample_candidate(
         IntersectionEvaluationError::InvalidInput("degenerate cone/cylinder chart chord"),
     )?;
     let roots = cone_cylinder_intersection_roots_with_axis(brep, curve, parameter, reverse_axis)?;
-    select_cone_cylinder_chart_root(roots, chord_point, trim_chord_point, chart_direction)
+    select_cone_cylinder_chart_root(&roots, chord_point, trim_chord_point, chart_direction)
 }
 
 fn select_cone_cylinder_chart_root(
-    roots: Vec<IntersectionCurveEvaluation>,
+    roots: &[IntersectionCurveEvaluation],
     chord_point: [f64; 3],
     trim_chord_point: [f64; 3],
     chart_direction: [f64; 3],

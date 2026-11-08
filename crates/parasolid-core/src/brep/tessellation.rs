@@ -2953,8 +2953,8 @@ fn tessellate_spherical_face(
     chord_error: f64,
     result: &mut TessellatedMesh,
 ) {
-    let r = radius.max(0.1);
-    let sagitta = (chord_error / r).min(0.999);
+    let effective_radius = radius.max(0.1);
+    let sagitta = (chord_error / effective_radius).min(0.999);
     let delta_theta = (2.0 * (1.0 - sagitta).acos())
         .clamp(std::f64::consts::PI / 64.0, std::f64::consts::PI / 6.0);
     let n_u = ((2.0 * std::f64::consts::PI) / delta_theta).ceil() as usize;
@@ -2965,29 +2965,40 @@ fn tessellate_spherical_face(
         SurfaceKind::Sphere { axis, x_axis, .. } => (axis.to_array(), x_axis.to_array()),
         _ => ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
     };
-    let z = vec3_normalize(axis_vec);
-    let x_proj = vec3_sub(x_axis_vec, vec3_scale(z, vec3_dot(x_axis_vec, z)));
-    let x = if vec3_norm(x_proj) > 1e-12 {
+    let z_axis = vec3_normalize(axis_vec);
+    let x_proj = vec3_sub(x_axis_vec, vec3_scale(z_axis, vec3_dot(x_axis_vec, z_axis)));
+    let x_axis = if vec3_norm(x_proj) > 1e-12 {
         vec3_normalize(x_proj)
     } else {
-        let alt = if z[0].abs() < 0.9 {
+        let alt = if z_axis[0].abs() < 0.9 {
             [1.0, 0.0, 0.0]
         } else {
             [0.0, 1.0, 0.0]
         };
-        vec3_normalize(vec3_cross(z, alt))
+        vec3_normalize(vec3_cross(z_axis, alt))
     };
-    let y = vec3_cross(z, x);
+    let y_axis = vec3_cross(z_axis, x_axis);
 
-    let project_uv = |p: [f64; 3], ring: &[[f64; 3]], idx: usize| -> Option<[f64; 2]> {
-        project_sphere_uv(p, ring, idx, center, r, z, x, y)
+    let project_uv = |point_on_ring: [f64; 3], ring: &[[f64; 3]], idx: usize| -> Option<[f64; 2]> {
+        project_sphere_uv(
+            point_on_ring,
+            ring,
+            idx,
+            center,
+            effective_radius,
+            z_axis,
+            x_axis,
+            y_axis,
+        )
     };
 
     if !loops_3d.is_empty() {
         match try_tessellate_trimmed_surface(
             surf_kind,
             project_uv,
-            |u, v| evaluate_surface_kind(surf_kind, u, v),
+            |longitude_parameter, latitude_parameter| {
+                evaluate_surface_kind(surf_kind, longitude_parameter, latitude_parameter)
+            },
             loops_3d,
             delta_theta,
             true,
@@ -3014,32 +3025,32 @@ fn tessellate_spherical_face(
                         continue;
                     }
                     let [u0, v0] = *first_uv.get_or_insert(uv);
-                    let mut u = uv[0];
-                    let mut diff_u = u - u0;
+                    let mut longitude_parameter = uv[0];
+                    let mut diff_u = longitude_parameter - u0;
                     while diff_u > std::f64::consts::PI {
-                        u -= 2.0 * std::f64::consts::PI;
-                        diff_u = u - u0;
+                        longitude_parameter -= 2.0 * std::f64::consts::PI;
+                        diff_u = longitude_parameter - u0;
                     }
                     while diff_u < -std::f64::consts::PI {
-                        u += 2.0 * std::f64::consts::PI;
-                        diff_u = u - u0;
+                        longitude_parameter += 2.0 * std::f64::consts::PI;
+                        diff_u = longitude_parameter - u0;
                     }
 
-                    let mut v = uv[1];
-                    let mut diff_v = v - v0;
+                    let mut latitude_parameter = uv[1];
+                    let mut diff_v = latitude_parameter - v0;
                     while diff_v > std::f64::consts::PI {
-                        v -= 2.0 * std::f64::consts::PI;
-                        diff_v = v - v0;
+                        latitude_parameter -= 2.0 * std::f64::consts::PI;
+                        diff_v = latitude_parameter - v0;
                     }
                     while diff_v < -std::f64::consts::PI {
-                        v += 2.0 * std::f64::consts::PI;
-                        diff_v = v - v0;
+                        latitude_parameter += 2.0 * std::f64::consts::PI;
+                        diff_v = latitude_parameter - v0;
                     }
 
-                    min_u = min_u.min(u);
-                    max_u = max_u.max(u);
-                    min_v = min_v.min(v);
-                    max_v = max_v.max(v);
+                    min_u = min_u.min(longitude_parameter);
+                    max_u = max_u.max(longitude_parameter);
+                    min_v = min_v.min(latitude_parameter);
+                    max_v = max_v.max(latitude_parameter);
                 }
             }
         }

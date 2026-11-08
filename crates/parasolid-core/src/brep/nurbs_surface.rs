@@ -1713,7 +1713,7 @@ mod tests {
             for v in 0..3 {
                 let unique_u = if u == 2 { 0 } else { u };
                 let unique_v = if v == 2 { 0 } else { v };
-                control_vertices.push(vec![unique_u as f64, unique_v as f64, 0.0]);
+                control_vertices.push(vec![f64::from(unique_u), f64::from(unique_v), 0.0]);
             }
         }
         NurbsSurface {
@@ -2298,7 +2298,7 @@ mod tests {
         let mut control_vertices = Vec::new();
         for u in 0..2 {
             control_vertices
-                .extend(profile.map(|point| vec![u as f64 + point[0], point[1], point[2]]));
+                .extend(profile.map(|point| vec![f64::from(u) + point[0], point[1], point[2]]));
         }
         NurbsSurface {
             u_degree: 1,
@@ -2363,13 +2363,13 @@ mod tests {
     fn periodic_u_surface_seam_accepts_xt_angular_resolution_and_rejects_above_it() {
         let mut within_resolution = minimum_count_clamped_periodic_u_surface();
         for transverse in 0..2 {
-            within_resolution.control_vertices[4 + transverse][1] += 9.999995e-12;
+            within_resolution.control_vertices[4 + transverse][1] += 9.999_995e-12;
         }
         assert!(evaluate_mapped_nurbs_surface(&within_resolution, 0.0, 0.5).is_ok());
 
         let mut above_resolution = minimum_count_clamped_periodic_u_surface();
         for transverse in 0..2 {
-            above_resolution.control_vertices[4 + transverse][1] += 1.000001e-11;
+            above_resolution.control_vertices[4 + transverse][1] += 1.000_001e-11;
         }
         assert!(evaluate_mapped_nurbs_surface(&above_resolution, 0.0, 0.5).is_err());
     }
@@ -2377,7 +2377,7 @@ mod tests {
     fn rational_clamped_nonrepeated_v_surface() -> NurbsSurface {
         let mut control_vertices = Vec::new();
         for u in 0..2 {
-            let base = u as f64;
+            let base = f64::from(u);
             control_vertices.extend([
                 vec![base, 0.0, 0.0, 2.0],
                 vec![2.0 * base + 2.0, 0.0, 0.0, 1.0],
@@ -2428,9 +2428,9 @@ mod tests {
         let mut controls = Vec::with_capacity(18);
         let mut start_left = Vec::with_capacity(3);
         let mut start_right = Vec::with_capacity(3);
-        for index in 0..3 {
-            start_left.push([start[index][0], 0.0, start[index][2] - 1.5, start[index][3]]);
-            start_right.push([start[index][0], 0.0, start[index][2] + 1.5, start[index][3]]);
+        for start_point in &start {
+            start_left.push([start_point[0], 0.0, start_point[2] - 1.5, start_point[3]]);
+            start_right.push([start_point[0], 0.0, start_point[2] + 1.5, start_point[3]]);
         }
         controls.extend(start_left);
         controls.extend(start_right);
