@@ -391,7 +391,7 @@
   `solidworks_partition_evidence` test replays extracted partition, ghost and
   local-body streams from a directory. The Python check that a TORUS record
   does not parse under the SolidWorks key is retired, since every compiled
-  embedded profile now declares TORUS. See `docs/solidworks-partitions.md`.
+  embedded profile now declares TORUS. See `upstream-docs/solidworks-partitions.md`.
 - OCCT parametric topology: an edge whose own geometry is a surface
   parameter curve, or a trim of one, is built from that curve on its surface;
   a parameter curve on an offset surface uses the parameters of the offset's
@@ -565,7 +565,7 @@
   `icad-2100293-20000-13006-r2` and `icad-3301231-33103-13006-r2`. Consumers
   that pin the earlier IDs or hashes must update them. Of 18,634 distinct
   sampled iCAD resources, 18,610 now parse without a catalog and match the
-  catalog path. See [format support](docs/format-support.md#supported-profiles).
+  catalog path. See [format support](upstream-docs/format-support.md#supported-profiles).
 - Map SPUN_SURF (68) as a surface of revolution: the profile curve, the spin
   axis point and direction, the optional degeneracy points and parameters and
   the optional x axis (`SpunSurface`). The OCCT interop revolves the mapped
@@ -587,7 +587,7 @@
   streams of the same revision. Of 17,099 distinct sampled resources, 17,082
   now parse without a catalog and match the catalog path; 17 with OFFSET_SURF
   (60) still fail closed. See the
-  [support matrix](docs/format-support.md#supported-profiles) for per-key
+  [support matrix](upstream-docs/format-support.md#supported-profiles) for per-key
   revisions, hashes and limits.
 
 - Add five exact legacy iCAD embedded 13006 profiles with pinned B-Rep roles
@@ -595,7 +595,7 @@
   dependency, SPUN_SURF (68), and SP_CURVE (137) dependencies only for the
   observed keys. The sampled 539 resources now parse without a catalog;
   535 map completely and four retain explicit unsupported SPUN_SURF geometry.
-  See the [support matrix](docs/format-support.md#supported-profiles) for
+  See the [support matrix](upstream-docs/format-support.md#supported-profiles) for
   per-key revisions, hashes and conversion limits.
 
 - Extend the exact iCAD V34 profile to revision 2 with the reviewed 13006
@@ -636,4 +636,4 @@
   every rational, closed or periodic variant. Assemblies, native CAD containers
   and SolidWorks delta application remain outside the complete parser contract.
 
-See [format support](docs/format-support.md) for exact keys and stage boundaries.
+See [format support](upstream-docs/format-support.md) for exact keys and stage boundaries.

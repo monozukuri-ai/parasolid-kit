@@ -32,7 +32,7 @@ For STEP export and the viewer, install the OCCT profile:
 python -m pip install "parasolid-kit[occt]"
 ```
 
-See [installation](docs/installation.md) for platform requirements, the separate
+See [installation](upstream-docs/installation.md) for platform requirements, the separate
 CadQuery profile, downloaded wheels and source builds.
 
 ## Quick start
@@ -59,8 +59,8 @@ print(parsed.brep.diagnostics)
 
 `complete` describes source B-Rep mapping. Geometry conversion and a native CAD
 file's saved configuration have separate requirements. Use `check` when
-completeness must affect the CLI exit code. See the [Python API](docs/api.md)
-and [CLI reference](docs/api.md#cli) for lower-level operations and diagnostics.
+completeness must affect the CLI exit code. See the [Python API](upstream-docs/api.md)
+and [CLI reference](upstream-docs/api.md#cli) for lower-level operations and diagnostics.
 
 ## Local viewer
 
@@ -75,11 +75,11 @@ Choose the input's actual unit; it is never inferred. `view` is an alias.
 The command opens a local URL; Ctrl-C stops serving and keeps the generated
 files. Node.js and a CDN are unnecessary at runtime.
 
-![Viewer showing two boxes and the selected face's source ID, node and byte range](docs/images/viewer.png)
+![Viewer showing two boxes and the selected face's source ID, node and byte range](upstream-docs/images/viewer.png)
 
 Project-authored synthetic two-body fixture, rendered with Linux/SwiftShader.
-See [preview controls and saving](docs/api.md#bounded-local-preview),
-[display limits](docs/format-support.md#viewer-display-boundary) and
+See [preview controls and saving](upstream-docs/api.md#bounded-local-preview),
+[display limits](upstream-docs/format-support.md#viewer-display-boundary) and
 [viewer development](viewer/README.md).
 
 ## Supported inputs
@@ -90,32 +90,32 @@ and 26 acceptance tests) and six standard keys of Parasolid 9 to 16 (NX,
 MicroStation, IronCAD, SolidWorks). Each has `verified_subset` coverage and is
 completed
 by its schema family; application user fields are read. A key with no exact profile is read with the
-[schema family](docs/format-support.md#schema-families) of its effective
+[schema family](upstream-docs/format-support.md#schema-families) of its effective
 schema and base (another Parasolid build of a reviewed schema) and reports
 `family_inferred` coverage; its node types must still be covered by the
 family's merged declarations. Consult the
-[support matrix](docs/format-support.md#supported-profiles)
+[support matrix](upstream-docs/format-support.md#supported-profiles)
 for exact keys, families and geometry limits; matching a key does not
 guarantee that all records are supported. Other schemas or uncovered types need
-an explicit [schema catalog](docs/schema-catalogs.md).
+an explicit [schema catalog](upstream-docs/schema-catalogs.md).
 
 Native CAD containers and SolidWorks delta application are outside the
 complete parser contract. Assembly structure (instances and their transforms)
 is returned beside the B-Rep and is not applied to geometry or conversion.
 Parsing, OCCT conversion, STEP export and preview have separate coverage. See
-[format support and limitations](docs/format-support.md).
+[format support and limitations](upstream-docs/format-support.md).
 
 ## Documentation
 
 | Topic | Guide |
 |---|---|
-| Setup and optional runtimes | [Installation](docs/installation.md) |
-| Python models, conversion and CLI | [API reference](docs/api.md) |
-| External schema providers | [Schema catalogs](docs/schema-catalogs.md) |
-| Supported inputs and geometry | [Support matrix](docs/format-support.md) |
-| Profile sources and validation | [Built-in profiles](docs/builtin-profiles.md) |
+| Setup and optional runtimes | [Installation](upstream-docs/installation.md) |
+| Python models, conversion and CLI | [API reference](upstream-docs/api.md) |
+| External schema providers | [Schema catalogs](upstream-docs/schema-catalogs.md) |
+| Supported inputs and geometry | [Support matrix](upstream-docs/format-support.md) |
+| Profile sources and validation | [Built-in profiles](upstream-docs/builtin-profiles.md) |
 | Release changes | [Changelog](CHANGELOG.md) |
-| Maintainer verification | [Release gates](docs/releasing.md), [corpus policy](corpus/README.md) |
+| Maintainer verification | [Release gates](upstream-docs/releasing.md), [corpus policy](corpus/README.md) |
 
 ## License
 

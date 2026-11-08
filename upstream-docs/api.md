@@ -339,7 +339,7 @@ for item in geometry_coverage():
 ```
 
 This immutable table is the source for the generated table in
-`docs/format-support.md`; tests reject documentation drift.
+`upstream-docs/format-support.md`; tests reject documentation drift.
 
 `OcctConversionResult` owns four related views:
 

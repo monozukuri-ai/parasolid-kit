@@ -185,7 +185,7 @@ BUILTIN_SOURCE_FILES = (
     "crates/parasolid-core/src/schema/profiles/mod.rs",
     "crates/parasolid-core/src/schema/profile.rs",
     "crates/parasolid-core/src/brep/profile_roles.rs",
-    "docs/builtin-profiles.md",
+    "upstream-docs/builtin-profiles.md",
 )
 
 _REQUIREMENT = re.compile(
@@ -722,9 +722,9 @@ def verify_sdist(path: Path, *, require_license: bool = False) -> dict[str, obje
         "corpus/expected/release-v1/values.x_b.json",
         "crates/parasolid-core/Cargo.toml",
         "crates/parasolid-python/Cargo.toml",
-        "docs/api.md",
+        "upstream-docs/api.md",
         *BUILTIN_SOURCE_FILES,
-        "docs/format-support.md",
+        "upstream-docs/format-support.md",
         "fuzz/Cargo.lock",
         "fuzz/Cargo.toml",
         "fuzz/fuzz_targets/inspect.rs",
