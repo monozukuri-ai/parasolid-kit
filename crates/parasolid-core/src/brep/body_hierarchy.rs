@@ -422,119 +422,160 @@ pub fn decode_named_body_children(
     };
 
     let mut children = Vec::new();
-    let mut seen = HashSet::new();
     let mut current = head;
     let mut previous_index = None;
-    let mut head_previous = None;
+    let mut traversal = NamedBodyChildTraversal {
+        nodes,
+        parent,
+        parent_index,
+        names,
+        termination,
+        head,
+        head_previous: None,
+        seen: HashSet::new(),
+    };
 
     loop {
-        if current == parent_index {
+        let (child, child_data) = traversal.validate_child(current, previous_index)?;
+        children.push(current);
+
+        let Some(next) = traversal.next_child(child, current, &child_data)? else {
+            return Ok(children);
+        };
+        previous_index = Some(current);
+        current = next;
+    }
+}
+
+struct NamedBodyChildTraversal<'a> {
+    nodes: &'a [RawNode],
+    parent: &'a RawNode,
+    parent_index: u32,
+    names: BodyHierarchyFieldNames,
+    termination: BodyChildChainTermination,
+    head: u32,
+    head_previous: Option<u32>,
+    seen: HashSet<u32>,
+}
+
+impl<'a> NamedBodyChildTraversal<'a> {
+    fn validate_child(
+        &mut self,
+        current: u32,
+        previous_index: Option<u32>,
+    ) -> Result<(&'a RawNode, BodyHierarchyData), ParseError> {
+        if current == self.parent_index {
             return Err(invalid_reference(
-                parent,
-                names.child_head,
+                self.parent,
+                self.names.child_head,
                 current,
                 "child BODY distinct from its parent",
                 "compound BODY cannot be its own child",
             ));
         }
-        if !seen.insert(current) {
+        if !self.seen.insert(current) {
             return Err(invalid_reference(
-                parent,
-                names.child_head,
+                self.parent,
+                self.names.child_head,
                 current,
                 "acyclic BODY child chain",
                 "child chain repeats before the caller-selected endpoint",
             ));
         }
-        let child = node_by_index(nodes, current)?.ok_or_else(|| {
+        let child = node_by_index(self.nodes, current)?.ok_or_else(|| {
             invalid_reference(
-                parent,
-                names.child_head,
+                self.parent,
+                self.names.child_head,
                 current,
                 "BODY",
                 "child chain target is unresolved",
             )
         })?;
-        let child_data = decode_named_body_hierarchy(nodes, current, names)?;
-        if effective_pointer(nodes, child_data.owner)? != Some(parent_index) {
+        let child_data = decode_named_body_hierarchy(self.nodes, current, self.names)?;
+        if effective_pointer(self.nodes, child_data.owner)? != Some(self.parent_index) {
             return Err(invalid_reference(
                 child,
-                names.owner,
+                self.names.owner,
                 child_data.owner.unwrap_or(0),
                 "parent BODY",
                 "child owner does not point to the requested parent",
             ));
         }
-        let child_previous = effective_pointer(nodes, child_data.previous)?;
+        let child_previous = effective_pointer(self.nodes, child_data.previous)?;
         if let Some(previous_index) = previous_index {
             if child_previous != Some(previous_index) {
                 return Err(invalid_reference(
                     child,
-                    names.previous,
+                    self.names.previous,
                     child_data.previous.unwrap_or(0),
                     "preceding BODY sibling",
                     "previous link does not reciprocate the preceding child's next link",
                 ));
             }
         } else {
-            head_previous = child_previous;
-            if termination == BodyChildChainTermination::NullTerminated && head_previous.is_some() {
+            self.head_previous = child_previous;
+            if self.termination == BodyChildChainTermination::NullTerminated
+                && self.head_previous.is_some()
+            {
                 return Err(invalid_reference(
                     child,
-                    names.previous,
-                    head_previous.unwrap_or(0),
+                    self.names.previous,
+                    self.head_previous.unwrap_or(0),
                     "null previous link at child head",
                     "null-terminated child chain has a non-null head previous link",
                 ));
             }
         }
-        children.push(current);
+        Ok((child, child_data))
+    }
 
-        match (effective_pointer(nodes, child_data.next)?, termination) {
-            (None, BodyChildChainTermination::NullTerminated) => return Ok(children),
-            (None, BodyChildChainTermination::Circular) => {
-                return Err(invalid_reference(
+    fn next_child(
+        &self,
+        child: &RawNode,
+        current: u32,
+        child_data: &BodyHierarchyData,
+    ) -> Result<Option<u32>, ParseError> {
+        match (
+            effective_pointer(self.nodes, child_data.next)?,
+            self.termination,
+        ) {
+            (None, BodyChildChainTermination::NullTerminated) => Ok(None),
+            (None, BodyChildChainTermination::Circular) => Err(invalid_reference(
+                child,
+                self.names.next,
+                0,
+                "circular BODY sibling chain",
+                "circular child chain terminates at null before returning to its head",
+            )),
+            (Some(next), BodyChildChainTermination::NullTerminated) if next == self.head => {
+                Err(invalid_reference(
                     child,
-                    names.next,
-                    0,
-                    "circular BODY sibling chain",
-                    "circular child chain terminates at null before returning to its head",
-                ));
-            }
-            (Some(next), BodyChildChainTermination::NullTerminated) if next == head => {
-                return Err(invalid_reference(
-                    child,
-                    names.next,
+                    self.names.next,
                     next,
                     "null-terminated BODY sibling chain",
                     "null-terminated child chain closes back to its head",
-                ));
+                ))
             }
-            (Some(next), _) if next == head => {
-                if head_previous != Some(current) {
+            (Some(next), _) if next == self.head => {
+                if self.head_previous != Some(current) {
                     return Err(invalid_reference(
-                        parent,
-                        names.previous,
-                        head_previous.unwrap_or(0),
+                        self.parent,
+                        self.names.previous,
+                        self.head_previous.unwrap_or(0),
                         "last BODY sibling",
                         "circular child head previous link does not point to the last sibling",
                     ));
                 }
-                return Ok(children);
+                Ok(None)
             }
-            (Some(next), _) if seen.contains(&next) => {
-                return Err(invalid_reference(
-                    child,
-                    names.next,
-                    next,
-                    "acyclic BODY child chain",
-                    "child chain contains a cycle that does not return to its head",
-                ));
-            }
-            (Some(next), _) => {
-                previous_index = Some(current);
-                current = next;
-            }
+            (Some(next), _) if self.seen.contains(&next) => Err(invalid_reference(
+                child,
+                self.names.next,
+                next,
+                "acyclic BODY child chain",
+                "child chain contains a cycle that does not return to its head",
+            )),
+            (Some(next), _) => Ok(Some(next)),
         }
     }
 }

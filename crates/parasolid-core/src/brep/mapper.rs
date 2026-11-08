@@ -23,6 +23,7 @@ use super::profile_roles::RoleAccess;
 /// Default modeller linear precision, in metres: the bound within which a trim
 /// point with unset parameters must lie on its basis line.
 const LINE_TRIM_TOLERANCE: f64 = 1.0e-8;
+const TRIM_PARAMETER_TOLERANCE: f64 = 1e-6;
 
 fn nurbs_parameter_range(
     knots: &[f64],
@@ -116,7 +117,7 @@ pub fn map_xt_brep_with_diagnostic_limit(
     .map()
 }
 
-/// Decode the optional UV data linked by one X_T `INTERSECTION` node.
+/// Decode the optional UV data linked by one `X_T` `INTERSECTION` node.
 ///
 /// `intersection_index` is the node's transmit index in the already parsed document.
 /// The curve's chart evaluator parameters remain available through `CurveKind::Intersection`.
@@ -163,7 +164,7 @@ pub fn map_xt_intersection_data(
     mapper.map_intersection_uv_data_for(intersection)
 }
 
-/// Decode the raw nullable fields from one X_T `SWEPT_SURF` node.
+/// Decode the raw nullable fields from one `X_T` `SWEPT_SURF` node.
 ///
 /// `surface_index` is the node's transmit index in the parsed document. The
 /// returned section is its raw pointer target, not a resolved B-Rep ID.
@@ -752,63 +753,7 @@ impl<'a> Mapper<'a> {
         }
         let mut fields = Vec::new();
         for (position, target) in value_targets.into_iter().enumerate() {
-            if target == 0 {
-                fields.push(match declared_kinds.get(position) {
-                    Some(1) => AttributeField::Integers(Vec::new()),
-                    Some(2) => AttributeField::Reals(Vec::new()),
-                    Some(3) => AttributeField::Text(String::new()),
-                    Some(4) => AttributeField::Points(Vec::new()),
-                    Some(5) => AttributeField::Vectors(Vec::new()),
-                    Some(6) => AttributeField::Directions(Vec::new()),
-                    Some(7) => AttributeField::Axes(Vec::new()),
-                    Some(8) => AttributeField::Tags(Vec::new()),
-                    Some(10) => AttributeField::Unicode(String::new()),
-                    other => AttributeField::Unsupported {
-                        type_name: match other {
-                            Some(kind) => format!("empty field of kind {kind}"),
-                            None => "empty field of undeclared kind".to_owned(),
-                        },
-                        node_index: 0,
-                    },
-                });
-                continue;
-            }
-            let value_node = self.nodes.get(&target).copied().ok_or_else(|| {
-                self.invalid_reference(
-                    node,
-                    "fields",
-                    target,
-                    "value node",
-                    "attribute field pointer is unresolved",
-                )
-            })?;
-            fields.push(match self.roles.type_name(value_node) {
-                "INT_VALUES" => AttributeField::Integers(self.integer_array(value_node, "values")?),
-                "REAL_VALUES" => {
-                    AttributeField::Reals(self.optional_double_array(value_node, "values")?)
-                }
-                "CHAR_VALUES" => AttributeField::Text(self.character_text(value_node, "values")?),
-                "UNICODE_VALUES" => {
-                    AttributeField::Unicode(self.unicode_text(value_node, "values")?)
-                }
-                "POINT_VALUES" => {
-                    AttributeField::Points(self.optional_vector_array(value_node, "values")?)
-                }
-                "VECTOR_VALUES" => {
-                    AttributeField::Vectors(self.optional_vector_array(value_node, "values")?)
-                }
-                "DIRECTION_VALUES" => {
-                    AttributeField::Directions(self.optional_vector_array(value_node, "values")?)
-                }
-                "AXIS_VALUES" => {
-                    AttributeField::Axes(self.optional_vector_array(value_node, "values")?)
-                }
-                "TAG_VALUES" => AttributeField::Tags(self.tag_array(value_node, "values")?),
-                _ => AttributeField::Unsupported {
-                    type_name: value_node.definition.name.clone(),
-                    node_index: target,
-                },
-            });
+            fields.push(self.map_attribute_field(node, target, position, &declared_kinds)?);
         }
         Ok(Attribute {
             id: self.id(&self.ids.attributes, node, "ATTRIBUTE")?,
@@ -817,6 +762,70 @@ impl<'a> Mapper<'a> {
             owner,
             fields,
             source: self.source(node),
+        })
+    }
+
+    fn map_attribute_field(
+        &self,
+        node: &RawNode,
+        target: u32,
+        position: usize,
+        declared_kinds: &[u8],
+    ) -> Result<AttributeField, ParseError> {
+        if target == 0 {
+            return Ok(match declared_kinds.get(position) {
+                Some(1) => AttributeField::Integers(Vec::new()),
+                Some(2) => AttributeField::Reals(Vec::new()),
+                Some(3) => AttributeField::Text(String::new()),
+                Some(4) => AttributeField::Points(Vec::new()),
+                Some(5) => AttributeField::Vectors(Vec::new()),
+                Some(6) => AttributeField::Directions(Vec::new()),
+                Some(7) => AttributeField::Axes(Vec::new()),
+                Some(8) => AttributeField::Tags(Vec::new()),
+                Some(10) => AttributeField::Unicode(String::new()),
+                other => AttributeField::Unsupported {
+                    type_name: match other {
+                        Some(kind) => format!("empty field of kind {kind}"),
+                        None => "empty field of undeclared kind".to_owned(),
+                    },
+                    node_index: 0,
+                },
+            });
+        }
+
+        let value_node = self.nodes.get(&target).copied().ok_or_else(|| {
+            self.invalid_reference(
+                node,
+                "fields",
+                target,
+                "value node",
+                "attribute field pointer is unresolved",
+            )
+        })?;
+        Ok(match self.roles.type_name(value_node) {
+            "INT_VALUES" => AttributeField::Integers(self.integer_array(value_node, "values")?),
+            "REAL_VALUES" => {
+                AttributeField::Reals(self.optional_double_array(value_node, "values")?)
+            }
+            "CHAR_VALUES" => AttributeField::Text(self.character_text(value_node, "values")?),
+            "UNICODE_VALUES" => AttributeField::Unicode(self.unicode_text(value_node, "values")?),
+            "POINT_VALUES" => {
+                AttributeField::Points(self.optional_vector_array(value_node, "values")?)
+            }
+            "VECTOR_VALUES" => {
+                AttributeField::Vectors(self.optional_vector_array(value_node, "values")?)
+            }
+            "DIRECTION_VALUES" => {
+                AttributeField::Directions(self.optional_vector_array(value_node, "values")?)
+            }
+            "AXIS_VALUES" => {
+                AttributeField::Axes(self.optional_vector_array(value_node, "values")?)
+            }
+            "TAG_VALUES" => AttributeField::Tags(self.tag_array(value_node, "values")?),
+            _ => AttributeField::Unsupported {
+                type_name: value_node.definition.name.clone(),
+                node_index: target,
+            },
         })
     }
 
@@ -1175,7 +1184,9 @@ impl<'a> Mapper<'a> {
             })?;
             self.mesh_context = Some(context);
         }
-        let context = self.mesh_context.as_ref().expect("mesh context initialized");
+        let context = self.mesh_context.as_ref().ok_or_else(|| {
+            self.invalid_geometry(node, "psm_imesh", "mesh decode context was not initialized")
+        })?;
         let embedded = context.decode_embedded_mesh(node.index).map_err(|error| {
             self.invalid_geometry(
                 node,
@@ -1294,7 +1305,82 @@ impl<'a> Mapper<'a> {
             self.optional_double(node, "parm_1")?,
             self.optional_double(node, "parm_2")?,
         ];
-        let [mut start_parameter, mut end_parameter] = match stored {
+        let [mut start_parameter, mut end_parameter] =
+            self.resolve_trim_parameters(node, basis, &start_point, &end_point, stored)?;
+        let basis_sense = self.sense(basis, "sense")?;
+        if self.roles.type_name(basis) == "POLYLINE" && basis_sense == Sense::Unknown {
+            return Err(self.invalid_geometry(
+                basis,
+                "sense",
+                "trimmed polyline requires a known curve sense",
+            ));
+        }
+        if start_parameter == end_parameter
+            || (basis_sense == Sense::Positive && end_parameter < start_parameter)
+            || (basis_sense == Sense::Negative && end_parameter > start_parameter)
+        {
+            return Err(self.invalid_geometry(
+                node,
+                "parm_2",
+                "trim parameters must be distinct and follow the basis curve sense",
+            ));
+        }
+        if self.roles.type_name(basis) == "B_CURVE" {
+            let nurbs = self.nurbs_curve(basis)?;
+            if !nurbs.periodic {
+                let (range_start, range_end) = nurbs_parameter_range(
+                    &nurbs.knots,
+                    &nurbs.knot_multiplicities,
+                    nurbs.control_vertex_count,
+                    nurbs.degree,
+                )
+                .ok_or_else(|| {
+                    self.invalid_geometry(
+                        basis,
+                        "knots",
+                        "NURBS active parameter range is unavailable",
+                    )
+                })?;
+                if start_parameter < range_start - TRIM_PARAMETER_TOLERANCE
+                    || start_parameter > range_end + TRIM_PARAMETER_TOLERANCE
+                    || end_parameter < range_start - TRIM_PARAMETER_TOLERANCE
+                    || end_parameter > range_end + TRIM_PARAMETER_TOLERANCE
+                {
+                    let field = if start_parameter < range_start - TRIM_PARAMETER_TOLERANCE
+                        || start_parameter > range_end + TRIM_PARAMETER_TOLERANCE
+                    {
+                        "parm_1"
+                    } else {
+                        "parm_2"
+                    };
+                    return Err(self.invalid_geometry(
+                        node,
+                        field,
+                        "trim parameters must lie in the non-periodic basis curve parameter range",
+                    ));
+                }
+                start_parameter = start_parameter.clamp(range_start, range_end);
+                end_parameter = end_parameter.clamp(range_start, range_end);
+            }
+        }
+        Ok(CurveKind::Trimmed {
+            basis_curve,
+            start_point,
+            end_point,
+            start_parameter,
+            end_parameter,
+        })
+    }
+
+    fn resolve_trim_parameters(
+        &self,
+        node: &RawNode,
+        basis: &RawNode,
+        start_point: &Vector3,
+        end_point: &Vector3,
+        stored: [Option<f64>; 2],
+    ) -> Result<[f64; 2], ParseError> {
+        Ok(match stored {
             [Some(start), Some(end)] => [start, end],
             // Both parameters can be unset on a line. Its published
             // parameterisation R(t) = P + tD, with D a unit vector, gives them
@@ -1346,70 +1432,6 @@ impl<'a> Mapper<'a> {
                     "required double is null or non-finite",
                 ));
             }
-        };
-        let basis_sense = self.sense(basis, "sense")?;
-        if self.roles.type_name(basis) == "POLYLINE" && basis_sense == Sense::Unknown {
-            return Err(self.invalid_geometry(
-                basis,
-                "sense",
-                "trimmed polyline requires a known curve sense",
-            ));
-        }
-        if start_parameter == end_parameter
-            || (basis_sense == Sense::Positive && end_parameter < start_parameter)
-            || (basis_sense == Sense::Negative && end_parameter > start_parameter)
-        {
-            return Err(self.invalid_geometry(
-                node,
-                "parm_2",
-                "trim parameters must be distinct and follow the basis curve sense",
-            ));
-        }
-        if self.roles.type_name(basis) == "B_CURVE" {
-            let nurbs = self.nurbs_curve(basis)?;
-            if !nurbs.periodic {
-                let (range_start, range_end) = nurbs_parameter_range(
-                    &nurbs.knots,
-                    &nurbs.knot_multiplicities,
-                    nurbs.control_vertex_count,
-                    nurbs.degree,
-                )
-                .ok_or_else(|| {
-                    self.invalid_geometry(
-                        basis,
-                        "knots",
-                        "NURBS active parameter range is unavailable",
-                    )
-                })?;
-                const PARAM_TOLERANCE: f64 = 1e-6;
-                if start_parameter < range_start - PARAM_TOLERANCE
-                    || start_parameter > range_end + PARAM_TOLERANCE
-                    || end_parameter < range_start - PARAM_TOLERANCE
-                    || end_parameter > range_end + PARAM_TOLERANCE
-                {
-                    let field = if start_parameter < range_start - PARAM_TOLERANCE
-                        || start_parameter > range_end + PARAM_TOLERANCE
-                    {
-                        "parm_1"
-                    } else {
-                        "parm_2"
-                    };
-                    return Err(self.invalid_geometry(
-                        node,
-                        field,
-                        "trim parameters must lie in the non-periodic basis curve parameter range",
-                    ));
-                }
-                start_parameter = start_parameter.clamp(range_start, range_end);
-                end_parameter = end_parameter.clamp(range_start, range_end);
-            }
-        }
-        Ok(CurveKind::Trimmed {
-            basis_curve,
-            start_point,
-            end_point,
-            start_parameter,
-            end_parameter,
         })
     }
 
@@ -1486,7 +1508,11 @@ impl<'a> Mapper<'a> {
             // A spine boundary ('B') describes a degenerate blend boundary with one point.
             b'B' => (1, IntersectionLimitKind::Boundary),
             _ => {
-                return Err(self.invalid_geometry(limit, "type", "invalid intersection limit kind"));
+                return Err(self.invalid_geometry(
+                    limit,
+                    "type",
+                    "invalid intersection limit kind",
+                ));
             }
         };
         let term_use = self.optional_character(limit, "term_use")?;
@@ -1559,9 +1585,7 @@ impl<'a> Mapper<'a> {
             .values
             .iter()
             .map(|value| match value {
-                FieldValue::Double(value) if value.is_none_or(|value| value.is_finite()) => {
-                    Ok(*value)
-                }
+                FieldValue::Double(value) if value.is_none_or(f64::is_finite) => Ok(*value),
                 _ => Err(self.invalid_geometry(
                     node,
                     "values",
@@ -1597,26 +1621,42 @@ impl<'a> Mapper<'a> {
         })?;
         self.validate_count(node, "values", expected, raw_values.len())?;
         let mut values = raw_values.chunks_exact(parameters_per_hvec.max(1));
-        let mut take_coordinates = || {
+        let mut take_coordinates = || -> Result<IntersectionUvCoordinates, ParseError> {
             if parameters_per_hvec == 0 {
-                IntersectionUvCoordinates {
+                Ok(IntersectionUvCoordinates {
                     first_surface: None,
                     second_surface: None,
-                }
+                })
             } else {
-                let chunk = values.next().expect("validated intersection UV count");
-                IntersectionUvCoordinates {
+                let chunk = values.next().ok_or_else(|| {
+                    self.invalid_geometry(
+                        node,
+                        "values",
+                        "validated intersection UV count is incomplete",
+                    )
+                })?;
+                Ok(IntersectionUvCoordinates {
                     first_surface: has_first.then(|| [chunk[0], chunk[1]]),
                     second_surface: has_second.then(|| {
                         let offset = if has_first { 2 } else { 0 };
                         [chunk[offset], chunk[offset + 1]]
                     }),
-                }
+                })
             }
         };
-        let start_uv = start_terminator.then(&mut take_coordinates);
-        let chart_uv = (0..chart_count).map(|_| take_coordinates()).collect();
-        let end_uv = end_terminator.then(&mut take_coordinates);
+        let start_uv = if start_terminator {
+            Some(take_coordinates()?)
+        } else {
+            None
+        };
+        let chart_uv = (0..chart_count)
+            .map(|_| take_coordinates())
+            .collect::<Result<Vec<_>, _>>()?;
+        let end_uv = if end_terminator {
+            Some(take_coordinates()?)
+        } else {
+            None
+        };
         Ok(IntersectionData {
             source,
             uv_type,
@@ -2416,13 +2456,13 @@ impl<'a> Mapper<'a> {
             ));
         }
         let convert = |target, value_index| {
-            if target == 0 {
-                Ok(None)
-            } else if self.record_missing_optional_target(
-                node,
-                &format!("{field}[{value_index}]"),
-                target,
-            )? {
+            if target == 0
+                || self.record_missing_optional_target(
+                    node,
+                    &format!("{field}[{value_index}]"),
+                    target,
+                )?
+            {
                 Ok(None)
             } else {
                 self.id_from_target(node, field, target, expected, ids)

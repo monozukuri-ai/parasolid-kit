@@ -345,7 +345,10 @@ pub(crate) fn evaluate_generic_intersection(
         let last = points.len() - 1;
         tangents[last] = scale(tangents[last], -1.0);
     }
-    if parameter < stations[0] || parameter > *stations.last().unwrap() {
+    let (Some(&first_station), Some(&last_station)) = (stations.first(), stations.last()) else {
+        return Err(IntersectionEvaluationError::OutsideChartDomain);
+    };
+    if parameter < first_station || parameter > last_station {
         return Err(IntersectionEvaluationError::OutsideChartDomain);
     }
     if let Some(index) = stations.iter().position(|station| *station == parameter) {
@@ -359,16 +362,16 @@ pub(crate) fn evaluate_generic_intersection(
         .position(|interval| interval[0] < parameter && parameter < interval[1])
         .ok_or(IntersectionEvaluationError::OutsideChartDomain)?;
     let fraction = (parameter - stations[index]) / (stations[index + 1] - stations[index]);
-    let (uv_a0, uv_b0) = uv_chart[index];
-    let (uv_a1, uv_b1) = uv_chart[index + 1];
+    let (first_surface_uv_start, second_surface_uv_start) = uv_chart[index];
+    let (first_surface_uv_end, second_surface_uv_end) = uv_chart[index + 1];
     let result = evaluate_generic_chart_intersection(
         brep,
         &surface_a.kind,
         &surface_b.kind,
-        uv_a0,
-        uv_a1,
-        uv_b0,
-        uv_b1,
+        first_surface_uv_start,
+        first_surface_uv_end,
+        second_surface_uv_start,
+        second_surface_uv_end,
         points[index],
         points[index + 1],
         fraction,
@@ -399,10 +402,10 @@ fn validate_limits(
     }
     match (start_kind, end_kind) {
         (
-            Some(IntersectionLimitKind::Limit | IntersectionLimitKind::Terminator),
-            Some(IntersectionLimitKind::Limit | IntersectionLimitKind::Terminator),
-        ) if regular_limit_matches(start_kind.unwrap(), start, chart_start)
-            && regular_limit_matches(end_kind.unwrap(), end, chart_end) =>
+            Some(start_kind @ (IntersectionLimitKind::Limit | IntersectionLimitKind::Terminator)),
+            Some(end_kind @ (IntersectionLimitKind::Limit | IntersectionLimitKind::Terminator)),
+        ) if regular_limit_matches(start_kind, start, chart_start)
+            && regular_limit_matches(end_kind, end, chart_end) =>
         {
             Ok(())
         }
