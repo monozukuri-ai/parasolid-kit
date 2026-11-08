@@ -1492,6 +1492,11 @@ mod tests {
         )
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test schema lookup must find the reviewed field defined by its fixture"
+    )]
     fn exact_field(
         schema_key: &str,
         node_type: u16,
@@ -1511,6 +1516,11 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "transform fixture fields are guaranteed by the reviewed schema"
+    )]
     fn transform_fixture_node(schema_key: &str, index: u32, precision_index: u32) -> RawNode {
         let mut fields = vec![
             exact_field(
@@ -1583,6 +1593,11 @@ mod tests {
         )
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the test fixture references only schema keys and node types defined in its local registry"
+    )]
     fn reviewed_definition(schema_key: &str, node_type: u16) -> Option<TypeDefinition> {
         let key = SchemaKey::parse(schema_key).ok()?;
         let catalog = TopSolidV6PsolidCatalogProvider::new().unwrap();
@@ -1595,6 +1610,11 @@ mod tests {
         profile.type_definition(schema, node_type).cloned()
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "fixture node construction uses definitions guaranteed by the preceding schema lookup"
+    )]
     fn node(schema_key: &str, index: u32, node_type: u16, fields: Vec<RawField>) -> RawNode {
         RawNode {
             node_type,
@@ -1608,6 +1628,11 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the reviewed mesh fixture requires its known node definitions and fields"
+    )]
     fn fixture(schema_key: &str) -> Vec<RawNode> {
         let mesh_type = [118, 201]
             .into_iter()
@@ -1806,6 +1831,11 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the formatter fixture supplies exactly the declared array length"
+    )]
     fn composite_text<const N: usize>(values: [Option<f64>; N]) -> String {
         if values.iter().all(Option::is_none) {
             "?".to_owned()
@@ -1818,6 +1848,11 @@ mod tests {
         }
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test XT nodes use valid fixture definitions and encodable field values"
+    )]
     fn encoded_xt_node(
         schema_key: &str,
         node_type: u16,
@@ -1939,6 +1974,11 @@ mod tests {
         schema
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the reviewed XT fixture must parse and decode before its invariants are asserted"
+    )]
     #[test]
     fn parses_exact_profile_xt_mesh_and_requires_caller_selected_index_origin() {
         let schema_key = SCHEMA_KEYS[3];
@@ -2099,6 +2139,11 @@ mod tests {
         Ok(())
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "fixture placement uses a known mesh, transform, and valid triangle indices"
+    )]
     #[test]
     fn placement_requires_matching_link_and_applies_precision_and_sense() {
         let mut nodes = fixture(SCHEMA_KEYS[3]);
@@ -2167,6 +2212,11 @@ mod tests {
         ));
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the exact-profile fixture must contain its linked transform and precision fields"
+    )]
     #[test]
     fn decodes_linked_transform_and_precision_from_exact_profile() {
         let schema_key = SCHEMA_KEYS[3];
@@ -2199,6 +2249,11 @@ mod tests {
         );
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the fixture contains a valid transform while invalid target cases are asserted separately"
+    )]
     #[test]
     fn transform_decoder_preserves_profile_without_precision_link_and_rejects_bad_targets() {
         let schema_key = SCHEMA_KEYS[1];
@@ -2244,6 +2299,11 @@ mod tests {
         assert!(decode_mesh_linked_transform(SCHEMA_KEYS[3], &missing_precision, 1).is_err());
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the one-step fixture must contain the requested mesh and linked transform"
+    )]
     #[test]
     fn one_step_mesh_decode_uses_explicit_origin_face_sense_and_linked_transform() {
         let schema_key = SCHEMA_KEYS[3];
@@ -2276,6 +2336,11 @@ mod tests {
         );
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the fixture supplies the fields needed to construct each explicit rejection case"
+    )]
     #[test]
     fn one_step_mesh_decode_keeps_absent_data_and_rejects_bad_links_or_senses() {
         let schema_key = SCHEMA_KEYS[0];
@@ -2344,6 +2409,11 @@ mod tests {
         ));
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the reviewed mesh fixture contains valid raw coordinates and indices"
+    )]
     #[test]
     fn null_transform_keeps_raw_coordinates_and_unknown_surface_sense_fails() {
         let mut mesh = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
@@ -2384,6 +2454,11 @@ mod tests {
         assert!(decode_embedded_mesh(SCHEMA_KEYS[0], &missing, 1).is_err());
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the receiver-key fixture has the reviewed field required for the targeted mutations"
+    )]
     #[test]
     fn rcv_key_accepts_null_effective_indices_and_rejects_resolved_targets() {
         let schema_key = SCHEMA_KEYS[3];
@@ -2425,6 +2500,11 @@ mod tests {
         ));
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the receiver-key fixture contains the field changed to exercise invalid definitions"
+    )]
     #[test]
     fn rcv_key_rejects_wrong_type_and_ambiguous_fields() {
         let schema_key = SCHEMA_KEYS[3];
@@ -2462,6 +2542,11 @@ mod tests {
         assert!(decode_embedded_mesh(SCHEMA_KEYS[0], &nodes, 1).is_err());
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the reviewed mesh fixture is valid for both explicit index-origin assertions"
+    )]
     #[test]
     fn triangle_conversion_uses_the_explicit_index_origin() {
         let raw = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
@@ -2484,6 +2569,11 @@ mod tests {
         assert_eq!(one_based_raw.position_indices.values[..3], [1, 2, 2]);
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the fixture indices are deliberately valid under both selected origins"
+    )]
     #[test]
     fn triangle_conversion_does_not_resolve_values_valid_under_both_origins() {
         let mut raw = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
@@ -2506,6 +2596,11 @@ mod tests {
         assert_eq!(raw.position_indices.values, [1, 2, 3]);
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the initial fixture is valid before each explicit invalid-index mutation"
+    )]
     #[test]
     fn triangle_conversion_rejects_indices_outside_the_selected_origin() {
         let mut raw = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)
@@ -2524,6 +2619,11 @@ mod tests {
         );
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "the fixture mesh is valid before its deliberate index-origin mutations"
+    )]
     #[test]
     fn triangle_conversion_infers_only_a_unique_index_origin() {
         let mut raw = decode_embedded_mesh(SCHEMA_KEYS[0], &fixture(SCHEMA_KEYS[0]), 1)

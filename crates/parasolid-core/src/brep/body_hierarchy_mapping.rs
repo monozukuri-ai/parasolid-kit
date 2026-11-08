@@ -556,6 +556,11 @@ mod tests {
         encoded
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "Fixture construction targets a reviewed compiled schema whose BODY definition must exist."
+    )]
     fn effective_body_definition(schema_key: &str) -> crate::TypeDefinition {
         let key = SchemaKey::parse(schema_key).unwrap();
         BuiltinProfileRegistry::compiled()
@@ -568,6 +573,11 @@ mod tests {
             .clone()
     }
 
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "Fixture delta encoding requires the reviewed compiled base and effective BODY definitions."
+    )]
     fn encoded_body_delta(schema_key: &str) -> String {
         let key = SchemaKey::parse(schema_key).unwrap();
         let provider = BuiltinProfileRegistry::compiled()
@@ -725,6 +735,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "This success fixture asserts that the sidecar joins by the supplied source indices."
+    )]
     fn joins_sidecar_by_source_index_without_reordering_or_reinterpreting_links() {
         let bodies = vec![body(0, 50), body(1, 10)];
         let records = join_body_hierarchies(&bodies, vec![hierarchy(10), hierarchy(50)])
@@ -747,6 +762,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "This valid compound fixture must resolve all supplied child indices before checking order."
+    )]
     fn resolves_compound_child_sources_to_ordered_body_ids() {
         let bodies = vec![body(8, 100), body(3, 20), body(5, 30)];
         let mut parent = hierarchy(100);
@@ -770,6 +790,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "The fixture hierarchy is valid; unwrap_err calls assert the intentionally rejected body-kind cases."
+    )]
     fn enforces_compound_body_kind_from_resolved_child_kinds() {
         let mut parent = hierarchy(100);
         parent.child_head = Some(20);
@@ -845,6 +870,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "The valid sidecar fixture is prepared before assertions verify malformed child-chain errors."
+    )]
     fn rejects_missing_compound_chain_and_unmapped_child_body() {
         let bodies = vec![body(8, 100), body(3, 20)];
         let mut parent = hierarchy(100);
@@ -874,6 +904,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "The test prepares valid cyclic and acyclic hierarchies, then asserts their respective outcomes."
+    )]
     fn rejects_multi_body_ancestor_cycles_and_accepts_acyclic_nesting() {
         let cyclic_bodies = vec![body(4, 100), body(7, 20)];
         let mut first = hierarchy(100);
@@ -915,6 +950,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "This test asserts supported and unsupported exact schema keys through their expected outcomes."
+    )]
     fn validates_exact_hierarchy_provider_before_mapping_any_bodies() {
         for schema_key in [
             "SCH_2701192_26105_13006",
@@ -939,6 +979,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "The wrapper fixture requires a valid sidecar join before asserting model separation."
+    )]
     fn wrapper_keeps_the_original_model_as_a_separate_value() {
         let model = empty_model(vec![body(7, 91)]);
         let wrapper = BrepModelWithBodyHierarchy {
@@ -951,6 +996,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "This encoded fixture uses a reviewed schema and valid BODY records before checking mapped hierarchy data."
+    )]
     fn maps_parsed_topsolid_compound_body_and_null_terminated_children() {
         let modeller = ": TRANSMIT FILE created by modeller version 3300259";
         let mut encoded = format!(

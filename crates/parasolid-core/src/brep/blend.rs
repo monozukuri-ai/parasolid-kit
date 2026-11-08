@@ -236,6 +236,10 @@ pub fn evaluate_spine_in_brep(
 }
 
 #[must_use]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "The public rolling-ball evaluator keeps its established parameter-based API for compatibility."
+)]
 pub fn evaluate_rolling_ball(
     brep: &BrepModel,
     supporting_surfaces: [u32; 2],
@@ -265,6 +269,10 @@ pub fn evaluate_rolling_ball(
 }
 
 #[must_use]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "The public rolling-ball evaluator keeps its established parameter-based API for compatibility."
+)]
 pub fn evaluate_rolling_ball_with_spine(
     brep: &BrepModel,
     supporting_surfaces: [u32; 2],

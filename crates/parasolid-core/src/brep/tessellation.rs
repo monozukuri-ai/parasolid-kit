@@ -7136,6 +7136,10 @@ mod tests {
     };
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "The fixed mesh fixture must be valid for the tessellation assertions."
+    )]
     fn tessellate_brep_face_uses_embedded_mesh_triangles() {
         let source = SourceNodeRef {
             node_index: 1,
@@ -7424,6 +7428,10 @@ mod tests {
         brep
     }
 
+    #[allow(
+        clippy::expect_used,
+        reason = "This helper constructs fixed valid intersection fixtures; missing geometry is a setup failure."
+    )]
     fn intersection_face_with_tolerances(
         edge_tolerance: Option<f64>,
         vertex_tolerance: Option<f64>,
@@ -7648,6 +7656,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "This test's fixed BODY fixture must be valid for its ownership assertions."
+    )]
     fn body_tessellation_follows_owned_face_links_and_fails_closed() {
         let brep = two_body_face_fixture();
         let body_10 = tessellate_brep_body_to_mesh(&brep, 10, 0.1).unwrap();
@@ -7688,6 +7700,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "This test's fixed compound fixtures must be valid before malformed cases are checked."
+    )]
     fn resolved_compound_body_tessellation_flattens_children_and_rejects_bad_hierarchy() {
         let mut brep = two_body_face_fixture();
         let mut parent = brep.bodies[0].clone();
@@ -7756,6 +7772,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed intersection fixtures must evaluate successfully for their assertions."
+    )]
     fn intersection_face_boundary_is_sampled_and_rejects_unsupported_pairs() {
         let mut work_budget = 10;
         consume_intersection_chart_work(3, 1, &mut work_budget).expect("charge one chart call");
@@ -8706,6 +8726,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed refinement fixture must produce its expected interface."
+    )]
     fn uv_refinement_keeps_adjacent_triangle_interface_conforming() {
         let adjacent = [
             [[0.0, 0.0], [1.0, 0.0], [2.0, 1.0]],
@@ -8752,6 +8776,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed signed-zero fixture must produce its expected interface."
+    )]
     fn uv_refinement_canonicalizes_mixed_signed_zero_on_vertical_interfaces() {
         let adjacent = [
             [[-0.0, 0.0], [0.0, 1.0], [-2.0, 0.5]],
@@ -9011,6 +9039,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed ruled-sweep fixture must evaluate for its direction assertions."
+    )]
     fn generic_surface_evaluation_maps_ruled_sweep_direction() {
         let mut brep = ruled_sweep_face_with_explicit_uv_trim();
         brep.surfaces[0].kind = SurfaceKind::Swept {
@@ -9040,6 +9072,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed analytic-curve fixtures must evaluate for their exact support assertions."
+    )]
     fn generic_surface_evaluation_and_point_support_analytic_line_circle_ellipse() {
         let mut brep = ruled_sweep_face_with_explicit_uv_trim();
         // Line section
@@ -9179,6 +9215,10 @@ mod tests {
     #[allow(
         clippy::float_cmp,
         reason = "Assertions verify exact source direction matching and preserve IEEE equality semantics."
+    )]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed mapped-sweep fixture must be valid for candidate checks."
     )]
     fn mapped_xt_swept_offset_candidate_checks_links_senses_and_degeneracy() {
         for (sense, expected_y) in [(Sense::Positive, -0.25), (Sense::Negative, 0.25)] {
@@ -9366,6 +9406,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed refinement fixture must produce its expected sample budget result."
+    )]
     fn sampled_refinement_is_uniform_and_fails_closed_at_budget() {
         let curved = |u: f64, v: f64| {
             Some(SurfaceEvaluation {
@@ -9402,6 +9446,10 @@ mod tests {
         clippy::float_cmp,
         reason = "Assertions verify exact deterministic subdivision coordinates."
     )]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed wire fixture must produce its expected recursive midpoint samples."
+    )]
     fn sampled_wire_uses_recursive_triangle_midpoints() {
         let start = [1e16, 0.0];
         let end = [1.0, 0.0];
@@ -9433,6 +9481,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed wire fixture must produce its expected closure handling."
+    )]
     fn sampled_wire_drops_duplicate_closure_and_consecutive_vertices() {
         let mut brep = ruled_sweep_face_with_explicit_uv_trim();
         let CurveKind::Nurbs(section_curve) = &mut brep.curves[0].kind else {
@@ -9592,6 +9644,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed swept-face fixture must tessellate for its explicit-UV assertions."
+    )]
     fn opt_in_swept_face_uses_explicit_uv_trim_and_extended_section() {
         let brep = ruled_sweep_face_with_explicit_uv_trim();
         let mesh = tessellate_swept_brep_face_with_explicit_uv(&brep, 7, [0.0, 1.0, 0.0], 0.01)
@@ -9613,6 +9669,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The valid swept-face fixture must tessellate before invalid pcurve cases are checked."
+    )]
     fn swept_face_explicit_uv_route_uses_mapped_direction_and_requires_pcurve() {
         let brep = ruled_sweep_face_with_explicit_uv_trim();
         let mesh = tessellate_brep_face_with_explicit_uv(&brep, 7, 0.01)
@@ -9642,6 +9702,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed line and circle sweep fixtures must tessellate for their output assertions."
+    )]
     fn swept_face_explicit_uv_tessellation_supports_line_and_circle_sections() {
         // 1. Line section
         let mut brep_line = ruled_sweep_face_with_explicit_uv_trim();
@@ -9730,6 +9794,10 @@ mod tests {
     #[allow(
         clippy::float_cmp,
         reason = "Assertions verify exact mapped geometry generated from the fixture coordinates."
+    )]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed mapped-sweep fixtures must tessellate for their node-binding assertions."
     )]
     fn mapped_xt_swept_face_binds_exact_nodes_and_uses_supplied_uv_loop() {
         use crate::brep::{
@@ -10666,6 +10734,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed offset-surface fixture must evaluate for its expected point assertions."
+    )]
     fn test_evaluate_offset_surface() {
         let source = || SourceNodeRef {
             node_index: 0,
@@ -10759,6 +10831,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::expect_used,
+        reason = "The fixed spun-surface fixtures must evaluate for their expected point assertions."
+    )]
     fn test_evaluate_spun_surface() {
         let source = || SourceNodeRef {
             node_index: 0,
@@ -10949,6 +11025,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        reason = "The fixed conical-sector fixture must tessellate for its apex assertions."
+    )]
     fn test_tessellate_conical_sector_with_apex_vertex() {
         let source = || SourceNodeRef {
             node_index: 0,
