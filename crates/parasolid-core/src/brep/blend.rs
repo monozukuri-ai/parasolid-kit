@@ -237,10 +237,6 @@ pub fn evaluate_spine_in_brep(
 
 #[must_use]
 #[allow(
-    clippy::float_cmp,
-    reason = "Exact thumb-weight equality restricts this evaluator to the supported unweighted type."
-)]
-#[allow(
     clippy::too_many_arguments,
     reason = "The public rolling-ball evaluator keeps its established parameter-based API for compatibility."
 )]
@@ -273,6 +269,10 @@ pub fn evaluate_rolling_ball(
 }
 
 #[must_use]
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact thumb-weight equality restricts this evaluator to the supported unweighted type."
+)]
 #[allow(
     clippy::too_many_arguments,
     reason = "The public rolling-ball evaluator keeps its established parameter-based API for compatibility."

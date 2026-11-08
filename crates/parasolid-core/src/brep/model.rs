@@ -908,7 +908,7 @@ pub struct SurfaceGeometry {
     pub source: SourceNodeRef,
 }
 
-/// Raw decoded fields from one X_T `SWEPT_SURF` node.
+/// Raw decoded fields from one `X_T` `SWEPT_SURF` node.
 ///
 /// This preserves transmitted nullable values and the section transmit index;
 /// it does not validate the section target or evaluate the surface.

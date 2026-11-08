@@ -9,6 +9,10 @@ use super::{
 
 /// Evaluates only the regular interval represented by an XT `INTERSECTION` CHART.
 #[allow(
+    clippy::float_cmp,
+    reason = "Exact station equality returns the stored chart sample without interpolation."
+)]
+#[allow(
     clippy::too_many_lines,
     reason = "The support-pair dispatch keeps candidate eligibility and evaluation fallback order explicit."
 )]

@@ -2476,6 +2476,11 @@ fn tessellate_planar_face(
     clippy::float_cmp,
     reason = "Exact coordinate equality preserves the cylindrical tessellator's source vertex identity checks."
 )]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "The sanitized chord error and delta-theta clamp bound ceil(2π / delta_theta) to 12..=128 before conversion."
+)]
 fn tessellate_cylindrical_face(
     point: [f64; 3],
     axis: [f64; 3],
@@ -2706,6 +2711,11 @@ fn project_sphere_uv(
     Some([u, v])
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "The sanitized chord error and delta-theta clamp bound ceil(2π / delta_theta) to 12..=128 before conversion."
+)]
 fn tessellate_conical_face(
     point: [f64; 3],
     axis: [f64; 3],
@@ -2882,6 +2892,11 @@ fn xt_cone_loops_match_support(
     })
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "The angular count is bounded by the delta-theta clamp; projected sphere UV ranges bound the grid counts before conversion."
+)]
 fn tessellate_spherical_face(
     center: [f64; 3],
     radius: f64,
@@ -3009,6 +3024,11 @@ fn tessellate_spherical_face(
     );
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "The angular counts are bounded by their delta clamps; atan2 UVs are unwrapped by at most one period, bounding grid counts before conversion."
+)]
 fn tessellate_toroidal_face(
     center: [f64; 3],
     axis: [f64; 3],

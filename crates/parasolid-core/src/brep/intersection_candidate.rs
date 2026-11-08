@@ -190,6 +190,10 @@ fn scan_sign_change_roots(
     Ok(roots)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact root equality suppresses only duplicate roots produced by the same solve."
+)]
 fn push_root(roots: &mut Vec<f64>, root: f64) {
     if roots.last().is_none_or(|previous: &f64| *previous != root) {
         roots.push(root);
