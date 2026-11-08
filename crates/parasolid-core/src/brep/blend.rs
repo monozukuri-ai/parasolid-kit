@@ -282,7 +282,11 @@ pub fn evaluate_rolling_ball_with_spine(
     }
     let r0 = ranges[0].abs();
     let r1 = ranges[1].abs();
-    if r0 <= f64::EPSILON || r1 <= f64::EPSILON {
+    if r0 <= f64::EPSILON
+        || r1 <= f64::EPSILON
+        || (r0 - r1).abs() > 1e-12 * r0.max(r1)
+        || thumb_weights != [1.0, 1.0]
+    {
         return None;
     }
     let supports = [
@@ -300,12 +304,11 @@ pub fn evaluate_rolling_ball_with_spine(
             support_contact(supports[0].sense, &supports[0].kind, center, ranges[0], r0)?,
             support_contact(supports[1].sense, &supports[1].kind, center, ranges[1], r1)?,
         ];
-        rolling_ball_section_variable(
+        rolling_ball_section(
             center,
             curve.tangent,
             [contacts[0].0, contacts[1].0],
-            [r0, r1],
-            thumb_weights,
+            r0,
             spine_sense == Sense::Negative,
         )?
         .point(v)
@@ -752,7 +755,7 @@ mod tests {
     }
 
     #[test]
-    fn test_evaluate_rolling_ball_variable_radius_and_nonstandard_spine() {
+    fn test_evaluate_rolling_ball_equal_radius_on_parabola_spine() {
         // Spine: Parabola in XZ plane with vertex at origin, axis along Y, x_axis along X.
         // At u = 0: point = [0, 0, 0], tangent = [0, 0, 1] (along Z).
         let spine = CurveGeometry {
@@ -780,13 +783,13 @@ mod tests {
             },
             source: test_source(),
         };
-        // Support 1: Plane y = -2.0, normal [0, 1, 0]
+        // Support 1: Plane y = 1.0, normal [0, 1, 0]
         let s1 = SurfaceGeometry {
             id: 20,
             sense: Sense::Positive,
             owner: None,
             kind: SurfaceKind::Plane {
-                point: Vector3::from_array([0.0, -2.0, 0.0]),
+                point: Vector3::from_array([0.0, 1.0, 0.0]),
                 normal: Vector3::from_array([0.0, 1.0, 0.0]),
                 x_axis: Vector3::from_array([1.0, 0.0, 0.0]),
             },
@@ -795,59 +798,35 @@ mod tests {
 
         let brep = test_brep(vec![spine.clone()], vec![s0, s1]);
 
-        // Evaluate variable radius fillet: ranges [1.0, 2.0]
-        let eval = evaluate_rolling_ball_with_spine(
-            &brep,
-            [10, 20],
-            Sense::Positive,
-            [1.0, 2.0],
-            [1.0, 1.0],
-            [None, None],
-            None,
-            None,
-            0.0,
-            0.0, // at v = 0.0, should be on contact 0: [-1.0, 0.0, 0.0]
-            |p| evaluate_spine(&spine.kind, spine.sense, p),
-        )
-        .expect("rolling ball eval at v=0");
-        assert!((eval.point[0] - (-1.0)).abs() < 1e-4);
-        assert!((eval.point[1] - 0.0).abs() < 1e-4);
-        assert!((eval.point[2] - 0.0).abs() < 1e-4);
+        let evaluate = |ranges, thumb_weights, v| {
+            evaluate_rolling_ball_with_spine(
+                &brep,
+                [10, 20],
+                Sense::Positive,
+                ranges,
+                thumb_weights,
+                [None, None],
+                None,
+                None,
+                0.0,
+                v,
+                |p| evaluate_spine(&spine.kind, spine.sense, p),
+            )
+        };
+        let eval_start = evaluate([1.0, -1.0], [1.0, 1.0], 0.0).expect("rolling ball eval at v=0");
+        let eval_mid = evaluate([1.0, -1.0], [1.0, 1.0], 0.5).expect("rolling ball eval at v=0.5");
+        let eval_end = evaluate([1.0, -1.0], [1.0, 1.0], 1.0).expect("rolling ball eval at v=1");
 
-        let eval_end = evaluate_rolling_ball_with_spine(
-            &brep,
-            [10, 20],
-            Sense::Positive,
-            [1.0, 2.0],
-            [1.0, 1.0],
-            [None, None],
-            None,
-            None,
-            0.0,
-            1.0, // at v = 1.0, should be on contact 1: [0.0, -2.0, 0.0]
-            |p| evaluate_spine(&spine.kind, spine.sense, p),
-        )
-        .expect("rolling ball eval at v=1");
-        assert!((eval_end.point[0] - 0.0).abs() < 1e-4);
-        assert!((eval_end.point[1] - (-2.0)).abs() < 1e-4);
-        assert!((eval_end.point[2] - 0.0).abs() < 1e-4);
-
-        // At midpoint v = 0.5, point is between contact 0 and contact 1
-        let eval_mid = evaluate_rolling_ball_with_spine(
-            &brep,
-            [10, 20],
-            Sense::Positive,
-            [1.0, 2.0],
-            [1.0, 1.0],
-            [None, None],
-            None,
-            None,
-            0.0,
-            0.5,
-            |p| evaluate_spine(&spine.kind, spine.sense, p),
-        )
-        .expect("rolling ball eval at v=0.5");
-        assert!(eval_mid.point[0] < 0.0 && eval_mid.point[1] < 0.0);
+        assert!((eval_start.point[0] + 1.0).abs() < 1e-4);
+        assert!(eval_start.point[1].abs() < 1e-4);
+        assert!(eval_mid.point[0] < 0.0 && eval_mid.point[1] > 0.0);
+        assert!(eval_end.point[0].abs() < 1e-4);
+        assert!((eval_end.point[1] - 1.0).abs() < 1e-4);
+        for evaluation in [eval_start, eval_mid, eval_end] {
+            assert!((vec3_norm(evaluation.point) - 1.0).abs() < 1e-4);
+        }
         assert!(eval_mid.normal[0].is_finite() && eval_mid.normal[1].is_finite());
+        assert!(evaluate([1.0, -2.0], [1.0, 1.0], 0.5).is_none());
+        assert!(evaluate([1.0, -1.0], [1.0, 2.0], 0.5).is_none());
     }
 }
