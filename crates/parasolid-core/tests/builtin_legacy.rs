@@ -6,7 +6,9 @@
 #[path = "support/sch30000.rs"]
 mod support;
 
-use parasolid_core::brep::{AttributeField, AttributeOwner, map_xt_brep};
+use parasolid_core::brep::{
+    AttributeField, AttributeFieldData, AttributeOwner, map_xt_brep, map_xt_brep_attributes,
+};
 use parasolid_core::{
     BuiltinProfileCoverage, BuiltinProfileRegistry, BuiltinSchemaProfile, DocumentLimits,
     FieldValue, SchemaKey, SchemaProvider, SchemaProviderResolution, SchemaTypeLookup, parse_xt,
@@ -224,6 +226,49 @@ fn the_reshaped_reference_example_decodes_to_its_terminator() -> Result<()> {
     for end in 0..bytes.len() - 1 {
         assert!(parse_xt(&bytes[..end], &provider, DocumentLimits::default()).is_err());
     }
+    Ok(())
+}
+
+#[test]
+fn standalone_attribute_mapping_decodes_values_and_rejects_unresolved_links() -> Result<()> {
+    let registry = BuiltinProfileRegistry::compiled()?;
+    let key = SchemaKey::parse(KEY)?;
+    let provider = registry.provider_for_key(&key).ok_or("provider")?;
+    let document = parse_xt(&stream(KEY, DISC), &provider, DocumentLimits::default())?;
+
+    let attributes = map_xt_brep_attributes(&document)?;
+    assert_eq!(attributes.attributes.len(), 1);
+    let attribute = &attributes.attributes[0];
+    assert_eq!(attribute.identifier, b"SDL/TYSA_COLOUR");
+    assert_eq!(attribute.fields.len(), 1);
+    assert_eq!(attribute.fields[0].declared_kind, Some(1));
+    assert_eq!(
+        attribute.fields[0].value,
+        AttributeFieldData::Integers(vec![Some(1), Some(2), Some(3)])
+    );
+    assert_eq!(attribute.value_nodes.len(), 1);
+    assert_eq!(
+        attribute.value_nodes[0]
+            .as_ref()
+            .ok_or("attribute value node")?
+            .source
+            .node_index,
+        15
+    );
+
+    let unresolved_value =
+        DISC.replace("81 1 13 12 14 9 0 0 0 0 15 ", "81 1 13 12 14 9 0 0 0 0 99 ");
+    assert_ne!(unresolved_value, DISC);
+    let malformed = parse_xt(
+        &stream(KEY, &unresolved_value),
+        &provider,
+        DocumentLimits::default(),
+    )?;
+    let error = map_xt_brep_attributes(&malformed)
+        .err()
+        .ok_or("unresolved value")?;
+    assert_eq!(error.kind(), parasolid_core::ErrorKind::InvalidBrepField);
+    assert_eq!(error.message(), "attribute value pointer is unresolved");
     Ok(())
 }
 

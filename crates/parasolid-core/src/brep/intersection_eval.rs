@@ -2206,8 +2206,7 @@ fn plane_xt_cone_inverse_chart_parameters(
             "curve is not an X_T intersection",
         ));
     };
-    let (points, tangents, tolerance) =
-        plane_xt_cone_inverse_chart_data(brep, curve, reverse_xt_axis)?;
+    let chart_data = plane_xt_cone_inverse_chart_data(brep, curve, reverse_xt_axis)?;
     let base = chart_parameters
         .base_parameter
         .filter(|value| value.is_finite())
@@ -2220,15 +2219,27 @@ fn plane_xt_cone_inverse_chart_parameters(
         .ok_or(IntersectionEvaluationError::InvalidInput(
             "intersection chart base scale must be finite and positive",
         ))?;
-    let parameters = plane_xt_cone_chart_parameters(&points, base, scale, tolerance, &tangents)?;
-    Ok((points, parameters))
+    let parameters = plane_xt_cone_chart_parameters(
+        &chart_data.points,
+        base,
+        scale,
+        chart_data.geometric_tolerance,
+        &chart_data.tangents,
+    )?;
+    Ok((chart_data.points, parameters))
+}
+
+struct PlaneXtConeInverseChartData {
+    points: Vec<[f64; 3]>,
+    tangents: Vec<[f64; 3]>,
+    geometric_tolerance: f64,
 }
 
 fn plane_xt_cone_inverse_chart_data(
     brep: &BrepModel,
     curve: &CurveKind,
     reverse_xt_axis: bool,
-) -> Result<(Vec<[f64; 3]>, Vec<[f64; 3]>, f64), IntersectionEvaluationError> {
+) -> Result<PlaneXtConeInverseChartData, IntersectionEvaluationError> {
     let CurveKind::Intersection {
         surfaces,
         chart_points,
@@ -2396,7 +2407,11 @@ fn plane_xt_cone_inverse_chart_data(
         }
         tangents.push(plane_xt_cone_station_tangent(*point, tangent_context)?);
     }
-    Ok((points, tangents, geometric_tolerance))
+    Ok(PlaneXtConeInverseChartData {
+        points,
+        tangents,
+        geometric_tolerance,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -3289,16 +3304,16 @@ fn cone_cylinder_intersection_roots_with_axis(
             let f2 = dot(cylinder_radial, cylinder_radial) - cylinder_radius * cylinder_radius;
             let j11 = dot(u_tangent, section_normal);
             let j12 = dot(v_tangent, section_normal);
-            let radial_u_tangent = sub(
+            let first_parameter_radial_component = sub(
                 u_tangent,
                 scale(cylinder_axis, dot(u_tangent, cylinder_axis)),
             );
-            let radial_v_tangent = sub(
+            let second_parameter_radial_component = sub(
                 v_tangent,
                 scale(cylinder_axis, dot(v_tangent, cylinder_axis)),
             );
-            let j21 = 2.0 * dot(cylinder_radial, radial_u_tangent);
-            let j22 = 2.0 * dot(cylinder_radial, radial_v_tangent);
+            let j21 = 2.0 * dot(cylinder_radial, first_parameter_radial_component);
+            let j22 = 2.0 * dot(cylinder_radial, second_parameter_radial_component);
             let determinant = j11 * j22 - j12 * j21;
             let row1_norm = norm([j11, j12, 0.0]);
             let row2_norm = norm([j21, j22, 0.0]);

@@ -20,16 +20,16 @@ pub(crate) fn evaluate_generic_chart_intersection(
     fraction: f64,
     chordal_error: Option<f64>,
 ) -> Result<GenericIntersectionEvaluation, IntersectionEvaluationError> {
-    let [surface_a_uv, surface_b_uv] = surface_uv_endpoints;
-    let [surface_a_uv_start, surface_a_uv_end] = surface_a_uv;
-    let [surface_b_uv_start, surface_b_uv_end] = surface_b_uv;
+    let [first_support_uv, second_support_uv] = surface_uv_endpoints;
+    let [first_uv_start, first_uv_end] = first_support_uv;
+    let [second_uv_start, second_uv_end] = second_support_uv;
     let [chord_start, chord_end] = chord_points;
     let invalid = |message| Err(IntersectionEvaluationError::InvalidInput(message));
-    if surface_a_uv_start
+    if first_uv_start
         .into_iter()
-        .chain(surface_a_uv_end)
-        .chain(surface_b_uv_start)
-        .chain(surface_b_uv_end)
+        .chain(first_uv_end)
+        .chain(second_uv_start)
+        .chain(second_uv_end)
         .chain(chord_start)
         .chain(chord_end)
         .chain([fraction])
@@ -47,10 +47,10 @@ pub(crate) fn evaluate_generic_chart_intersection(
     let chord_normal = scale(chord, 1.0 / chord_length);
     let chord_point = add(chord_start, scale(chord, fraction));
     let seed = [
-        (surface_a_uv_start[0] + (surface_a_uv_end[0] - surface_a_uv_start[0]) * fraction),
-        (surface_a_uv_start[1] + (surface_a_uv_end[1] - surface_a_uv_start[1]) * fraction),
-        (surface_b_uv_start[0] + (surface_b_uv_end[0] - surface_b_uv_start[0]) * fraction),
-        (surface_b_uv_start[1] + (surface_b_uv_end[1] - surface_b_uv_start[1]) * fraction),
+        (first_uv_start[0] + (first_uv_end[0] - first_uv_start[0]) * fraction),
+        (first_uv_start[1] + (first_uv_end[1] - first_uv_start[1]) * fraction),
+        (second_uv_start[0] + (second_uv_end[0] - second_uv_start[0]) * fraction),
+        (second_uv_start[1] + (second_uv_end[1] - second_uv_start[1]) * fraction),
     ];
     let scale_at = chord_start
         .into_iter()
@@ -60,10 +60,10 @@ pub(crate) fn evaluate_generic_chart_intersection(
     let tolerance = 1.0e-9 * scale_at;
     let bounds: [[f64; 2]; 4] = std::array::from_fn(|axis| {
         let (a, b) = match axis {
-            0 => (surface_a_uv_start[0], surface_a_uv_end[0]),
-            1 => (surface_a_uv_start[1], surface_a_uv_end[1]),
-            2 => (surface_b_uv_start[0], surface_b_uv_end[0]),
-            _ => (surface_b_uv_start[1], surface_b_uv_end[1]),
+            0 => (first_uv_start[0], first_uv_end[0]),
+            1 => (first_uv_start[1], first_uv_end[1]),
+            2 => (second_uv_start[0], second_uv_end[0]),
+            _ => (second_uv_start[1], second_uv_end[1]),
         };
         let span = (a - b).abs();
         let (surface, uv) = if axis < 2 {

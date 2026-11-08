@@ -120,21 +120,7 @@ fn extract_attributes(
     key: &str,
     schemas: &[SchemaResolution],
 ) -> Result<BrepAttributes, ParseError> {
-    if matches!(provenance, SchemaProviderResolution::CallerSupplied) {
-        super::profile_roles::validate_named_attribute_roles(key, schemas)?;
-    }
-    let roles = RoleAccess::select(provenance, key, schemas)?;
-    if nodes
-        .iter()
-        .any(|node| node.node_type == 81 && roles.type_name(node) != "ATTRIBUTE")
-    {
-        return Err(ParseError::new(
-            ErrorKind::InvalidBrepField,
-            0,
-            "profile contains attribute nodes without a reviewed attribute role",
-            ErrorDetails::None,
-        ));
-    }
+    let roles = attribute_roles(nodes, provenance, key, schemas)?;
     let by_index = nodes
         .iter()
         .map(|node| (node.index, node))
@@ -162,37 +148,14 @@ fn extract_attributes(
         require_field(identifier_node, 0, crate::FieldType::Character, 0)?;
         require_field(definition, 1, crate::FieldType::PointerIndex, 79)?;
         require_field(definition, 2, crate::FieldType::Integer, 0)?;
-        let value_kinds = definition.fields.last().ok_or_else(|| {
-            invalid(
-                definition,
-                "attribute definition is missing its value kinds",
-            )
-        })?;
-        if value_kinds.definition.field_type != crate::FieldType::UnsignedByte
-            || value_kinds.definition.pointer_class != 0
-        {
-            return Err(invalid(
-                definition,
-                "attribute definition value kinds have the wrong schema role",
-            ));
-        }
+        let value_kinds = value_kinds_field(definition)?;
         let identifier = character_bytes(field(identifier_node, 0, "string")?, node)?;
         let kind_id = field(definition, 2, "type_id")?
             .values
             .first()
             .cloned()
             .ok_or_else(|| invalid(definition, "attribute definition is missing its type id"))?;
-        let declared = value_kinds
-            .values
-            .iter()
-            .map(|value| match value {
-                FieldValue::UnsignedByte(kind) => Ok(*kind),
-                _ => Err(invalid(
-                    definition,
-                    "attribute field kind is not an unsigned byte",
-                )),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let declared = decode_declared_kinds(definition, value_kinds)?;
         let value_links = pointer_values(field(node, 7, "fields")?, node)?;
         if value_links.len() > declared.len() {
             return Err(invalid(
@@ -239,22 +202,103 @@ fn extract_attributes(
                 })
             })
             .collect::<Result<Vec<_>, ParseError>>()?;
-        attributes.push(BrepAttribute {
-            source: source_ref(node),
-            node_id: field(node, 0, "node_id")?
-                .values
-                .first()
-                .cloned()
-                .ok_or_else(|| invalid(node, "attribute is missing its node id"))?,
-            kind_id,
+        attributes.push(build_attribute(
+            node,
+            owner,
+            definition,
             identifier,
-            owner: source_ref(owner),
-            definition: source_ref(definition),
+            kind_id,
             fields,
             value_nodes,
-        });
+        )?);
     }
     Ok(BrepAttributes { attributes })
+}
+
+fn attribute_roles(
+    nodes: &[RawNode],
+    provenance: &SchemaProviderResolution,
+    key: &str,
+    schemas: &[SchemaResolution],
+) -> Result<RoleAccess, ParseError> {
+    if matches!(provenance, SchemaProviderResolution::CallerSupplied) {
+        super::profile_roles::validate_named_attribute_roles(key, schemas)?;
+    }
+    let roles = RoleAccess::select(provenance, key, schemas)?;
+    if nodes
+        .iter()
+        .any(|node| node.node_type == 81 && roles.type_name(node) != "ATTRIBUTE")
+    {
+        return Err(ParseError::new(
+            ErrorKind::InvalidBrepField,
+            0,
+            "profile contains attribute nodes without a reviewed attribute role",
+            ErrorDetails::None,
+        ));
+    }
+    Ok(roles)
+}
+
+fn value_kinds_field(definition: &RawNode) -> Result<&RawField, ParseError> {
+    let value_kinds = definition.fields.last().ok_or_else(|| {
+        invalid(
+            definition,
+            "attribute definition is missing its value kinds",
+        )
+    })?;
+    if value_kinds.definition.field_type != crate::FieldType::UnsignedByte
+        || value_kinds.definition.pointer_class != 0
+    {
+        return Err(invalid(
+            definition,
+            "attribute definition value kinds have the wrong schema role",
+        ));
+    }
+    Ok(value_kinds)
+}
+
+fn decode_declared_kinds(
+    definition: &RawNode,
+    value_kinds: &RawField,
+) -> Result<Vec<u8>, ParseError> {
+    let declared = value_kinds
+        .values
+        .iter()
+        .map(|value| match value {
+            FieldValue::UnsignedByte(kind) => Ok(*kind),
+            _ => Err(invalid(
+                definition,
+                "attribute field kind is not an unsigned byte",
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(declared)
+}
+
+fn build_attribute(
+    node: &RawNode,
+    owner: &RawNode,
+    definition: &RawNode,
+    identifier: Vec<u8>,
+    kind_id: FieldValue,
+    fields: Vec<AttributeFieldValue>,
+    value_nodes: Vec<Option<AttributeValueNode>>,
+) -> Result<BrepAttribute, ParseError> {
+    let node_id = field(node, 0, "node_id")?
+        .values
+        .first()
+        .cloned()
+        .ok_or_else(|| invalid(node, "attribute is missing its node id"))?;
+    Ok(BrepAttribute {
+        source: source_ref(node),
+        node_id,
+        kind_id,
+        identifier,
+        owner: source_ref(owner),
+        definition: source_ref(definition),
+        fields,
+        value_nodes,
+    })
 }
 
 fn decode_value(node: &RawNode, node_type: &str) -> Result<AttributeFieldData, ParseError> {
