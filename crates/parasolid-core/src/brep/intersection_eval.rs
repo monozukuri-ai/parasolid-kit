@@ -4453,25 +4453,7 @@ fn nurbs_section_tangent(
     let parameter = parameter.clamp(knots[degree], knots[count]);
     super::evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(curve, parameter)
         .map_err(|_| IntersectionEvaluationError::InvalidInput("invalid swept section curve"))?;
-    let mut derivative_controls = Vec::with_capacity(count - 1);
-    for index in 0..count - 1 {
-        let denominator = knots[index + degree + 1] - knots[index + 1];
-        if !denominator.is_finite() || denominator <= 0.0 {
-            return Err(IntersectionEvaluationError::Unsupported(
-                "swept section derivative has a zero knot interval",
-            ));
-        }
-        derivative_controls.push(
-            (0..3)
-                .map(|axis| {
-                    f64::from(curve.degree)
-                        * (curve.control_vertices[index + 1][axis]
-                            - curve.control_vertices[index][axis])
-                        / denominator
-                })
-                .collect::<Vec<_>>(),
-        );
-    }
+    let derivative_controls = nurbs_section_derivative_controls(curve, degree, count, &knots)?;
     let mut multiplicities = curve.knot_multiplicities.clone();
     multiplicities[0] -= 1;
     let last = multiplicities.len() - 1;
@@ -4494,6 +4476,34 @@ fn nurbs_section_tangent(
     normalize([derivative[0], derivative[1], derivative[2]]).ok_or(
         IntersectionEvaluationError::Unsupported("swept section tangent is degenerate"),
     )
+}
+
+fn nurbs_section_derivative_controls(
+    curve: &NurbsCurve,
+    degree: usize,
+    count: usize,
+    knots: &[f64],
+) -> Result<Vec<Vec<f64>>, IntersectionEvaluationError> {
+    let mut derivative_controls = Vec::with_capacity(count - 1);
+    for index in 0..count - 1 {
+        let denominator = knots[index + degree + 1] - knots[index + 1];
+        if !denominator.is_finite() || denominator <= 0.0 {
+            return Err(IntersectionEvaluationError::Unsupported(
+                "swept section derivative has a zero knot interval",
+            ));
+        }
+        derivative_controls.push(
+            (0..3)
+                .map(|axis| {
+                    f64::from(curve.degree)
+                        * (curve.control_vertices[index + 1][axis]
+                            - curve.control_vertices[index][axis])
+                        / denominator
+                })
+                .collect::<Vec<_>>(),
+        );
+    }
+    Ok(derivative_controls)
 }
 
 fn torus_normal_at_point(

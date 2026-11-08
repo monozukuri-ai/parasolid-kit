@@ -572,12 +572,12 @@ fn tessellate_mapped_xt_swept_face_internal(
     }
     let mut loops_3d = Vec::with_capacity(uv_loops.len());
     for uv_loop in uv_loops {
-        let mut loop_3d = Vec::with_capacity(uv_loop.len());
+        let mut sampled_loop_points = Vec::with_capacity(uv_loop.len());
         for &[u, v] in uv_loop {
-            loop_3d
+            sampled_loop_points
                 .push(evaluate_mapped_xt_swept_point_candidate(swept, Some(section), u, v).ok()?);
         }
-        loops_3d.push(loop_3d);
+        loops_3d.push(sampled_loop_points);
     }
     let [u_min, u_max, v_min, v_max] = uv_loops.iter().flatten().fold(
         [
@@ -1907,8 +1907,12 @@ fn tessellate_brep_to_mesh_inner(
                     );
                     let u_span = u_max - u_min;
                     let v_span = v_max - v_min;
-                    let uv_span = u_span.max(v_span);
-                    if !uv_span.is_finite() || uv_span <= 0.0 || u_span <= 0.0 || v_span <= 0.0 {
+                    let maximum_parameter_span = u_span.max(v_span);
+                    if !maximum_parameter_span.is_finite()
+                        || maximum_parameter_span <= 0.0
+                        || u_span <= 0.0
+                        || v_span <= 0.0
+                    {
                         result.wire_edges.truncate(face_wire_start);
                         continue;
                     }
@@ -1927,9 +1931,9 @@ fn tessellate_brep_to_mesh_inner(
                                 .clamp(0.01, std::f64::consts::FRAC_PI_4)
                                 .min(u_span / 16.0)
                         }
-                        _ => uv_span / 16.0,
+                        _ => maximum_parameter_span / 16.0,
                     };
-                    let delta_v = uv_span / 16.0;
+                    let delta_v = maximum_parameter_span / 16.0;
                     let evaluated = try_tessellate_trimmed_surface_with_uv(
                         kind,
                         |_, _, _| None,
@@ -2213,9 +2217,9 @@ fn tessellate_brep_to_mesh_inner(
                                     );
                                 let u_span = u_max - u_min;
                                 let v_span = v_max - v_min;
-                                let uv_span = u_span.max(v_span);
-                                if uv_span.is_finite()
-                                    && uv_span > 0.0
+                                let maximum_parameter_span = u_span.max(v_span);
+                                if maximum_parameter_span.is_finite()
+                                    && maximum_parameter_span > 0.0
                                     && u_span > 0.0
                                     && v_span > 0.0
                                 {
