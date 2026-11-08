@@ -1,13 +1,28 @@
 //! Bounded CHART evaluation for otherwise-unhandled regular support pairs.
 
 use super::evaluate::plane_uv_from_point;
-use super::intersection_generic::evaluate_generic_chart_intersection;
+use super::intersection_generic::{
+    GenericIntersectionEvaluation, evaluate_generic_chart_intersection,
+};
 use super::{
     BrepModel, CurveKind, IntersectionCurveEvaluation, IntersectionEvaluationError,
     IntersectionLimitKind, IntersectionUvType, SurfaceGeometry, evaluate_brep_surface,
 };
 
 /// Evaluates only the regular interval represented by an XT `INTERSECTION` CHART.
+pub(crate) fn evaluate_generic_intersection(
+    brep: &BrepModel,
+    curve: &CurveKind,
+    parameter: f64,
+) -> Result<IntersectionCurveEvaluation, IntersectionEvaluationError> {
+    evaluate_generic_intersection_with_uv(brep, curve, parameter).map(|result| {
+        IntersectionCurveEvaluation {
+            point: result.point,
+            tangent: result.tangent,
+        }
+    })
+}
+
 #[allow(
     clippy::float_cmp,
     reason = "Exact station equality returns the stored chart sample without interpolation."
@@ -16,11 +31,11 @@ use super::{
     clippy::too_many_lines,
     reason = "The support-pair dispatch keeps candidate eligibility and evaluation fallback order explicit."
 )]
-pub(crate) fn evaluate_generic_intersection(
+pub(crate) fn evaluate_generic_intersection_with_uv(
     brep: &BrepModel,
     curve: &CurveKind,
     parameter: f64,
-) -> Result<IntersectionCurveEvaluation, IntersectionEvaluationError> {
+) -> Result<GenericIntersectionEvaluation, IntersectionEvaluationError> {
     let CurveKind::Intersection {
         surfaces,
         chart_parameters,
@@ -360,9 +375,11 @@ pub(crate) fn evaluate_generic_intersection(
         return Err(IntersectionEvaluationError::OutsideChartDomain);
     }
     if let Some(index) = stations.iter().position(|station| *station == parameter) {
-        return Ok(IntersectionCurveEvaluation {
+        return Ok(GenericIntersectionEvaluation {
             point: points[index],
             tangent: tangents[index],
+            uv_a: uv_chart[index].0,
+            uv_b: uv_chart[index].1,
         });
     }
     let index = stations
@@ -384,9 +401,11 @@ pub(crate) fn evaluate_generic_intersection(
         fraction,
         chordal_error,
     )?;
-    Ok(IntersectionCurveEvaluation {
+    Ok(GenericIntersectionEvaluation {
         point: result.point,
         tangent: result.tangent,
+        uv_a: result.uv_a,
+        uv_b: result.uv_b,
     })
 }
 
@@ -638,6 +657,35 @@ mod tests {
         assert!((result.point[0] - 1.0).abs() < 1e-8);
         assert!(result.point[1].abs() < 1e-8 && result.point[2].abs() < 1e-8);
         assert!(result.tangent[1] > 0.99);
+        let result_with_uv =
+            evaluate_generic_intersection_with_uv(&brep, &curve, midpoint).unwrap();
+        assert_eq!(
+            result_with_uv.point.map(f64::to_bits),
+            result.point.map(f64::to_bits)
+        );
+        assert_eq!(
+            result_with_uv.tangent.map(f64::to_bits),
+            result.tangent.map(f64::to_bits)
+        );
+        for (surface, uv) in brep
+            .surfaces
+            .iter()
+            .zip([result_with_uv.uv_a, result_with_uv.uv_b])
+        {
+            let support_point = evaluate_brep_surface(&brep, &surface.kind, uv[0], uv[1])
+                .expect("solver UV evaluates on its support")
+                .point;
+            assert!(norm(sub(support_point, result.point)) < 1e-8);
+        }
+        let exact_station = evaluate_generic_intersection_with_uv(&brep, &curve, 2.0).unwrap();
+        assert_eq!(
+            exact_station.uv_a.map(f64::to_bits),
+            [0.1_f64.cos(), -0.1_f64.sin()].map(f64::to_bits)
+        );
+        assert_eq!(
+            exact_station.uv_b.map(f64::to_bits),
+            [-0.1_f64, 0.0].map(f64::to_bits)
+        );
         let dispatched = crate::brep::evaluate_intersection_candidate(&brep, &curve, midpoint)
             .expect("generic support-pair fallback evaluates the chart midpoint");
         assert_eq!(dispatched.point, result.point);

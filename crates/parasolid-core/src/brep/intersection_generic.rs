@@ -6,6 +6,8 @@ use super::{BrepModel, IntersectionEvaluationError, SurfaceKind, evaluate_brep_s
 pub(crate) struct GenericIntersectionEvaluation {
     pub point: [f64; 3],
     pub tangent: [f64; 3],
+    pub uv_a: [f64; 2],
+    pub uv_b: [f64; 2],
 }
 
 type SurfaceUvEndpoints = [[f64; 2]; 2];
@@ -208,7 +210,12 @@ pub(crate) fn evaluate_generic_chart_intersection(
             "generic intersection result is nonfinite",
         ));
     }
-    Ok(GenericIntersectionEvaluation { point, tangent })
+    Ok(GenericIntersectionEvaluation {
+        point,
+        tangent,
+        uv_a: [root[0], root[1]],
+        uv_b: [root[2], root[3]],
+    })
 }
 
 fn solve_linear_4(mut matrix: [[f64; 4]; 4], mut rhs: [f64; 4]) -> Option<[f64; 4]> {
