@@ -1256,76 +1256,7 @@ fn validate_layout(
     first_of_type: bool,
     names: AssemblyFieldNames,
 ) -> Result<(), ParseError> {
-    let expected: &[(&str, FieldType, u32, u16)] = match role {
-        "ASSEMBLY" => &[
-            (names.assembly_size_precision, FieldType::Double, 0, 0),
-            (names.assembly_linear_precision, FieldType::Double, 0, 0),
-            (names.assembly_instances, FieldType::PointerIndex, 0, 11),
-            (names.assembly_kind, FieldType::UnsignedByte, 0, 0),
-            (names.assembly_sub_instances, FieldType::PointerIndex, 0, 11),
-        ],
-        "INSTANCE" => &[
-            (names.instance_kind, FieldType::UnsignedByte, 0, 0),
-            (names.instance_part, FieldType::PointerIndex, 0, 1005),
-            (names.instance_transform, FieldType::PointerIndex, 0, 100),
-            (names.instance_assembly, FieldType::PointerIndex, 0, 10),
-            (
-                names.instance_next_in_assembly,
-                FieldType::PointerIndex,
-                0,
-                11,
-            ),
-            (
-                names.instance_previous_in_assembly,
-                FieldType::PointerIndex,
-                0,
-                11,
-            ),
-            (names.instance_next_of_part, FieldType::PointerIndex, 0, 11),
-            (
-                names.instance_previous_of_part,
-                FieldType::PointerIndex,
-                0,
-                11,
-            ),
-        ],
-        "TRANSFORM" => &[
-            ("rotation_matrix", FieldType::Double, 9, 0),
-            (names.transform_translation, FieldType::Vector, 0, 0),
-            ("scale", FieldType::Double, 0, 0),
-            ("flag", FieldType::Integer, 0, 0),
-            (names.transform_perspective, FieldType::Vector, 0, 0),
-        ],
-        _ => return Err(invalid_field(Some(node), "unknown assembly node role")),
-    };
-    for &(name, field_type, count, pointer_class) in expected {
-        let field = named_field(node, name)?;
-        if node
-            .definition
-            .fields
-            .iter()
-            .filter(|f| f.name == name)
-            .count()
-            != 1
-            || field.definition.field_type != field_type
-            || field.definition.element_count != count
-            || field.definition.pointer_class != pointer_class
-            || reviewed.is_some_and(|base| {
-                base.fields
-                    .iter()
-                    .filter(|field| field.name == name)
-                    .count()
-                    != 1
-                    || base.fields.iter().find(|field| field.name == name)
-                        != Some(field.definition.as_ref())
-            })
-        {
-            return Err(invalid_field(
-                Some(node),
-                "assembly field does not match the reviewed schema",
-            ));
-        }
-    }
+    validate_expected_fields(node, role, reviewed, names)?;
     let precision_fields = node
         .definition
         .fields
@@ -1379,6 +1310,106 @@ fn validate_layout(
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+fn validate_expected_fields(
+    node: &RawNode,
+    role: &str,
+    reviewed: Option<&TypeDefinition>,
+    names: AssemblyFieldNames,
+) -> Result<(), ParseError> {
+    match role {
+        "ASSEMBLY" => {
+            for (name, field_type, count, pointer_class) in [
+                (names.assembly_size_precision, FieldType::Double, 0, 0),
+                (names.assembly_linear_precision, FieldType::Double, 0, 0),
+                (names.assembly_instances, FieldType::PointerIndex, 0, 11),
+                (names.assembly_kind, FieldType::UnsignedByte, 0, 0),
+                (names.assembly_sub_instances, FieldType::PointerIndex, 0, 11),
+            ] {
+                validate_expected_field(node, reviewed, name, field_type, count, pointer_class)?;
+            }
+        }
+        "INSTANCE" => {
+            for (name, field_type, count, pointer_class) in [
+                (names.instance_kind, FieldType::UnsignedByte, 0, 0),
+                (names.instance_part, FieldType::PointerIndex, 0, 1005),
+                (names.instance_transform, FieldType::PointerIndex, 0, 100),
+                (names.instance_assembly, FieldType::PointerIndex, 0, 10),
+                (
+                    names.instance_next_in_assembly,
+                    FieldType::PointerIndex,
+                    0,
+                    11,
+                ),
+                (
+                    names.instance_previous_in_assembly,
+                    FieldType::PointerIndex,
+                    0,
+                    11,
+                ),
+                (names.instance_next_of_part, FieldType::PointerIndex, 0, 11),
+                (
+                    names.instance_previous_of_part,
+                    FieldType::PointerIndex,
+                    0,
+                    11,
+                ),
+            ] {
+                validate_expected_field(node, reviewed, name, field_type, count, pointer_class)?;
+            }
+        }
+        "TRANSFORM" => {
+            for (name, field_type, count, pointer_class) in [
+                ("rotation_matrix", FieldType::Double, 9, 0),
+                (names.transform_translation, FieldType::Vector, 0, 0),
+                ("scale", FieldType::Double, 0, 0),
+                ("flag", FieldType::Integer, 0, 0),
+                (names.transform_perspective, FieldType::Vector, 0, 0),
+            ] {
+                validate_expected_field(node, reviewed, name, field_type, count, pointer_class)?;
+            }
+        }
+        _ => return Err(invalid_field(Some(node), "unknown assembly node role")),
+    }
+    Ok(())
+}
+
+fn validate_expected_field(
+    node: &RawNode,
+    reviewed: Option<&TypeDefinition>,
+    name: &'static str,
+    field_type: FieldType,
+    count: u32,
+    pointer_class: u16,
+) -> Result<(), ParseError> {
+    let field = named_field(node, name)?;
+    if node
+        .definition
+        .fields
+        .iter()
+        .filter(|f| f.name == name)
+        .count()
+        != 1
+        || field.definition.field_type != field_type
+        || field.definition.element_count != count
+        || field.definition.pointer_class != pointer_class
+        || reviewed.is_some_and(|base| {
+            base.fields
+                .iter()
+                .filter(|field| field.name == name)
+                .count()
+                != 1
+                || base.fields.iter().find(|field| field.name == name)
+                    != Some(field.definition.as_ref())
+        })
+    {
+        return Err(invalid_field(
+            Some(node),
+            "assembly field does not match the reviewed schema",
+        ));
     }
     Ok(())
 }

@@ -365,51 +365,14 @@ impl RawMeshData {
                 "normal index count or capacity must match the 3N position corners",
             ));
         }
-        let mut triangles = Vec::with_capacity(indices.integer_count / 3);
-        let mut triangle = [[0.0; 2]; 3];
-        for (corner, (raw_position_index, raw_normal_index)) in position_indices.values
-            [..position_indices.integer_count]
-            .iter()
-            .zip(&indices.values[..indices.integer_count])
-            .enumerate()
-        {
-            let _position_index = match origin {
-                MeshIndexOrigin::ZeroBased => usize::try_from(*raw_position_index).ok(),
-                MeshIndexOrigin::OneBased => raw_position_index
-                    .checked_sub(1)
-                    .and_then(|index| usize::try_from(index).ok()),
-            }
-            .filter(|index| *index < positions.vector_count)
-            .ok_or_else(|| {
-                invalid_at(
-                    self.psm_mesh_index,
-                    "position_indices",
-                    "index is outside the caller-selected origin range",
-                )
-            })?;
-            let index = match origin {
-                MeshIndexOrigin::ZeroBased => usize::try_from(*raw_normal_index).ok(),
-                MeshIndexOrigin::OneBased => raw_normal_index
-                    .checked_sub(1)
-                    .and_then(|index| usize::try_from(index).ok()),
-            }
-            .filter(|index| *index < normals.vector_count)
-            .ok_or_else(|| {
-                invalid_at(
-                    self.psm_mesh_index,
-                    "normal_indices",
-                    "index is outside the caller-selected origin range",
-                )
-            })?;
-            let start = index
-                .checked_mul(2)
-                .ok_or_else(|| invalid_at(self.psm_mesh_index, "normal_pool", "offset overflow"))?;
-            triangle[corner % 3].copy_from_slice(&normals.values[start..start + 2]);
-            if corner % 3 == 2 {
-                triangles.push(triangle);
-            }
-        }
-        Ok(triangles)
+        per_corner_normal_parameters_with_origin(
+            self.psm_mesh_index,
+            origin,
+            positions,
+            normals,
+            position_indices,
+            indices,
+        )
     }
 
     /// Place raw mesh triangles using an explicitly supplied index origin and source transform.
@@ -497,6 +460,61 @@ impl RawMeshData {
     ) -> Result<Vec<[[f64; 3]; 3]>, MeshDataError> {
         self.placed_triangles(self.inferred_index_origin()?, transform, face_sense)
     }
+}
+
+fn per_corner_normal_parameters_with_origin(
+    source: u32,
+    origin: MeshIndexOrigin,
+    positions: &RawVectorPool,
+    normals: &RawVectorPool,
+    position_indices: &RawIntegerPool,
+    normal_indices: &RawIntegerPool,
+) -> Result<Vec<[[f64; 2]; 3]>, MeshDataError> {
+    let mut triangles = Vec::with_capacity(normal_indices.integer_count / 3);
+    let mut triangle = [[0.0; 2]; 3];
+    for (corner, (raw_position_index, raw_normal_index)) in position_indices.values
+        [..position_indices.integer_count]
+        .iter()
+        .zip(&normal_indices.values[..normal_indices.integer_count])
+        .enumerate()
+    {
+        let _position_index = match origin {
+            MeshIndexOrigin::ZeroBased => usize::try_from(*raw_position_index).ok(),
+            MeshIndexOrigin::OneBased => raw_position_index
+                .checked_sub(1)
+                .and_then(|index| usize::try_from(index).ok()),
+        }
+        .filter(|index| *index < positions.vector_count)
+        .ok_or_else(|| {
+            invalid_at(
+                source,
+                "position_indices",
+                "index is outside the caller-selected origin range",
+            )
+        })?;
+        let index = match origin {
+            MeshIndexOrigin::ZeroBased => usize::try_from(*raw_normal_index).ok(),
+            MeshIndexOrigin::OneBased => raw_normal_index
+                .checked_sub(1)
+                .and_then(|index| usize::try_from(index).ok()),
+        }
+        .filter(|index| *index < normals.vector_count)
+        .ok_or_else(|| {
+            invalid_at(
+                source,
+                "normal_indices",
+                "index is outside the caller-selected origin range",
+            )
+        })?;
+        let start = index
+            .checked_mul(2)
+            .ok_or_else(|| invalid_at(source, "normal_pool", "offset overflow"))?;
+        triangle[corner % 3].copy_from_slice(&normals.values[start..start + 2]);
+        if corner % 3 == 2 {
+            triangles.push(triangle);
+        }
+    }
+    Ok(triangles)
 }
 
 /// An unsupported profile or malformed embedded mesh field/link.

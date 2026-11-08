@@ -154,6 +154,7 @@ fn remove_ring_closure_duplicate(ring: &mut Vec<[f64; 3]>, exact_only: bool) {
 }
 
 /// Triangulates a B-Rep model into a [`TessellatedMesh`].
+#[must_use]
 pub fn tessellate_brep_to_mesh(brep: &BrepModel, chord_error_mm: f64) -> TessellatedMesh {
     tessellate_brep_to_mesh_inner(brep, chord_error_mm, None, None, None, false, None, false)
 }
@@ -163,6 +164,7 @@ pub fn tessellate_brep_to_mesh(brep: &BrepModel, chord_error_mm: f64) -> Tessell
 /// Returns `None` when `body_id` is missing or ambiguous, when an ownership
 /// link is missing, ambiguous, or inconsistent, or when any selected face
 /// cannot be tessellated. A valid body with no faces returns an empty mesh.
+#[must_use]
 pub fn tessellate_brep_body_to_mesh(
     brep: &BrepModel,
     body_id: u32,
@@ -259,6 +261,7 @@ pub fn tessellate_brep_body_to_mesh(
 /// instance transforms are not applied here. Returns `None` for duplicate
 /// hierarchy parents, missing or ambiguous BODY IDs, cycles, or failed child
 /// tessellation.
+#[must_use]
 pub fn tessellate_resolved_brep_body_to_mesh(
     brep: &BrepModelWithResolvedBodyHierarchy,
     body_id: u32,
@@ -302,6 +305,7 @@ pub fn tessellate_resolved_brep_body_to_mesh(
 }
 
 /// Tessellates one mapped face by its B-Rep face ID.
+#[must_use]
 pub fn tessellate_brep_face(
     brep: &BrepModel,
     face_id: u32,
@@ -323,6 +327,7 @@ pub fn tessellate_brep_face(
 
 /// Tessellates one mapped face using bounded candidates for supported XT
 /// intersection trims. Unsupported candidates fail the face closed.
+#[must_use]
 pub fn tessellate_brep_face_with_intersection_candidates(
     brep: &BrepModel,
     face_id: u32,
@@ -345,6 +350,7 @@ pub fn tessellate_brep_face_with_intersection_candidates(
 /// Tessellates one mapped face only when every trim loop has a validated
 /// explicit same-support UV curve. Mapped sweeps require a unit direction;
 /// this does not inverse-project missing loops.
+#[must_use]
 pub fn tessellate_brep_face_with_explicit_uv(
     brep: &BrepModel,
     source_face_node_index: u32,
@@ -385,6 +391,7 @@ pub fn tessellate_brep_face_with_explicit_uv(
 
 /// Tessellates one mapped swept face with validated explicit same-support UV trims.
 /// The caller must supply the already-resolved finite, nonzero sweep direction.
+#[must_use]
 pub fn tessellate_swept_brep_face_with_explicit_uv(
     brep: &BrepModel,
     source_face_node_index: u32,
@@ -428,6 +435,7 @@ pub fn tessellate_swept_brep_face_with_explicit_uv(
 /// section pointer are checked here; `uv_loops` must already be validated by
 /// the caller as the complete trims for this face on that support, in face-loop
 /// order. The serialized scale is not used.
+#[must_use]
 pub fn tessellate_mapped_xt_swept_face_with_explicit_uv(
     brep: &BrepModel,
     swept: &crate::brep::SweptSurfaceData,
@@ -455,6 +463,7 @@ pub fn tessellate_mapped_xt_swept_face_with_explicit_uv(
 /// with adjacent faces. This is a sampled error check, not a certified bound;
 /// the function returns `None` when the tolerance is invalid, the sample check
 /// cannot pass, or the fixed triangle budget is exceeded.
+#[must_use]
 pub fn tessellate_mapped_xt_swept_face_with_sampled_chord_error(
     brep: &BrepModel,
     swept: &crate::brep::SweptSurfaceData,
@@ -4691,6 +4700,7 @@ fn emit_isoparametric_grid_with<E>(
 
 /// Evaluates any supported surface kind within a B-Rep model, including
 /// `Offset`, `Spun`, and mapped `Swept` surfaces.
+#[must_use]
 pub fn evaluate_surface(
     brep: &BrepModel,
     surface: &SurfaceKind,
@@ -4701,6 +4711,7 @@ pub fn evaluate_surface(
 }
 
 /// Evaluates a 3D point on any surface kind within a B-Rep model.
+#[must_use]
 pub fn evaluate_surface_point(
     brep: &BrepModel,
     surface: &SurfaceKind,
@@ -5657,6 +5668,7 @@ fn tessellate_spun_face(
 }
 
 /// Computes the outward polygon normal using Newell's method.
+#[must_use]
 pub fn compute_newell_normal(poly: &[[f64; 3]]) -> [f64; 3] {
     let mut nx = 0.0;
     let mut ny = 0.0;
