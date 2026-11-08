@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Add built-in TopSolid v6 X_T schema profiles and catalog support for five
+  observed schema keys: the 13006 base subsets and bundled effective catalogs
+  cover those keys only; this does not provide general TopSolid package or
+  model decoding.
+- Expand the native B-Rep model and X_T/X_B mapping with retained intersection,
+  polyline, swept-surface, mesh, assembly hierarchy and attribute data, plus
+  geometry evaluation and tessellation APIs. Rust and Python expose the added
+  data and selected operations; this is not a claim of complete Parasolid
+  geometry coverage or CAD-kernel compatibility.
+
 - Fix #13: declare the public-reference HELIX_CU_FORM (163) base layout for
   the SolidWorks and standalone-transmit profiles over schema 13006. Embedded
   schema edits now address its seven field groups, including one interval for
