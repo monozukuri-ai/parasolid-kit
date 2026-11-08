@@ -1,6 +1,6 @@
-use super::polyline_data::PolylineData;
 use super::evaluate::evaluate_prepared_nurbs_surface;
 use super::nurbs_surface::PreparedNurbsSurface;
+use super::polyline_data::PolylineData;
 use super::{
     BrepModel, BrepModelWithResolvedBodyHierarchy, BrepSourceFormat, CurveEvaluation,
     CurveGeometry, CurveKind, Sense, SurfaceEvaluation, SurfaceGeometry, SurfaceKind,
@@ -4533,9 +4533,7 @@ fn tessellate_nurbs_face(
                         }
                         scale *= 0.5;
                     }
-                    if !improved
-                        || (scale * delta_u).powi(2) + (scale * delta_v).powi(2) < 1e-14
-                    {
+                    if !improved || (scale * delta_u).powi(2) + (scale * delta_v).powi(2) < 1e-14 {
                         break;
                     }
                 }

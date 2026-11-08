@@ -1160,8 +1160,7 @@ class TopologyBuilder:
         parameter = axis_distance / cone.cos_half_angle
         parameter_sign = -1.0 if isinstance(cone, XtConeSurface) else 1.0
         expected_radius = (
-            cone.radius * self.geometry.scale
-            + parameter_sign * parameter * cone.sin_half_angle
+            cone.radius * self.geometry.scale + parameter_sign * parameter * cone.sin_half_angle
         )
         if expected_radius <= tolerance:
             raise ValueError(f"cone face {face_id} ring reaches or crosses the cone apex")
