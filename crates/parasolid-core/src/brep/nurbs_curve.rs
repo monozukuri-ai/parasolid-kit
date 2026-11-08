@@ -174,6 +174,10 @@ fn evaluate_mapped_nurbs_curve_inner(
     clippy::too_many_arguments,
     reason = "This public evaluator preserves its established parameter-based API for compatibility."
 )]
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact knot-period and terminal-parameter equality preserve periodic validation and endpoint span ownership."
+)]
 pub fn evaluate_nurbs_curve_values_candidate(
     degree: usize,
     rational: bool,

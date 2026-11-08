@@ -117,6 +117,10 @@ fn f64_dyadic_parts(value: f64) -> Option<(bool, u64, i32)> {
     }
 }
 
+#[allow(
+    clippy::cast_possible_wrap,
+    reason = "For nonzero u128 mantissas, trailing_zeros is at most 127 and safely fits i32."
+)]
 fn exact_products_equal(left_a: f64, left_b: f64, right_a: f64, right_b: f64) -> bool {
     let (
         Some((left_sign_a, left_mantissa_a, left_exponent_a)),
@@ -253,6 +257,10 @@ fn exact_endpoint_curve_value(
     exact_evaluate_curve(points, knots, degree, parameter, span)
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "The only production callers pass degrees sourced from NurbsSurface u16 degree fields; test callers use small literals."
+)]
 fn exact_endpoint_curve_jet(
     points: &[[f64; 4]],
     knots: &[f64],
@@ -291,6 +299,10 @@ fn exact_endpoint_curve_jet(
     Some((point, derivative))
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Callers bound the numerator to 2*u16::MAX+1 and denominator to its next power of two, both exactly representable in f64."
+)]
 fn exact_dyadic_sample(start: f64, end: f64, numerator: usize, denominator: usize) -> Option<f64> {
     let width = exact_difference(end, start)?;
     let scaled = exact_product_difference(width, numerator as f64, 0.0, 0.0)?;
@@ -483,6 +495,10 @@ fn degree_one_periodic_data_is_exact(
 #[allow(
     clippy::float_cmp,
     reason = "Clamped endpoint multiplicity and homogeneous control equality are exact schema conditions here."
+)]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "The only caller supplies a degree originating from NurbsSurface's u16 degree fields."
 )]
 fn clamped_periodic_data_is_exact(
     homogeneous: &[[f64; 4]],
@@ -941,6 +957,10 @@ fn degree_one_transverse_seam_within_tolerance(
 #[allow(
     clippy::float_cmp,
     reason = "Clamped knot detection must preserve exact endpoint-knot equality semantics."
+)]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "The only callers pass degrees originating from NurbsSurface's u16 degree fields."
 )]
 #[allow(
     clippy::too_many_lines,

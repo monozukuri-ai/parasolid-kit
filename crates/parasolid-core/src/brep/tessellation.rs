@@ -1350,29 +1350,23 @@ fn tessellate_brep_to_mesh_inner(
                                     };
                                     let cone_cylinder_inverse = matches!(
                                         (&surface_a.kind, &surface_b.kind),
-                                        (SurfaceKind::Cone { .. }, SurfaceKind::Cylinder { .. })
-                                            | (
-                                                SurfaceKind::Cylinder { .. },
-                                                SurfaceKind::Cone { .. }
-                                            )
-                                            | (
-                                                SurfaceKind::XtCone { .. },
-                                                SurfaceKind::Cylinder { .. }
-                                            )
-                                            | (
-                                                SurfaceKind::Cylinder { .. },
-                                                SurfaceKind::XtCone { .. }
-                                            )
+                                        (
+                                            SurfaceKind::Cone { .. } | SurfaceKind::XtCone { .. },
+                                            SurfaceKind::Cylinder { .. },
+                                        ) | (
+                                            SurfaceKind::Cylinder { .. },
+                                            SurfaceKind::Cone { .. } | SurfaceKind::XtCone { .. },
+                                        )
                                     );
                                     let plane_xt_cone_inverse = matches!(
                                         (&surface_a.kind, &surface_b.kind),
-                                        (SurfaceKind::Plane { .. }, SurfaceKind::XtCone { .. })
-                                            | (
-                                                SurfaceKind::XtCone { .. },
-                                                SurfaceKind::Plane { .. }
-                                            )
-                                            | (SurfaceKind::Plane { .. }, SurfaceKind::Cone { .. })
-                                            | (SurfaceKind::Cone { .. }, SurfaceKind::Plane { .. })
+                                        (
+                                            SurfaceKind::Plane { .. },
+                                            SurfaceKind::XtCone { .. } | SurfaceKind::Cone { .. },
+                                        ) | (
+                                            SurfaceKind::XtCone { .. } | SurfaceKind::Cone { .. },
+                                            SurfaceKind::Plane { .. },
+                                        )
                                     );
                                     if !cone_cylinder_inverse && !plane_xt_cone_inverse {
                                         curve_sampling_failed = true;
@@ -1528,8 +1522,7 @@ fn tessellate_brep_to_mesh_inner(
                                             .ok_or(())?;
                                         xt_null_entity_tolerance(&vertex.owner, brep)
                                     }
-                                    Ok(Some((_, None))) => Ok(0.0),
-                                    Ok(None) => Ok(0.0),
+                                    Ok(Some((_, None))) | Ok(None) => Ok(0.0),
                                     Err(()) => Err(()),
                                 }
                             };
@@ -1714,22 +1707,24 @@ fn tessellate_brep_to_mesh_inner(
                     &mut result,
                 );
             }
-            Some(SurfaceKind::Cone {
-                point,
-                axis,
-                radius,
-                sin_half_angle,
-                cos_half_angle,
-                ..
-            })
-            | Some(SurfaceKind::XtCone {
-                point,
-                axis,
-                radius,
-                sin_half_angle,
-                cos_half_angle,
-                ..
-            }) => {
+            Some(
+                SurfaceKind::Cone {
+                    point,
+                    axis,
+                    radius,
+                    sin_half_angle,
+                    cos_half_angle,
+                    ..
+                }
+                | SurfaceKind::XtCone {
+                    point,
+                    axis,
+                    radius,
+                    sin_half_angle,
+                    cos_half_angle,
+                    ..
+                },
+            ) => {
                 tessellate_conical_face(
                     point.to_array(),
                     axis.to_array(),
@@ -2536,8 +2531,7 @@ fn tessellate_cylindrical_face(
         face_sense,
         result,
     ) {
-        TrimmedSurfaceResult::Tessellated => return,
-        TrimmedSurfaceResult::Rejected => return,
+        TrimmedSurfaceResult::Tessellated | TrimmedSurfaceResult::Rejected => return,
         TrimmedSurfaceResult::NonContractibleBandU | TrimmedSurfaceResult::NonContractibleBandV => {
         }
     }
@@ -2793,8 +2787,7 @@ fn tessellate_conical_face(
         face_sense,
         result,
     ) {
-        TrimmedSurfaceResult::Tessellated => return,
-        TrimmedSurfaceResult::Rejected => return,
+        TrimmedSurfaceResult::Tessellated | TrimmedSurfaceResult::Rejected => return,
         TrimmedSurfaceResult::NonContractibleBandU | TrimmedSurfaceResult::NonContractibleBandV => {
         }
     }
@@ -2939,8 +2932,7 @@ fn tessellate_spherical_face(
             face_sense,
             result,
         ) {
-            TrimmedSurfaceResult::Tessellated => return,
-            TrimmedSurfaceResult::Rejected => return,
+            TrimmedSurfaceResult::Tessellated | TrimmedSurfaceResult::Rejected => return,
             TrimmedSurfaceResult::NonContractibleBandU
             | TrimmedSurfaceResult::NonContractibleBandV => {}
         }
@@ -3080,8 +3072,7 @@ fn tessellate_toroidal_face(
             face_sense,
             result,
         ) {
-            TrimmedSurfaceResult::Tessellated => return,
-            TrimmedSurfaceResult::Rejected => return,
+            TrimmedSurfaceResult::Tessellated | TrimmedSurfaceResult::Rejected => return,
             TrimmedSurfaceResult::NonContractibleBandU => Some(0),
             TrimmedSurfaceResult::NonContractibleBandV => Some(1),
         }
@@ -3756,7 +3747,6 @@ fn surface_periodic_periods(surface: &SurfaceKind) -> Option<[Option<f64>; 2]> {
         | SurfaceKind::Sphere { .. } => [angle, None],
         SurfaceKind::Torus { .. } => [angle, angle],
         SurfaceKind::Spun { .. } => [None, angle],
-        SurfaceKind::Swept { .. } => no_period,
         SurfaceKind::Nurbs(nurbs) => {
             let mut periods = no_period;
             if nurbs.u_periodic {
@@ -4606,9 +4596,9 @@ fn tessellate_nurbs_face(
             face_sense,
             result,
         ) {
-            TrimmedSurfaceResult::Tessellated => return,
-            TrimmedSurfaceResult::Rejected => return,
-            TrimmedSurfaceResult::NonContractibleBandU
+            TrimmedSurfaceResult::Tessellated
+            | TrimmedSurfaceResult::Rejected
+            | TrimmedSurfaceResult::NonContractibleBandU
             | TrimmedSurfaceResult::NonContractibleBandV => return,
         }
     }
@@ -6711,17 +6701,11 @@ fn sample_intersection_trim(
         matches!(
             kinds,
             [
-                Some(SurfaceKind::Cone { .. }),
-                Some(SurfaceKind::Cylinder { .. })
+                Some(SurfaceKind::Cone { .. } | SurfaceKind::XtCone { .. }),
+                Some(SurfaceKind::Cylinder { .. }),
             ] | [
                 Some(SurfaceKind::Cylinder { .. }),
-                Some(SurfaceKind::Cone { .. })
-            ] | [
-                Some(SurfaceKind::XtCone { .. }),
-                Some(SurfaceKind::Cylinder { .. })
-            ] | [
-                Some(SurfaceKind::Cylinder { .. }),
-                Some(SurfaceKind::XtCone { .. })
+                Some(SurfaceKind::Cone { .. } | SurfaceKind::XtCone { .. }),
             ]
         )
     });
