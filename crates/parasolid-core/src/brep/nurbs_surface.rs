@@ -2116,53 +2116,68 @@ mod tests {
     }
 
     #[test]
-    fn quadratic_transverse_collapsed_projective_seam_is_exact_and_perturbation_fails() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Equivalent periodic seam parameters must produce exactly equal surface points."
+    )]
+    fn quadratic_transverse_collapsed_projective_seam_is_exact_and_perturbation_fails()
+    -> std::io::Result<()> {
         let surface = quadratic_transverse_collapsed_projective_seam();
         assert_eq!(
-            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.5).unwrap(),
-            evaluate_mapped_nurbs_surface(&surface, 3.0, 0.5).unwrap()
+            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.5)?,
+            evaluate_mapped_nurbs_surface(&surface, 3.0, 0.5)?
         );
 
         let mut perturbed = surface;
         perturbed.control_vertices[11][0] = 0.125;
         assert!(evaluate_mapped_nurbs_surface(&perturbed, 0.5, 0.5).is_err());
+        Ok(())
     }
 
     #[test]
-    fn quadratic_noncollapsed_varying_projective_seam_wraps_and_rejects_perturbation() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Equivalent periodic seam parameters must produce exactly equal surface points."
+    )]
+    fn quadratic_noncollapsed_varying_projective_seam_wraps_and_rejects_perturbation()
+    -> std::io::Result<()> {
         let surface = quadratic_noncollapsed_varying_projective_seam();
         assert_eq!(
-            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.5).unwrap(),
-            evaluate_mapped_nurbs_surface(&surface, 3.0, 0.5).unwrap()
+            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.5)?,
+            evaluate_mapped_nurbs_surface(&surface, 3.0, 0.5)?
         );
         assert_ne!(
-            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.25).unwrap(),
-            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.75).unwrap()
+            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.25)?,
+            evaluate_mapped_nurbs_surface(&surface, 0.0, 0.75)?
         );
 
         let mut perturbed = surface;
         perturbed.control_vertices[14][0] += 0.125;
         assert!(evaluate_mapped_nurbs_surface(&perturbed, 0.5, 0.5).is_err());
+        Ok(())
     }
 
     #[test]
-    fn quadratic_clamped_varying_gauge_seam_accepts_u_and_v_and_rejects_perturbation() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Equivalent closed-axis parameters must produce exactly equal seam points."
+    )]
+    fn quadratic_clamped_varying_gauge_seam_accepts_u_and_v_and_rejects_perturbation()
+    -> std::io::Result<()> {
         for periodic_u in [true, false] {
             let surface = quadratic_clamped_varying_gauge_seam(periodic_u);
             let wrapped = if periodic_u {
-                evaluate_mapped_nurbs_surface(&surface, 3.5, 0.5).unwrap()
+                evaluate_mapped_nurbs_surface(&surface, 3.5, 0.5)?
             } else {
-                evaluate_mapped_nurbs_surface(&surface, 0.5, 3.5).unwrap()
+                evaluate_mapped_nurbs_surface(&surface, 0.5, 3.5)?
             };
-            assert_eq!(
-                evaluate_mapped_nurbs_surface(&surface, 0.5, 0.5).unwrap(),
-                wrapped
-            );
+            assert_eq!(evaluate_mapped_nurbs_surface(&surface, 0.5, 0.5)?, wrapped);
 
             let mut perturbed = surface;
             perturbed.control_vertices[9][0] = 0.25;
             assert!(evaluate_mapped_nurbs_surface(&perturbed, 0.5, 0.5).is_err());
         }
+        Ok(())
     }
 
     fn rational_projectively_scaled_clamped_u_surface() -> NurbsSurface {

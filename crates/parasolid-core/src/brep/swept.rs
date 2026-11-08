@@ -227,10 +227,15 @@ mod tests {
     }
 
     #[test]
-    fn mapped_xt_swept_evaluator_continues_only_supported_sections_outside_domain() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "the endpoint fixture produces exact integer coordinates for the supported linear continuation"
+    )]
+    fn mapped_xt_swept_evaluator_continues_only_supported_sections_outside_domain()
+    -> std::io::Result<()> {
         let section = mapped_section();
         assert_eq!(
-            evaluate_mapped_xt_swept_point_candidate(&swept(), Some(&section), 0.0, 0.0).unwrap(),
+            evaluate_mapped_xt_swept_point_candidate(&swept(), Some(&section), 0.0, 0.0)?,
             [-4.0, 0.0, -3.0]
         );
         let mut unsupported = section.clone();
@@ -241,6 +246,7 @@ mod tests {
             evaluate_mapped_xt_swept_point_candidate(&swept(), Some(&unsupported), 0.0, 0.0)
                 .is_err()
         );
+        Ok(())
     }
 
     #[test]
