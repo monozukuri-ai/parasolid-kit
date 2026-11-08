@@ -1532,7 +1532,7 @@ fn tessellate_brep_to_mesh_inner(
                                             .ok_or(())?;
                                         xt_null_entity_tolerance(&vertex.owner, brep)
                                     }
-                                    Ok(Some((_, None))) | Ok(None) => Ok(0.0),
+                                    Ok(Some((_, None)) | None) => Ok(0.0),
                                     Err(()) => Err(()),
                                 }
                             };
@@ -4483,110 +4483,133 @@ fn tessellate_nurbs_face(
     let Ok(prepared) = PreparedNurbsSurface::new(nurbs) else {
         return;
     };
-    let evaluate_point = |u, v| prepared.point(u, v).ok();
-    let evaluate = |u, v| evaluate_prepared_nurbs_surface(nurbs, &prepared, u, v);
-    let (u_min, u_max, v_min, v_max) = match surf_kind {
-        SurfaceKind::Nurbs(nurbs) => (
-            nurbs.u_knots.first().copied().unwrap_or(0.0),
-            nurbs.u_knots.last().copied().unwrap_or(1.0),
-            nurbs.v_knots.first().copied().unwrap_or(0.0),
-            nurbs.v_knots.last().copied().unwrap_or(1.0),
-        ),
-        _ => (0.0, 1.0, 0.0, 1.0),
-    };
+    let evaluate_nurbs_point = |u, v| prepared.point(u, v).ok();
+    let evaluate_nurbs_surface = |u, v| evaluate_prepared_nurbs_surface(nurbs, &prepared, u, v);
+    let (first_parameter_min, first_parameter_max, second_parameter_min, second_parameter_max) =
+        match surf_kind {
+            SurfaceKind::Nurbs(nurbs) => (
+                nurbs.u_knots.first().copied().unwrap_or(0.0),
+                nurbs.u_knots.last().copied().unwrap_or(1.0),
+                nurbs.v_knots.first().copied().unwrap_or(0.0),
+                nurbs.v_knots.last().copied().unwrap_or(1.0),
+            ),
+            _ => (0.0, 1.0, 0.0, 1.0),
+        };
 
     if !loops_3d.is_empty() {
         const GRID_STEPS: usize = 16;
         let mut coarse_samples: Vec<(f64, f64, [f64; 3])> =
             Vec::with_capacity((GRID_STEPS + 1) * (GRID_STEPS + 1));
         for j in 0_u32..=16 {
-            let v = v_min + (v_max - v_min) * (f64::from(j) / 16.0);
+            let v = second_parameter_min
+                + (second_parameter_max - second_parameter_min) * (f64::from(j) / 16.0);
             for i in 0_u32..=16 {
-                let u = u_min + (u_max - u_min) * (f64::from(i) / 16.0);
-                if let Some(pt) = evaluate_point(u, v) {
+                let u = first_parameter_min
+                    + (first_parameter_max - first_parameter_min) * (f64::from(i) / 16.0);
+                if let Some(pt) = evaluate_nurbs_point(u, v) {
                     coarse_samples.push((u, v, pt));
                 }
             }
         }
 
         let project_uv = |p: [f64; 3], _ring: &[[f64; 3]], _i: usize| -> Option<[f64; 2]> {
-            let u_span = (u_max - u_min).max(1e-6);
-            let v_span = (v_max - v_min).max(1e-6);
-            let eps_u = (u_span * 1e-4).clamp(1e-7, 1e-3);
-            let eps_v = (v_span * 1e-4).clamp(1e-7, 1e-3);
+            let first_parameter_span = (first_parameter_max - first_parameter_min).max(1e-6);
+            let second_parameter_span = (second_parameter_max - second_parameter_min).max(1e-6);
+            let first_probe_step = (first_parameter_span * 1e-4).clamp(1e-7, 1e-3);
+            let second_probe_step = (second_parameter_span * 1e-4).clamp(1e-7, 1e-3);
             // Nearby points on a folded surface can belong to different UV regions.
             let mut selected: Vec<(f64, f64)> = Vec::with_capacity(8);
-            let mut best = None;
+            let mut best_projection = None;
             for _ in 0..8 {
-                let next = coarse_samples
+                let closest_coarse_sample = coarse_samples
                     .iter()
                     .filter(|&&(u, v, _)| {
-                        selected.iter().all(|&(su, sv)| {
-                            (u - su).abs() >= u_span / 8.0 || (v - sv).abs() >= v_span / 8.0
+                        selected.iter().all(|&(selected_first, selected_second)| {
+                            (u - selected_first).abs() >= first_parameter_span / 8.0
+                                || (v - selected_second).abs() >= second_parameter_span / 8.0
                         })
                     })
                     .map(|&(u, v, point)| (dist_sq(&point, &p), u, v, point))
                     .min_by(|a, b| a.0.total_cmp(&b.0));
-                let Some((mut residual_sq, mut u, mut v, mut current_point)) = next else {
+                let Some((mut current_residual_squared, mut u, mut v, mut current_point)) =
+                    closest_coarse_sample
+                else {
                     break;
                 };
                 selected.push((u, v));
 
                 for _ in 0..8 {
-                    if residual_sq < 1e-14 {
+                    if current_residual_squared < 1e-14 {
                         break;
                     }
-                    let r = vec3_sub(current_point, p);
+                    let residual_vector = vec3_sub(current_point, p);
 
-                    let u_plus = (u + eps_u).min(u_max);
-                    let u_minus = (u - eps_u).max(u_min);
-                    let Some(s_u_plus) = evaluate_point(u_plus, v) else {
+                    let first_probe_upper = (u + first_probe_step).min(first_parameter_max);
+                    let first_probe_lower = (u - first_probe_step).max(first_parameter_min);
+                    let Some(u_upper_sample) = evaluate_nurbs_point(first_probe_upper, v) else {
                         break;
                     };
-                    let Some(s_u_minus) = evaluate_point(u_minus, v) else {
+                    let Some(u_lower_sample) = evaluate_nurbs_point(first_probe_lower, v) else {
                         break;
                     };
-                    let du = vec3_scale(
-                        vec3_sub(s_u_plus, s_u_minus),
-                        1.0 / (u_plus - u_minus).max(1e-12),
+                    let first_parameter_tangent = vec3_scale(
+                        vec3_sub(u_upper_sample, u_lower_sample),
+                        1.0 / (first_probe_upper - first_probe_lower).max(1e-12),
                     );
 
-                    let v_plus = (v + eps_v).min(v_max);
-                    let v_minus = (v - eps_v).max(v_min);
-                    let Some(s_v_plus) = evaluate_point(u, v_plus) else {
+                    let second_probe_upper = (v + second_probe_step).min(second_parameter_max);
+                    let second_probe_lower = (v - second_probe_step).max(second_parameter_min);
+                    let Some(v_upper_sample) = evaluate_nurbs_point(u, second_probe_upper) else {
                         break;
                     };
-                    let Some(s_v_minus) = evaluate_point(u, v_minus) else {
+                    let Some(v_lower_sample) = evaluate_nurbs_point(u, second_probe_lower) else {
                         break;
                     };
-                    let dv = vec3_scale(
-                        vec3_sub(s_v_plus, s_v_minus),
-                        1.0 / (v_plus - v_minus).max(1e-12),
+                    let second_parameter_tangent = vec3_scale(
+                        vec3_sub(v_upper_sample, v_lower_sample),
+                        1.0 / (second_probe_upper - second_probe_lower).max(1e-12),
                     );
 
-                    let j00 = vec3_dot(du, du);
-                    let j01 = vec3_dot(du, dv);
-                    let j11 = vec3_dot(dv, dv);
-                    let jr0 = vec3_dot(du, r);
-                    let jr1 = vec3_dot(dv, r);
-                    let det = j00 * j11 - j01 * j01;
+                    let first_tangent_squared =
+                        vec3_dot(first_parameter_tangent, first_parameter_tangent);
+                    let tangent_dot_product =
+                        vec3_dot(first_parameter_tangent, second_parameter_tangent);
+                    let second_tangent_squared =
+                        vec3_dot(second_parameter_tangent, second_parameter_tangent);
+                    let first_tangent_residual_dot =
+                        vec3_dot(first_parameter_tangent, residual_vector);
+                    let second_tangent_residual_dot =
+                        vec3_dot(second_parameter_tangent, residual_vector);
+                    let det = first_tangent_squared * second_tangent_squared
+                        - tangent_dot_product * tangent_dot_product;
                     if det.abs() < 1e-14 {
                         break;
                     }
 
-                    let delta_u = -(j11 * jr0 - j01 * jr1) / det;
-                    let delta_v = -(j00 * jr1 - j01 * jr0) / det;
+                    let first_parameter_correction = -(second_tangent_squared
+                        * first_tangent_residual_dot
+                        - tangent_dot_product * second_tangent_residual_dot)
+                        / det;
+                    let second_parameter_correction = -(first_tangent_squared
+                        * second_tangent_residual_dot
+                        - tangent_dot_product * first_tangent_residual_dot)
+                        / det;
                     let mut improved = false;
                     let mut scale = 1.0;
                     for _ in 0..7 {
-                        let next_u = (u + scale * delta_u).clamp(u_min, u_max);
-                        let next_v = (v + scale * delta_v).clamp(v_min, v_max);
-                        if let Some(point) = evaluate_point(next_u, next_v) {
-                            let next_residual_sq = dist_sq(&point, &p);
-                            if next_residual_sq < residual_sq {
-                                u = next_u;
-                                v = next_v;
-                                residual_sq = next_residual_sq;
+                        let candidate_first_parameter = (u + scale * first_parameter_correction)
+                            .clamp(first_parameter_min, first_parameter_max);
+                        let candidate_second_parameter = (v + scale * second_parameter_correction)
+                            .clamp(second_parameter_min, second_parameter_max);
+                        if let Some(point) = evaluate_nurbs_point(
+                            candidate_first_parameter,
+                            candidate_second_parameter,
+                        ) {
+                            let candidate_residual_squared = dist_sq(&point, &p);
+                            if candidate_residual_squared < current_residual_squared {
+                                u = candidate_first_parameter;
+                                v = candidate_second_parameter;
+                                current_residual_squared = candidate_residual_squared;
                                 current_point = point;
                                 improved = true;
                                 break;
@@ -4594,33 +4617,41 @@ fn tessellate_nurbs_face(
                         }
                         scale *= 0.5;
                     }
-                    if !improved || (scale * delta_u).powi(2) + (scale * delta_v).powi(2) < 1e-14 {
+                    if !improved
+                        || (scale * first_parameter_correction).powi(2)
+                            + (scale * second_parameter_correction).powi(2)
+                            < 1e-14
+                    {
                         break;
                     }
                 }
 
-                if best.is_none_or(|(best_residual, _, _)| residual_sq < best_residual) {
-                    best = Some((residual_sq, u, v));
+                if best_projection.is_none_or(|(best_residual_squared, _, _)| {
+                    current_residual_squared < best_residual_squared
+                }) {
+                    best_projection = Some((current_residual_squared, u, v));
                 }
-                if residual_sq < 1e-14 {
+                if current_residual_squared < 1e-14 {
                     break;
                 }
             }
 
-            best.map(|(_, u, v)| [u, v])
+            best_projection.map(|(_, u, v)| [u, v])
         };
 
-        let delta_u = (u_max - u_min) / 16.0;
-        let delta_v = (v_max - v_min) / 16.0;
-        let delta_uv = delta_u.max(delta_v).max(1e-4);
+        let first_parameter_cell_size = (first_parameter_max - first_parameter_min) / 16.0;
+        let second_parameter_cell_size = (second_parameter_max - second_parameter_min) / 16.0;
+        let max_parameter_cell_size = first_parameter_cell_size
+            .max(second_parameter_cell_size)
+            .max(1e-4);
 
         match try_tessellate_trimmed_surface_with_uv(
             surf_kind,
             project_uv,
-            |u, v| evaluate(u, v),
+            |u, v| evaluate_nurbs_surface(u, v),
             loops_3d,
             direct_uv_loops,
-            [delta_uv; 2],
+            [max_parameter_cell_size; 2],
             false,
             face_sense,
             result,
@@ -4633,12 +4664,12 @@ fn tessellate_nurbs_face(
     }
 
     emit_isoparametric_grid_with(
-        |u, v| evaluate(u, v),
-        u_min,
-        u_max,
+        |u, v| evaluate_nurbs_surface(u, v),
+        first_parameter_min,
+        first_parameter_max,
         16,
-        v_min,
-        v_max,
+        second_parameter_min,
+        second_parameter_max,
         16,
         face_sense,
         result,
@@ -6540,11 +6571,13 @@ fn intersection_chart_solver_visits(brep: &BrepModel, curve: &CurveKind) -> usiz
     };
     if matches!(
         (&a.kind, &b.kind),
-        (SurfaceKind::XtCone { .. }, SurfaceKind::Cylinder { .. })
-            | (SurfaceKind::Cylinder { .. }, SurfaceKind::XtCone { .. })
-            | (SurfaceKind::Plane { .. }, SurfaceKind::XtCone { .. })
-            | (SurfaceKind::XtCone { .. }, SurfaceKind::Plane { .. })
-            | (SurfaceKind::Plane { .. }, SurfaceKind::Cone { .. })
+        (
+            SurfaceKind::XtCone { .. },
+            SurfaceKind::Cylinder { .. } | SurfaceKind::Plane { .. },
+        ) | (
+            SurfaceKind::Cylinder { .. } | SurfaceKind::Plane { .. },
+            SurfaceKind::XtCone { .. },
+        ) | (SurfaceKind::Plane { .. }, SurfaceKind::Cone { .. })
             | (SurfaceKind::Cone { .. }, SurfaceKind::Plane { .. })
     ) {
         2

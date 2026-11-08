@@ -1556,30 +1556,7 @@ impl<'a> Mapper<'a> {
         start_terminator: bool,
         end_terminator: bool,
     ) -> Result<IntersectionData, ParseError> {
-        let uv_field = self
-            .roles
-            .field(node, "uv_type")
-            .or_else(|| self.roles.field(node, "uv_kind"))
-            .ok_or_else(|| self.invalid_field(node, "uv_type", "missing UV type field"))?;
-        let uv_field_name = if uv_field.definition.name == "uv_kind" {
-            "uv_kind"
-        } else {
-            "uv_type"
-        };
-        let uv_type = match self.value(node, uv_field_name)? {
-            FieldValue::UnsignedByte(1) => IntersectionUvType::None,
-            FieldValue::UnsignedByte(2) => IntersectionUvType::First,
-            FieldValue::UnsignedByte(3) => IntersectionUvType::Second,
-            FieldValue::UnsignedByte(4) => IntersectionUvType::Both,
-            FieldValue::UnsignedByte(value) => IntersectionUvType::Unsupported(*value),
-            _ => {
-                return Err(self.invalid_field(
-                    node,
-                    uv_field_name,
-                    "UV type is not an unsigned byte",
-                ));
-            }
-        };
+        let uv_type = self.intersection_uv_type(node)?;
         let raw_values = self
             .field(node, "values")?
             .values
@@ -1667,6 +1644,34 @@ impl<'a> Mapper<'a> {
             chart: Some(chart_uv),
             end_terminator: end_uv,
         })
+    }
+
+    fn intersection_uv_type(&self, node: &RawNode) -> Result<IntersectionUvType, ParseError> {
+        let uv_field = self
+            .roles
+            .field(node, "uv_type")
+            .or_else(|| self.roles.field(node, "uv_kind"))
+            .ok_or_else(|| self.invalid_field(node, "uv_type", "missing UV type field"))?;
+        let uv_field_name = if uv_field.definition.name == "uv_kind" {
+            "uv_kind"
+        } else {
+            "uv_type"
+        };
+        let uv_type = match self.value(node, uv_field_name)? {
+            FieldValue::UnsignedByte(1) => IntersectionUvType::None,
+            FieldValue::UnsignedByte(2) => IntersectionUvType::First,
+            FieldValue::UnsignedByte(3) => IntersectionUvType::Second,
+            FieldValue::UnsignedByte(4) => IntersectionUvType::Both,
+            FieldValue::UnsignedByte(value) => IntersectionUvType::Unsupported(*value),
+            _ => {
+                return Err(self.invalid_field(
+                    node,
+                    uv_field_name,
+                    "UV type is not an unsigned byte",
+                ));
+            }
+        };
+        Ok(uv_type)
     }
 
     fn intersection_points(
