@@ -4410,14 +4410,7 @@ fn nurbs_section_tangent(
         .ok_or(IntersectionEvaluationError::InvalidInput(
             "swept section knot total overflow",
         ))?;
-    if count <= degree
-        || curve.control_vertices.len() != count
-        || curve.knots.len() != curve.knot_multiplicities.len()
-        || curve.knot_multiplicities.is_empty()
-        || curve.knot_multiplicities[0] != u16::try_from(degree + 1).unwrap_or(u16::MAX)
-        || *curve.knot_multiplicities.last().unwrap_or(&0)
-            != u16::try_from(degree + 1).unwrap_or(u16::MAX)
-    {
+    if !is_clamped_nurbs_section(curve, degree, count) {
         return Err(IntersectionEvaluationError::Unsupported(
             "torus/swept tangent requires a clamped NURBS section",
         ));
@@ -4491,6 +4484,16 @@ fn nurbs_section_tangent(
     normalize([derivative[0], derivative[1], derivative[2]]).ok_or(
         IntersectionEvaluationError::Unsupported("swept section tangent is degenerate"),
     )
+}
+
+fn is_clamped_nurbs_section(curve: &NurbsCurve, degree: usize, count: usize) -> bool {
+    count > degree
+        && curve.control_vertices.len() == count
+        && curve.knots.len() == curve.knot_multiplicities.len()
+        && !curve.knot_multiplicities.is_empty()
+        && curve.knot_multiplicities[0] == u16::try_from(degree + 1).unwrap_or(u16::MAX)
+        && *curve.knot_multiplicities.last().unwrap_or(&0)
+            == u16::try_from(degree + 1).unwrap_or(u16::MAX)
 }
 
 fn nurbs_section_derivative_controls(

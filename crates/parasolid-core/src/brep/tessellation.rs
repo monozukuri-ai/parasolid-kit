@@ -1628,14 +1628,11 @@ fn tessellate_brep_to_mesh_inner(
                     .iter()
                     .flatten()
                     .all(|coordinate| coordinate.is_finite());
-                let ring_scale_sq = ring
-                    .first()
-                    .map(|origin| {
-                        ring.iter()
-                            .map(|point| dist_sq(origin, point))
-                            .fold(0.0, f64::max)
-                    })
-                    .unwrap_or(0.0);
+                let ring_scale_sq = ring.first().map_or(0.0, |origin| {
+                    ring.iter()
+                        .map(|point| dist_sq(origin, point))
+                        .fold(0.0, f64::max)
+                });
                 let mut ring_has_area = false;
                 if ring.len() >= 3 && ring_has_finite_points && ring_scale_sq.is_finite() {
                     let origin = ring[0];
@@ -4646,7 +4643,7 @@ fn tessellate_nurbs_face(
         match try_tessellate_trimmed_surface_with_uv(
             surf_kind,
             project_uv,
-            |u, v| evaluate_nurbs_surface(u, v),
+            &evaluate_nurbs_surface,
             loops_3d,
             direct_uv_loops,
             [max_parameter_cell_size; 2],
@@ -4662,7 +4659,7 @@ fn tessellate_nurbs_face(
     }
 
     emit_isoparametric_grid_with(
-        |u, v| evaluate_nurbs_surface(u, v),
+        evaluate_nurbs_surface,
         first_parameter_min,
         first_parameter_max,
         16,
