@@ -11391,11 +11391,7 @@ mod tests {
             let d20 = vec3_sub(tri[2], tri[0]);
             let cross = vec3_cross(d10, d20);
             let area = 0.5 * vec3_norm(cross);
-            assert!(
-                area > 1e-6,
-                "Triangle must have positive area: got {}",
-                area
-            );
+            assert!(area > 1e-6, "Triangle must have positive area: got {area}");
             total_area += area;
 
             for (&pt, &n) in tri.iter().zip(norm.iter()) {
@@ -11414,17 +11410,14 @@ mod tests {
                 let actual_r = (pt[0] * pt[0] + pt[1] * pt[1]).sqrt();
                 assert!(
                     (actual_r - expected_r).abs() < 0.1,
-                    "Vertex radius {} does not match expected cone radius {}",
-                    actual_r,
-                    expected_r
+                    "Vertex radius {actual_r} does not match expected cone radius {expected_r}"
                 );
 
                 // Normal check: unit length
                 let n_len = vec3_norm(n);
                 assert!(
                     (n_len - 1.0).abs() < 1e-4,
-                    "Normal must be normalized: {}",
-                    n_len
+                    "Normal must be normalized: {n_len}"
                 );
 
                 // Normal Z component should be -sin_half_angle = +1/sqrt(5) ~ 0.4472

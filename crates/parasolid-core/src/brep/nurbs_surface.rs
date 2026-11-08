@@ -1686,20 +1686,25 @@ mod tests {
     }
 
     #[test]
-    fn prepared_surface_reuses_controls_and_validates_each_sample() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Prepared and direct evaluators must return exactly equal periodic samples."
+    )]
+    fn prepared_surface_reuses_controls_and_validates_each_sample() -> std::io::Result<()> {
         let periodic = periodic_v_surface();
-        let prepared = PreparedNurbsSurface::new(&periodic).unwrap();
+        let prepared = PreparedNurbsSurface::new(&periodic)?;
         assert_eq!(prepared.active_bounds(), (0.0, 1.0, 1.0, 4.0));
         for (u, v) in [(0.25, 1.5), (0.75, 2.5), (0.25, 4.5)] {
             assert_eq!(
-                prepared.point(u, v).unwrap(),
-                evaluate_mapped_nurbs_surface(&periodic, u, v).unwrap()
+                prepared.point(u, v)?,
+                evaluate_mapped_nurbs_surface(&periodic, u, v)?
             );
         }
         assert!(prepared.point(0.5, f64::MAX).is_err());
 
-        let bounded = PreparedNurbsSurface::new(&closed_nonperiodic_v_surface()).unwrap();
+        let bounded = PreparedNurbsSurface::new(&closed_nonperiodic_v_surface())?;
         assert!(bounded.point(0.5, 3.1).is_err());
+        Ok(())
     }
 
     fn closed_nonperiodic_uv_surface() -> NurbsSurface {

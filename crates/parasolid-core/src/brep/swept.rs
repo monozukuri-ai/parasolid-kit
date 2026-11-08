@@ -179,16 +179,21 @@ mod tests {
     }
 
     #[test]
-    fn ruled_sweep_uses_linear_section_extensions_at_both_endpoints() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "the integer-valued endpoint fixture produces exact expected coordinates for its affine extension"
+    )]
+    fn ruled_sweep_uses_linear_section_extensions_at_both_endpoints() -> std::io::Result<()> {
         let direction = [0.0, 2.0, 3.0];
         assert_eq!(
-            evaluate_ruled_sweep_point_candidate(&section_line(), direction, 0.0, 2.0).unwrap(),
+            evaluate_ruled_sweep_point_candidate(&section_line(), direction, 0.0, 2.0)?,
             [-4.0, 4.0, 3.0]
         );
         assert_eq!(
-            evaluate_ruled_sweep_point_candidate(&section_line(), direction, 8.0, 2.0).unwrap(),
+            evaluate_ruled_sweep_point_candidate(&section_line(), direction, 8.0, 2.0)?,
             [12.0, 12.0, 11.0]
         );
+        Ok(())
     }
 
     #[test]
