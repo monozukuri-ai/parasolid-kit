@@ -636,6 +636,10 @@ fn tessellate_mapped_xt_swept_face_internal(
     clippy::float_cmp,
     reason = "Exact parameter equality detects collapsed trim intervals without changing source parameter semantics."
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Coordinates loop sampling, surface-specific paths, and fail-closed face assembly; extracting these branches risks changing shared failure behavior."
+)]
 fn tessellate_brep_to_mesh_inner(
     brep: &BrepModel,
     chord_error_mm: f64,
@@ -3227,6 +3231,10 @@ where
     )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Periodic UV trimming and sampled-error fallback share validation state and must preserve coordinated rejection behavior."
+)]
 fn try_tessellate_trimmed_surface_with_uv_and_sampled_error<F, E>(
     surf_kind: &SurfaceKind,
     project_uv: F,
@@ -5146,6 +5154,10 @@ fn evaluate_surface_recursive(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Projected-curve validation, endpoint matching, and triangle generation form one coordinated swept-face pipeline."
+)]
 fn tessellate_swept_face_projected(
     brep: &BrepModel,
     section_kind: &CurveKind,
@@ -5446,6 +5458,10 @@ fn tessellate_swept_face_projected(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Surface parameterization, trim handling, and normal orientation are coupled in this spun-face tessellator."
+)]
 fn tessellate_spun_face(
     brep: &BrepModel,
     surf_kind: &SurfaceKind,
@@ -5745,6 +5761,10 @@ fn point_inside_polygon(pt: [f64; 2], poly: &[[f64; 2]]) -> bool {
     inside
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Linked topology validation and UV projection must preserve ordered loop continuity and shared rejection paths."
+)]
 fn surface_parametric_uv_loop(
     brep: &BrepModel,
     surface_id: u32,

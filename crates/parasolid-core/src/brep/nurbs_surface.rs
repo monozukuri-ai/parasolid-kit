@@ -942,6 +942,10 @@ fn degree_one_transverse_seam_within_tolerance(
     clippy::float_cmp,
     reason = "Clamped knot detection must preserve exact endpoint-knot equality semantics."
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Periodic seam validation keeps its ordered endpoint evaluation and rejection checks together."
+)]
 fn validate_periodic_surface_seam(
     homogeneous: &[[f64; 4]],
     u_count: usize,
@@ -1250,6 +1254,10 @@ impl PreparedNurbsSurface {
     #[allow(
         clippy::float_cmp,
         reason = "Periodic profile detection requires exact repeated-knot differences to match the period."
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Preparation validates and stages the complete NURBS surface representation as one operation."
     )]
     pub(super) fn new(surface: &NurbsSurface) -> io::Result<Self> {
         let (u_degree, v_degree) = (usize::from(surface.u_degree), usize::from(surface.v_degree));

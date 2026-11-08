@@ -137,6 +137,10 @@ pub fn evaluate_intersection_candidate(
     clippy::float_cmp,
     reason = "exact parameter equality identifies fixed chart bounds and endpoints"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The chart solve keeps numerical updates and geometry checks in their required order."
+)]
 fn evaluate_plane_swept_offset_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -711,6 +715,10 @@ fn select_unique_axis_candidate(
     clippy::float_cmp,
     reason = "exact parameter equality identifies stored chart stations"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The chart evaluation keeps root selection and support validation together in their required order."
+)]
 pub fn evaluate_torus_ruled_sweep_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1082,6 +1090,10 @@ pub fn evaluate_torus_ruled_sweep_intersection_candidate(
     clippy::float_cmp,
     reason = "exact parameter equality identifies a stored chart station"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The exact straight-branch reconstruction and validation flow must remain ordered together."
+)]
 pub fn evaluate_plane_plane_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1310,6 +1322,10 @@ pub fn evaluate_plane_plane_intersection_candidate(
 #[allow(
     clippy::float_cmp,
     reason = "exact parameter and endpoint equality preserve chart selection semantics"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The chart root solve and geometric checks must preserve their current numeric and validation order."
 )]
 pub fn evaluate_plane_cylinder_intersection_candidate(
     brep: &BrepModel,
@@ -1753,6 +1769,10 @@ fn intersection_is_plane_regular_cone(
     clippy::float_cmp,
     reason = "exact parameter equality identifies a stored chart station"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The cone chart solve keeps branch selection and geometric validation in their required order."
+)]
 fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -1991,20 +2011,18 @@ fn evaluate_plane_xt_cone_intersection_candidate_with_axis(
             "intersection chart has no points",
         ))?;
     validate_limit(end_limit_kind, end_points, last_point)?;
-    let tangent_at = |point| {
-        plane_xt_cone_station_tangent(
-            point,
-            cone.0,
-            axis,
-            xt_axis,
-            cone.2,
-            tangent_half_angle,
-            cone_sense,
-            plane_normal,
-            order,
-            tolerance,
-        )
+    let tangent_context = PlaneXtConeTangentContext {
+        cone_origin: cone.0,
+        axis,
+        xt_axis,
+        radius: cone.2,
+        tangent_half_angle,
+        cone_sense,
+        plane_normal,
+        order,
+        tolerance,
     };
+    let tangent_at = |point| plane_xt_cone_station_tangent(point, tangent_context);
     for point in &points {
         let plane_residual = dot(sub(*point, plane.0), plane_normal).abs();
         let section_radius = cone_section_radius(*point);
@@ -2385,6 +2403,17 @@ fn plane_xt_cone_inverse_chart_data(
     } else {
         xt_axis
     };
+    let tangent_context = PlaneXtConeTangentContext {
+        cone_origin: cone.0,
+        axis,
+        xt_axis,
+        radius: cone.2,
+        tangent_half_angle,
+        cone_sense,
+        plane_normal,
+        order,
+        tolerance: geometric_tolerance,
+    };
     let mut tangents = Vec::with_capacity(points.len() - 1);
     for point in &points[..points.len() - 1] {
         let relative = sub(*point, cone.0);
@@ -2398,24 +2427,13 @@ fn plane_xt_cone_inverse_chart_data(
                 "intersection chart point is not on both support surfaces",
             ));
         }
-        tangents.push(plane_xt_cone_station_tangent(
-            *point,
-            cone.0,
-            axis,
-            xt_axis,
-            cone.2,
-            tangent_half_angle,
-            cone_sense,
-            plane_normal,
-            order,
-            geometric_tolerance,
-        )?);
+        tangents.push(plane_xt_cone_station_tangent(*point, tangent_context)?);
     }
     Ok((points, tangents, geometric_tolerance))
 }
 
-fn plane_xt_cone_station_tangent(
-    point: [f64; 3],
+#[derive(Clone, Copy)]
+struct PlaneXtConeTangentContext {
     cone_origin: [f64; 3],
     axis: [f64; 3],
     xt_axis: [f64; 3],
@@ -2425,7 +2443,23 @@ fn plane_xt_cone_station_tangent(
     plane_normal: [f64; 3],
     order: f64,
     tolerance: f64,
+}
+
+fn plane_xt_cone_station_tangent(
+    point: [f64; 3],
+    context: PlaneXtConeTangentContext,
 ) -> Result<[f64; 3], IntersectionEvaluationError> {
+    let PlaneXtConeTangentContext {
+        cone_origin,
+        axis,
+        xt_axis,
+        radius,
+        tangent_half_angle,
+        cone_sense,
+        plane_normal,
+        order,
+        tolerance,
+    } = context;
     let relative = sub(point, cone_origin);
     let v = -dot(relative, axis);
     let radial = sub(relative, scale(axis, dot(relative, axis)));
@@ -2894,6 +2928,10 @@ fn evaluate_cone_cylinder_intersection_candidate_with_axis(
 #[allow(
     clippy::float_cmp,
     reason = "exact parameter equality identifies a stored chart station"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The mapped cone/cylinder root search preserves its ordered chart and support validation flow."
 )]
 fn cone_cylinder_intersection_roots_with_axis(
     brep: &BrepModel,
@@ -3373,6 +3411,10 @@ fn cone_cylinder_intersection_roots_with_axis(
     clippy::float_cmp,
     reason = "exact parameter equality identifies a stored chart station and endpoint locator"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The evaluator preserves coupled chart-root selection and geometric validation order."
+)]
 pub fn evaluate_cylinder_cylinder_intersection_candidate(
     brep: &BrepModel,
     curve: &CurveKind,
@@ -3722,6 +3764,10 @@ pub fn evaluate_cylinder_cylinder_intersection_candidate(
 #[allow(
     clippy::float_cmp,
     reason = "exact parameter equality identifies a stored chart station"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The chart solve preserves the ordered branch selection and support validation flow."
 )]
 pub fn evaluate_cylinder_torus_intersection_candidate(
     brep: &BrepModel,

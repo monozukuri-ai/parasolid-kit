@@ -954,23 +954,27 @@ fn map_assembly(
         }
         let child = chain(
             node,
-            fields.assembly_sub_instances,
-            fields.instance_next_in_assembly,
-            fields.instance_previous_in_assembly,
+            ChainFields {
+                head: fields.assembly_sub_instances,
+                next: fields.instance_next_in_assembly,
+                previous: fields.instance_previous_in_assembly,
+                child_chain: true,
+            },
             &by_index,
             &instance_indices,
             &instances_by_index,
-            true,
         )?;
         let referencing = chain(
             node,
-            fields.assembly_instances,
-            fields.instance_next_of_part,
-            fields.instance_previous_of_part,
+            ChainFields {
+                head: fields.assembly_instances,
+                next: fields.instance_next_of_part,
+                previous: fields.instance_previous_of_part,
+                child_chain: false,
+            },
             &by_index,
             &instance_indices,
             &instances_by_index,
-            false,
         )?;
         mapped_assemblies.push(AssemblyNode {
             index: node.index,
@@ -1485,17 +1489,21 @@ fn embedded_roles_are_copies(
     }
 }
 
+struct ChainFields {
+    head: &'static str,
+    next: &'static str,
+    previous: &'static str,
+    child_chain: bool,
+}
+
 fn chain(
     owner: &RawNode,
-    head_field: &'static str,
-    next_field: &'static str,
-    previous_field: &'static str,
+    fields: ChainFields,
     by_index: &BTreeMap<u32, &RawNode>,
     instances: &BTreeSet<u32>,
     mapped: &BTreeMap<u32, &InstanceNode>,
-    child_chain: bool,
 ) -> Result<Vec<u32>, ParseError> {
-    let mut index = effective_pointer(pointer(owner, head_field)?, by_index);
+    let mut index = effective_pointer(pointer(owner, fields.head)?, by_index);
     let mut seen = BTreeSet::new();
     let mut result = Vec::new();
     let mut previous = 0;
@@ -1503,20 +1511,20 @@ fn chain(
         if !instances.contains(&index) || !seen.insert(index) {
             return Err(invalid_reference(
                 owner,
-                head_field,
+                fields.head,
                 index,
                 "acyclic INSTANCE chain",
             ));
         }
         let instance = mapped
             .get(&index)
-            .ok_or_else(|| invalid_reference(owner, head_field, index, "INSTANCE"))?;
-        if (child_chain && instance.assembly != owner.index)
-            || (!child_chain && (!instance.part_is_assembly || instance.part != owner.index))
+            .ok_or_else(|| invalid_reference(owner, fields.head, index, "INSTANCE"))?;
+        if (fields.child_chain && instance.assembly != owner.index)
+            || (!fields.child_chain && (!instance.part_is_assembly || instance.part != owner.index))
         {
             return Err(invalid_reference(
                 owner,
-                head_field,
+                fields.head,
                 index,
                 "matching INSTANCE ownership",
             ));
@@ -1524,17 +1532,17 @@ fn chain(
         let node = by_index
             .get(&index)
             .copied()
-            .ok_or_else(|| invalid_reference(owner, head_field, index, "INSTANCE"))?;
-        if effective_pointer(pointer(node, previous_field)?, by_index) != previous {
+            .ok_or_else(|| invalid_reference(owner, fields.head, index, "INSTANCE"))?;
+        if effective_pointer(pointer(node, fields.previous)?, by_index) != previous {
             return Err(invalid_reference(
                 owner,
-                previous_field,
-                effective_pointer(pointer(node, previous_field)?, by_index),
+                fields.previous,
+                effective_pointer(pointer(node, fields.previous)?, by_index),
                 "inverse INSTANCE link",
             ));
         }
         result.push(index);
-        index = effective_pointer(pointer(node, next_field)?, by_index);
+        index = effective_pointer(pointer(node, fields.next)?, by_index);
         previous = node.index;
     }
     Ok(result)

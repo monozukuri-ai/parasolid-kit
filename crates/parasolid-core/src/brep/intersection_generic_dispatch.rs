@@ -8,6 +8,10 @@ use super::{
 };
 
 /// Evaluates only the regular interval represented by an XT `INTERSECTION` CHART.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The support-pair dispatch keeps candidate eligibility and evaluation fallback order explicit."
+)]
 pub(crate) fn evaluate_generic_intersection(
     brep: &BrepModel,
     curve: &CurveKind,

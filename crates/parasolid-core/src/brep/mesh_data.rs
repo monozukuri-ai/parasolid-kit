@@ -543,6 +543,10 @@ pub fn decode_embedded_mesh(
     MeshDecodeContext::new(schema_key, nodes, mesh_index)?.decode_embedded_mesh(mesh_index)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "This decoder keeps the ordered field validation and mesh reconstruction steps together."
+)]
 fn decode_embedded_mesh_with(
     context: &MeshDecodeContext<'_>,
     mesh_index: u32,
