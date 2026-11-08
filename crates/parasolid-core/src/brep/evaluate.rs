@@ -189,23 +189,97 @@ pub fn evaluate_surface(
         }
         crate::brep::SurfaceKind::Nurbs(nurbs) => {
             let pt = crate::brep::evaluate_mapped_nurbs_surface(nurbs, u, v).ok()?;
-            let eps = 1e-4;
-            let pt_u1 = crate::brep::evaluate_mapped_nurbs_surface(nurbs, u + eps, v).unwrap_or(pt);
-            let pt_u0 = crate::brep::evaluate_mapped_nurbs_surface(nurbs, u - eps, v).unwrap_or(pt);
-            let du = vec3_scale(vec3_sub(pt_u1, pt_u0), 1.0 / (2.0 * eps));
-            let pt_v1 = crate::brep::evaluate_mapped_nurbs_surface(nurbs, u, v + eps).unwrap_or(pt);
-            let pt_v0 = crate::brep::evaluate_mapped_nurbs_surface(nurbs, u, v - eps).unwrap_or(pt);
-            let dv = vec3_scale(vec3_sub(pt_v1, pt_v0), 1.0 / (2.0 * eps));
+            let u_domain = nurbs_active_domain(
+                &nurbs.u_knots,
+                &nurbs.u_knot_multiplicities,
+                usize::try_from(nurbs.u_control_vertex_count).ok()?,
+                usize::from(nurbs.u_degree),
+            )?;
+            let v_domain = nurbs_active_domain(
+                &nurbs.v_knots,
+                &nurbs.v_knot_multiplicities,
+                usize::try_from(nurbs.v_control_vertex_count).ok()?,
+                usize::from(nurbs.v_degree),
+            )?;
+            let du = nurbs_tangent(nurbs, u, v, u_domain, nurbs.u_periodic, true, pt)?;
+            let dv = nurbs_tangent(nurbs, u, v, v_domain, nurbs.v_periodic, false, pt)?;
             let cross = vec3_cross(du, dv);
-            let normal = if vec3_norm(cross) > 1e-12 {
-                vec3_normalize(cross)
-            } else {
-                [0.0, 0.0, 1.0]
-            };
+            let normal = normalize_nonzero(cross).unwrap_or([0.0, 0.0, 1.0]);
             Some(SurfaceEvaluation { point: pt, normal })
         }
         _ => None,
     }
+}
+
+fn nurbs_active_domain(
+    knots: &[f64],
+    multiplicities: &[u16],
+    control_count: usize,
+    degree: usize,
+) -> Option<(f64, f64)> {
+    let mut active = [None; 2];
+    let mut index = 0usize;
+    for (&knot, &multiplicity) in knots.iter().zip(multiplicities) {
+        let next = index.checked_add(usize::from(multiplicity))?;
+        if index <= degree && degree < next {
+            active[0] = Some(knot);
+        }
+        if index <= control_count && control_count < next {
+            active[1] = Some(knot);
+            break;
+        }
+        index = next;
+    }
+    let (Some(min), Some(max)) = (active[0], active[1]) else {
+        return None;
+    };
+    (min.is_finite() && max.is_finite() && max > min).then_some((min, max))
+}
+
+fn nurbs_tangent(
+    surface: &crate::brep::NurbsSurface,
+    u: f64,
+    v: f64,
+    (min, max): (f64, f64),
+    periodic: bool,
+    along_u: bool,
+    point: [f64; 3],
+) -> Option<[f64; 3]> {
+    let parameter = if along_u { u } else { v };
+    let step = (max - min) * 1e-4;
+    let evaluate = |parameter| {
+        if along_u {
+            crate::brep::evaluate_mapped_nurbs_surface(surface, parameter, v)
+        } else {
+            crate::brep::evaluate_mapped_nurbs_surface(surface, u, parameter)
+        }
+    };
+    if !step.is_finite() || step <= 0.0 {
+        return None;
+    }
+    let (lower, upper) = if periodic || (parameter - step >= min && parameter + step <= max) {
+        (
+            evaluate(parameter - step).ok()?,
+            evaluate(parameter + step).ok()?,
+        )
+    } else if parameter + step <= max {
+        (point, evaluate(parameter + step).ok()?)
+    } else if parameter - step >= min {
+        (evaluate(parameter - step).ok()?, point)
+    } else {
+        return None;
+    };
+    normalize_nonzero(vec3_sub(upper, lower))
+}
+
+fn normalize_nonzero(vector: [f64; 3]) -> Option<[f64; 3]> {
+    let scale = vector.into_iter().map(f64::abs).fold(0.0, f64::max);
+    if !scale.is_finite() || scale == 0.0 {
+        return None;
+    }
+    let scaled = vector.map(|component| component / scale);
+    let length = vec3_norm(scaled);
+    (length.is_finite() && length > 0.0).then(|| scaled.map(|component| component / length))
 }
 
 pub(super) fn plane_uv_from_point(
@@ -475,8 +549,8 @@ mod tests {
         vec3_cross, vec3_dot, vec3_normalize, vec3_scale, vec3_sub,
     };
     use crate::brep::{
-        BrepMetrics, BrepModel, BrepSourceFormat, CurveKind, Sense, SourceNodeRef, SurfaceGeometry,
-        SurfaceKind, TopologyValidation, Vector3,
+        BrepMetrics, BrepModel, BrepSourceFormat, CurveKind, NurbsSurface, Sense, SourceNodeRef,
+        SurfaceGeometry, SurfaceKind, TopologyValidation, Vector3,
     };
 
     #[test]
@@ -499,6 +573,45 @@ mod tests {
         let evaluated = evaluate_curve(&circle, 0.0).unwrap();
         assert_eq!(evaluated.point, [3.0, 2.0, 3.0]);
         assert_eq!(evaluated.tangent, [0.0, 2.0, 0.0]);
+    }
+
+    #[test]
+    fn evaluates_tiny_domain_nurbs_plane_normal_at_bounds() {
+        let domain = 1e-8;
+        let extent = 1e-15;
+        let surface = SurfaceKind::Nurbs(NurbsSurface {
+            u_degree: 1,
+            v_degree: 1,
+            u_control_vertex_count: 2,
+            v_control_vertex_count: 2,
+            vertex_dimension: 3,
+            u_knot_type: 0,
+            v_knot_type: 0,
+            u_periodic: false,
+            v_periodic: false,
+            u_closed: false,
+            v_closed: false,
+            rational: false,
+            surface_form: 0,
+            control_vertices: vec![
+                vec![0.0, 0.0, 0.0],
+                vec![0.0, 0.0, extent],
+                vec![extent, 0.0, 0.0],
+                vec![extent, 0.0, extent],
+            ],
+            u_knots: vec![0.0, domain],
+            v_knots: vec![0.0, domain],
+            u_knot_multiplicities: vec![2, 2],
+            v_knot_multiplicities: vec![2, 2],
+            sources: vec![],
+        });
+
+        for (u, v) in [(0.0, 0.0), (domain * 0.5, domain * 0.5), (domain, domain)] {
+            let evaluated = evaluate_surface(&surface, u, v).expect("evaluate NURBS plane");
+            assert!(evaluated.normal[1] < -0.999999999999);
+            assert!(evaluated.normal[0].abs() < 1e-12);
+            assert!(evaluated.normal[2].abs() < 1e-12);
+        }
     }
 
     #[test]
