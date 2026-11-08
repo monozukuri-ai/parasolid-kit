@@ -1078,7 +1078,7 @@ fn tessellate_brep_to_mesh_inner(
                                 }
                             }
                         }
-                        Some((CurveKind::Nurbs(nurbs), _)) => {
+                        Some((CurveKind::Nurbs(nurbs), curve_sense)) => {
                             let (p_start_param, p_end_param) = match trimmed_params {
                                 Some((p0, p1))
                                     if p0.is_finite()
@@ -1090,7 +1090,12 @@ fn tessellate_brep_to_mesh_inner(
                                 _ => {
                                     let u_min = nurbs.knots.first().copied().unwrap_or(0.0);
                                     let u_max = nurbs.knots.last().copied().unwrap_or(1.0);
-                                    (u_min, u_max)
+                                    // Explicit trim parameters already encode the basis curve's sense.
+                                    if curve_sense == Sense::Negative {
+                                        (u_max, u_min)
+                                    } else {
+                                        (u_min, u_max)
+                                    }
                                 }
                             };
                             let (t_start, t_end) = if he.sense == Sense::Positive {
@@ -4444,82 +4449,106 @@ fn tessellate_nurbs_face(
         }
 
         let project_uv = |p: [f64; 3], _ring: &[[f64; 3]], _i: usize| -> Option<[f64; 2]> {
-            if coarse_samples.is_empty() {
-                return None;
-            }
-            let mut best_u = coarse_samples[0].0;
-            let mut best_v = coarse_samples[0].1;
-            let mut best_dist = dist_sq(&coarse_samples[0].2, &p);
-            for &(su, sv, spt) in &coarse_samples[1..] {
-                let d = dist_sq(&spt, &p);
-                if d < best_dist {
-                    best_dist = d;
-                    best_u = su;
-                    best_v = sv;
-                }
-            }
-
-            let mut u = best_u;
-            let mut v = best_v;
             let u_span = (u_max - u_min).max(1e-6);
             let v_span = (v_max - v_min).max(1e-6);
             let eps_u = (u_span * 1e-4).clamp(1e-7, 1e-3);
             let eps_v = (v_span * 1e-4).clamp(1e-7, 1e-3);
-
-            for _ in 0..5 {
-                let Some(pt) = evaluate_point(u, v) else {
+            // Nearby points on a folded surface can belong to different UV regions.
+            let mut selected: Vec<(f64, f64)> = Vec::with_capacity(8);
+            let mut best = None;
+            for _ in 0..8 {
+                let next = coarse_samples
+                    .iter()
+                    .filter(|&&(u, v, _)| {
+                        selected.iter().all(|&(su, sv)| {
+                            (u - su).abs() >= u_span / 8.0 || (v - sv).abs() >= v_span / 8.0
+                        })
+                    })
+                    .map(|&(u, v, point)| (dist_sq(&point, &p), u, v, point))
+                    .min_by(|a, b| a.0.total_cmp(&b.0));
+                let Some((mut residual_sq, mut u, mut v, mut current_point)) = next else {
                     break;
                 };
-                let r = vec3_sub(pt, p);
-                if dist_sq(&pt, &p) < 1e-14 {
-                    break;
+                selected.push((u, v));
+
+                for _ in 0..8 {
+                    if residual_sq < 1e-14 {
+                        break;
+                    }
+                    let r = vec3_sub(current_point, p);
+
+                    let u_plus = (u + eps_u).min(u_max);
+                    let u_minus = (u - eps_u).max(u_min);
+                    let Some(s_u_plus) = evaluate_point(u_plus, v) else {
+                        break;
+                    };
+                    let Some(s_u_minus) = evaluate_point(u_minus, v) else {
+                        break;
+                    };
+                    let du = vec3_scale(
+                        vec3_sub(s_u_plus, s_u_minus),
+                        1.0 / (u_plus - u_minus).max(1e-12),
+                    );
+
+                    let v_plus = (v + eps_v).min(v_max);
+                    let v_minus = (v - eps_v).max(v_min);
+                    let Some(s_v_plus) = evaluate_point(u, v_plus) else {
+                        break;
+                    };
+                    let Some(s_v_minus) = evaluate_point(u, v_minus) else {
+                        break;
+                    };
+                    let dv = vec3_scale(
+                        vec3_sub(s_v_plus, s_v_minus),
+                        1.0 / (v_plus - v_minus).max(1e-12),
+                    );
+
+                    let j00 = vec3_dot(du, du);
+                    let j01 = vec3_dot(du, dv);
+                    let j11 = vec3_dot(dv, dv);
+                    let jr0 = vec3_dot(du, r);
+                    let jr1 = vec3_dot(dv, r);
+                    let det = j00 * j11 - j01 * j01;
+                    if det.abs() < 1e-14 {
+                        break;
+                    }
+
+                    let delta_u = -(j11 * jr0 - j01 * jr1) / det;
+                    let delta_v = -(j00 * jr1 - j01 * jr0) / det;
+                    let mut improved = false;
+                    let mut scale = 1.0;
+                    for _ in 0..7 {
+                        let next_u = (u + scale * delta_u).clamp(u_min, u_max);
+                        let next_v = (v + scale * delta_v).clamp(v_min, v_max);
+                        if let Some(point) = evaluate_point(next_u, next_v) {
+                            let next_residual_sq = dist_sq(&point, &p);
+                            if next_residual_sq < residual_sq {
+                                u = next_u;
+                                v = next_v;
+                                residual_sq = next_residual_sq;
+                                current_point = point;
+                                improved = true;
+                                break;
+                            }
+                        }
+                        scale *= 0.5;
+                    }
+                    if !improved
+                        || (scale * delta_u).powi(2) + (scale * delta_v).powi(2) < 1e-14
+                    {
+                        break;
+                    }
                 }
 
-                let u_plus = (u + eps_u).min(u_max);
-                let u_minus = (u - eps_u).max(u_min);
-                let du_step = u_plus - u_minus;
-                let Some(s_u_plus) = evaluate_point(u_plus, v) else {
-                    break;
-                };
-                let Some(s_u_minus) = evaluate_point(u_minus, v) else {
-                    break;
-                };
-                let du = vec3_scale(vec3_sub(s_u_plus, s_u_minus), 1.0 / du_step.max(1e-12));
-
-                let v_plus = (v + eps_v).min(v_max);
-                let v_minus = (v - eps_v).max(v_min);
-                let dv_step = v_plus - v_minus;
-                let Some(s_v_plus) = evaluate_point(u, v_plus) else {
-                    break;
-                };
-                let Some(s_v_minus) = evaluate_point(u, v_minus) else {
-                    break;
-                };
-                let dv = vec3_scale(vec3_sub(s_v_plus, s_v_minus), 1.0 / dv_step.max(1e-12));
-
-                let j00 = vec3_dot(du, du);
-                let j01 = vec3_dot(du, dv);
-                let j11 = vec3_dot(dv, dv);
-                let jr0 = vec3_dot(du, r);
-                let jr1 = vec3_dot(dv, r);
-
-                let det = j00 * j11 - j01 * j01;
-                if det.abs() < 1e-14 {
-                    break;
+                if best.is_none_or(|(best_residual, _, _)| residual_sq < best_residual) {
+                    best = Some((residual_sq, u, v));
                 }
-
-                let delta_u = -(j11 * jr0 - j01 * jr1) / det;
-                let delta_v = -(j00 * jr1 - j01 * jr0) / det;
-
-                u = (u + delta_u).clamp(u_min, u_max);
-                v = (v + delta_v).clamp(v_min, v_max);
-
-                if delta_u * delta_u + delta_v * delta_v < 1e-14 {
+                if residual_sq < 1e-14 {
                     break;
                 }
             }
 
-            Some([u, v])
+            best.map(|(_, u, v)| [u, v])
         };
 
         let delta_u = (u_max - u_min) / n_u as f64;
