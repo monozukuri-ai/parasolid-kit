@@ -140,7 +140,7 @@ SDIST_ROOT_DIRECTORIES = {
     "LICENSES",
     "corpus",
     "crates",
-    "docs",
+    "upstream-docs",
     "fuzz",
     "scripts",
     "src",
