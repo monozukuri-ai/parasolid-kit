@@ -170,6 +170,10 @@ fn evaluate_mapped_nurbs_curve_inner(
 ///
 /// # Errors
 /// Returns an error when the NURBS data, periodic representation, or parameter is invalid.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "This public evaluator preserves its established parameter-based API for compatibility."
+)]
 pub fn evaluate_nurbs_curve_values_candidate(
     degree: usize,
     rational: bool,
