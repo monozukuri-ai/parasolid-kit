@@ -871,6 +871,10 @@ impl SurfaceKind {
     /// Returns `None` for non-mesh surfaces and for MESH records with no embedded PSM data.
     /// A null transform leaves coordinates in their raw stored frame; no unit conversion is
     /// applied.
+    ///
+    /// # Errors
+    /// Returns an error for invalid mesh data, a missing or mismatched transform, unknown
+    /// senses, or a transform that cannot place a point.
     pub fn mesh_triangles_with_index_origin(
         &self,
         origin: MeshIndexOrigin,
@@ -1044,6 +1048,10 @@ impl BrepModel {
     ///
     /// Missing faces, surfaces, non-mesh surfaces, and meshes without embedded data return
     /// `None`. Ambiguous face/surface IDs or an ambiguous index origin return an error.
+    ///
+    /// # Errors
+    /// Returns an error for ambiguous face or surface IDs, an ambiguous index origin, invalid
+    /// mesh data, or an invalid linked transform.
     pub fn mesh_triangles_for_face_with_inferred_index_origin(
         &self,
         face_id: BrepId,

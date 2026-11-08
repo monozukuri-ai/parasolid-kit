@@ -132,23 +132,44 @@ pub fn intersect_torus_ruled_sweep_with_chart_plane_candidate(
         Ok((residual, v, point))
     };
 
+    let roots = scan_sign_change_roots(u_bracket, |u| {
+        residual_at(u).map(|(residual, _, _)| residual)
+    })?;
+    match roots.as_slice() {
+        [] => Err(ChartIntersectionError::NoRoot),
+        [u] => {
+            let (residual, v, point) = residual_at(*u)?;
+            Ok(ChartIntersectionCandidate {
+                uv: [*u, v],
+                point,
+                torus_residual: residual.abs(),
+            })
+        }
+        _ => Err(ChartIntersectionError::Ambiguous { roots: roots.len() }),
+    }
+}
+
+fn scan_sign_change_roots(
+    u_bracket: [f64; 2],
+    residual_at: impl Fn(f64) -> Result<f64, ChartIntersectionError>,
+) -> Result<Vec<f64>, ChartIntersectionError> {
     let mut roots = Vec::new();
     let mut left = u_bracket[0];
-    let mut f_left = residual_at(left)?.0;
+    let mut f_left = residual_at(left)?;
     if f_left == 0.0 {
         push_root(&mut roots, left);
     }
     for i in 1..=SCAN_STEPS {
         let right =
             u_bracket[0] + (u_bracket[1] - u_bracket[0]) * f64::from(i) / f64::from(SCAN_STEPS);
-        let f_right = residual_at(right)?.0;
+        let f_right = residual_at(right)?;
         if f_right == 0.0 {
             push_root(&mut roots, right);
         } else if f_left != 0.0 && f_left.signum() != f_right.signum() {
             let (mut lo, mut hi, mut flo) = (left, right, f_left);
             for _ in 0..BISECTION_STEPS {
                 let mid = lo * 0.5 + hi * 0.5;
-                let f_mid = residual_at(mid)?.0;
+                let f_mid = residual_at(mid)?;
                 if f_mid == 0.0 {
                     lo = mid;
                     hi = mid;
@@ -166,18 +187,7 @@ pub fn intersect_torus_ruled_sweep_with_chart_plane_candidate(
         }
         (left, f_left) = (right, f_right);
     }
-    match roots.as_slice() {
-        [] => Err(ChartIntersectionError::NoRoot),
-        [u] => {
-            let (residual, v, point) = residual_at(*u)?;
-            Ok(ChartIntersectionCandidate {
-                uv: [*u, v],
-                point,
-                torus_residual: residual.abs(),
-            })
-        }
-        _ => Err(ChartIntersectionError::Ambiguous { roots: roots.len() }),
-    }
+    Ok(roots)
 }
 
 fn push_root(roots: &mut Vec<f64>, root: f64) {

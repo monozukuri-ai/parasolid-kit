@@ -217,6 +217,9 @@ impl RawMeshData {
     ///
     /// The raw pools remain unchanged. This method does not infer an origin; when both
     /// conventions fit the values, the caller's selection determines the triangles.
+    ///
+    /// # Errors
+    /// Returns an error when the pools are malformed or an index is invalid under `origin`.
     pub fn triangles_with_index_origin(
         &self,
         origin: MeshIndexOrigin,
@@ -814,53 +817,7 @@ fn decode_mesh_linked_transform_with(
         return Err(invalid(transform, "flag", "transform flags are negative"));
     }
     let perspective = exact_optional_vector(transform, "perspective_vector")?;
-    let precision = if transform
-        .definition
-        .fields
-        .iter()
-        .any(|definition| definition.name == "precision")
-    {
-        let link = field(transform, "precision", FieldType::PointerIndex)?;
-        validate_exact_field(transform, link, "precision")?;
-        if link.definition.pointer_class != 229 || link.definition.element_count != 0 {
-            return Err(invalid(
-                transform,
-                "precision",
-                "precision pointer schema type or count is wrong",
-            ));
-        }
-        match link.values.as_slice() {
-            [FieldValue::PointerIndex(0)] => None,
-            [FieldValue::PointerIndex(index)] => {
-                let precision_node = target(
-                    by_index,
-                    definitions,
-                    transform.index,
-                    229,
-                    "TRANSFORM_PRECISION",
-                    *index,
-                    "precision",
-                )?;
-                Some(TransformPrecision {
-                    index: precision_node.index,
-                    rotation_correction: exact_double_array::<9>(
-                        precision_node,
-                        "rotation_matrix",
-                    )?,
-                    translation_correction: exact_vector(precision_node, "translation_vector")?,
-                })
-            }
-            _ => {
-                return Err(invalid(
-                    transform,
-                    "precision",
-                    "precision must contain one pointer value",
-                ));
-            }
-        }
-    } else {
-        None
-    };
+    let precision = decode_transform_precision(definitions, by_index, transform)?;
 
     Ok(Some(TransformNode {
         index: transform.index,
@@ -872,6 +829,54 @@ fn decode_mesh_linked_transform_with(
         precision,
         byte_range: transform.byte_range.clone(),
     }))
+}
+
+fn decode_transform_precision(
+    definitions: &HashMap<u16, TypeDefinition>,
+    by_index: &HashMap<u32, &RawNode>,
+    transform: &RawNode,
+) -> Result<Option<TransformPrecision>, MeshDataError> {
+    if !transform
+        .definition
+        .fields
+        .iter()
+        .any(|definition| definition.name == "precision")
+    {
+        return Ok(None);
+    }
+    let link = field(transform, "precision", FieldType::PointerIndex)?;
+    validate_exact_field(transform, link, "precision")?;
+    if link.definition.pointer_class != 229 || link.definition.element_count != 0 {
+        return Err(invalid(
+            transform,
+            "precision",
+            "precision pointer schema type or count is wrong",
+        ));
+    }
+    match link.values.as_slice() {
+        [FieldValue::PointerIndex(0)] => Ok(None),
+        [FieldValue::PointerIndex(index)] => {
+            let precision_node = target(
+                by_index,
+                definitions,
+                transform.index,
+                229,
+                "TRANSFORM_PRECISION",
+                *index,
+                "precision",
+            )?;
+            Ok(Some(TransformPrecision {
+                index: precision_node.index,
+                rotation_correction: exact_double_array::<9>(precision_node, "rotation_matrix")?,
+                translation_correction: exact_vector(precision_node, "translation_vector")?,
+            }))
+        }
+        _ => Err(invalid(
+            transform,
+            "precision",
+            "precision must contain one pointer value",
+        )),
+    }
 }
 
 /// Decode and place one embedded PSM mesh using an explicit index origin and face sense.

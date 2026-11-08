@@ -79,7 +79,7 @@ pub fn map_xt_brep_with_body_hierarchy(
 /// effective BODY hierarchy layout. Raw transmit links remain in the sidecar.
 ///
 /// # Errors
-/// Returns ordinary X_B mapping errors, or errors from exact-profile validation,
+/// Returns ordinary `X_B` mapping errors, or errors from exact-profile validation,
 /// hierarchy decoding, duplicate-index checks, or the source-index join.
 pub fn map_xb_brep_with_body_hierarchy(
     document: &XbDocument,
