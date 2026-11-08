@@ -1002,12 +1002,28 @@ fn tessellate_brep_to_mesh_inner(
                             let delta_theta = (2.0
                                 * (1.0 - (chord_error / r.max(0.1)).min(0.999)).acos())
                             .clamp(std::f64::consts::PI / 64.0, std::f64::consts::PI / 6.0);
-                            let n_seg = (((t_end - t_start).abs() / delta_theta)
-                                .ceil()
-                                .clamp(4.0, 64.0)) as usize;
+                            let n_seg = {
+                                #[allow(
+                                    clippy::cast_possible_truncation,
+                                    clippy::cast_sign_loss,
+                                    reason = "Finite segment counts are clamped to 4..=64; NaN survives clamp and Rust's float-to-usize cast maps it to zero, preserving the current no-sample behavior."
+                                )]
+                                let segment_count = ((t_end - t_start).abs() / delta_theta)
+                                    .ceil()
+                                    .clamp(4.0, 64.0)
+                                    as usize;
+                                segment_count
+                            };
 
                             for k in 0..n_seg {
-                                let frac = k as f64 / n_seg as f64;
+                                let frac = {
+                                    #[allow(
+                                        clippy::cast_precision_loss,
+                                        reason = "Within this loop, k is at most 63 and n_seg at most 64, so both usize values are exactly representable as f64."
+                                    )]
+                                    let fraction = k as f64 / n_seg as f64;
+                                    fraction
+                                };
                                 let t = t_start + (t_end - t_start) * frac;
                                 let pt = vec3_add(
                                     c,
@@ -1090,12 +1106,28 @@ fn tessellate_brep_to_mesh_inner(
                             let delta_theta = (2.0
                                 * (1.0 - (chord_error / r_eff.max(0.1)).min(0.999)).acos())
                             .clamp(std::f64::consts::PI / 64.0, std::f64::consts::PI / 6.0);
-                            let n_seg = (((t_end - t_start).abs() / delta_theta)
-                                .ceil()
-                                .clamp(4.0, 64.0)) as usize;
+                            let n_seg = {
+                                #[allow(
+                                    clippy::cast_possible_truncation,
+                                    clippy::cast_sign_loss,
+                                    reason = "Finite segment counts are clamped to 4..=64; NaN survives clamp and Rust's float-to-usize cast maps it to zero, preserving the current no-sample behavior."
+                                )]
+                                let segment_count = ((t_end - t_start).abs() / delta_theta)
+                                    .ceil()
+                                    .clamp(4.0, 64.0)
+                                    as usize;
+                                segment_count
+                            };
 
                             for k in 0..n_seg {
-                                let frac = k as f64 / n_seg as f64;
+                                let frac = {
+                                    #[allow(
+                                        clippy::cast_precision_loss,
+                                        reason = "Within this loop, k is at most 63 and n_seg at most 64, so both usize values are exactly representable as f64."
+                                    )]
+                                    let fraction = k as f64 / n_seg as f64;
+                                    fraction
+                                };
                                 let t = t_start + (t_end - t_start) * frac;
                                 let pt = vec3_add(
                                     c,
