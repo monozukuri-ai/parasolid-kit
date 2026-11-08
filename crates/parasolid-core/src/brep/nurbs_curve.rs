@@ -163,6 +163,68 @@ fn evaluate_mapped_nurbs_curve_inner(
     )
 }
 
+fn expand_and_validate_knots(
+    degree: usize,
+    count: usize,
+    distinct_knots: &[f64],
+    multiplicities: &[u16],
+) -> io::Result<Vec<f64>> {
+    let mut knots = Vec::new();
+    let mut last = f64::NEG_INFINITY;
+    let distinct_count = distinct_knots.len();
+    for (index, (&value, &multiplicity)) in distinct_knots.iter().zip(multiplicities).enumerate() {
+        let mult = usize::from(multiplicity);
+        if !value.is_finite() || value <= last {
+            return Err(invalid("distinct knots are not finite and increasing"));
+        }
+        if mult == 0 {
+            return Err(invalid("invalid knot multiplicity"));
+        }
+        last = value;
+        let next = knots
+            .len()
+            .checked_add(mult)
+            .ok_or_else(|| invalid("knot count overflow"))?;
+        let max_mult = if index == 0 || index + 1 == distinct_count {
+            degree + 1
+        } else {
+            degree
+        };
+        if mult > max_mult || next > count + degree + 1 {
+            return Err(invalid("knot multiplicity sum exceeds expected total"));
+        }
+        knots.resize(next, value);
+    }
+    Ok(knots)
+}
+
+fn homogeneous_control_points(
+    vertices: &[Vec<f64>],
+    rational: bool,
+    output_dimension: usize,
+) -> io::Result<Vec<Vec<f64>>> {
+    let mut points = Vec::with_capacity(vertices.len());
+    for vertex in vertices {
+        if vertex.iter().any(|value| !value.is_finite())
+            || (rational && vertex[output_dimension] <= 0.0)
+        {
+            return Err(invalid("invalid control vertex or rational weight"));
+        }
+        let point = if rational {
+            vertex.clone()
+        } else {
+            let mut point = vertex.clone();
+            point.push(1.0);
+            point
+        };
+        if point.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("nonfinite homogeneous control vertex"));
+        }
+        points.push(point);
+    }
+    Ok(points)
+}
+
 /// Evaluates raw mapped NURBS values in the supplied dimension and parameter frame.
 ///
 /// Rational control points are interpreted as homogeneous values. Periodic
@@ -208,32 +270,7 @@ pub fn evaluate_nurbs_curve_values_candidate(
     {
         return Err(invalid("unsupported NURBS layout"));
     }
-    let mut knots = Vec::new();
-    let mut last = f64::NEG_INFINITY;
-    let distinct_count = distinct_knots.len();
-    for (index, (&value, &multiplicity)) in distinct_knots.iter().zip(multiplicities).enumerate() {
-        let mult = usize::from(multiplicity);
-        if !value.is_finite() || value <= last {
-            return Err(invalid("distinct knots are not finite and increasing"));
-        }
-        if mult == 0 {
-            return Err(invalid("invalid knot multiplicity"));
-        }
-        last = value;
-        let next = knots
-            .len()
-            .checked_add(mult)
-            .ok_or_else(|| invalid("knot count overflow"))?;
-        let max_mult = if index == 0 || index + 1 == distinct_count {
-            degree + 1
-        } else {
-            degree
-        };
-        if mult > max_mult || next > count + degree + 1 {
-            return Err(invalid("knot multiplicity sum exceeds expected total"));
-        }
-        knots.resize(next, value);
-    }
+    let knots = expand_and_validate_knots(degree, count, distinct_knots, multiplicities)?;
     if knots.len()
         != count
             .checked_add(degree)
@@ -282,23 +319,7 @@ pub fn evaluate_nurbs_curve_values_candidate(
         }
         parameter
     };
-    let mut points = Vec::with_capacity(count);
-    for vertex in vertices {
-        if vertex.iter().any(|v| !v.is_finite()) || (rational && vertex[output_dimension] <= 0.0) {
-            return Err(invalid("invalid control vertex or rational weight"));
-        }
-        let point = if rational {
-            vertex.clone()
-        } else {
-            let mut point = vertex.clone();
-            point.push(1.0);
-            point
-        };
-        if point.iter().any(|value| !value.is_finite()) {
-            return Err(invalid("nonfinite homogeneous control vertex"));
-        }
-        points.push(point);
-    }
+    let points = homogeneous_control_points(vertices, rational, output_dimension)?;
     let span = if !periodic && parameter == knots[count] {
         count - 1
     } else {

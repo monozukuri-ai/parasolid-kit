@@ -35,29 +35,17 @@ fn point_strictly_in_triangle_2d(
     }
 }
 
-/// Robust ear-clipping triangulation for simple (convex or non-convex) 2D polygons.
-///
-/// Returns a list of vertex index triplets `[i0, i1, i2]` indexing into `polygon`.
-/// All emitted triangles have positive (counter-clockwise) winding in the 2D plane.
-#[must_use]
-pub fn triangulate_polygon_2d(polygon: &[[f64; 2]]) -> Vec<[usize; 3]> {
-    let n_in = polygon.len();
-    if n_in < 3 {
-        return Vec::new();
-    }
-
-    // Clean duplicate consecutive vertices and closing vertex
-    let mut cleaned_indices = Vec::with_capacity(n_in);
-    for i in 0..n_in {
-        let pt = polygon[i];
-        if let Some(&prev_idx) = cleaned_indices.last() {
-            let prev: [f64; 2] = polygon[prev_idx];
-            let dist = (pt[0] - prev[0]).hypot(pt[1] - prev[1]);
-            if dist > 1e-7 {
-                cleaned_indices.push(i);
+fn clean_polygon_indices(polygon: &[[f64; 2]]) -> Vec<usize> {
+    let mut cleaned_indices = Vec::with_capacity(polygon.len());
+    for (index, &point) in polygon.iter().enumerate() {
+        if let Some(&previous_index) = cleaned_indices.last() {
+            let previous: [f64; 2] = polygon[previous_index];
+            let distance = (point[0] - previous[0]).hypot(point[1] - previous[1]);
+            if distance > 1e-7 {
+                cleaned_indices.push(index);
             }
         } else {
-            cleaned_indices.push(i);
+            cleaned_indices.push(index);
         }
     }
     if cleaned_indices.len() >= 2 {
@@ -69,7 +57,22 @@ pub fn triangulate_polygon_2d(polygon: &[[f64; 2]]) -> Vec<[usize; 3]> {
             }
         }
     }
+    cleaned_indices
+}
 
+/// Robust ear-clipping triangulation for simple (convex or non-convex) 2D polygons.
+///
+/// Returns a list of vertex index triplets `[i0, i1, i2]` indexing into `polygon`.
+/// All emitted triangles have positive (counter-clockwise) winding in the 2D plane.
+#[must_use]
+pub fn triangulate_polygon_2d(polygon: &[[f64; 2]]) -> Vec<[usize; 3]> {
+    let n_in = polygon.len();
+    if n_in < 3 {
+        return Vec::new();
+    }
+
+    // Clean duplicate consecutive vertices and closing vertex.
+    let cleaned_indices = clean_polygon_indices(polygon);
     let n = cleaned_indices.len();
     if n < 3 {
         return Vec::new();
@@ -210,4 +213,38 @@ fn clip_most_convex_vertex(
         ]);
     }
     ring.remove(best_idx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::triangulate_polygon_2d;
+
+    #[test]
+    fn duplicate_square_vertices_triangulate_without_duplicate_indices() {
+        let polygon = [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+        ];
+        let triangles = triangulate_polygon_2d(&polygon);
+
+        assert_eq!(triangles.len(), 2);
+        let covered_area: f64 = triangles
+            .iter()
+            .map(|triangle| {
+                let [a, b, c] = triangle.map(|index| polygon[index]);
+                ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * 0.5
+            })
+            .sum();
+        assert!((covered_area - 1.0).abs() < f64::EPSILON);
+        for triangle in triangles {
+            assert_ne!(triangle[0], triangle[1]);
+            assert_ne!(triangle[1], triangle[2]);
+            assert_ne!(triangle[2], triangle[0]);
+            assert!(triangle.iter().all(|index| [0, 1, 3, 4].contains(index)));
+        }
+    }
 }
