@@ -147,6 +147,32 @@ class SurfaceParametricCurve:
 
 
 @dataclass(frozen=True, slots=True)
+class IntersectionChartParameters:
+    base_parameter: float | None
+    base_scale: float | None
+    chordal_error: float | None
+    angular_error: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class IntersectionUvCoordinates:
+    first_surface: tuple[float | None, float | None] | None
+    second_surface: tuple[float | None, float | None] | None
+
+
+@dataclass(frozen=True, slots=True)
+class IntersectionData:
+    source: SourceNodeRef
+    uv_type: str
+    raw_values: tuple[float | None, ...]
+    start_is_terminator: bool
+    start_terminator: IntersectionUvCoordinates | None
+    end_is_terminator: bool
+    chart: tuple[IntersectionUvCoordinates, ...] | None
+    end_terminator: IntersectionUvCoordinates | None
+
+
+@dataclass(frozen=True, slots=True)
 class IntersectionCurve:
     surfaces: tuple[int, int]
     chart: SourceNodeRef
@@ -156,6 +182,12 @@ class IntersectionCurve:
     chart_points: tuple[Vector3, ...] = ()
     start_points: tuple[Vector3, ...] = ()
     end_points: tuple[Vector3, ...] = ()
+    chart_parameters: IntersectionChartParameters | None = None
+    start_limit_kind: str | None = None
+    start_term_use: int | None = None
+    end_limit_kind: str | None = None
+    end_term_use: int | None = None
+    intersection_uv: IntersectionData | None = None
 
 
 @dataclass(frozen=True, slots=True)

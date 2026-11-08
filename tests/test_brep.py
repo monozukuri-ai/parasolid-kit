@@ -8,6 +8,10 @@ from parasolid_kit import (
     BlendedEdgeSurface,
     BlendType,
     InMemorySchemaProvider,
+    IntersectionChartParameters,
+    IntersectionCurve,
+    IntersectionData,
+    IntersectionUvCoordinates,
     LineCurve,
     ParseError,
     PlaneSurface,
@@ -214,6 +218,76 @@ def test_native_brep_mapping_decodes_polyline_curve_fields() -> None:
     assert curve.definition.sense.value == "positive"
     assert curve.definition.base_parameter == 0.25
     assert curve.definition.source.node_index == 5
+
+
+def test_native_brep_mapping_preserves_intersection_parameters_and_uv_data() -> None:
+    value = _native_model()
+    source = _source(110, "INTERSECTION_DATA", 8)
+    value["curves"] = [
+        {
+            "id": 0,
+            "sense": "positive",
+            "owner": None,
+            "kind": "intersection",
+            "parameters": {
+                "surfaces": (0, 1),
+                "chart": _source(102, "CHART", 7),
+                "chart_points": [(1.0, 2.0, 3.0)],
+                "start_points": [],
+                "end_points": [],
+                "start": _source(41, "LIMIT", 9),
+                "end": _source(41, "LIMIT", 10),
+                "intersection_data": None,
+                "chart_parameters": {
+                    "base_parameter": 0.25,
+                    "base_scale": None,
+                    "chordal_error": 0.01,
+                    "angular_error": None,
+                },
+                "start_limit_kind": "terminator",
+                "start_term_use": 70,
+                "end_limit_kind": None,
+                "end_term_use": None,
+                "intersection_uv": {
+                    "source": source,
+                    "uv_type": "unsupported:9",
+                    "raw_values": [1.5, None, 3.5],
+                    "start_is_terminator": True,
+                    "start_terminator": ((1.0, None), None),
+                    "end_is_terminator": False,
+                    "chart": None,
+                    "end_terminator": None,
+                },
+            },
+            "source": _source(103, "INTERSECTION", 6),
+        }
+    ]
+
+    definition = brep_from_native(value).curves[0].definition
+
+    assert isinstance(definition, IntersectionCurve)
+    assert definition.chart_parameters == IntersectionChartParameters(0.25, None, 0.01, None)
+    assert (definition.start_limit_kind, definition.start_term_use) == ("terminator", 70)
+    assert (definition.end_limit_kind, definition.end_term_use) == (None, None)
+    uv = definition.intersection_uv
+    assert isinstance(uv, IntersectionData)
+    assert uv.source.node_index == 8
+    assert uv.uv_type == "unsupported:9"
+    assert uv.raw_values == (1.5, None, 3.5)
+    assert uv.start_terminator == IntersectionUvCoordinates((1.0, None), None)
+    assert uv.chart is None
+    value["curves"][0]["parameters"]["intersection_uv"]["uv_type"] = "none"
+    none_mode = brep_from_native(value).curves[0].definition.intersection_uv
+    assert isinstance(none_mode, IntersectionData)
+    assert none_mode.uv_type == "none"
+    value["curves"][0]["parameters"]["intersection_uv"] = None
+    assert brep_from_native(value).curves[0].definition.intersection_uv is None
+    assert (
+        IntersectionCurve(
+            (0, 1), definition.chart, definition.start, definition.end, None
+        ).chart_parameters
+        is None
+    )
 
 
 def test_native_brep_mapping_preserves_embedded_mesh_indices_and_null_links() -> None:

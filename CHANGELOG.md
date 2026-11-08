@@ -16,6 +16,7 @@
   geometry evaluation and tessellation APIs. Rust and Python expose the added
   data and selected operations; this is not a claim of complete Parasolid
   geometry coverage or CAD-kernel compatibility.
+- Expose intersection chart parameters, limit metadata, and UV data as immutable Python values while retaining unknown UV modes and raw values.
 
 - Fix #13: declare the public-reference HELIX_CU_FORM (163) base layout for
   the SolidWorks and standalone-transmit profiles over schema 13006. Embedded

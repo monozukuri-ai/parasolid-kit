@@ -19,7 +19,10 @@ from .geometry import (
     CylinderSurface,
     EllipseCurve,
     HyperbolaCurve,
+    IntersectionChartParameters,
     IntersectionCurve,
+    IntersectionData,
+    IntersectionUvCoordinates,
     LineCurve,
     MeshSurface,
     MeshTransformNode,
@@ -29,8 +32,8 @@ from .geometry import (
     OffsetSurface,
     ParabolaCurve,
     PlaneSurface,
-    PolylineCurve,
     PointGeometry,
+    PolylineCurve,
     RawIntegerPool,
     RawMeshData,
     RawVectorPool,
@@ -423,6 +426,20 @@ def _curve_definition(kind: CurveKind, value: Mapping[str, Any]) -> CurveDefinit
                 if value.get("intersection_data") is None
                 else _source(value.get("intersection_data"))
             ),
+            chart_parameters=(
+                None
+                if value.get("chart_parameters") is None
+                else _intersection_chart_parameters(value.get("chart_parameters"))
+            ),
+            start_limit_kind=_optional_str(value, "start_limit_kind"),
+            start_term_use=_optional_int(value, "start_term_use"),
+            end_limit_kind=_optional_str(value, "end_limit_kind"),
+            end_term_use=_optional_int(value, "end_term_use"),
+            intersection_uv=(
+                None
+                if value.get("intersection_uv") is None
+                else _intersection_data(value.get("intersection_uv"))
+            ),
         )
     return UnsupportedGeometry(type_name=_str(value, "type_name"))
 
@@ -442,6 +459,70 @@ def _nurbs_curve(value: Mapping[str, Any]) -> NurbsCurve:
         knot_multiplicities=_int_tuple(value, "knot_multiplicities"),
         sources=tuple(_source(item) for item in _list(value, "sources")),
     )
+
+
+def _intersection_chart_parameters(value: object) -> IntersectionChartParameters:
+    item = _mapping(value, "intersection chart parameters")
+    return IntersectionChartParameters(
+        base_parameter=_optional_float(item, "base_parameter"),
+        base_scale=_optional_float(item, "base_scale"),
+        chordal_error=_optional_float(item, "chordal_error"),
+        angular_error=_optional_float(item, "angular_error"),
+    )
+
+
+def _intersection_data(value: object) -> IntersectionData:
+    item = _mapping(value, "intersection UV data")
+    raw_values = item.get("raw_values")
+    if not isinstance(raw_values, list) or any(
+        part is not None and (isinstance(part, bool) or not isinstance(part, float))
+        for part in raw_values
+    ):
+        raise RuntimeError("native intersection UV raw_values is not a float-or-None list")
+    chart = item.get("chart")
+    if chart is not None and not isinstance(chart, list):
+        raise RuntimeError("native intersection UV chart is not a list or None")
+    return IntersectionData(
+        source=_source(item.get("source")),
+        uv_type=_str(item, "uv_type"),
+        raw_values=tuple(raw_values),
+        start_is_terminator=_bool(item, "start_is_terminator"),
+        start_terminator=(
+            None
+            if item.get("start_terminator") is None
+            else _intersection_uv_coordinates(item.get("start_terminator"))
+        ),
+        end_is_terminator=_bool(item, "end_is_terminator"),
+        chart=(
+            None if chart is None else tuple(_intersection_uv_coordinates(value) for value in chart)
+        ),
+        end_terminator=(
+            None
+            if item.get("end_terminator") is None
+            else _intersection_uv_coordinates(item.get("end_terminator"))
+        ),
+    )
+
+
+def _intersection_uv_coordinates(value: object) -> IntersectionUvCoordinates:
+    if not isinstance(value, tuple) or len(value) != 2:
+        raise RuntimeError("native intersection UV coordinates are not a pair")
+    pairs = []
+    for pair in value:
+        if pair is None:
+            pairs.append(None)
+        elif (
+            isinstance(pair, tuple)
+            and len(pair) == 2
+            and all(
+                part is None or (isinstance(part, float) and not isinstance(part, bool))
+                for part in pair
+            )
+        ):
+            pairs.append(pair)
+        else:
+            raise RuntimeError("native intersection UV coordinate pair is invalid")
+    return IntersectionUvCoordinates(first_surface=pairs[0], second_surface=pairs[1])
 
 
 def _surface(value: object) -> SurfaceGeometry:
@@ -604,9 +685,7 @@ def _raw_mesh(value: Mapping[str, Any]) -> RawMeshData:
         normal_type=_int(value, "normal_type"),
         positions=_raw_vector_pool(_mapping(value.get("positions"), "mesh position pool")),
         normals=(
-            None
-            if normals is None
-            else _raw_vector_pool(_mapping(normals, "mesh normal pool"))
+            None if normals is None else _raw_vector_pool(_mapping(normals, "mesh normal pool"))
         ),
         position_indices=_raw_integer_pool(
             _mapping(value.get("position_indices"), "mesh position index pool")
@@ -675,9 +754,13 @@ def _optional_float_triplet(
     value: Mapping[str, Any], key: str
 ) -> tuple[float | None, float | None, float | None]:
     item = value.get(key)
-    if not isinstance(item, (tuple, list)) or len(item) != 3 or any(
-        part is not None and (isinstance(part, bool) or not isinstance(part, float))
-        for part in item
+    if (
+        not isinstance(item, (tuple, list))
+        or len(item) != 3
+        or any(
+            part is not None and (isinstance(part, bool) or not isinstance(part, float))
+            for part in item
+        )
     ):
         raise RuntimeError(f"native B-Rep field {key!r} is not an optional-float triple")
     return (item[0], item[1], item[2])
@@ -760,6 +843,15 @@ def _str(value: Mapping[str, Any], key: str) -> str:
     item = value.get(key)
     if not isinstance(item, str):
         raise RuntimeError(f"native B-Rep field {key!r} is not a string")
+    return item
+
+
+def _optional_str(value: Mapping[str, Any], key: str) -> str | None:
+    item = value.get(key)
+    if item is None:
+        return None
+    if not isinstance(item, str):
+        raise RuntimeError(f"native B-Rep field {key!r} is not a string or None")
     return item
 
 
