@@ -44,18 +44,18 @@ EXPECTED_LICENSE_SHA256 = hashlib.sha256(EXPECTED_LICENSE_BYTES).hexdigest()
 APACHE_LICENSE_PATH = "LICENSES/Apache-2.0.txt"
 EXPECTED_APACHE_LICENSE_BYTES = (ROOT / APACHE_LICENSE_PATH).read_bytes()
 EXPECTED_APACHE_LICENSE_SHA256 = hashlib.sha256(EXPECTED_APACHE_LICENSE_BYTES).hexdigest()
-VIEWER_ASSET_VERSION = "2.0.0"
+VIEWER_ASSET_VERSION = "2.1.0"
 VIEWER_ASSET_LICENSE = "MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice"
-VIEWER_ASSET_MARKER = b'content="2.0.0; license=MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice"'
+VIEWER_ASSET_MARKER = b'content="2.1.0; license=MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice"'
 VIEWER_ASSET_SHA256 = {
     "parasolid_kit/interop/preview/static/index.html": (
-        "361437767be88b37ce92fea073c2b19a137d3bf4968bfe108b35b538369b700e"
+        "635549800cf67309ccf0f982a2e2aef0b10c218509c4c7b17af906d8d5ef3069"
     ),
     "parasolid_kit/interop/preview/static/viewer.css": (
-        "f650dd2b6bebad8f43e415e2985366a64e6ff285ea3803fc531848e151d6b791"
+        "013357963a9d136452e91e51a641c6cea9ac1309bfae0f3c19a99cd6d0da3da8"
     ),
     "parasolid_kit/interop/preview/static/viewer.js": (
-        "280304c9e2e8d70868dfe2bb351b78a033a4876423e7f805822fe7e7aa9c938d"
+        "b17baf838240b6b187544d45b4a69119971174e2f643c3e633a1c9ad4ed9eb9b"
     ),
 }
 VIEWER_SOURCE_FILES = frozenset(
@@ -72,6 +72,7 @@ VIEWER_SOURCE_FILES = frozenset(
         "viewer/src/index.html",
         "viewer/src/index.ts",
         "viewer/src/manifest.ts",
+        "viewer/src/placement.ts",
         "viewer/src/selection.ts",
         "viewer/src/style.css",
         "viewer/src/validation.ts",
@@ -84,6 +85,10 @@ VIEWER_SOURCE_FILES = frozenset(
         "viewer/tests/fixtures/box-partial/preview.manifest.json",
         "viewer/tests/fixtures/box/preview.glb",
         "viewer/tests/fixtures/box/preview.manifest.json",
+        "viewer/tests/fixtures/assembly/preview.glb",
+        "viewer/tests/fixtures/assembly/preview.manifest.json",
+        "viewer/tests/fixtures/stored/preview.glb",
+        "viewer/tests/fixtures/stored/preview.manifest.json",
         "viewer/tests/fixtures/cylinder-hole/preview.glb",
         "viewer/tests/fixtures/cylinder-hole/preview.manifest.json",
         "viewer/tests/fixtures/oracle.json",
@@ -95,6 +100,7 @@ VIEWER_SOURCE_FILES = frozenset(
         "viewer/tests/helpers.ts",
         "viewer/tests/launch_cli.py",
         "viewer/tests/production.mjs",
+        "viewer/tests/placement.test.ts",
         "viewer/tests/screenshot.mjs",
         "viewer/tests/selection.test.ts",
         "viewer/tests/serve_previews.py",

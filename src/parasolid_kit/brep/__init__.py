@@ -1,5 +1,23 @@
 """Parasolid-native B-Rep topology, geometry, and validation models."""
 
+from .evaluation import (
+    CurveEvaluation,
+    GeometryEvaluationError,
+    SurfaceEvaluation,
+    evaluate_curve,
+    evaluate_surface,
+    sample_curve,
+)
+from .faceted import (
+    EmbeddedMesh,
+    FacetedGeometry,
+    FacetedGeometryError,
+    MeshPool,
+    Polyline,
+    decode_embedded_mesh,
+    decode_polyline,
+    faceted_geometry,
+)
 from .geometry import (
     BlendBoundarySurface,
     BlendedEdgeSurface,
@@ -32,6 +50,12 @@ from .geometry import (
     UnsupportedGeometry,
 )
 from .model import BrepMetrics, BrepModel, TopologyValidation
+from .placement import (
+    AssemblyPlacementError,
+    BodyOccurrence,
+    Placement,
+    assembly_occurrences,
+)
 from .topology import (
     Assembly,
     AssemblyKind,
@@ -61,6 +85,7 @@ from .topology import (
 __all__ = [
     "Assembly",
     "AssemblyKind",
+    "AssemblyPlacementError",
     "Attribute",
     "AttributeField",
     "AttributeOwner",
@@ -70,18 +95,24 @@ __all__ = [
     "BlendedEdgeSurface",
     "Body",
     "BodyKind",
+    "BodyOccurrence",
     "BoundingBox",
     "BrepMetrics",
     "BrepModel",
     "CircleCurve",
     "ConeSurface",
     "CurveDefinition",
+    "CurveEvaluation",
     "CurveGeometry",
     "CurveKind",
     "CylinderSurface",
     "Edge",
     "EllipseCurve",
+    "EmbeddedMesh",
     "Face",
+    "FacetedGeometry",
+    "FacetedGeometryError",
+    "GeometryEvaluationError",
     "HalfEdge",
     "HyperbolaCurve",
     "Instance",
@@ -89,12 +120,15 @@ __all__ = [
     "IntersectionCurve",
     "LineCurve",
     "Loop",
+    "MeshPool",
     "NurbsCurve",
     "NurbsSurface",
     "OffsetSurface",
     "ParabolaCurve",
+    "Placement",
     "PlaneSurface",
     "PointGeometry",
+    "Polyline",
     "Region",
     "RegionKind",
     "Sense",
@@ -103,6 +137,7 @@ __all__ = [
     "SphereSurface",
     "SpunSurface",
     "SurfaceDefinition",
+    "SurfaceEvaluation",
     "SurfaceGeometry",
     "SurfaceKind",
     "SurfaceParametricCurve",
@@ -114,4 +149,11 @@ __all__ = [
     "UnsupportedGeometry",
     "Vector3",
     "Vertex",
+    "assembly_occurrences",
+    "decode_embedded_mesh",
+    "decode_polyline",
+    "evaluate_curve",
+    "evaluate_surface",
+    "faceted_geometry",
+    "sample_curve",
 ]

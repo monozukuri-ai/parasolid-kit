@@ -27,6 +27,7 @@ function showSelection(root: HTMLElement, selection: readonly SourceSelection[])
     const heading = document.createElement("h3"); heading.textContent = `${p.kind} · ${p.target_key}`;
     const data = document.createElement("dl"); data.className = "details";
     detail(data, "Body IDs", p.body_ids.length ? p.body_ids.join(", ") : "Unknown membership");
+    if (p.instance_path?.length) detail(data, "Instance path", p.instance_path.join(" / "));
     detail(data, "Parasolid face IDs", p.parasolid_face_ids.join(", ") || "—");
     detail(data, "Parasolid edge IDs", p.parasolid_edge_ids.join(", ") || "—");
     detail(data, "Surface / curve kinds", [...p.surface_kinds, ...p.curve_kinds].join(", ") || "—");
@@ -49,18 +50,24 @@ function showStatus(root: HTMLElement, value: unknown, preview: AdaptedPreview):
   const m = object(value, "manifest"), source = object(m.source, "source");
   element(root, "source-status").textContent = `Source ${source.complete ? "complete" : "incomplete"}`;
   element(root, "source-status").classList.toggle("warning", !source.complete);
-  element(root, "conversion-status").textContent = "Conversion complete";
-  element(root, "occt-status").textContent = "OCCT valid";
+  element(root, "conversion-status").textContent = preview.manifest.backend === "stored" ? "Stored geometry subset" : "Conversion complete";
+  element(root, "occt-status").textContent = preview.manifest.backend === "stored" ? "OCCT not used" : "OCCT valid";
   element(root, "unit-status").textContent = `Unit ${preview.manifest.targetUnit}`;
   element(root, "footer-unit").textContent = preview.manifest.targetUnit;
   element(root, "partial-banner").hidden = !preview.manifest.partial;
+  if (preview.manifest.backend === "stored") {
+    root.querySelector("h1")!.textContent = "Stored geometry viewer";
+    element(root, "source-status").textContent = "Stored records";
+    element(root, "partial-banner").querySelector("strong")!.textContent = "Stored geometry preview";
+    element(root, "partial-banner").querySelector("p")!.textContent = "Only stored meshes and polylines are shown. Other geometry and solid topology have not been evaluated.";
+  }
   const missingList = element(root, "missing-list");
   for (const value of array(m.missing_entities, "missing_entities")) {
     const missing = object(value, "missing entity"), row = document.createElement("li");
     row.textContent = `${string(missing.kind, "missing.kind")} · ${string(missing.source_key, "missing.source_key")} · ${string(missing.reason, "missing.reason")}`;
     missingList.append(row);
   }
-  if (preview.manifest.partial && !missingList.childElementCount) {
+  if (preview.manifest.partial && preview.manifest.backend !== "stored" && !missingList.childElementCount) {
     const row = document.createElement("li"); row.textContent = "Source is incomplete; additional source geometry may be absent."; missingList.append(row);
   }
   const diagnostics = array(m.diagnostics, "diagnostics");

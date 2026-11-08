@@ -1,0 +1,152 @@
+{
+  "asset_bundle": {
+    "assets": [
+      {
+        "byte_size": 4704,
+        "filename": "index.html",
+        "sha256": "635549800cf67309ccf0f982a2e2aef0b10c218509c4c7b17af906d8d5ef3069"
+      },
+      {
+        "byte_size": 130463,
+        "filename": "viewer.css",
+        "sha256": "013357963a9d136452e91e51a641c6cea9ac1309bfae0f3c19a99cd6d0da3da8"
+      },
+      {
+        "byte_size": 1464241,
+        "filename": "viewer.js",
+        "sha256": "b17baf838240b6b187544d45b4a69119971174e2f643c3e633a1c9ad4ed9eb9b"
+      }
+    ],
+    "license": "MIT; Zlib; n8ao: ISC metadata / CC0-1.0 notice",
+    "version": "2.1.0"
+  },
+  "bodies": [],
+  "conversion": {
+    "applied_scale": 1.0,
+    "backend": "stored",
+    "complete": true,
+    "occt_valid": null,
+    "source_unit": "mm",
+    "target_unit": "mm"
+  },
+  "diagnostics": [],
+  "glb": {
+    "byte_size": 1724,
+    "filename": "preview.glb",
+    "sha256": "1cbac47ac90d64fa2a8841f84c67bcb9f9cc7ef29c419ec68bcc1a50cc1db57e"
+  },
+  "limits": {
+    "max_curve_samples": 1000000,
+    "max_diagnostics": 10000,
+    "max_entities": 1000000,
+    "max_occt_subshapes": 2000000,
+    "max_output_bytes": 536870912,
+    "max_triangles": 5000000,
+    "max_vertices": 10000000
+  },
+  "missing_entities": [],
+  "preview": {
+    "bounds": [
+      0.0,
+      0.0,
+      0.0,
+      2.0,
+      3.0,
+      1.0
+    ],
+    "counts": {
+      "curve_samples": 4,
+      "edge_primitives": 1,
+      "face_primitives": 1,
+      "missing_edges": 0,
+      "missing_faces": 0,
+      "triangles": 1,
+      "vertices": 7
+    },
+    "options": {
+      "allow_partial": true,
+      "angular_deflection": 0.5,
+      "include_edges": true,
+      "linear_deflection": 0.1
+    },
+    "partial": true
+  },
+  "primitives": [
+    {
+      "body_ids": [],
+      "curve_kinds": [],
+      "curve_sample_count": 0,
+      "diagnostic_codes": [],
+      "kind": "face",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [],
+      "pick_id": 1,
+      "primitive_index": 0,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 156,
+            "length": 11,
+            "start": 145
+          },
+          "entity_id": 4,
+          "key": "parasolid:surface:000004",
+          "kind": "surface",
+          "node_id": null,
+          "node_index": 4,
+          "node_type": 118,
+          "relation": "direct",
+          "type_name": "MESH"
+        }
+      ],
+      "surface_kinds": [
+        "mesh"
+      ],
+      "target_key": "native:face:000004",
+      "triangle_count": 1,
+      "vertex_count": 3
+    },
+    {
+      "body_ids": [],
+      "curve_kinds": [
+        "polyline"
+      ],
+      "curve_sample_count": 4,
+      "diagnostic_codes": [],
+      "kind": "edge",
+      "parasolid_edge_ids": [],
+      "parasolid_face_ids": [],
+      "pick_id": 2,
+      "primitive_index": 1,
+      "source_entities": [
+        {
+          "byte_range": {
+            "end": 86,
+            "length": 9,
+            "start": 77
+          },
+          "entity_id": 1,
+          "key": "parasolid:curve:000001",
+          "kind": "curve",
+          "node_id": null,
+          "node_index": 1,
+          "node_type": 180,
+          "relation": "direct",
+          "type_name": "POLYLINE"
+        }
+      ],
+      "surface_kinds": [],
+      "target_key": "native:edge:000001",
+      "triangle_count": 0,
+      "vertex_count": 4
+    }
+  ],
+  "producer": "parasolid-kit.interop.preview",
+  "schema_version": 1,
+  "source": {
+    "complete": false,
+    "format": "text",
+    "schema_key": "SCH_3900000_99001",
+    "scope": "stored_geometry_subset"
+  }
+}

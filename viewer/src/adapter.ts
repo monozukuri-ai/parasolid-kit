@@ -5,6 +5,7 @@ import { readManifest } from "./manifest.ts";
 import type { Manifest, PrimitiveMetadata } from "./manifest.ts";
 import { limit } from "./validation.ts";
 import type { PreviewLimits } from "./validation.ts";
+import { placePreview } from "./placement.ts";
 
 export interface AdaptedPreview {
   readonly shapes: Shapes;
@@ -83,11 +84,12 @@ export function adaptPreview(bytes: ArrayBuffer, metadata: unknown, requestedLim
       shape.edge_types[i] = geometryType(e.metadata.curve_kinds, curveTypes, 8);
       sourceMap.set(`${g.id}/edges/edges_${i}`, e.metadata);
     });
-    const solid = !manifest.partial && !unknownFaces && !sharedFaceBodies.has(g.bodyIds[0]!) && g.faces.length > 0 && g.bodyIds.length === 1 && manifest.bodies.get(g.bodyIds[0]!) === "solid";
-    const name = g.bodyIds.length === 0 ? "Unknown membership" : g.bodyIds.length === 1 ? `Body ${g.bodyIds[0]}` : `Shared bodies ${g.bodyIds.join(", ")}`;
+    const solid = manifest.backend === "occt" && !manifest.partial && !unknownFaces && !sharedFaceBodies.has(g.bodyIds[0]!) && g.faces.length > 0 && g.bodyIds.length === 1 && manifest.bodies.get(g.bodyIds[0]!) === "solid";
+    const name = g.bodyIds.length === 0 ? (manifest.backend === "stored" ? "Stored geometry" : "Unknown membership") : g.bodyIds.length === 1 ? `Body ${g.bodyIds[0]}` : `Shared bodies ${g.bodyIds.join(", ")}`;
     parts.push({ version: 3, id: g.id, name, type: "shapes", subtype: solid ? "solid" : "faces", shape,
       color: "#4b92c4", alpha: 1, renderback: !solid, state: [g.faces.length ? 1 : 3, g.edges.length ? 1 : 3] });
   }
-  const [xmin, ymin, zmin, xmax, ymax, zmax] = manifest.bounds;
-  return { shapes: { version: 3, id: "/model", name: "Parasolid", parts, bb: { xmin, ymin, zmin, xmax, ymax, zmax } }, sourceMap, manifest, bufferBytes };
+  const placed = placePreview(parts, sourceMap, manifest, bufferBytes);
+  const [xmin, ymin, zmin, xmax, ymax, zmax] = placed.manifest.bounds;
+  return { shapes: { version: 3, id: "/model", name: "Parasolid", parts: placed.parts, bb: { xmin, ymin, zmin, xmax, ymax, zmax } }, sourceMap: placed.sourceMap, manifest: placed.manifest, bufferBytes: placed.bufferBytes };
 }

@@ -14,6 +14,7 @@ export interface SourceEntity {
   readonly relation_note?: string;
 }
 export interface PrimitiveMetadata {
+  readonly instance_path?: readonly number[];
   readonly primitive_index: number;
   readonly pick_id: number;
   readonly kind: "face" | "edge";
@@ -31,6 +32,8 @@ export interface PrimitiveMetadata {
 }
 export type Bounds = readonly [number, number, number, number, number, number];
 export interface Manifest {
+  readonly backend: "occt" | "stored";
+  readonly occurrences?: readonly BodyOccurrence[];
   readonly limits: Readonly<PreviewLimits>;
   readonly bodies: ReadonlyMap<number, string>;
   readonly primitives: readonly PrimitiveMetadata[];
@@ -39,7 +42,13 @@ export interface Manifest {
   readonly partial: boolean;
   readonly counts: Readonly<Record<string, number>>;
 }
-const sourceKinds = new Set(["body", "region", "shell", "face", "loop", "half_edge", "edge", "vertex", "point", "curve", "surface"]);
+export interface BodyOccurrence {
+  readonly body_id: number;
+  readonly instance_path: readonly number[];
+  readonly assembly_path: readonly number[];
+  readonly matrix: readonly (readonly number[])[];
+}
+const sourceKinds = new Set(["assembly", "instance", "body", "region", "shell", "face", "loop", "half_edge", "edge", "vertex", "point", "curve", "surface"]);
 
 function sourceEntity(value: unknown): SourceEntity {
   const s = object(value, "source entity"), r = object(s.byte_range, "byte_range");
@@ -64,7 +73,9 @@ export function readManifest(value: unknown, requested?: Partial<PreviewLimits>)
   check(m.schema_version === 1 && m.producer === "parasolid-kit.interop.preview", "Unsupported preview manifest");
   const limits = resolveLimits(m.limits, requested);
   const source = object(m.source, "source"), conversion = object(m.conversion, "conversion");
-  check(conversion.complete === true && conversion.occt_valid === true, "Preview requires a complete, valid OCCT conversion");
+  const backend = conversion.backend === "stored" ? "stored" : "occt";
+  check(conversion.backend === undefined || conversion.backend === "occt" || conversion.backend === "stored", "Unknown preview backend");
+  check(conversion.complete === true && (backend === "occt" ? conversion.occt_valid === true : conversion.occt_valid === null), "Preview requires a complete conversion with the declared validation");
   const targetUnit = string(conversion.target_unit, "target_unit");
   check(["m", "cm", "mm", "in", "ft"].includes(targetUnit), "Unsupported target unit");
   check(finite(conversion.applied_scale, "applied_scale") > 0, "Scale must be positive");
@@ -98,7 +109,7 @@ export function readManifest(value: unknown, requested?: Partial<PreviewLimits>)
     const p = object(value, "primitive"), kind = p.kind;
     check(p.primitive_index === index && (kind === "face" || kind === "edge"), "Invalid primitive order/kind");
     const pick = integer(p.pick_id, "pick_id", 1), target = string(p.target_key, "target_key");
-    check(pick <= 0xffffff && !picks.has(pick) && !targets.has(target) && new RegExp(`^occt:${kind}:\\d{6,}$`).test(target), "Invalid or duplicate primitive identity");
+    check(pick <= 0xffffff && !picks.has(pick) && !targets.has(target) && new RegExp(`^${backend === "stored" ? "native" : "occt"}:${kind}:\\d{6,}$`).test(target), "Invalid or duplicate primitive identity");
     picks.add(pick); targets.add(target);
     const bodyIds = ids(p.body_ids, "body_ids");
     check(bodyIds.every(id => bodies.has(id)), "Primitive references an unknown body");
@@ -126,6 +137,26 @@ export function readManifest(value: unknown, requested?: Partial<PreviewLimits>)
   for (const [field, maximum] of [["vertices", limits.max_vertices], ["triangles", limits.max_triangles], ["curve_samples", limits.max_curve_samples]] as const) {
     limit(`max_${field}`, integer(counts[field], field), maximum);
   }
-  return Object.freeze({ limits, bodies, primitives: Object.freeze(primitives), bounds: Object.freeze(bounds) as unknown as Bounds,
+  let occurrences: readonly BodyOccurrence[] | undefined;
+  if (m.occurrences !== undefined) {
+    check(backend === "occt", "Stored geometry has no assembly body ownership");
+    const data = array(m.occurrences, "occurrences"), paths = new Set<string>();
+    limit("max_entities", data.length, limits.max_entities);
+    check(data.length > 0, "Assembly contains no occurrences");
+    occurrences = Object.freeze(data.map(value => {
+      const o = object(value, "occurrence"), body_id = integer(o.body_id, "body_id");
+      check(bodies.has(body_id), "Occurrence body is unknown");
+      const path = Object.freeze(array(o.instance_path, "instance_path").map(v => integer(v, "instance ID")));
+      const assembly_path = Object.freeze(array(o.assembly_path, "assembly_path").map(v => integer(v, "assembly ID")));
+      limit("instance_depth", path.length, 64);
+      check(assembly_path.length === path.length && new Set(path).size === path.length && new Set(assembly_path).size === assembly_path.length, "Invalid assembly path");
+      const key = path.length ? path.join("/") : `body:${body_id}`;
+      check(!paths.has(key), "Duplicate occurrence path"); paths.add(key);
+      const matrix = Object.freeze(array(o.matrix, "matrix").map(row => Object.freeze(array(row, "matrix row").map(v => finite(v, "matrix value")))));
+      check(matrix.length === 3 && matrix.every(row => row.length === 4), "Invalid placement matrix");
+      return Object.freeze({ body_id, instance_path: path, assembly_path, matrix });
+    }));
+  }
+  return Object.freeze({ limits, bodies, backend, ...(occurrences === undefined ? {} : { occurrences }), primitives: Object.freeze(primitives), bounds: Object.freeze(bounds) as unknown as Bounds,
     targetUnit, partial, counts: Object.freeze(counts) });
 }

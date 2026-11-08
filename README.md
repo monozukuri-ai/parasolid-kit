@@ -15,6 +15,10 @@ directly, without Python.
 - Compare X_T/X_B documents after pointer remapping and reconstruct an
   unmodified parsed X_B document byte-for-byte.
 - Report structured diagnostics and enforce configurable resource limits.
+- Evaluate supported source curves/surfaces and sample curves without OCCT;
+  resolve nested assembly placements without changing the source model.
+- Decode stored polylines and embedded mesh pools with an explicit named
+  schema catalog, and view those selected records without OCCT.
 - Use optional OCCT conversion, validated STEP export, CadQuery shapes and a
   local viewer with face/edge source picking, body visibility and section views.
 
@@ -45,6 +49,11 @@ parasolid-kit check model.x_b            # Parse and check the source B-Rep.
 parasolid-kit check model.x_t --json     # Structured report.
 parasolid-kit compare model.x_t model.x_b
 ```
+
+See [geometry operations](docs/api.md#dependency-free-geometry-operations) for
+evaluation, assembly occurrences, and stored geometry examples. The viewer
+accepts `--assembly` to display repeated/nested body placements and
+`--stored-geometry --schema-dir schemas` for selected stored mesh/polyline data.
 
 The same workflow is available in Python:
 
@@ -101,7 +110,8 @@ an explicit [schema catalog](docs/schema-catalogs.md).
 
 Native CAD containers and SolidWorks delta application are outside the
 complete parser contract. Assembly structure (instances and their transforms)
-is returned beside the B-Rep and is not applied to geometry or conversion.
+is returned beside the B-Rep; source geometry remains unplaced. OCCT conversion
+and the viewer can explicitly request instance placement.
 Parsing, OCCT conversion, STEP export and preview have separate coverage. See
 [format support and limitations](docs/format-support.md).
 

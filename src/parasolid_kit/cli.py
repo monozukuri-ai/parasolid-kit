@@ -124,6 +124,22 @@ def _parser() -> argparse.ArgumentParser:
     view_command.set_defaults(command="viewer")
     view_command.add_argument("path", type=Path)
     view_command.add_argument(
+        "--stored-geometry",
+        action="store_true",
+        help="display selected stored mesh/polyline records with an explicit catalog, without OCCT",
+    )
+    view_command.add_argument(
+        "--mesh-index-origin",
+        type=int,
+        choices=(0, 1),
+        help="select stored mesh index origin when it cannot be inferred uniquely",
+    )
+    view_command.add_argument(
+        "--assembly",
+        action="store_true",
+        help="display repeated and nested assembly instances at their stored placements",
+    )
+    view_command.add_argument(
         "--schema-dir",
         type=Path,
         help="exact external catalog directory (default: compiled profile)",
@@ -545,38 +561,72 @@ def _run(arguments: argparse.Namespace) -> int:
         from .interop.preview import (
             PreviewOptions,
             create_preview_server,
+            write_faceted_preview,
             write_preview,
         )
 
-        parsed = read_brep(
-            arguments.path,
-            schema_dir=arguments.schema_dir,
-            source_format=arguments.format,
-        )
-        source_sha256 = hashlib.sha256(parsed.document.raw_bytes).hexdigest()
-        converted = to_occt(
-            parsed.brep,
-            source_unit=arguments.source_unit,
-            target_unit=arguments.target_unit,
-            require_complete=not arguments.allow_partial,
-            source_identity=f"sha256:{source_sha256}",
-            partial=arguments.allow_partial,
-        )
         output = arguments.output or arguments.path.with_name(
             f"{arguments.path.stem}.parasolid-preview"
         )
-        preview = write_preview(
-            converted,
-            parsed.brep,
-            output,
-            options=PreviewOptions(
-                linear_deflection=arguments.linear_deflection,
-                angular_deflection=arguments.angular_deflection,
+        if arguments.stored_geometry:
+            from .brep import faceted_geometry
+
+            if arguments.assembly or arguments.schema_dir is None:
+                raise ValueError(
+                    "--stored-geometry requires --schema-dir and cannot use --assembly"
+                )
+            document = _document(
+                arguments.path,
+                _source_format(arguments.path, arguments.format),
+                arguments.schema_dir,
+            )
+            source_sha256 = hashlib.sha256(document.raw_bytes).hexdigest()
+            preview = write_faceted_preview(
+                faceted_geometry(document),
+                output,
+                source_unit=arguments.source_unit,
+                target_unit=arguments.target_unit,
+                index_origin=arguments.mesh_index_origin,
+                overwrite=arguments.overwrite,
                 include_edges=not arguments.no_edges,
-                allow_partial=arguments.allow_partial,
-            ),
-            overwrite=arguments.overwrite,
-        )
+            )
+            preview_report = {
+                "backend": "stored",
+                "scope": "stored_geometry_subset",
+                "occt_valid": None,
+                "mesh_count": preview.mesh_count,
+                "polyline_count": preview.polyline_count,
+                "triangle_count": preview.triangle_count,
+            }
+        else:
+            if arguments.mesh_index_origin is not None:
+                raise ValueError("--mesh-index-origin requires --stored-geometry")
+            parsed = read_brep(
+                arguments.path, schema_dir=arguments.schema_dir, source_format=arguments.format
+            )
+            source_sha256 = hashlib.sha256(parsed.document.raw_bytes).hexdigest()
+            converted = to_occt(
+                parsed.brep,
+                source_unit=arguments.source_unit,
+                target_unit=arguments.target_unit,
+                require_complete=not arguments.allow_partial,
+                source_identity=f"sha256:{source_sha256}",
+                partial=arguments.allow_partial,
+            )
+            preview = write_preview(
+                converted,
+                parsed.brep,
+                output,
+                options=PreviewOptions(
+                    linear_deflection=arguments.linear_deflection,
+                    angular_deflection=arguments.angular_deflection,
+                    include_edges=not arguments.no_edges,
+                    allow_partial=arguments.allow_partial,
+                ),
+                overwrite=arguments.overwrite,
+                assembly=arguments.assembly,
+            )
+            preview_report = preview.report.to_dict()
         response: dict[str, object] = {
             "status": "generated" if arguments.write_only else "serving",
             "source_sha256": source_sha256,
@@ -584,7 +634,7 @@ def _run(arguments: argparse.Namespace) -> int:
             "index": str(preview.index_path),
             "glb": str(preview.glb_path),
             "manifest": str(preview.manifest_path),
-            "preview": preview.report.to_dict(),
+            "preview": preview_report,
         }
         if arguments.write_only:
             _write_json(response)

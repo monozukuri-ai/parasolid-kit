@@ -23,7 +23,7 @@ const csp = "default-src 'self'; connect-src 'self'; img-src 'self' data:; objec
 const server = supplied ? null : createServer(async (req, res) => {
   try {
     const [, model, requested = ""] = new URL(req.url, "http://localhost").pathname.split("/");
-    if (!models.includes(model) && !["bad-glb", "bad-manifest", "bad-json", "missing", "incomplete"].includes(model)) { res.writeHead(404); res.end(); return; }
+    if (!models.includes(model) && !["assembly", "stored", "bad-glb", "bad-manifest", "bad-json", "missing", "incomplete"].includes(model)) { res.writeHead(404); res.end(); return; }
     const name = requested || "index.html";
     let data, type;
     if (Object.hasOwn(assets.assets, name)) {
@@ -251,6 +251,41 @@ try {
     assert.equal(await page.locator("#cad canvas").count(), 0); assert.deepEqual(result.pageErrors, []);
     result.disposed = true; await page.close(); activePage = null;
     console.log(`${model}: passed (${result.interactions.length} source-checked pointer clicks)`);
+  }
+  if (!supplied && !process.argv.includes("--errors-only")) {
+    report.features = {};
+    for (const model of ["assembly", "stored"]) {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 850 } }); activePage = page;
+      const errors = []; page.on("pageerror", error => errors.push(String(error)));
+      await page.goto(caseUrl(model));
+      await page.waitForFunction(() => document.getElementById("preview-app").dataset.status !== "loading");
+      assert.equal(await page.locator("#preview-app").getAttribute("data-status"), "ready", await page.locator("#preview-error").textContent());
+      await page.evaluate(async () => { window.testViewer = await (await import("./viewer.js")).application; });
+      if (model === "assembly") {
+        assert.equal(await page.locator("#body-list input").count(), 2);
+        assert.deepEqual(await page.evaluate(() => testViewer.preview.manifest.bounds), [70,0,0,140,40,70]);
+        await clickWorld(page, [85,20,70]);
+        await page.waitForFunction(() => testViewer.selection.length > 0);
+        assert.deepEqual(await page.evaluate(() => testViewer.selection[0].primitive.instance_path), [1,2]);
+        assert.match(await page.locator("#selection-details").innerText(), /Instance path.*1 \/ 2/s);
+        await page.screenshot({ path: `${reportDir}/assembly.png` });
+        await page.locator("#body-list input").nth(1).uncheck();
+        assert.ok(await page.evaluate(() => [...testViewer.visible].every(id => id.startsWith("/model/instance_0/"))));
+      } else {
+        assert.equal(await page.locator("#occt-status").innerText(), "OCCT not used");
+        assert.equal(await page.locator("#conversion-status").innerText(), "Stored geometry subset");
+        assert.equal(await page.locator("#partial-banner").isVisible(), true);
+        assert.ok(await page.evaluate(() => testViewer.preview.shapes.parts.every(p => p.subtype === "faces")));
+        await clickWorld(page, [0.4,0.5,0]);
+        await page.waitForFunction(() => testViewer.selection.length > 0);
+        assert.equal(await page.evaluate(() => testViewer.selection[0].primitive.source_entities[0].type_name), "MESH");
+      }
+      await page.screenshot({ path: `${reportDir}/${model === "assembly" ? "assembly-hidden" : model}.png` });
+      assert.deepEqual(errors, []);
+      report.features[model] = { status: "passed", selection: await page.evaluate(() => testViewer.selection), realPointerClick: true };
+      await page.close(); activePage = null;
+      console.log(`${model}: feature passed`);
+    }
   }
   report.negativeCases = {};
   for (const model of ["bad-glb", "bad-manifest", "bad-json", "missing", "incomplete"]) {

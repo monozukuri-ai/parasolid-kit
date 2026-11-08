@@ -89,6 +89,8 @@ include = [
   { path = "viewer/tests/fixtures/cylinder-hole/*", format = "sdist" },
   { path = "viewer/tests/fixtures/two-boxes/*", format = "sdist" },
   { path = "viewer/tests/fixtures/sheet/*", format = "sdist" },
+  { path = "viewer/tests/fixtures/assembly/*", format = "sdist" },
+  { path = "viewer/tests/fixtures/stored/*", format = "sdist" },
   { path = "docs/**/*", format = "sdist" },
   { path = "scripts/verify_release.py", format = "sdist" },
   { path = "scripts/bump_version.py", format = "sdist" },

@@ -9,6 +9,7 @@ from .model import (
     PreviewResult,
 )
 from .server import PreviewServer, create_preview_server
+from .stored import StoredPreviewResult, write_faceted_preview
 from .tessellation import TessellationResult, tessellate_preview
 from .writer import (
     ASSET_BUNDLE_VERSION,
@@ -30,9 +31,11 @@ __all__ = [
     "PreviewReport",
     "PreviewResult",
     "PreviewServer",
+    "StoredPreviewResult",
     "TessellationResult",
     "create_preview_server",
     "tessellate_preview",
     "validate_glb_bytes",
+    "write_faceted_preview",
     "write_preview",
 ]

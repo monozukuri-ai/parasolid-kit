@@ -9,11 +9,14 @@ from __future__ import annotations
 import hashlib
 import json
 import runpy
+import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 
+from parasolid_kit import faceted_geometry
 from parasolid_kit.interop.occt import SourceEntityKind, SourceEntityRef, SourceShapeMap, to_occt
-from parasolid_kit.interop.preview import PreviewOptions
+from parasolid_kit.interop.preview import PreviewOptions, write_faceted_preview
 from parasolid_kit.interop.preview.tessellation import tessellate_preview
 
 HERE = Path(__file__).resolve().parent
@@ -76,6 +79,32 @@ def main() -> None:
     (HERE / "fixtures/oracle.json").write_text(
         json.dumps(oracle, indent=2, sort_keys=True) + "\n", encoding="ascii"
     )
+    generate_feature_fixtures()
+
+
+def generate_feature_fixtures() -> None:
+    # These factories import test support from the source archive.
+    sys.path.insert(0, str(ROOT))
+    # Independent feature cases use only author-created models and named catalogs.
+    model, _, _ = runpy.run_path(str(ROOT / "tests/test_occt_placement.py"))["_assembled_box"](
+        nested=True
+    )
+    preview = tessellate_preview(to_occt(model, source_unit="mm"), model, assembly=True)
+    directory = HERE / "fixtures/assembly"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "preview.glb").write_bytes(preview.glb)
+    (directory / "preview.manifest.json").write_text(
+        json.dumps(preview.manifest, indent=2, sort_keys=True) + "\n", encoding="ascii"
+    )
+    document = runpy.run_path(str(ROOT / "tests/support/faceted.py"))["stored_document"]()
+    with tempfile.TemporaryDirectory() as temporary:
+        preview = write_faceted_preview(
+            faceted_geometry(document), Path(temporary) / "stored", source_unit="mm"
+        )
+        directory = HERE / "fixtures/stored"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "preview.glb").write_bytes(preview.glb_path.read_bytes())
+        (directory / "preview.manifest.json").write_bytes(preview.manifest_path.read_bytes())
 
 
 if __name__ == "__main__":

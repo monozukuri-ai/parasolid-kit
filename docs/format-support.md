@@ -581,6 +581,16 @@ GLB is likewise a derived inspection artifact, not the canonical parse result.
 
 ### Viewer display boundary
 
+The additional `--assembly` display mode uses explicit ASSEMBLY/INSTANCE links
+and stored transforms; it does not infer assembly structure from geometry.
+Repeated occurrences retain separate selection paths and visibility controls.
+The independent `--stored-geometry --schema-dir ...` mode displays selected
+POLYLINE and embedded MESH records from named caller catalogs without OCCT.
+That mode is labelled a stored-geometry subset, reports no OCCT validity, and
+does not establish whole-model coverage, topological trims, or solid closure.
+See [geometry operations](api.md#dependency-free-geometry-operations) for the
+supported pool layouts, explicit index-origin selection, and API boundaries.
+
 `parasolid-kit viewer` (alias `view`) displays the documented OCCT conversion
 subset above. Local browser checks cover solid boxes, a cylinder with a hole,
 multiple bodies, and an open non-rational NURBS sheet, generated from public
