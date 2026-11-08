@@ -5742,12 +5742,12 @@ mod tests {
         let expected = point_at((lo + hi) * 0.5);
         let evaluated =
             evaluate_plane_cylinder_intersection_candidate(&brep, &curve, parameter).unwrap();
-        for axis in 0..3 {
-            assert!((evaluated.point[axis] - expected[axis]).abs() < 1e-12);
+        for (axis, expected_coordinate) in expected.iter().enumerate() {
+            assert!((evaluated.point[axis] - *expected_coordinate).abs() < 1e-12);
         }
         let expected_tangent = tangent_at((lo + hi) * 0.5);
-        for axis in 0..3 {
-            assert!((evaluated.tangent[axis] - expected_tangent[axis]).abs() < 1e-12);
+        for (axis, expected_component) in expected_tangent.iter().enumerate() {
+            assert!((evaluated.tangent[axis] - *expected_component).abs() < 1e-12);
         }
     }
 
@@ -5869,7 +5869,7 @@ mod tests {
                 if !reverse_axis && !reverse_order {
                     let mut oversized_curve = curve.clone();
                     if let CurveKind::Intersection { chart_points, .. } = &mut oversized_curve {
-                        let first = chart_points[0].clone();
+                        let first = chart_points[0];
                         chart_points.resize(33, first);
                     }
                     assert_eq!(

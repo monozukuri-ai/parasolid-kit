@@ -740,55 +740,56 @@ mod tests {
     }
 
     #[test]
-    fn periodic_curve_wraps_across_positive_and_negative_periods() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Equivalent periodic parameters must produce exactly identical coordinates."
+    )]
+    fn periodic_curve_wraps_across_positive_and_negative_periods() -> std::io::Result<()> {
         for rational in [false, true] {
             let curve = periodic_curve(rational);
-            let at = evaluate_mapped_nurbs_curve_candidate(&curve, 0.5).unwrap();
+            let at = evaluate_mapped_nurbs_curve_candidate(&curve, 0.5)?;
+            assert_eq!(at, evaluate_mapped_nurbs_curve_candidate(&curve, 4.5)?);
+            assert_eq!(at, evaluate_mapped_nurbs_curve_candidate(&curve, -3.5)?);
             assert_eq!(
-                at,
-                evaluate_mapped_nurbs_curve_candidate(&curve, 4.5).unwrap()
-            );
-            assert_eq!(
-                at,
-                evaluate_mapped_nurbs_curve_candidate(&curve, -3.5).unwrap()
-            );
-            assert_eq!(
-                evaluate_mapped_nurbs_curve_candidate(&curve, 0.0).unwrap(),
-                evaluate_mapped_nurbs_curve_candidate(&curve, 4.0).unwrap()
+                evaluate_mapped_nurbs_curve_candidate(&curve, 0.0)?,
+                evaluate_mapped_nurbs_curve_candidate(&curve, 4.0)?
             );
             if rational {
                 assert_eq!(
-                    evaluate_mapped_nurbs_curve_candidate(&curve, 0.0).unwrap(),
+                    evaluate_mapped_nurbs_curve_candidate(&curve, 0.0)?,
                     [4.0 / 9.0, 5.0 / 9.0, 0.0]
                 );
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn periodic_curve_accepts_exact_tangent_join_without_repeated_controls() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "Exact seam equality verifies the periodic tangent join representation."
+    )]
+    fn periodic_curve_accepts_exact_tangent_join_without_repeated_controls() -> std::io::Result<()>
+    {
         let curve = periodic_curve_with_exact_tangent_join();
         assert_ne!(curve.control_vertices[0..3], curve.control_vertices[5..8]);
-        let at = evaluate_mapped_nurbs_curve_candidate(&curve, 1.0).unwrap();
-        assert_eq!(
-            at,
-            evaluate_mapped_nurbs_curve_candidate(&curve, 6.0).unwrap()
-        );
-        assert_eq!(
-            at,
-            evaluate_mapped_nurbs_curve_candidate(&curve, -4.0).unwrap()
-        );
+        let at = evaluate_mapped_nurbs_curve_candidate(&curve, 1.0)?;
+        assert_eq!(at, evaluate_mapped_nurbs_curve_candidate(&curve, 6.0)?);
+        assert_eq!(at, evaluate_mapped_nurbs_curve_candidate(&curve, -4.0)?);
+        Ok(())
     }
 
     #[test]
-    fn periodic_clamped_endpoints_with_exact_tangents_and_internal_zero_span() {
+    #[allow(
+        clippy::float_cmp,
+        reason = "The closed endpoint must evaluate to the exact shared periodic seam point."
+    )]
+    fn periodic_clamped_endpoints_with_exact_tangents_and_internal_zero_span() -> std::io::Result<()>
+    {
         for rational in [false, true] {
             let curve = clamped_periodic_curve(rational);
-            let start = evaluate_mapped_nurbs_curve_candidate(&curve, 0.0).unwrap();
-            assert_eq!(
-                start,
-                evaluate_mapped_nurbs_curve_candidate(&curve, 3.0).unwrap()
-            );
+            let start = evaluate_mapped_nurbs_curve_candidate(&curve, 0.0)?;
+            assert_eq!(start, evaluate_mapped_nurbs_curve_candidate(&curve, 3.0)?);
             assert!(evaluate_mapped_nurbs_curve_candidate(&curve, 1.0).is_ok());
         }
 
@@ -799,6 +800,7 @@ mod tests {
         let mut zero = clamped_periodic_curve(false);
         zero.control_vertices[3] = zero.control_vertices[4].clone();
         assert!(evaluate_mapped_nurbs_curve_candidate(&zero, 1.0).is_err());
+        Ok(())
     }
 
     #[test]

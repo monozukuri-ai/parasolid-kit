@@ -2306,8 +2306,6 @@ fn tessellate_brep_to_mesh_inner(
                     current_surf_kind,
                     effective_sense,
                     &loops_3d,
-                    16,
-                    32,
                     &mut result,
                 );
             }
@@ -5527,10 +5525,11 @@ fn tessellate_spun_face(
     surf_kind: &SurfaceKind,
     face_sense: bool,
     loops_3d: &[Vec<[f64; 3]>],
-    n_u: usize,
-    n_v: usize,
     result: &mut TessellatedMesh,
 ) -> bool {
+    const GRID_STEPS_U: u32 = 16;
+    const GRID_STEPS_V: u32 = 32;
+
     let (u_min, u_max, v_min, v_max) = match surf_kind {
         SurfaceKind::Spun {
             profile,
@@ -5588,14 +5587,13 @@ fn tessellate_spun_face(
     }
 
     if !loops_3d.is_empty() {
-        let grid_steps_u = 16;
-        let grid_steps_v = 16;
-        let mut coarse_samples: Vec<(f64, f64, [f64; 3])> =
-            Vec::with_capacity((grid_steps_u + 1) * (grid_steps_v + 1));
+        let grid_steps_u = 16_u32;
+        let grid_steps_v = 16_u32;
+        let mut coarse_samples: Vec<(f64, f64, [f64; 3])> = Vec::with_capacity(17 * 17);
         for j in 0..=grid_steps_v {
-            let v = v_min + (v_max - v_min) * (j as f64 / grid_steps_v as f64);
+            let v = v_min + (v_max - v_min) * (f64::from(j) / f64::from(grid_steps_v));
             for i in 0..=grid_steps_u {
-                let u = u_min + (u_max - u_min) * (i as f64 / grid_steps_u as f64);
+                let u = u_min + (u_max - u_min) * (f64::from(i) / f64::from(grid_steps_u));
                 if let Some(eval) = evaluate_surface(brep, surf_kind, u, v)
                     .filter(|eval| eval.point.iter().all(|value| value.is_finite()))
                 {
@@ -5728,8 +5726,8 @@ fn tessellate_spun_face(
                 .then_some([u, v])
             };
 
-            let delta_u = (u_max - u_min) / n_u as f64;
-            let delta_v = (v_max - v_min) / n_v as f64;
+            let delta_u = (u_max - u_min) / f64::from(GRID_STEPS_U);
+            let delta_v = (v_max - v_min) / f64::from(GRID_STEPS_V);
             let delta_uv = delta_u.max(delta_v).max(1e-4);
 
             if try_tessellate_trimmed_surface(
@@ -5747,10 +5745,10 @@ fn tessellate_spun_face(
             }
         }
     } else {
-        for j in 0..=n_v {
-            let v = v_min + (v_max - v_min) * (j as f64 / n_v as f64);
-            for i in 0..=n_u {
-                let u = u_min + (u_max - u_min) * (i as f64 / n_u as f64);
+        for j in 0..=GRID_STEPS_V {
+            let v = v_min + (v_max - v_min) * (f64::from(j) / f64::from(GRID_STEPS_V));
+            for i in 0..=GRID_STEPS_U {
+                let u = u_min + (u_max - u_min) * (f64::from(i) / f64::from(GRID_STEPS_U));
                 let Some(eval) = evaluate_surface(brep, surf_kind, u, v) else {
                     return false;
                 };
@@ -5768,10 +5766,10 @@ fn tessellate_spun_face(
             |u, v| evaluate_surface(brep, surf_kind, u, v),
             u_min,
             u_max,
-            n_u,
+            16,
             v_min,
             v_max,
-            n_v,
+            32,
             face_sense,
             result,
         );
