@@ -6570,6 +6570,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::float_cmp,
+        reason = "the regular fixture guarantees its chord and evaluation; exact endpoint equality is intentional"
+    )]
     fn evaluates_bounded_cylinder_torus_chart_interval_with_support_tangent() {
         let (brep, curve) = cylinder_torus_fixture();
         let parameter = cylinder_torus_second_segment_midpoint_parameter(&curve);

@@ -601,6 +601,7 @@ mod tests {
     }
 
     fn periodic_curve(rational: bool) -> NurbsCurve {
+        const PERIODIC_WEIGHTS: [f64; 6] = [1.0, 1.25, 1.5, 1.75, 2.0, 2.25];
         let planar = [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]];
         let mut control_vertices: Vec<Vec<f64>> = planar
             .iter()
@@ -608,7 +609,7 @@ mod tests {
             .enumerate()
             .map(|(index, point)| {
                 let weight = if rational {
-                    1.0 + index as f64 / 4.0
+                    PERIODIC_WEIGHTS[index]
                 } else {
                     1.0
                 };
