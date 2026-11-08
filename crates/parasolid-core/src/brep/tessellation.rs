@@ -4643,7 +4643,7 @@ fn tessellate_nurbs_face(
         match try_tessellate_trimmed_surface_with_uv(
             surf_kind,
             project_uv,
-            &evaluate_nurbs_surface,
+            evaluate_nurbs_surface,
             loops_3d,
             direct_uv_loops,
             [max_parameter_cell_size; 2],
@@ -5656,30 +5656,44 @@ fn tessellate_spun_face(
 
                     let u_plus = (u + eps_u).min(u_max);
                     let u_minus = (u - eps_u).max(u_min);
-                    let du_step = u_plus - u_minus;
-                    let Some(s_u_plus) = evaluate_surface(brep, surf_kind, u_plus, v) else {
+                    let first_parameter_step = u_plus - u_minus;
+                    let Some(first_axis_upper_evaluation) =
+                        evaluate_surface(brep, surf_kind, u_plus, v)
+                    else {
                         break;
                     };
-                    let Some(s_u_minus) = evaluate_surface(brep, surf_kind, u_minus, v) else {
+                    let Some(first_axis_lower_evaluation) =
+                        evaluate_surface(brep, surf_kind, u_minus, v)
+                    else {
                         break;
                     };
                     let du = vec3_scale(
-                        vec3_sub(s_u_plus.point, s_u_minus.point),
-                        1.0 / du_step.max(1e-12),
+                        vec3_sub(
+                            first_axis_upper_evaluation.point,
+                            first_axis_lower_evaluation.point,
+                        ),
+                        1.0 / first_parameter_step.max(1e-12),
                     );
 
                     let v_plus = v + eps_v;
                     let v_minus = v - eps_v;
-                    let dv_step = v_plus - v_minus;
-                    let Some(s_v_plus) = evaluate_surface(brep, surf_kind, u, v_plus) else {
+                    let second_parameter_step = v_plus - v_minus;
+                    let Some(second_axis_upper_evaluation) =
+                        evaluate_surface(brep, surf_kind, u, v_plus)
+                    else {
                         break;
                     };
-                    let Some(s_v_minus) = evaluate_surface(brep, surf_kind, u, v_minus) else {
+                    let Some(second_axis_lower_evaluation) =
+                        evaluate_surface(brep, surf_kind, u, v_minus)
+                    else {
                         break;
                     };
                     let dv = vec3_scale(
-                        vec3_sub(s_v_plus.point, s_v_minus.point),
-                        1.0 / dv_step.max(1e-12),
+                        vec3_sub(
+                            second_axis_upper_evaluation.point,
+                            second_axis_lower_evaluation.point,
+                        ),
+                        1.0 / second_parameter_step.max(1e-12),
                     );
 
                     let j00 = vec3_dot(du, du);
