@@ -329,23 +329,7 @@ pub fn evaluate_nurbs_curve_values_candidate(
     };
     let mut d = points[span - degree..=span].to_vec();
     for r in 1..=degree {
-        for j in (r..=degree).rev() {
-            let i = span - degree + j;
-            let den = knots[i + degree + 1 - r] - knots[i];
-            if den == 0.0 || !den.is_finite() {
-                return Err(invalid("zero NURBS denominator"));
-            }
-            let alpha = (parameter - knots[i]) / den;
-            if !alpha.is_finite() {
-                return Err(invalid("nonfinite NURBS interpolation factor"));
-            }
-            for k in 0..points[0].len() {
-                d[j][k] = (1.0 - alpha) * d[j - 1][k] + alpha * d[j][k];
-                if !d[j][k].is_finite() {
-                    return Err(invalid("nonfinite NURBS intermediate"));
-                }
-            }
-        }
+        interpolate_de_boor_level(&mut d, &knots, degree, span, parameter, r)?;
     }
     let p = &d[degree];
     let divisor = if rational { p[output_dimension] } else { 1.0 };
@@ -357,6 +341,39 @@ pub fn evaluate_nurbs_curve_values_candidate(
         return Err(invalid("nonfinite NURBS result or zero weight"));
     }
     Ok(result)
+}
+
+#[allow(
+    clippy::float_cmp,
+    reason = "An exactly zero knot interval remains an invalid NURBS denominator."
+)]
+fn interpolate_de_boor_level(
+    points: &mut [Vec<f64>],
+    knots: &[f64],
+    degree: usize,
+    span: usize,
+    parameter: f64,
+    level: usize,
+) -> io::Result<()> {
+    for index in (level..=degree).rev() {
+        let knot_index = span - degree + index;
+        let denominator = knots[knot_index + degree + 1 - level] - knots[knot_index];
+        if denominator == 0.0 || !denominator.is_finite() {
+            return Err(invalid("zero NURBS denominator"));
+        }
+        let alpha = (parameter - knots[knot_index]) / denominator;
+        if !alpha.is_finite() {
+            return Err(invalid("nonfinite NURBS interpolation factor"));
+        }
+        for component in 0..points[0].len() {
+            points[index][component] =
+                (1.0 - alpha) * points[index - 1][component] + alpha * points[index][component];
+            if !points[index][component].is_finite() {
+                return Err(invalid("nonfinite NURBS intermediate"));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn validate_periodic_endpoint_continuity(

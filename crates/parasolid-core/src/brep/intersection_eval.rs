@@ -3682,12 +3682,14 @@ pub fn evaluate_cylinder_cylinder_intersection_candidate(
             add(chord_point, scale(across, offset)),
             chord_point,
             chord_normal,
-            origin_a,
-            axis_a,
-            *radius_a,
-            origin_b,
-            axis_b,
-            *radius_b,
+            CylinderPairChartSupports {
+                origin_a,
+                axis_a,
+                radius_a: *radius_a,
+                origin_b,
+                axis_b,
+                radius_b: *radius_b,
+            },
         )
     });
     let [Ok(root), Ok(root_b), Ok(root_c)] = roots else {
@@ -4240,17 +4242,29 @@ pub fn evaluate_cylinder_torus_intersection_candidate(
     Ok(IntersectionCurveEvaluation { point, tangent })
 }
 
-fn solve_cylinder_pair_chart_root(
-    mut point: [f64; 3],
-    chart_point: [f64; 3],
-    chart_normal: [f64; 3],
+struct CylinderPairChartSupports {
     origin_a: [f64; 3],
     axis_a: [f64; 3],
     radius_a: f64,
     origin_b: [f64; 3],
     axis_b: [f64; 3],
     radius_b: f64,
+}
+
+fn solve_cylinder_pair_chart_root(
+    mut point: [f64; 3],
+    chart_point: [f64; 3],
+    chart_normal: [f64; 3],
+    supports: CylinderPairChartSupports,
 ) -> Result<[f64; 3], IntersectionEvaluationError> {
+    let CylinderPairChartSupports {
+        origin_a,
+        axis_a,
+        radius_a,
+        origin_b,
+        axis_b,
+        radius_b,
+    } = supports;
     let tolerance = 4.0 * EPS_FACTOR * radius_a.max(radius_b);
     let residual_at = |point: [f64; 3]| -> Option<[f64; 3]> {
         let offset_a = sub(point, origin_a);

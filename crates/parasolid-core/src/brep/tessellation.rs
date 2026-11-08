@@ -5086,13 +5086,19 @@ fn evaluate_surface_recursive(
                     _ => u_clamped - eps_u,
                 };
                 let du_step = u_plus - u_minus;
-                let pt_u_plus = eval_pt(u_plus, v).unwrap_or(pt_rot);
-                let pt_u_minus = eval_pt(u_minus, v).unwrap_or(pt_rot);
-                let du = vec3_scale(vec3_sub(pt_u_plus, pt_u_minus), 1.0 / du_step.max(1e-12));
+                let first_axis_forward_sample = eval_pt(u_plus, v).unwrap_or(pt_rot);
+                let first_axis_backward_sample = eval_pt(u_minus, v).unwrap_or(pt_rot);
+                let du = vec3_scale(
+                    vec3_sub(first_axis_forward_sample, first_axis_backward_sample),
+                    1.0 / du_step.max(1e-12),
+                );
 
-                let pt_v_plus = eval_pt(u_clamped, v + eps_v).unwrap_or(pt_rot);
-                let pt_v_minus = eval_pt(u_clamped, v - eps_v).unwrap_or(pt_rot);
-                let dv = vec3_scale(vec3_sub(pt_v_plus, pt_v_minus), 1.0 / (2.0 * eps_v));
+                let second_axis_forward_sample = eval_pt(u_clamped, v + eps_v).unwrap_or(pt_rot);
+                let second_axis_backward_sample = eval_pt(u_clamped, v - eps_v).unwrap_or(pt_rot);
+                let dv = vec3_scale(
+                    vec3_sub(second_axis_forward_sample, second_axis_backward_sample),
+                    1.0 / (2.0 * eps_v),
+                );
 
                 let fd_cross = vec3_cross(dv, du);
                 let fd_len = vec3_norm(fd_cross);
@@ -5252,8 +5258,10 @@ fn tessellate_swept_face_projected(
             for loop_3d in loops_3d {
                 let mut uv_ring = Vec::with_capacity(loop_3d.len());
                 for &p in loop_3d {
-                    let p_perp = vec3_sub(p, vec3_scale(unit_d, vec3_dot(p, unit_d)));
-                    let u = vec3_dot(vec3_sub(p_perp, p0_perp), t_perp) / t_perp_len_sq;
+                    let loop_point_perpendicular =
+                        vec3_sub(p, vec3_scale(unit_d, vec3_dot(p, unit_d)));
+                    let u = vec3_dot(vec3_sub(loop_point_perpendicular, p0_perp), t_perp)
+                        / t_perp_len_sq;
                     let c_u = vec3_add(p0, vec3_scale(t_vec, u));
                     let v = vec3_dot(vec3_sub(p, c_u), unit_d);
                     if !u.is_finite() || !v.is_finite() {
@@ -5286,8 +5294,8 @@ fn tessellate_swept_face_projected(
                 return false;
             }
 
-            const NUM_COARSE: usize = 128;
-            let mut coarse_samples: Vec<(f64, [f64; 3])> = Vec::with_capacity(NUM_COARSE + 1);
+            let num_coarse = 128;
+            let mut coarse_samples: Vec<(f64, [f64; 3])> = Vec::with_capacity(num_coarse + 1);
             for i in 0_u32..=128 {
                 let u = u_min + u_span * (f64::from(i) / 128.0);
                 if let Some(pt) = crate::brep::evaluate_curve_point(section_kind, u) {
