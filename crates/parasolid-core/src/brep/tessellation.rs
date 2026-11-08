@@ -412,9 +412,7 @@ pub fn tessellate_swept_brep_face_with_explicit_uv(
         .surfaces
         .iter()
         .find(|surface| surface.id == surface_id)?;
-    if surface.kind.swept_section_direction().is_none() {
-        return None;
-    }
+    surface.kind.swept_section_direction()?;
     if sweep_direction.iter().any(|value| !value.is_finite())
         || sweep_direction.iter().all(|value| *value == 0.0)
     {
@@ -2540,8 +2538,8 @@ fn tessellate_cylindrical_face(
     chord_error: f64,
     result: &mut TessellatedMesh,
 ) {
-    let r = radius.max(0.1);
-    let sagitta = (chord_error / r).min(0.999);
+    let effective_radius = radius.max(0.1);
+    let sagitta = (chord_error / effective_radius).min(0.999);
     let delta_theta = (2.0 * (1.0 - sagitta).acos())
         .clamp(std::f64::consts::PI / 64.0, std::f64::consts::PI / 6.0);
     let n_u = ((2.0 * std::f64::consts::PI) / delta_theta).ceil() as usize;
@@ -2553,7 +2551,7 @@ fn tessellate_cylindrical_face(
         _ => [1.0, 0.0, 0.0],
     };
     let x_proj = vec3_sub(x_raw, vec3_scale(ax, vec3_dot(x_raw, ax)));
-    let x = if vec3_norm(x_proj) > 1e-12 {
+    let x_axis = if vec3_norm(x_proj) > 1e-12 {
         vec3_normalize(x_proj)
     } else {
         let alt = if ax[0].abs() < 0.9 {
@@ -2563,16 +2561,16 @@ fn tessellate_cylindrical_face(
         };
         vec3_normalize(vec3_cross(ax, alt))
     };
-    let y = vec3_cross(ax, x);
+    let y_axis = vec3_cross(ax, x_axis);
 
     let project_uv = |p: [f64; 3], _ring: &[[f64; 3]], _i: usize| -> Option<[f64; 2]> {
-        let d = vec3_sub(p, point);
-        let v = vec3_dot(d, ax);
-        let radial = vec3_sub(d, vec3_scale(ax, v));
-        let x_c = vec3_dot(radial, x);
-        let y_c = vec3_dot(radial, y);
-        let u = y_c.atan2(x_c);
-        Some([u, v])
+        let offset = vec3_sub(p, point);
+        let axial_parameter = vec3_dot(offset, ax);
+        let radial = vec3_sub(offset, vec3_scale(ax, axial_parameter));
+        let x_coordinate = vec3_dot(radial, x_axis);
+        let y_coordinate = vec3_dot(radial, y_axis);
+        let angle = y_coordinate.atan2(x_coordinate);
+        Some([angle, axial_parameter])
     };
 
     match try_tessellate_trimmed_surface(
@@ -2622,33 +2620,33 @@ fn tessellate_cylindrical_face(
 }
 
 fn project_cone_uv(
-    p: [f64; 3],
+    point_on_ring: [f64; 3],
     ring: &[[f64; 3]],
     idx: usize,
     point: [f64; 3],
     ax: [f64; 3],
-    x: [f64; 3],
-    y: [f64; 3],
+    x_axis: [f64; 3],
+    y_axis: [f64; 3],
     xt_parameterization: bool,
 ) -> Option<[f64; 2]> {
-    let d = vec3_sub(p, point);
-    let axial = vec3_dot(d, ax);
-    let v = if xt_parameterization { -axial } else { axial };
-    let radial = vec3_sub(d, vec3_scale(ax, axial));
+    let offset = vec3_sub(point_on_ring, point);
+    let axial = vec3_dot(offset, ax);
+    let v_parameter = if xt_parameterization { -axial } else { axial };
+    let radial = vec3_sub(offset, vec3_scale(ax, axial));
     let rad_norm = vec3_norm(radial);
 
     let (x_c, y_c) = if rad_norm >= 1e-7 {
-        (vec3_dot(radial, x), vec3_dot(radial, y))
+        (vec3_dot(radial, x_axis), vec3_dot(radial, y_axis))
     } else {
         // Vertex is at the cone apex. Determine u from adjacent non-apex point(s) in ring.
         let mut found_rad = None;
         if !ring.is_empty() {
-            let n = ring.len();
+            let ring_len = ring.len();
             // If at index 0, prefer outgoing edge neighbor P_1 so unwrapping starts aligned
             let (first_check, second_check) = if idx == 0 {
-                (1 % n, (n - 1) % n)
+                (1 % ring_len, (ring_len - 1) % ring_len)
             } else {
-                ((idx + n - 1) % n, (idx + 1) % n)
+                ((idx + ring_len - 1) % ring_len, (idx + 1) % ring_len)
             };
 
             let d_first = vec3_sub(ring[first_check], point);
@@ -2680,32 +2678,32 @@ fn project_cone_uv(
         }
 
         if let Some(rn) = found_rad {
-            (vec3_dot(rn, x), vec3_dot(rn, y))
+            (vec3_dot(rn, x_axis), vec3_dot(rn, y_axis))
         } else {
             (1.0, 0.0)
         }
     };
 
-    let u = y_c.atan2(x_c);
-    Some([u, v])
+    let angle = y_c.atan2(x_c);
+    Some([angle, v_parameter])
 }
 
 fn project_sphere_uv(
-    p: [f64; 3],
+    point_on_ring: [f64; 3],
     ring: &[[f64; 3]],
     idx: usize,
     center: [f64; 3],
-    r: f64,
-    z: [f64; 3],
-    x: [f64; 3],
-    y: [f64; 3],
+    radius: f64,
+    z_axis: [f64; 3],
+    x_axis: [f64; 3],
+    y_axis: [f64; 3],
 ) -> Option<[f64; 2]> {
-    let d = vec3_sub(p, center);
-    let z_val = vec3_dot(d, z);
-    let sin_v = (z_val / r).clamp(-1.0, 1.0);
-    let v = sin_v.asin();
-    let x_val = vec3_dot(d, x);
-    let y_val = vec3_dot(d, y);
+    let offset = vec3_sub(point_on_ring, center);
+    let z_val = vec3_dot(offset, z_axis);
+    let sin_v = (z_val / radius).clamp(-1.0, 1.0);
+    let latitude_parameter = sin_v.asin();
+    let x_val = vec3_dot(offset, x_axis);
+    let y_val = vec3_dot(offset, y_axis);
     let r_xy_sq = x_val * x_val + y_val * y_val;
 
     let (u_x, u_y) = if r_xy_sq >= 1e-14 {
@@ -2714,22 +2712,22 @@ fn project_sphere_uv(
         // Vertex is at the pole (North or South). Determine u from adjacent point(s) in ring.
         let mut found_xy = None;
         if !ring.is_empty() {
-            let n = ring.len();
+            let ring_len = ring.len();
             let (first_check, second_check) = if idx == 0 {
-                (1 % n, (n - 1) % n)
+                (1 % ring_len, (ring_len - 1) % ring_len)
             } else {
-                ((idx + n - 1) % n, (idx + 1) % n)
+                ((idx + ring_len - 1) % ring_len, (idx + 1) % ring_len)
             };
 
             let d_first = vec3_sub(ring[first_check], center);
-            let xf = vec3_dot(d_first, x);
-            let yf = vec3_dot(d_first, y);
+            let xf = vec3_dot(d_first, x_axis);
+            let yf = vec3_dot(d_first, y_axis);
             if xf * xf + yf * yf >= 1e-14 {
                 found_xy = Some((xf, yf));
             } else {
                 let d_second = vec3_sub(ring[second_check], center);
-                let xs = vec3_dot(d_second, x);
-                let ys = vec3_dot(d_second, y);
+                let xs = vec3_dot(d_second, x_axis);
+                let ys = vec3_dot(d_second, y_axis);
                 if xs * xs + ys * ys >= 1e-14 {
                     found_xy = Some((xs, ys));
                 } else {
@@ -2738,8 +2736,8 @@ fn project_sphere_uv(
                             continue;
                         }
                         let d_k = vec3_sub(*other_p, center);
-                        let xk = vec3_dot(d_k, x);
-                        let yk = vec3_dot(d_k, y);
+                        let xk = vec3_dot(d_k, x_axis);
+                        let yk = vec3_dot(d_k, y_axis);
                         if xk * xk + yk * yk >= 1e-14 {
                             found_xy = Some((xk, yk));
                             break;
@@ -2756,8 +2754,8 @@ fn project_sphere_uv(
         }
     };
 
-    let u = u_y.atan2(u_x);
-    Some([u, v])
+    let longitude_parameter = u_y.atan2(u_x);
+    Some([longitude_parameter, latitude_parameter])
 }
 
 #[allow(
@@ -3830,7 +3828,7 @@ fn surface_periodic_periods(surface: &SurfaceKind) -> Option<[Option<f64>; 2]> {
                     {
                         return None;
                     }
-                    expanded.extend(std::iter::repeat(knot).take(usize::from(multiplicity)));
+                    expanded.extend(std::iter::repeat_n(knot, usize::from(multiplicity)));
                 }
                 if expanded.len() != expanded_count || count >= expanded.len() || degree >= count {
                     return None;

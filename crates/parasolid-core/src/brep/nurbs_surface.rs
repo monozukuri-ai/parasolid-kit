@@ -2821,6 +2821,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::float_cmp,
+        reason = "This piecewise-linear fixture produces exact coordinates at the tested domain boundaries, and each unwrap checks an in-domain evaluation."
+    )]
     fn closed_nonperiodic_axes_stay_inside_their_active_domains() {
         let one_closed_axis = closed_nonperiodic_v_surface();
         assert_eq!(
@@ -2845,6 +2850,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unwrap_used,
+        clippy::float_cmp,
+        reason = "The periodic and nonperiodic axis fixture is evaluated only at valid points, and wrapping must reproduce the exact same mapped coordinates."
+    )]
     fn mixed_periodic_and_closed_nonperiodic_axes_wrap_only_periodic_axis() {
         let surface = mixed_closed_nonperiodic_u_periodic_v_surface();
         let at = evaluate_mapped_nurbs_surface(&surface, 0.5, 2.5).unwrap();
