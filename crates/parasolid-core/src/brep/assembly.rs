@@ -2154,22 +2154,25 @@ mod tests {
     }
 
     #[test]
-    fn rejects_previous_instance_links_with_wrong_pointer_classes() {
+    fn rejects_previous_instance_links_with_wrong_pointer_classes() -> Result<(), std::io::Error> {
         for field_name in ["previous_in_assembly", "previous_of_part"] {
             let mut nodes = fixture(3);
-            let instance = nodes.iter_mut().find(|node| node.index == 2).unwrap();
+            let instance = nodes
+                .iter_mut()
+                .find(|node| node.index == 2)
+                .ok_or_else(|| std::io::Error::other("instance node is missing"))?;
             std::sync::Arc::make_mut(&mut instance.definition)
                 .fields
                 .iter_mut()
                 .find(|field| field.name == field_name)
-                .unwrap()
+                .ok_or_else(|| std::io::Error::other("instance field is missing"))?
                 .pointer_class = 12;
             std::sync::Arc::make_mut(
                 &mut instance
                     .fields
                     .iter_mut()
                     .find(|field| field.definition.name == field_name)
-                    .unwrap()
+                    .ok_or_else(|| std::io::Error::other("instance field value is missing"))?
                     .definition,
             )
             .pointer_class = 12;
@@ -2179,6 +2182,7 @@ mod tests {
                 "incorrect pointer class is rejected for {field_name}"
             );
         }
+        Ok(())
     }
 
     #[test]
@@ -2341,7 +2345,8 @@ mod tests {
     }
 
     #[test]
-    fn places_triangle_through_nested_reflection_without_changing_vertex_order() {
+    fn places_triangle_through_nested_reflection_without_changing_vertex_order()
+    -> Result<(), ParseError> {
         let leaf_reflection = placement_transform(
             100,
             [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
@@ -2366,12 +2371,13 @@ mod tests {
             transforms: vec![leaf_reflection, root_translation],
         };
         let input = [[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]];
-        let placed = structure.place_triangles(&input, &[10, 20]).unwrap();
+        let placed = structure.place_triangles(&input, &[10, 20])?;
         assert_eq!(input[0][0], [1.0, 0.0, 0.0]);
         assert_eq!(
             placed,
             vec![[[0.0, 2.0, 0.0], [1.0, 3.0, 0.0], [1.0, 2.0, 1.0]]]
         );
+        Ok(())
     }
 
     #[test]
@@ -2503,7 +2509,7 @@ mod tests {
     }
 
     #[test]
-    fn accepts_only_reviewed_exact_assembly_profiles() {
+    fn accepts_only_reviewed_exact_assembly_profiles() -> Result<(), Box<dyn std::error::Error>> {
         for (profile_id, revision, key, digest) in [
             (
                 "solidworks-3101290-31100-13006-r2",
@@ -2567,15 +2573,15 @@ mod tests {
                 coverage: crate::BuiltinProfileCoverage::VerifiedSubset,
                 profile_sha256: digest.into(),
             };
-            let registry = crate::BuiltinProfileRegistry::compiled().expect("registry");
+            let registry = crate::BuiltinProfileRegistry::compiled()?;
             let profile = registry
-                .profile_for_key(&crate::SchemaKey::parse(key).expect("schema key"))
-                .expect("registered profile");
+                .profile_for_key(&crate::SchemaKey::parse(key)?)
+                .ok_or_else(|| std::io::Error::other("registered profile is missing"))?;
             let mut nodes = fixture(3);
             for node in nodes.iter_mut().filter(|node| node.node_type != 12) {
                 let definition = profile
                     .definition(node.node_type)
-                    .expect("reviewed schema definition")
+                    .ok_or_else(|| std::io::Error::other("reviewed schema definition is missing"))?
                     .clone();
                 node.definition = definition.clone().into();
                 node.first_schema = Some(crate::SchemaResolution {
@@ -2585,21 +2591,21 @@ mod tests {
                     edits: vec![],
                 });
             }
-            let mapped = map_assembly(&nodes, &provider, key).expect("exact schema");
+            let mapped = map_assembly(&nodes, &provider, key)?;
             assert_eq!(mapped.instances[0].part, 4);
             assert!(map_assembly(&nodes, &provider, "nearby-schema-key").is_err());
         }
 
-        let registry = crate::BuiltinProfileRegistry::compiled().expect("registry");
-        let exact_key = crate::SchemaKey::parse("SCH_2600169_25001_13006").expect("exact key");
+        let registry = crate::BuiltinProfileRegistry::compiled()?;
+        let exact_key = crate::SchemaKey::parse("SCH_2600169_25001_13006")?;
         let exact = registry
             .profile_for_key(&exact_key)
-            .expect("exact family member");
+            .ok_or_else(|| std::io::Error::other("exact family member is missing"))?;
         let mut nodes = fixture(3);
         for node in nodes.iter_mut().filter(|node| node.node_type != 12) {
             let definition = exact
                 .definition(node.node_type)
-                .expect("reviewed schema definition")
+                .ok_or_else(|| std::io::Error::other("reviewed schema definition is missing"))?
                 .clone();
             node.definition = definition.clone().into();
             node.first_schema = Some(crate::SchemaResolution {
@@ -2609,11 +2615,10 @@ mod tests {
                 edits: vec![],
             });
         }
-        let inferred_key =
-            crate::SchemaKey::parse("SCH_2600190_25001_13006").expect("inferred family key");
+        let inferred_key = crate::SchemaKey::parse("SCH_2600190_25001_13006")?;
         let family = registry
             .family_for_key(&inferred_key)
-            .expect("derived family profile");
+            .ok_or_else(|| std::io::Error::other("derived family profile is missing"))?;
         let provider = SchemaProviderResolution::Builtin {
             profile_id: family.metadata().profile_id.clone(),
             profile_revision: family.metadata().revision,
@@ -2621,9 +2626,9 @@ mod tests {
             coverage: family.metadata().coverage,
             profile_sha256: family.metadata().profile_sha256.clone(),
         };
-        let mapped =
-            map_assembly(&nodes, &provider, inferred_key.raw()).expect("reviewed family roles");
+        let mapped = map_assembly(&nodes, &provider, inferred_key.raw())?;
         assert_eq!(mapped.instances[0].part, 4);
+        Ok(())
     }
 
     #[test]
@@ -2989,7 +2994,7 @@ mod tests {
     }
 
     #[test]
-    fn enforces_explicit_cap_on_dag_expansion() {
+    fn enforces_explicit_cap_on_dag_expansion() -> Result<(), ParseError> {
         let structure = AssemblyStructure {
             assemblies: vec![
                 plain_assembly(1, vec![10], vec![]),
@@ -3004,13 +3009,14 @@ mod tests {
 
         assert!(structure.leaf_body_instance_paths(1, 1).is_err());
         assert_eq!(
-            structure.leaf_body_instance_paths(1, 2).unwrap(),
+            structure.leaf_body_instance_paths(1, 2)?,
             vec![vec![20, 10]]
         );
+        Ok(())
     }
 
     #[test]
-    fn enumerates_a_deep_chain_without_recursive_call_stack() {
+    fn enumerates_a_deep_chain_without_recursive_call_stack() -> Result<(), ParseError> {
         const DEPTH: usize = 1_000;
         const INSTANCE_BASE: u32 = 20_000;
         let assemblies = (1..=DEPTH as u32)
@@ -3037,12 +3043,11 @@ mod tests {
             transforms: vec![],
         };
 
-        let paths = structure
-            .leaf_body_instance_paths(1, DEPTH)
-            .expect("deep bounded assembly path");
+        let paths = structure.leaf_body_instance_paths(1, DEPTH)?;
         assert_eq!(paths.len(), 1);
         assert_eq!(paths[0].len(), DEPTH);
         assert_eq!(paths[0][0], INSTANCE_BASE + DEPTH as u32);
         assert_eq!(paths[0][DEPTH - 1], INSTANCE_BASE + 1);
+        Ok(())
     }
 }

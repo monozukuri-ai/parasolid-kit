@@ -750,6 +750,10 @@ mod tests {
         highest_id: "highest_node_id",
     };
 
+    fn error_kind<T>(result: Result<T, ParseError>) -> Option<ErrorKind> {
+        result.err().map(|error| error.kind())
+    }
+
     fn body(index: u32, child: u32, owner: u32, next: u32, previous: u32) -> RawNode {
         node(
             index,
@@ -921,33 +925,29 @@ mod tests {
             .fields
             .retain(|field| field.definition.name != "child");
         assert_eq!(
-            decode_named_body_hierarchy(&[missing], 1, NAMES)
-                .unwrap_err()
-                .kind(),
-            ErrorKind::InvalidBrepField
+            error_kind(decode_named_body_hierarchy(&[missing], 1, NAMES)),
+            Some(ErrorKind::InvalidBrepField)
         );
 
         let mut wrong_type = body(1, 0, 0, 0, 0);
         let field = wrong_type
             .fields
             .iter_mut()
-            .find(|field| field.definition.name == "child")
-            .unwrap();
-        field.values[0] = FieldValue::Integer(Some(0));
+            .find(|field| field.definition.name == "child");
+        assert!(field.is_some(), "BODY fixture must contain a child field");
+        if let Some(field) = field {
+            field.values[0] = FieldValue::Integer(Some(0));
+        }
         assert_eq!(
-            decode_named_body_hierarchy(&[wrong_type], 1, NAMES)
-                .unwrap_err()
-                .kind(),
-            ErrorKind::InvalidBrepField
+            error_kind(decode_named_body_hierarchy(&[wrong_type], 1, NAMES)),
+            Some(ErrorKind::InvalidBrepField)
         );
 
         let mut duplicate = body(1, 0, 0, 0, 0);
         duplicate.fields.push(duplicate.fields[0].clone());
         assert_eq!(
-            decode_named_body_hierarchy(&[duplicate], 1, NAMES)
-                .unwrap_err()
-                .kind(),
-            ErrorKind::InvalidBrepField
+            error_kind(decode_named_body_hierarchy(&[duplicate], 1, NAMES)),
+            Some(ErrorKind::InvalidBrepField)
         );
     }
 
@@ -991,10 +991,8 @@ mod tests {
             BodyChildChainTermination::Circular,
         ] {
             assert_eq!(
-                decode_named_body_children(&nodes, 1, NAMES, termination)
-                    .unwrap_err()
-                    .kind(),
-                ErrorKind::InvalidBrepReference
+                error_kind(decode_named_body_children(&nodes, 1, NAMES, termination)),
+                Some(ErrorKind::InvalidBrepReference)
             );
         }
     }
@@ -1003,10 +1001,13 @@ mod tests {
     fn rejects_malformed_child_chains_under_selected_termination() -> Result<(), ParseError> {
         let null_chain = vec![body(1, 2, 0, 0, 0), body(2, 0, 1, 0, 0)];
         assert_eq!(
-            decode_named_body_children(&null_chain, 1, NAMES, BodyChildChainTermination::Circular,)
-                .unwrap_err()
-                .kind(),
-            ErrorKind::InvalidBrepReference
+            error_kind(decode_named_body_children(
+                &null_chain,
+                1,
+                NAMES,
+                BodyChildChainTermination::Circular,
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let circular_chain = vec![
@@ -1015,15 +1016,13 @@ mod tests {
             body(3, 0, 1, 2, 2),
         ];
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &circular_chain,
                 1,
                 NAMES,
                 BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::InvalidBrepReference
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let bad_previous = vec![
@@ -1032,28 +1031,24 @@ mod tests {
             body(3, 0, 1, 0, 0),
         ];
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &bad_previous,
                 1,
                 NAMES,
                 BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::InvalidBrepReference
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let wrong_owner = vec![body(1, 2, 0, 0, 0), body(2, 0, 99, 0, 0)];
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &wrong_owner,
                 1,
                 NAMES,
                 BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::InvalidBrepReference
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let dangling_next = vec![body(1, 2, 0, 0, 0), body(2, 0, 1, 99, 0)];
@@ -1065,15 +1060,13 @@ mod tests {
         )?;
         assert_eq!(children, vec![2]);
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &dangling_next,
                 1,
                 NAMES,
                 BodyChildChainTermination::Circular,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::InvalidBrepReference
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let missing_head_previous = vec![body(1, 2, 0, 0, 0), body(2, 0, 1, 0, 99)];
@@ -1090,28 +1083,24 @@ mod tests {
             body(3, 0, 1, 0, 99),
         ];
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &missing_sibling_previous,
                 1,
                 NAMES,
                 BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::InvalidBrepReference
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let wrong_target_type = vec![body(1, 2, 0, 0, 0), node(2, "EDGE", vec![])];
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &wrong_target_type,
                 1,
                 NAMES,
                 BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::InvalidBrepReference
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let non_head_cycle = vec![
@@ -1121,15 +1110,13 @@ mod tests {
             body(4, 0, 1, 3, 3),
         ];
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &non_head_cycle,
                 1,
                 NAMES,
                 BodyChildChainTermination::Circular,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::InvalidBrepReference
+            )),
+            Some(ErrorKind::InvalidBrepReference)
         );
 
         let duplicate_index = vec![
@@ -1138,15 +1125,13 @@ mod tests {
             body(2, 0, 1, 0, 0),
         ];
         assert_eq!(
-            decode_named_body_children(
+            error_kind(decode_named_body_children(
                 &duplicate_index,
                 1,
                 NAMES,
                 BodyChildChainTermination::NullTerminated,
-            )
-            .unwrap_err()
-            .kind(),
-            ErrorKind::DuplicateNodeIndex
+            )),
+            Some(ErrorKind::DuplicateNodeIndex)
         );
         Ok(())
     }
