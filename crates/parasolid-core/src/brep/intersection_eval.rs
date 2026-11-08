@@ -4242,6 +4242,7 @@ pub fn evaluate_cylinder_torus_intersection_candidate(
     Ok(IntersectionCurveEvaluation { point, tangent })
 }
 
+#[derive(Clone, Copy)]
 struct CylinderPairChartSupports {
     origin_a: [f64; 3],
     axis_a: [f64; 3],

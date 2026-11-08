@@ -3980,9 +3980,7 @@ fn cone_periodic_band_polygon(
             seam_phase = Some((left + gap * 0.5).rem_euclid(period));
         }
     }
-    let Some(seam_phase) = seam_phase else {
-        return None;
-    };
+    let seam_phase = seam_phase?;
     if largest_gap <= 2.0 * SEAM_TOLERANCE
         || vertex_phases.iter().any(|phase| {
             let delta = (*phase - seam_phase + period * 0.5).rem_euclid(period) - period * 0.5;
@@ -4042,12 +4040,8 @@ fn cone_periodic_band_polygon(
         Some(path)
     };
 
-    let Some(boundary_a) = cut_boundary(&boundaries[0]) else {
-        return None;
-    };
-    let Some(boundary_b) = cut_boundary(&boundaries[1]) else {
-        return None;
-    };
+    let boundary_a = cut_boundary(&boundaries[0])?;
+    let boundary_b = cut_boundary(&boundaries[1])?;
     let mut polygon = boundary_a;
     polygon.extend(boundary_b.into_iter().rev());
     if polygon.len() < 3
