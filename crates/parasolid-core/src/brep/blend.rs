@@ -1,6 +1,9 @@
+use super::intersection_generic::GenericIntersectionEvaluation;
+use super::intersection_generic_dispatch::evaluate_generic_intersection_with_uv;
 use super::{
     BrepModel, CurveEvaluation, CurveKind, NurbsCurve, Sense, SourceNodeRef, SurfaceEvaluation,
-    SurfaceKind, evaluate_curve, evaluate_curve_point,
+    SurfaceKind, evaluate_curve, evaluate_curve_point, evaluate_intersection_candidate,
+    evaluate_sp_curve_candidate,
 };
 
 const TOLERANCE: f64 = 1e-8;
@@ -173,6 +176,28 @@ pub fn evaluate_spine_with_brep(
                 tangent: unit(vec3_sub(p1, p0))?,
             }
         }
+        CurveKind::Intersection { .. } => {
+            if sense == Sense::Unknown {
+                return None;
+            }
+            let candidate = evaluate_intersection_candidate(brep?, kind, u).ok()?;
+            CurveEvaluation {
+                point: candidate.point,
+                tangent: candidate.tangent,
+            }
+        }
+        CurveKind::SurfaceParametric { .. } => {
+            let brep_ref = brep?;
+            let mut matches = brep_ref
+                .curves
+                .iter()
+                .filter(|curve| curve.kind == *kind && curve.sense == sense);
+            let curve = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            return evaluate_sp_curve_candidate(brep_ref, curve.id, u).ok();
+        }
         CurveKind::Trimmed {
             basis_curve,
             start_parameter,
@@ -253,7 +278,28 @@ pub fn evaluate_rolling_ball(
     v: f64,
 ) -> Option<SurfaceEvaluation> {
     let spine = brep.curves.iter().find(|curve| curve.id == spine_curve)?;
-    evaluate_rolling_ball_with_spine(
+    let has_offset_support = supporting_surfaces.iter().any(|id| {
+        brep.surfaces
+            .iter()
+            .find(|surface| surface.id == *id)
+            .is_some_and(|surface| matches!(surface.kind, SurfaceKind::Offset { .. }))
+    });
+    if !has_offset_support {
+        return evaluate_rolling_ball_with_spine(
+            brep,
+            supporting_surfaces,
+            spine.sense,
+            ranges,
+            thumb_weights,
+            boundary_surfaces,
+            start,
+            end,
+            u,
+            v,
+            |parameter| evaluate_spine_in_brep(brep, &spine.kind, spine.sense, parameter),
+        );
+    }
+    evaluate_rolling_ball_impl(
         brep,
         supporting_surfaces,
         spine.sense,
@@ -264,15 +310,30 @@ pub fn evaluate_rolling_ball(
         end,
         u,
         v,
-        |parameter| evaluate_spine_in_brep(brep, &spine.kind, spine.sense, parameter),
+        Some(&spine.kind),
+        |parameter| {
+            let result =
+                evaluate_generic_intersection_with_uv(brep, &spine.kind, parameter).ok()?;
+            if spine.sense == Sense::Unknown {
+                return None;
+            }
+            let tangent = if spine.sense == Sense::Negative {
+                vec3_scale(result.tangent, -1.0)
+            } else {
+                result.tangent
+            };
+            Some((
+                CurveEvaluation {
+                    point: result.point,
+                    tangent,
+                },
+                Some(result),
+            ))
+        },
     )
 }
 
 #[must_use]
-#[allow(
-    clippy::float_cmp,
-    reason = "Exact thumb-weight equality restricts this evaluator to the supported unweighted type."
-)]
 #[allow(
     clippy::too_many_arguments,
     reason = "The public rolling-ball evaluator keeps its established parameter-based API for compatibility."
@@ -289,6 +350,53 @@ pub fn evaluate_rolling_ball_with_spine(
     u: f64,
     v: f64,
     evaluate_spine_at: impl Fn(f64) -> Option<CurveEvaluation>,
+) -> Option<SurfaceEvaluation> {
+    evaluate_rolling_ball_impl(
+        brep,
+        supporting_surfaces,
+        spine_sense,
+        ranges,
+        thumb_weights,
+        boundary_surfaces,
+        start,
+        end,
+        u,
+        v,
+        None,
+        |parameter| evaluate_spine_at(parameter).map(|evaluation| (evaluation, None)),
+    )
+}
+
+#[allow(
+    clippy::float_cmp,
+    reason = "Exact thumb-weight equality restricts this evaluator to the supported unweighted type."
+)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "The shared evaluator combines public rolling-ball inputs with optional chart support data."
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bounded section evaluation keeps support selection, chart checks, and derivative order explicit."
+)]
+fn evaluate_rolling_ball_impl(
+    brep: &BrepModel,
+    supporting_surfaces: [u32; 2],
+    spine_sense: Sense,
+    ranges: [f64; 2],
+    thumb_weights: [f64; 2],
+    boundary_surfaces: [Option<u32>; 2],
+    start: Option<&SourceNodeRef>,
+    end: Option<&SourceNodeRef>,
+    u: f64,
+    v: f64,
+    spine_kind: Option<&CurveKind>,
+    evaluate_spine_and_uv_at: impl Fn(
+        f64,
+    ) -> Option<(
+        CurveEvaluation,
+        Option<GenericIntersectionEvaluation>,
+    )>,
 ) -> Option<SurfaceEvaluation> {
     if !u.is_finite()
         || !v.is_finite()
@@ -320,16 +428,35 @@ pub fn evaluate_rolling_ball_with_spine(
             .find(|s| s.id == supporting_surfaces[1])?,
     ];
     let point_at = |u: f64, v: f64| {
-        let curve = evaluate_spine_at(u)?;
+        let (curve, solved) = evaluate_spine_and_uv_at(u)?;
         let center = curve.point;
-        let contacts = [
-            support_contact(supports[0].sense, &supports[0].kind, center, ranges[0], r0)?,
-            support_contact(supports[1].sense, &supports[1].kind, center, ranges[1], r1)?,
-        ];
+        let mut contacts = [[0.0; 3]; 2];
+        for index in 0..2 {
+            contacts[index] = if matches!(supports[index].kind, SurfaceKind::Offset { .. }) {
+                offset_support_contact(
+                    brep,
+                    supports[index],
+                    supporting_surfaces[index],
+                    spine_kind?,
+                    solved.as_ref()?,
+                    ranges[index],
+                    center,
+                )?
+            } else {
+                support_contact(
+                    supports[index].sense,
+                    &supports[index].kind,
+                    center,
+                    ranges[index],
+                    if index == 0 { r0 } else { r1 },
+                )?
+                .0
+            };
+        }
         rolling_ball_section(
             center,
             curve.tangent,
-            [contacts[0].0, contacts[1].0],
+            contacts,
             r0,
             spine_sense == Sense::Negative,
         )?
@@ -355,6 +482,68 @@ pub fn evaluate_rolling_ball_with_spine(
     );
     let normal = unit(vec3_cross(tangent_u, tangent_v))?;
     Some(SurfaceEvaluation { point, normal })
+}
+
+fn offset_support_contact(
+    brep: &BrepModel,
+    support: &super::SurfaceGeometry,
+    support_id: u32,
+    spine: &CurveKind,
+    solved: &GenericIntersectionEvaluation,
+    range: f64,
+    center: [f64; 3],
+) -> Option<[f64; 3]> {
+    let CurveKind::Intersection { surfaces, .. } = spine else {
+        return None;
+    };
+    let SurfaceKind::Offset {
+        basis_surface,
+        offset,
+    } = support.kind
+    else {
+        return None;
+    };
+    if !range.is_finite() || !offset.is_finite() {
+        return None;
+    }
+    let mut matching = surfaces.iter().enumerate().filter_map(|(slot, id)| {
+        let surface = brep.surfaces.iter().find(|surface| surface.id == *id)?;
+        matches!(surface.kind, SurfaceKind::Offset { basis_surface: basis, .. } if basis == basis_surface)
+            .then_some((slot, surface))
+    });
+    let (slot, linked) = matching.next()?;
+    if matching.next().is_some() || linked.id == support_id {
+        return None;
+    }
+    let SurfaceKind::Offset {
+        basis_surface: linked_basis,
+        offset: linked_offset,
+    } = linked.kind
+    else {
+        return None;
+    };
+    let basis = brep
+        .surfaces
+        .iter()
+        .find(|surface| surface.id == basis_surface)?;
+    let offset_gap = linked_offset - offset;
+    let gap_tolerance = 1e-12 * linked_offset.abs().max(offset.abs()).max(range.abs());
+    if linked_basis != basis_surface
+        || linked.sense != support.sense
+        || basis.sense != support.sense
+        || (offset_gap - range).abs() > gap_tolerance
+    {
+        return None;
+    }
+    let uv = if slot == 0 { solved.uv_a } else { solved.uv_b };
+    let contact = super::evaluate_brep_surface(brep, &support.kind, uv[0], uv[1])?;
+    let basis_evaluation = super::evaluate_brep_surface(brep, &basis.kind, uv[0], uv[1])?;
+    let expected = support.sense.multiplier()? * range;
+    let expected_center = vec3_add(
+        contact.point,
+        vec3_scale(unit(basis_evaluation.normal)?, expected),
+    );
+    close_vec(center, expected_center).then_some(contact.point)
 }
 
 fn nurbs_domain(curve: &NurbsCurve) -> Option<(f64, f64)> {
@@ -621,8 +810,10 @@ fn vec3_norm(a: [f64; 3]) -> f64 {
 mod tests {
     use super::*;
     use crate::brep::{
-        BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind, Sense, SourceNodeRef,
-        SurfaceGeometry, SurfaceKind, TopologyValidation, Vector3,
+        BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind,
+        IntersectionChartParameters, IntersectionData, IntersectionLimitKind,
+        IntersectionUvCoordinates, IntersectionUvType, Sense, SourceNodeRef, SurfaceGeometry,
+        SurfaceKind, TopologyValidation, Vector3,
     };
 
     fn test_source() -> SourceNodeRef {
@@ -667,6 +858,266 @@ mod tests {
             attributes: vec![],
             diagnostics: vec![],
         }
+    }
+
+    #[test]
+    #[allow(
+        clippy::expect_used,
+        clippy::too_many_lines,
+        reason = "The fixture checks mapped SP_CURVE evaluation, sense handling, and rolling-ball use as one bounded path."
+    )]
+    fn test_sp_curve_blended_edge_spine_uses_mapped_sense_once() {
+        let spine = CurveGeometry {
+            id: 1,
+            sense: Sense::Negative,
+            owner: None,
+            kind: CurveKind::SurfaceParametric {
+                surface: 20,
+                parameter_curve: 2,
+                original_curve: None,
+                tolerance_to_original: None,
+            },
+            source: test_source(),
+        };
+        let uv_curve = CurveGeometry {
+            id: 2,
+            sense: Sense::Positive,
+            owner: None,
+            kind: CurveKind::Nurbs(NurbsCurve {
+                degree: 1,
+                control_vertex_count: 2,
+                vertex_dimension: 2,
+                knot_type: 0,
+                periodic: false,
+                closed: false,
+                rational: false,
+                curve_form: 0,
+                control_vertices: vec![vec![0.0, 0.0], vec![1.0, 0.0]],
+                knots: vec![0.0, 1.0],
+                knot_multiplicities: vec![2, 2],
+                sources: vec![],
+            }),
+            source: test_source(),
+        };
+        let plane = |id, point, normal, x_axis| SurfaceGeometry {
+            id,
+            sense: Sense::Positive,
+            owner: None,
+            kind: SurfaceKind::Plane {
+                point: Vector3::from_array(point),
+                normal: Vector3::from_array(normal),
+                x_axis: Vector3::from_array(x_axis),
+            },
+            source: test_source(),
+        };
+        let brep = test_brep(
+            vec![spine.clone(), uv_curve],
+            vec![
+                plane(20, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                plane(21, [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]),
+                plane(22, [0.0, 0.0, -1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            ],
+        );
+
+        for parameter in [0.0, 0.5, 1.0] {
+            let mapped = evaluate_sp_curve_candidate(&brep, spine.id, parameter)
+                .expect("SP_CURVE fixture evaluates");
+            let evaluated = evaluate_spine_in_brep(&brep, &spine.kind, spine.sense, parameter)
+                .expect("B-Rep spine resolves its unique SP_CURVE");
+            assert!(close_vec(mapped.point, evaluated.point));
+            assert!(close_vec(mapped.tangent, evaluated.tangent));
+            assert!(evaluated.point.into_iter().all(f64::is_finite));
+            assert!(evaluated.tangent.into_iter().all(f64::is_finite));
+        }
+
+        for v in [0.0, 0.5, 1.0] {
+            let evaluation = evaluate_rolling_ball(
+                &brep,
+                [21, 22],
+                spine.id,
+                [-1.0, 1.0],
+                [1.0, 1.0],
+                [None, None],
+                None,
+                None,
+                0.5,
+                v,
+            )
+            .expect("rolling-ball evaluator uses the mapped SP_CURVE");
+            assert!(evaluation.point.into_iter().all(f64::is_finite));
+            assert!(evaluation.normal.into_iter().all(f64::is_finite));
+        }
+
+        let mut unknown_sense = brep.clone();
+        unknown_sense.curves[0].sense = Sense::Unknown;
+        assert!(
+            evaluate_spine_in_brep(
+                &unknown_sense,
+                &unknown_sense.curves[0].kind,
+                Sense::Unknown,
+                0.5
+            )
+            .is_none()
+        );
+
+        let mut ambiguous = brep.clone();
+        let mut duplicate = spine.clone();
+        duplicate.id = 3;
+        ambiguous.curves.push(duplicate);
+        assert!(evaluate_spine_in_brep(&ambiguous, &spine.kind, spine.sense, 0.5).is_none());
+
+        let mut unresolved = brep;
+        if let CurveKind::SurfaceParametric {
+            parameter_curve, ..
+        } = &mut unresolved.curves[0].kind
+        {
+            *parameter_curve = 99;
+        }
+        assert!(
+            evaluate_spine_in_brep(
+                &unresolved,
+                &unresolved.curves[0].kind,
+                Sense::Negative,
+                0.5
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_rolling_ball_accepts_offset_contact_and_rejects_wrong_offset_gap() {
+        let source = test_source();
+        let plane = |id, point, normal, x_axis| SurfaceGeometry {
+            id,
+            sense: Sense::Positive,
+            owner: None,
+            kind: SurfaceKind::Plane {
+                point: Vector3::from_array(point),
+                normal: Vector3::from_array(normal),
+                x_axis: Vector3::from_array(x_axis),
+            },
+            source: source.clone(),
+        };
+        let offset = |id, basis_surface, offset| SurfaceGeometry {
+            id,
+            sense: Sense::Positive,
+            owner: None,
+            kind: SurfaceKind::Offset {
+                basis_surface,
+                offset,
+            },
+            source: source.clone(),
+        };
+        let chart_points = vec![
+            Vector3::from_array([0.0, 1.0, 1.0]),
+            Vector3::from_array([1.0, 1.0, 1.0]),
+        ];
+        let spine = CurveGeometry {
+            id: 10,
+            sense: Sense::Positive,
+            owner: None,
+            kind: CurveKind::Intersection {
+                surfaces: [2, 4],
+                chart: source.clone(),
+                chart_parameters: IntersectionChartParameters {
+                    base_parameter: Some(0.0),
+                    base_scale: Some(1.0),
+                    chordal_error: Some(0.01),
+                    angular_error: None,
+                },
+                chart_points: chart_points.clone(),
+                start: source.clone(),
+                start_limit_kind: Some(IntersectionLimitKind::Limit),
+                start_term_use: Some(b'F'),
+                start_points: vec![chart_points[0]],
+                end: source.clone(),
+                end_limit_kind: Some(IntersectionLimitKind::Limit),
+                end_term_use: Some(b'S'),
+                end_points: vec![chart_points[1]],
+                intersection_uv: Some(IntersectionData {
+                    source: source.clone(),
+                    uv_type: IntersectionUvType::Both,
+                    raw_values: vec![],
+                    start_is_terminator: false,
+                    start_terminator: None,
+                    end_is_terminator: false,
+                    chart: Some(vec![
+                        IntersectionUvCoordinates {
+                            first_surface: Some([Some(0.0), Some(1.0)]),
+                            second_surface: Some([Some(0.0), Some(-1.0)]),
+                        },
+                        IntersectionUvCoordinates {
+                            first_surface: Some([Some(1.0), Some(1.0)]),
+                            second_surface: Some([Some(1.0), Some(-1.0)]),
+                        },
+                    ]),
+                    end_terminator: None,
+                }),
+                intersection_data: None,
+            },
+            source: source.clone(),
+        };
+        let surfaces = vec![
+            plane(1, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            offset(2, 1, 1.0),
+            offset(3, 1, 0.0),
+            plane(4, [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]),
+            plane(5, [0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]),
+        ];
+        let brep = test_brep(vec![spine], surfaces);
+
+        assert!(
+            evaluate_rolling_ball(
+                &brep,
+                [3, 5],
+                10,
+                [1.0, 1.0],
+                [1.0, 1.0],
+                [None, None],
+                None,
+                None,
+                0.5,
+                0.5,
+            )
+            .is_some()
+        );
+
+        let mut wrong_gap = brep;
+        if let SurfaceKind::Offset { offset, .. } = &mut wrong_gap.surfaces[1].kind {
+            *offset = 1.25;
+        }
+        if let CurveKind::Intersection {
+            chart_points,
+            intersection_uv: Some(intersection),
+            ..
+        } = &mut wrong_gap.curves[0].kind
+        {
+            for point in chart_points {
+                point.z = 1.25;
+            }
+            if let Some(chart) = &mut intersection.chart {
+                for uv in chart {
+                    if let Some([_, Some(v)]) = &mut uv.second_surface {
+                        *v = -1.25;
+                    }
+                }
+            }
+        }
+        assert!(
+            evaluate_rolling_ball(
+                &wrong_gap,
+                [3, 5],
+                10,
+                [1.0, 1.0],
+                [1.0, 1.0],
+                [None, None],
+                None,
+                None,
+                0.5,
+                0.5,
+            )
+            .is_none()
+        );
     }
 
     #[test]

@@ -67,6 +67,11 @@ standard profile declares only the node types checked under its key.
 `complete == false`; `BLEND_BOUND` (59), its blend dependency, and `SP_CURVE` (137)
 use the qualified source B-Rep mappings. This does not add OCCT conversion.
 
+The candidate intersection evaluator handles the supported rolling-ball blend
+offset-contact cases and uses exact UV chart stations when they are present in
+the mapped chart. These bounded cases do not imply general APPLIO coverage or
+parity with the Parasolid kernel.
+
 Lengths and identifiers retain their Parasolid source meaning. Byte ranges are
 relative to the complete byte slice supplied to the parser. Embedding applications
 must track container/decompression offsets and any unit or public-ID conversion.

@@ -73,12 +73,12 @@ pub use mesh_data::{
     decode_embedded_mesh, decode_mesh_linked_transform, decode_mesh_triangles,
 };
 pub use model::{
-    Assembly, AssemblyKind, Attribute, AttributeField, AttributeOwner, Body, BodyKind, BoundingBox,
-    BrepDiagnostic, BrepId, BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind,
-    Edge, Face, HalfEdge, Instance, InstancePart, IntersectionChartParameters, IntersectionData,
-    IntersectionLimitKind, IntersectionUvCoordinates, IntersectionUvType, Loop, NurbsCurve,
-    NurbsSurface, PointGeometry, Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry,
-    SurfaceKind, SweptSurfaceData, TopologyValidation, Transform, Vector3, Vertex,
+    Assembly, AssemblyKind, Attribute, AttributeField, AttributeOwner, BlendType, Body, BodyKind,
+    BoundingBox, BrepDiagnostic, BrepId, BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry,
+    CurveKind, Edge, Face, HalfEdge, Instance, InstancePart, IntersectionChartParameters,
+    IntersectionData, IntersectionLimitKind, IntersectionUvCoordinates, IntersectionUvType, Loop,
+    NurbsCurve, NurbsSurface, PointGeometry, Region, RegionKind, Sense, Shell, SourceNodeRef,
+    SurfaceGeometry, SurfaceKind, SweptSurfaceData, TopologyValidation, Transform, Vector3, Vertex,
 };
 pub use nurbs_curve::{
     evaluate_mapped_nurbs_curve_candidate, evaluate_mapped_nurbs_curve_candidate_2d,
