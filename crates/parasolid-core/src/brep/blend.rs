@@ -280,6 +280,7 @@ pub fn evaluate_rolling_ball_with_spine(
     {
         return None;
     }
+    // Range signs offset each support; magnitudes set the common section radius.
     let r0 = ranges[0].abs();
     let r1 = ranges[1].abs();
     if r0 <= f64::EPSILON
