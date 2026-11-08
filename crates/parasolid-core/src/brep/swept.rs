@@ -17,6 +17,10 @@ fn invalid(message: &'static str) -> io::Error {
 /// additional sweep fields whose relationship to this vector is not established.
 /// The section curve uses the opt-in linear endpoint-tangent extension evaluator.
 /// This helper is not used by the generic surface evaluator or face tessellator.
+///
+/// # Errors
+/// Returns invalid data for nonfinite parameters or directions, a zero direction,
+/// failed section evaluation, or a nonfinite output point.
 pub fn evaluate_ruled_sweep_point_candidate(
     section: &NurbsCurve,
     direction: [f64; 3],
@@ -45,9 +49,9 @@ pub fn evaluate_ruled_sweep_point_candidate(
     Ok(point)
 }
 
-/// Evaluates one mapped X_T swept point from its mapped section curve.
+/// Evaluates one mapped `X_T` swept point from its mapped section curve.
 ///
-/// This follows the documented `C(u) + vD` relation. The raw X_T scale is
+/// This follows the documented `C(u) + vD` relation. The raw `X_T` scale is
 /// retained in `swept` and is intentionally not used as a distance factor.
 /// `D` must be unit length within 64 binary64 epsilons; it is not normalized.
 /// Section continuation is limited to the existing validated open, clamped,
@@ -55,6 +59,10 @@ pub fn evaluate_ruled_sweep_point_candidate(
 /// mapped section provenance from the same parsed document; same-document
 /// ownership is a caller responsibility because transmit indexes are local.
 /// This candidate does not establish trim membership or face acceptance.
+///
+/// # Errors
+/// Returns invalid data for missing or mismatched section data, invalid
+/// parameters or direction, unsupported section curves, or failed evaluation.
 pub fn evaluate_mapped_xt_swept_point_candidate(
     swept: &SweptSurfaceData,
     section: Option<&CurveGeometry>,

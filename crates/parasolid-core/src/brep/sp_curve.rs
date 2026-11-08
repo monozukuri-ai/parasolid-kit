@@ -17,7 +17,7 @@ fn invalid(message: &'static str) -> io::Error {
 ///
 /// The 2D curve derivative and support partial derivatives are estimated with
 /// bounded finite differences, then combined by the chain rule. The increasing
-/// parameter tangent is oriented by the SP_CURVE's curve sense; the referenced
+/// parameter tangent is oriented by the `SP_CURVE` curve sense; the referenced
 /// 2D B-curve contributes its natural parameterization.
 ///
 /// Only direct `SP_CURVE` geometry backed by a supported mapped 2D NURBS
@@ -25,6 +25,11 @@ fn invalid(message: &'static str) -> io::Error {
 /// accepted. Periodic parameter curves must satisfy the NURBS evaluator's exact
 /// repeated-control and matching-knot-extension checks. Trim wrappers and
 /// unsupported support-surface forms return an error.
+///
+/// # Errors
+/// Returns invalid data when the parameter is nonfinite, mapped references are
+/// missing or ambiguous, geometry is unsupported, derivatives are unavailable,
+/// or the resulting point/tangent is degenerate or nonfinite.
 pub fn evaluate_sp_curve_candidate(
     brep: &BrepModel,
     curve_id: BrepId,

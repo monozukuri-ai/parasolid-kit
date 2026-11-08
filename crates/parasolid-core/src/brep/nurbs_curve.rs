@@ -5,13 +5,16 @@ use std::io;
 use super::NurbsCurve;
 
 const MAX_CONTROLS: usize = 1_048_576;
-const MAX_PRECISE_PERIODIC_WRAPS: f64 = (1u64 << 52) as f64;
+const MAX_PRECISE_PERIODIC_WRAPS: f64 = 4_503_599_627_370_496.0;
 
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 /// Evaluates one mapped Parasolid 3D NURBS curve in its raw frame.
+///
+/// # Errors
+/// Returns an error when the curve layout or parameter is invalid or unsupported.
 pub fn evaluate_mapped_nurbs_curve_candidate(
     curve: &NurbsCurve,
     parameter: f64,
@@ -25,6 +28,9 @@ pub fn evaluate_mapped_nurbs_curve_candidate(
 ///
 /// Extension is available only for open, nonperiodic, nonrational curves with
 /// clamped endpoints. The tangent uses the curve's stored knot parameter.
+///
+/// # Errors
+/// Returns an error when the curve layout, endpoint interval, or parameter is invalid.
 pub fn evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(
     curve: &NurbsCurve,
     parameter: f64,
@@ -95,16 +101,16 @@ pub fn evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(
         return Err(invalid("nonfinite NURBS endpoint extension"));
     }
     let mut result = endpoint;
-    for axis in 0..3 {
+    for (axis, result_component) in result.iter_mut().enumerate() {
         let control_delta =
             curve.control_vertices[edge_index][axis] - curve.control_vertices[adjacent_index][axis];
-        let tangent = control_delta / denominator * degree as f64;
+        let tangent = control_delta / denominator * f64::from(curve.degree);
         let extension = parameter_delta * tangent;
-        result[axis] += extension;
+        *result_component += extension;
         if !control_delta.is_finite()
             || !tangent.is_finite()
             || !extension.is_finite()
-            || !result[axis].is_finite()
+            || !result_component.is_finite()
         {
             return Err(invalid("nonfinite NURBS endpoint extension"));
         }
@@ -113,6 +119,9 @@ pub fn evaluate_mapped_nurbs_curve_candidate_with_linear_endpoint_extension(
 }
 
 /// Evaluates one mapped 2D Parasolid NURBS curve in its raw frame.
+///
+/// # Errors
+/// Returns an error when the curve layout or parameter is invalid or unsupported.
 pub fn evaluate_mapped_nurbs_curve_candidate_2d(
     curve: &NurbsCurve,
     parameter: f64,
@@ -158,6 +167,9 @@ fn evaluate_mapped_nurbs_curve_inner(
 ///
 /// Rational control points are interpreted as homogeneous values. Periodic
 /// curves require the XT repeated-control and matching-knot-extension form.
+///
+/// # Errors
+/// Returns an error when the NURBS data, periodic representation, or parameter is invalid.
 pub fn evaluate_nurbs_curve_values_candidate(
     degree: usize,
     rational: bool,
@@ -326,6 +338,9 @@ fn validate_periodic_endpoint_continuity(
     rational: bool,
     output_dimension: usize,
 ) -> io::Result<()> {
+    let degree_as_f64 = f64::from(
+        u32::try_from(degree).map_err(|_| invalid("NURBS degree exceeds supported range"))?,
+    );
     let mut points = Vec::with_capacity(count);
     for vertex in vertices {
         if vertex.iter().any(|value| !value.is_finite())
@@ -360,7 +375,7 @@ fn validate_periodic_endpoint_continuity(
             let derivative: Vec<f64> = pair[0]
                 .iter()
                 .zip(&pair[1])
-                .map(|(left, right)| degree as f64 * (right - left) / denominator)
+                .map(|(left, right)| degree_as_f64 * (right - left) / denominator)
                 .collect();
             if derivative.iter().any(|value| !value.is_finite()) {
                 return Err(invalid("nonfinite periodic NURBS endpoint tangent"));

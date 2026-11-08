@@ -4,7 +4,7 @@ use std::{error::Error, fmt};
 
 use super::{NurbsCurve, SurfaceKind, evaluate_ruled_sweep_point_candidate};
 
-const SCAN_STEPS: usize = 1024;
+const SCAN_STEPS: u32 = 1024;
 const BISECTION_STEPS: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +50,10 @@ pub struct ChartIntersectionCandidate {
 /// It uses a fixed 1024-interval scan and bisection; roots without a sign change
 /// can be missed, so this is a candidate evaluator, not a complete intersection
 /// solver. It does not affect generic B-Rep evaluation or tessellation.
+///
+/// # Errors
+/// Returns an error for invalid inputs, failed point evaluation, no sampled
+/// sign-change root, or multiple sampled roots.
 pub fn intersect_torus_ruled_sweep_with_chart_plane_candidate(
     section: &NurbsCurve,
     sweep_direction: [f64; 3],
@@ -135,7 +139,8 @@ pub fn intersect_torus_ruled_sweep_with_chart_plane_candidate(
         push_root(&mut roots, left);
     }
     for i in 1..=SCAN_STEPS {
-        let right = u_bracket[0] + (u_bracket[1] - u_bracket[0]) * i as f64 / SCAN_STEPS as f64;
+        let right =
+            u_bracket[0] + (u_bracket[1] - u_bracket[0]) * f64::from(i) / f64::from(SCAN_STEPS);
         let f_right = residual_at(right)?.0;
         if f_right == 0.0 {
             push_root(&mut roots, right);
