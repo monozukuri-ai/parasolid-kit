@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject unresolved non-null assembly transform and instance-chain references instead of silently treating them as null.
+
 - Reuse prepared NURBS surface knots and homogeneous controls across repeated point samples.
 - Reuse indexed POLYLINE lookups and one lazily initialized exact-schema MESH decode context during B-rep mapping.
 - Compute mapped NURBS surface normals from knot-domain-scaled tangents, including at parameter bounds and on tiny domains.

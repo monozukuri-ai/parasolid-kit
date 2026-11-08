@@ -926,8 +926,7 @@ fn map_assembly(
                 "ASSEMBLY",
             ));
         }
-        let transform = optional_pointer(node, fields.instance_transform)?
-            .filter(|index| by_index.contains_key(index));
+        let transform = optional_pointer(node, fields.instance_transform)?;
         if transform.is_some_and(|index| !transform_indices.contains(&index)) {
             return Err(invalid_reference(
                 node,
@@ -1507,7 +1506,7 @@ fn chain(
     instances: &BTreeSet<u32>,
     mapped: &BTreeMap<u32, &InstanceNode>,
 ) -> Result<Vec<u32>, ParseError> {
-    let mut index = effective_pointer(pointer(owner, fields.head)?, by_index);
+    let mut index = pointer(owner, fields.head)?;
     let mut seen = BTreeSet::new();
     let mut result = Vec::new();
     let mut previous = 0;
@@ -1537,16 +1536,17 @@ fn chain(
             .get(&index)
             .copied()
             .ok_or_else(|| invalid_reference(owner, fields.head, index, "INSTANCE"))?;
-        if effective_pointer(pointer(node, fields.previous)?, by_index) != previous {
+        let previous_index = pointer(node, fields.previous)?;
+        if previous_index != previous {
             return Err(invalid_reference(
                 owner,
                 fields.previous,
-                effective_pointer(pointer(node, fields.previous)?, by_index),
+                previous_index,
                 "inverse INSTANCE link",
             ));
         }
         result.push(index);
-        index = effective_pointer(pointer(node, fields.next)?, by_index);
+        index = pointer(node, fields.next)?;
         previous = node.index;
     }
     Ok(result)
@@ -1592,13 +1592,6 @@ fn pointer(node: &RawNode, name: &'static str) -> Result<u32, ParseError> {
 }
 fn optional_pointer(node: &RawNode, name: &'static str) -> Result<Option<u32>, ParseError> {
     pointer(node, name).map(|index| (index != 0).then_some(index))
-}
-fn effective_pointer(index: u32, by_index: &BTreeMap<u32, &RawNode>) -> u32 {
-    if by_index.contains_key(&index) {
-        index
-    } else {
-        0
-    }
 }
 fn byte(node: &RawNode, name: &'static str) -> Result<u8, ParseError> {
     match value(node, name)? {
@@ -2098,14 +2091,13 @@ mod tests {
     }
 
     #[test]
-    fn maps_missing_optional_transform_and_precision_targets_as_effective_null()
-    -> Result<(), ParseError> {
-        let mut nodes = fixture(99);
+    fn maps_null_transform_and_missing_precision_as_effective_null() -> Result<(), ParseError> {
+        let mut nodes = fixture(0);
         attach_precision(&mut nodes, 98, 229);
         let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")?;
         assert_eq!(result.instances[0].transform, None);
         assert_eq!(result.transforms[0].precision, None);
-        assert_eq!(raw_pointer(&nodes[1], "transform_ref"), 99);
+        assert_eq!(raw_pointer(&nodes[1], "transform_ref"), 0);
         assert_eq!(raw_pointer(&nodes[2], "precision"), 98);
 
         let result = map_assembly(
@@ -2127,29 +2119,34 @@ mod tests {
     }
 
     #[test]
-    fn maps_missing_assembly_chain_links_as_effective_null_and_rejects_wrong_type_or_cycle()
-    -> Result<(), ParseError> {
-        let mut nodes = fixture(3);
-        let mut referenced_assembly = nodes[0].clone();
-        referenced_assembly.index = 5;
-        nodes.push(referenced_assembly);
-        set_pointer(&mut nodes, 2, "part_ref", 5);
-        set_pointer(&mut nodes, 1, "instances", 99);
-        set_pointer(&mut nodes, 2, "next_in_assembly", 98);
-        set_pointer(&mut nodes, 2, "previous_in_assembly", 97);
-        set_pointer(&mut nodes, 5, "instances", 2);
-        set_pointer(&mut nodes, 5, "sub_instances", 0);
-        set_pointer(&mut nodes, 2, "next_of_part", 96);
-        set_pointer(&mut nodes, 2, "previous_of_part", 95);
-        let result = map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")?;
-        assert_eq!(result.assemblies[0].instances, vec![2]);
-        assert!(result.assemblies[0].referencing_instances.is_empty());
-        assert_eq!(result.assemblies[1].referencing_instances, vec![2]);
-        assert_eq!(raw_pointer(&nodes[0], "instances"), 99);
-        assert_eq!(raw_pointer(&nodes[1], "next_in_assembly"), 98);
-        assert_eq!(raw_pointer(&nodes[1], "previous_in_assembly"), 97);
-        assert_eq!(raw_pointer(&nodes[1], "next_of_part"), 96);
-        assert_eq!(raw_pointer(&nodes[1], "previous_of_part"), 95);
+    fn rejects_missing_assembly_chain_links_wrong_type_or_cycle() {
+        for (node, field) in [
+            (1, "instances"),
+            (1, "sub_instances"),
+            (2, "next_in_assembly"),
+            (2, "previous_in_assembly"),
+            (2, "next_of_part"),
+            (2, "previous_of_part"),
+        ] {
+            let mut nodes = fixture(3);
+            // Part-chain links are traversed only when the instance references an assembly.
+            if field.ends_with("of_part") {
+                let mut referenced_assembly = nodes[0].clone();
+                referenced_assembly.index = 5;
+                nodes.push(referenced_assembly);
+                set_pointer(&mut nodes, 2, "part_ref", 5);
+                set_pointer(&mut nodes, 5, "instances", 2);
+                set_pointer(&mut nodes, 5, "sub_instances", 0);
+            }
+            set_pointer(&mut nodes, node, field, 99);
+            assert_eq!(
+                map_assembly(&nodes, &SchemaProviderResolution::CallerSupplied, "custom")
+                    .err()
+                    .map(|error| error.kind()),
+                Some(ErrorKind::InvalidBrepReference),
+                "missing {field} must be rejected"
+            );
+        }
 
         let mut wrong_type = fixture(3);
         set_pointer(&mut wrong_type, 1, "instances", 4);
@@ -2174,7 +2171,6 @@ mod tests {
         let mut cycle = fixture(3);
         set_pointer(&mut cycle, 2, "next_in_assembly", 2);
         assert!(map_assembly(&cycle, &SchemaProviderResolution::CallerSupplied, "custom").is_err());
-        Ok(())
     }
 
     #[test]
@@ -2656,10 +2652,19 @@ mod tests {
     }
 
     #[test]
-    fn maps_missing_optional_transform_and_rejects_zero_scale_or_unresolved_placements()
-    -> Result<(), ParseError> {
+    fn rejects_missing_transform_zero_scale_and_unresolved_placements() -> Result<(), ParseError> {
+        assert_eq!(
+            map_assembly(
+                &fixture(99),
+                &SchemaProviderResolution::CallerSupplied,
+                "custom"
+            )
+            .err()
+            .map(|error| error.kind()),
+            Some(ErrorKind::InvalidBrepReference)
+        );
         let mut mapped = map_assembly(
-            &fixture(99),
+            &fixture(0),
             &SchemaProviderResolution::CallerSupplied,
             "custom",
         )?;
