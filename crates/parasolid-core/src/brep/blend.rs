@@ -21,9 +21,10 @@ pub struct RollingBallSection {
 }
 
 impl RollingBallSection {
+    /// Evaluates the section at any finite parameter, including extrapolated values outside `[0, 1]`.
     #[must_use]
     pub fn point(&self, v: f64) -> Option<[f64; 3]> {
-        if !v.is_finite() || !(0.0..=1.0).contains(&v) {
+        if !v.is_finite() {
             return None;
         }
         let theta = v * self.angle;
@@ -260,6 +261,7 @@ pub fn evaluate_spine_in_brep(
     evaluate_spine_with_brep(Some(brep), kind, sense, u)
 }
 
+/// Evaluates a supported rolling-ball blend, including finite section parameters outside `[0, 1]`.
 #[must_use]
 #[allow(
     clippy::too_many_arguments,
@@ -333,6 +335,7 @@ pub fn evaluate_rolling_ball(
     )
 }
 
+/// Evaluates a supported rolling-ball blend, including finite section parameters outside `[0, 1]`.
 #[must_use]
 #[allow(
     clippy::too_many_arguments,
@@ -400,7 +403,6 @@ fn evaluate_rolling_ball_impl(
 ) -> Option<SurfaceEvaluation> {
     if !u.is_finite()
         || !v.is_finite()
-        || !(0.0..=1.0).contains(&v)
         || ranges.iter().any(|x| !x.is_finite())
         || thumb_weights.iter().any(|x| !x.is_finite() || *x <= 0.0)
         || boundary_surfaces != [None, None]
@@ -473,12 +475,11 @@ fn evaluate_rolling_ball_impl(
         (None, Some(after)) => (point, after, du),
         (None, None) => return None,
     };
-    let v0 = (v - 1e-5).max(0.0);
-    let v1 = (v + 1e-5).min(1.0);
+    let dv = 1e-5 * v.abs().max(1.0);
     let tangent_u = vec3_scale(vec3_sub(point_1, point_0), 1.0 / span);
     let tangent_v = vec3_scale(
-        vec3_sub(point_at(u, v1)?, point_at(u, v0)?),
-        1.0 / (v1 - v0),
+        vec3_sub(point_at(u, v + dv)?, point_at(u, v - dv)?),
+        1.0 / (2.0 * dv),
     );
     let normal = unit(vec3_cross(tangent_u, tangent_v))?;
     Some(SurfaceEvaluation { point, normal })
@@ -1308,6 +1309,16 @@ mod tests {
             assert!((vec3_norm(evaluation.point) - 1.0).abs() < 1e-4);
         }
         assert!(eval_mid.normal[0].is_finite() && eval_mid.normal[1].is_finite());
+        for v in [-0.25, 1.25] {
+            let extrapolated = evaluate([1.0, -1.0], [1.0, 1.0], v)
+                .expect("finite rolling-ball section parameter extrapolates");
+            let theta = -std::f64::consts::FRAC_PI_2 * v;
+            let expected_point = [-theta.cos(), -theta.sin(), 0.0];
+            assert!(close_vec(extrapolated.point, expected_point));
+            assert!(extrapolated.normal.into_iter().all(f64::is_finite));
+            let expected_normal = [theta.cos(), theta.sin(), 0.0];
+            assert!(vec3_dot(extrapolated.normal, expected_normal) > 0.999);
+        }
         assert!(evaluate([1.0, -2.0], [1.0, 1.0], 0.5).is_none());
         assert!(evaluate([1.0, -1.0], [1.0, 2.0], 0.5).is_none());
     }

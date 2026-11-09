@@ -1,6 +1,6 @@
 //! Local Newton evaluation for otherwise-unhandled XT intersection supports.
 
-use super::{BrepModel, IntersectionEvaluationError, SurfaceKind, evaluate_brep_surface};
+use super::{evaluate_brep_surface, BrepModel, IntersectionEvaluationError, SurfaceKind};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct GenericIntersectionEvaluation {
@@ -50,6 +50,10 @@ pub(crate) fn evaluate_generic_chart_intersection(
     if !chord_length.is_finite() || chord_length <= f64::EPSILON {
         return invalid("generic intersection chart chord is degenerate");
     }
+    let [first_uv_start, first_uv_end] =
+        unwrap_periodic_uv_pair(brep, surface_a, [first_uv_start, first_uv_end]);
+    let [second_uv_start, second_uv_end] =
+        unwrap_periodic_uv_pair(brep, surface_b, [second_uv_start, second_uv_end]);
     let chord_normal = scale(chord, 1.0 / chord_length);
     let chord_point = add(chord_start, scale(chord, fraction));
     let seed = [
@@ -222,6 +226,108 @@ pub(crate) fn evaluate_generic_chart_intersection(
     })
 }
 
+fn unwrap_periodic_uv_pair(
+    brep: &BrepModel,
+    surface: &SurfaceKind,
+    mut endpoints: [[f64; 2]; 2],
+) -> [[f64; 2]; 2] {
+    let Some(periods) = surface_periods(brep, surface, 0) else {
+        return endpoints;
+    };
+    for (axis, period) in periods.into_iter().enumerate() {
+        let Some(period) = period else { continue };
+        let delta = endpoints[1][axis] - endpoints[0][axis];
+        if !delta.is_finite() || !period.is_finite() || period <= 0.0 {
+            continue;
+        }
+        let wrapped_delta = delta - period * (delta / period).round();
+        if wrapped_delta.is_finite() && wrapped_delta.abs() <= period * 0.5 + 1e-9 {
+            endpoints[1][axis] = endpoints[0][axis] + wrapped_delta;
+        }
+    }
+    endpoints
+}
+
+fn surface_periods(
+    brep: &BrepModel,
+    surface: &SurfaceKind,
+    depth: usize,
+) -> Option<[Option<f64>; 2]> {
+    if depth > 8 {
+        return None;
+    }
+    let angle = Some(2.0 * std::f64::consts::PI);
+    Some(match surface {
+        SurfaceKind::Cylinder { .. }
+        | SurfaceKind::Cone { .. }
+        | SurfaceKind::XtCone { .. }
+        | SurfaceKind::Sphere { .. } => [angle, None],
+        SurfaceKind::Torus { .. } => [angle, angle],
+        SurfaceKind::Spun { .. } => [None, angle],
+        SurfaceKind::Offset { basis_surface, .. } => {
+            let mut matches = brep
+                .surfaces
+                .iter()
+                .filter(|candidate| candidate.id == *basis_surface);
+            let basis = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            return surface_periods(brep, &basis.kind, depth + 1);
+        }
+        SurfaceKind::Nurbs(nurbs) => {
+            let u_period = if nurbs.u_periodic {
+                Some(periodic_knot_span(
+                    &nurbs.u_knots,
+                    &nurbs.u_knot_multiplicities,
+                    usize::from(nurbs.u_degree),
+                    usize::try_from(nurbs.u_control_vertex_count).ok()?,
+                )?)
+            } else {
+                None
+            };
+            let v_period = if nurbs.v_periodic {
+                Some(periodic_knot_span(
+                    &nurbs.v_knots,
+                    &nurbs.v_knot_multiplicities,
+                    usize::from(nurbs.v_degree),
+                    usize::try_from(nurbs.v_control_vertex_count).ok()?,
+                )?)
+            } else {
+                None
+            };
+            [u_period, v_period]
+        }
+        _ => [None, None],
+    })
+}
+
+fn periodic_knot_span(
+    knots: &[f64],
+    multiplicities: &[u16],
+    degree: usize,
+    control_count: usize,
+) -> Option<f64> {
+    if knots.len() != multiplicities.len() || control_count <= degree {
+        return None;
+    }
+    let expanded_count = control_count.checked_add(degree)?.checked_add(1)?;
+    let mut expanded = Vec::with_capacity(expanded_count);
+    for (&knot, &multiplicity) in knots.iter().zip(multiplicities) {
+        if !knot.is_finite()
+            || expanded.len().checked_add(usize::from(multiplicity))? > expanded_count
+        {
+            return None;
+        }
+        expanded.extend(std::iter::repeat_n(knot, usize::from(multiplicity)));
+    }
+    if expanded.len() != expanded_count {
+        return None;
+    }
+    let period = expanded[control_count] - expanded[degree];
+    (period.is_finite() && period > 0.0).then_some(period)
+}
+
 fn solve_linear_4(mut matrix: [[f64; 4]; 4], mut rhs: [f64; 4]) -> Option<[f64; 4]> {
     for column in 0..4 {
         let pivot = (column..4)
@@ -374,20 +480,54 @@ mod tests {
         assert!(norm(sub(a, b)) < 1.0e-8);
         assert!(dot(sub(result.point, chord_point), normalize(chord).unwrap()).abs() < 1.0e-8);
         assert!(dot(result.tangent, chord) > 0.0);
-        assert!(
-            evaluate_generic_chart_intersection(
-                &brep,
-                &cylinder,
-                &plane,
-                [
-                    [[0.0, 0.0], [std::f64::consts::FRAC_PI_2, 0.0]],
-                    [[start[0], start[1]], [end[0], end[1]]],
-                ],
-                [start, end],
-                0.5,
-                Some(0.2),
-            )
-            .is_err()
-        );
+        assert!(evaluate_generic_chart_intersection(
+            &brep,
+            &cylinder,
+            &plane,
+            [
+                [[0.0, 0.0], [std::f64::consts::FRAC_PI_2, 0.0]],
+                [[start[0], start[1]], [end[0], end[1]]],
+            ],
+            [start, end],
+            0.5,
+            Some(0.2),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn generic_chart_solver_unwraps_cylinder_uv_across_periodic_seam() {
+        let brep = empty_brep();
+        let cylinder = SurfaceKind::Cylinder {
+            point: vector(0.0, 0.0, 0.0),
+            axis: vector(0.0, 0.0, 1.0),
+            radius: 1.0,
+            x_axis: vector(1.0, 0.0, 0.0),
+        };
+        let plane = SurfaceKind::Plane {
+            point: vector(0.0, 0.0, 0.0),
+            normal: vector(0.0, 0.0, 1.0),
+            x_axis: vector(1.0, 0.0, 0.0),
+        };
+        let start_angle = 2.0 * std::f64::consts::PI - 0.2;
+        let end_angle: f64 = 0.2;
+        let start = [start_angle.cos(), start_angle.sin(), 0.0];
+        let end = [end_angle.cos(), end_angle.sin(), 0.0];
+
+        let result = evaluate_generic_chart_intersection(
+            &brep,
+            &cylinder,
+            &plane,
+            [
+                [[start_angle, 0.0], [end_angle, 0.0]],
+                [[start[0], start[1]], [end[0], end[1]]],
+            ],
+            [start, end],
+            0.5,
+            Some(0.05),
+        )
+        .expect("local seam-crossing chart root");
+
+        assert!(norm(sub(result.point, [1.0, 0.0, 0.0])) <= 1.0e-8);
     }
 }

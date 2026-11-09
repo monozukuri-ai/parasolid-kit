@@ -65,8 +65,11 @@ pub use intersection_eval::{
     evaluate_torus_ruled_sweep_intersection_candidate,
 };
 pub use mapper::{
-    map_xb_brep, map_xb_brep_with_diagnostic_limit, map_xt_brep, map_xt_brep_with_diagnostic_limit,
-    map_xt_intersection_data, map_xt_swept_data,
+    map_xb_brep, map_xb_brep_with_diagnostic_limit, map_xb_brep_with_metadata_recovery,
+    map_xb_brep_with_metadata_recovery_and_diagnostic_limit, map_xt_brep,
+    map_xt_brep_with_diagnostic_limit, map_xt_brep_with_metadata_recovery,
+    map_xt_brep_with_metadata_recovery_and_diagnostic_limit, map_xt_intersection_data,
+    map_xt_swept_data,
 };
 pub use mesh_data::{
     MeshDataError, MeshIndexOrigin, RawIntegerPool, RawMeshData, RawVectorPool,

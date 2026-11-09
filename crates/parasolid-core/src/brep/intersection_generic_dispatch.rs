@@ -2,11 +2,11 @@
 
 use super::evaluate::plane_uv_from_point;
 use super::intersection_generic::{
-    GenericIntersectionEvaluation, evaluate_generic_chart_intersection,
+    evaluate_generic_chart_intersection, GenericIntersectionEvaluation,
 };
 use super::{
-    BrepModel, CurveKind, IntersectionCurveEvaluation, IntersectionEvaluationError,
-    IntersectionLimitKind, IntersectionUvType, SurfaceGeometry, evaluate_brep_surface,
+    evaluate_brep_surface, BrepModel, CurveKind, IntersectionCurveEvaluation,
+    IntersectionEvaluationError, IntersectionLimitKind, IntersectionUvType, SurfaceGeometry,
 };
 
 /// Evaluates only the regular interval represented by an XT `INTERSECTION` CHART.
@@ -370,6 +370,16 @@ pub(crate) fn evaluate_generic_intersection_with_uv(
     }
     let (Some(&first_station), Some(&last_station)) = (stations.first(), stations.last()) else {
         return Err(IntersectionEvaluationError::OutsideChartDomain);
+    };
+    // Reconstructed CHART stations can drift a few ULPs past their interval endpoints.
+    let endpoint_tolerance = 64.0 * f64::EPSILON * first_station.abs().max(last_station.abs());
+    let parameter = if parameter < first_station && first_station - parameter <= endpoint_tolerance
+    {
+        first_station
+    } else if parameter > last_station && parameter - last_station <= endpoint_tolerance {
+        last_station
+    } else {
+        parameter
     };
     if parameter < first_station || parameter > last_station {
         return Err(IntersectionEvaluationError::OutsideChartDomain);
@@ -853,41 +863,35 @@ mod tests {
         let end_l = [vector(chart_end)];
         let end_t = [vector(singularity), vector(chart_end)];
 
-        assert!(
-            validate_limits(
-                Some(IntersectionLimitKind::Limit),
-                &start_l,
-                Some(IntersectionLimitKind::Terminator),
-                &end_t,
-                chart_start,
-                chart_end,
-            )
-            .is_ok()
-        );
-        assert!(
-            validate_limits(
-                Some(IntersectionLimitKind::Terminator),
-                &start_t,
-                Some(IntersectionLimitKind::Limit),
-                &end_l,
-                chart_start,
-                chart_end,
-            )
-            .is_ok()
-        );
+        assert!(validate_limits(
+            Some(IntersectionLimitKind::Limit),
+            &start_l,
+            Some(IntersectionLimitKind::Terminator),
+            &end_t,
+            chart_start,
+            chart_end,
+        )
+        .is_ok());
+        assert!(validate_limits(
+            Some(IntersectionLimitKind::Terminator),
+            &start_t,
+            Some(IntersectionLimitKind::Limit),
+            &end_l,
+            chart_start,
+            chart_end,
+        )
+        .is_ok());
 
         let invalid_end_t = [vector(chart_end), vector(chart_end)];
-        assert!(
-            validate_limits(
-                Some(IntersectionLimitKind::Limit),
-                &start_l,
-                Some(IntersectionLimitKind::Terminator),
-                &invalid_end_t,
-                chart_start,
-                chart_end,
-            )
-            .is_err()
-        );
+        assert!(validate_limits(
+            Some(IntersectionLimitKind::Limit),
+            &start_l,
+            Some(IntersectionLimitKind::Terminator),
+            &invalid_end_t,
+            chart_start,
+            chart_end,
+        )
+        .is_err());
     }
 
     #[test]
@@ -948,17 +952,15 @@ mod tests {
     #[test]
     fn paired_help_limits_require_one_shared_chart_locator() {
         let locator = vector([1.0, 2.0, 3.0]);
-        assert!(
-            validate_limits(
-                Some(IntersectionLimitKind::Help),
-                &[locator],
-                Some(IntersectionLimitKind::Help),
-                &[locator],
-                locator.to_array(),
-                locator.to_array(),
-            )
-            .is_ok()
-        );
+        assert!(validate_limits(
+            Some(IntersectionLimitKind::Help),
+            &[locator],
+            Some(IntersectionLimitKind::Help),
+            &[locator],
+            locator.to_array(),
+            locator.to_array(),
+        )
+        .is_ok());
         assert!(matches!(
             validate_limits(
                 Some(IntersectionLimitKind::Help),

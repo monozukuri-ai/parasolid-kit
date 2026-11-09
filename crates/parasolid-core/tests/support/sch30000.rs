@@ -216,10 +216,11 @@ fn encode_schema(output: &mut Vec<u8>, schema: &parasolid_core::SchemaResolution
 }
 
 fn encode_with_schema(key: &str, nodes: &[RawNode], text_schema: bool) -> Result<Vec<u8>> {
-    let mut output = xb_header(key, 0)?;
+    let user_field_size = nodes.first().map_or(0, |node| node.user_fields.len());
+    let mut output = xb_header(key, i32::try_from(user_field_size)?)?;
     for node in nodes {
-        if !node.user_fields.is_empty() {
-            return Err("development encoder requires zero user fields".into());
+        if node.user_fields.len() != user_field_size {
+            return Err("development encoder requires a consistent user field size".into());
         }
         output.extend_from_slice(&node.node_type.to_be_bytes());
         if let Some(schema) = &node.first_schema {
@@ -266,6 +267,9 @@ fn encode_with_schema(key: &str, nodes: &[RawNode], text_schema: bool) -> Result
                     _ => return Err("field type is outside the development encoder subset".into()),
                 }
             }
+        }
+        for value in &node.user_fields {
+            output.extend_from_slice(&value.unwrap_or(-32_764).to_be_bytes());
         }
     }
     terminate(&mut output);

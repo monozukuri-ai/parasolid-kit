@@ -45,6 +45,12 @@ println!("{} bodies; complete={}", brep.bodies.len(), brep.complete);
 # }
 ```
 
+`map_xt_brep` and `map_xb_brep` remain strict for assembly and attribute metadata.
+The opt-in `map_xt_brep_with_metadata_recovery` and
+`map_xb_brep_with_metadata_recovery` preserve mapped geometry when a metadata
+group is malformed, skip that group, and report the loss through bounded
+`BrepModel.diagnostics`. Standalone assembly and attribute decoders remain strict.
+
 The compiled profiles are listed in the
 [shared support matrix](https://github.com/monozukuri-ai/parasolid-kit/blob/main/docs/format-support.md#supported-profiles),
 with exact keys, revisions, hashes, and separate raw/B-Rep/geometry evidence.
