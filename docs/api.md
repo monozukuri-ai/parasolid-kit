@@ -282,13 +282,22 @@ rational/nonrational NURBS surfaces.
 from parasolid_kit import NurbsCurve, evaluate_curve_2d, evaluate_surface_curve_many
 
 uv_curve = NurbsCurve(
-    degree=1, control_vertex_count=2, vertex_dimension=2, knot_type=0,
-    periodic=False, closed=False, rational=False, curve_form=0,
+    degree=1,
+    control_vertex_count=2,
+    vertex_dimension=2,
+    knot_type=0,
+    periodic=False,
+    closed=False,
+    rational=False,
+    curve_form=0,
     control_vertices=((0.2, 1.0), (0.6, 3.0)),
-    knots=(2.0, 4.0), knot_multiplicities=(2, 2), sources=(),
+    knots=(2.0, 4.0),
+    knot_multiplicities=(2, 2),
+    sources=(),
 )
 uv = evaluate_curve_2d(uv_curve, 3.0)
 print(uv.point, uv.tangent)  # (0.4, 2.0), (0.2, 1.0), approximately
+
 
 # For a parsed model and one of its SurfaceParametricCurve entities:
 def inspect_surface_curve(model, sp_curve, parameters):
