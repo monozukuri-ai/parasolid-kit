@@ -240,15 +240,20 @@ def test_interop_limits_are_immutable_positive_and_separate_from_parse_limits() 
     assert limits.max_entities == 42
     assert limits.limit_for("max_triangles") == 84
     assert limits.to_dict()["max_output_bytes"] == 512 * 1024 * 1024
+    assert limits.max_instances == 100_000
+    assert interop.InteropLimits(max_instances=42).limit_for("max_instances") == 42
     assert not hasattr(ParseLimits(), "max_triangles")
     with pytest.raises(FrozenInstanceError):
         limits.max_entities = 43  # type: ignore[misc]
 
 
 @pytest.mark.parametrize("value", [0, -1, True, 1.5, "10"])
-def test_interop_limits_reject_non_positive_or_non_integer_values(value: object) -> None:
+@pytest.mark.parametrize("resource", ["max_vertices", "max_instances"])
+def test_interop_limits_reject_non_positive_or_non_integer_values(
+    value: object, resource: str
+) -> None:
     with pytest.raises(ValueError, match="positive integer"):
-        interop.InteropLimits(max_vertices=value)  # type: ignore[arg-type]
+        interop.InteropLimits(**{resource: value})  # type: ignore[arg-type]
 
 
 def test_interop_limits_reject_an_unknown_resource_name() -> None:
