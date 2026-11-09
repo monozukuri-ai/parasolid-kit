@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add dependency-free 2D NURBS evaluation and SP_CURVE lifting from UV to 3D
+  points and exact parameter derivatives. Bounded batch APIs reuse reference,
+  knot, and derivative preparation and evaluate local tensor-product spans.
+  Existing curve evaluation and sampling also accept supported SP_CURVEs.
 - Add dependency-free Python curve evaluation and parameter sampling, analytic
   surface evaluation, and exact nonperiodic rational/nonrational NURBS derivatives.
 - Add bounded assembly occurrence traversal and affine placement APIs. The

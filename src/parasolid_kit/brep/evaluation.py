@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from bisect import bisect_right
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from math import cos, cosh, hypot, isfinite, pi, sin, sinh
+from typing import TypeVar
 
 from .geometry import (
     CircleCurve,
@@ -21,6 +23,7 @@ from .geometry import (
     SphereSurface,
     SurfaceDefinition,
     SurfaceGeometry,
+    SurfaceParametricCurve,
     TorusSurface,
     TrimmedCurve,
 )
@@ -34,6 +37,24 @@ class GeometryEvaluationError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class CurveEvaluation:
+    point: Vector3
+    tangent: Vector3
+
+
+@dataclass(frozen=True, slots=True)
+class CurveEvaluation2D:
+    """Stored 2D coordinates and their derivative with respect to parameter."""
+
+    point: tuple[float, float]
+    tangent: tuple[float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class SurfaceCurveEvaluation:
+    """A parameter-space curve lifted onto its support surface."""
+
+    uv: tuple[float, float]
+    uv_tangent: tuple[float, float]
     point: Vector3
     tangent: Vector3
 
@@ -138,13 +159,20 @@ def _controls(vertices, count, dimension, rational):
     return tuple(tuple(p) if rational else (*p, 1.0) for p in vertices)
 
 
-def _deboor(controls, degree, knots, t):
-    """Evaluate homogeneous controls; endpoints use the adjacent active span."""
-    count = len(controls)
+def _span(degree, count, knots, t):
     if not knots[degree] <= t <= knots[count]:
         raise GeometryEvaluationError("parameter is outside the NURBS active knot interval")
-    span = count - 1 if t == knots[count] else bisect_right(knots, t) - 1
-    work = [list(p) for p in controls[span - degree : span + 1]]
+    return count - 1 if t == knots[count] else bisect_right(knots, t) - 1
+
+
+def _deboor(controls, degree, knots, t):
+    """Evaluate homogeneous controls; endpoints use the adjacent active span."""
+    span = _span(degree, len(controls), knots, t)
+    return _deboor_local(controls[span - degree : span + 1], degree, knots, t, span)
+
+
+def _deboor_local(controls, degree, knots, t, span):
+    work = [list(p) for p in controls]
     for level in range(1, degree + 1):
         for j in range(degree, level - 1, -1):
             i = span - degree + j
@@ -156,7 +184,7 @@ def _deboor(controls, degree, knots, t):
     return tuple(work[degree])
 
 
-def _derivative(controls, degree, knots, t):
+def _derivative_controls(controls, degree, knots):
     derived = []
     for i in range(len(controls) - 1):
         width = knots[i + degree + 1] - knots[i + 1]
@@ -166,7 +194,7 @@ def _derivative(controls, degree, knots, t):
                 for a, b in zip(controls[i], controls[i + 1], strict=True)
             )
         )
-    return _deboor(derived, degree - 1, knots[1:-1], t)
+    return tuple(derived)
 
 
 def _cartesian(point, derivative):
@@ -180,26 +208,98 @@ def _cartesian(point, derivative):
     return position, tangent
 
 
+def _pair(values):
+    result = tuple(values)
+    if len(result) != 2 or not all(isfinite(value) for value in result):
+        raise GeometryEvaluationError("evaluation produced invalid 2D coordinates")
+    return result
+
+
 class _NurbsCurveEvaluator:
-    def __init__(self, curve):
+    def __init__(self, curve, dimension=3):
         if curve.periodic:
             raise GeometryEvaluationError("periodic NURBS evaluation is not yet supported")
-        dimension = curve.vertex_dimension - int(curve.rational)
-        if dimension != 3:
-            raise GeometryEvaluationError("curve evaluation requires 3D NURBS controls")
+        if curve.vertex_dimension - int(curve.rational) != dimension:
+            raise GeometryEvaluationError(f"curve evaluation requires {dimension}D NURBS controls")
         self.degree = curve.degree
         self.knots = _knots(
             curve.degree, curve.control_vertex_count, curve.knots, curve.knot_multiplicities
         )
         self.controls = _controls(
-            curve.control_vertices, curve.control_vertex_count, 3, curve.rational
+            curve.control_vertices, curve.control_vertex_count, dimension, curve.rational
         )
+        self.derivatives = _derivative_controls(self.controls, self.degree, self.knots)
+        self.derivative_knots = self.knots[1:-1]
+
+    def values(self, parameter):
+        point = _deboor(self.controls, self.degree, self.knots, parameter)
+        derivative = _deboor(self.derivatives, self.degree - 1, self.derivative_knots, parameter)
+        return _cartesian(point, derivative)
 
     def evaluate(self, parameter):
-        point = _deboor(self.controls, self.degree, self.knots, parameter)
-        derivative = _derivative(self.controls, self.degree, self.knots, parameter)
-        position, tangent = _cartesian(point, derivative)
+        position, tangent = self.values(parameter)
         return CurveEvaluation(_vector(position), _vector(tangent))
+
+    def evaluate_2d(self, parameter):
+        position, tangent = self.values(parameter)
+        return CurveEvaluation2D(_pair(position), _pair(tangent))
+
+
+def _reference(items, entity_id, role):
+    matches = [item for item in items if item.id == entity_id]
+    if len(matches) != 1:
+        raise GeometryEvaluationError(f"{role} is missing or ambiguous")
+    return matches[0]
+
+
+def _trim_evaluator(definition, model, seen, prepare):
+    if len(seen) >= 64:
+        raise GeometryEvaluationError("trimmed curve depth exceeds 64")
+    if model is None or definition.basis_curve in seen:
+        raise GeometryEvaluationError("trimmed curve needs an acyclic basis in its BrepModel")
+    if not isinstance(model, BrepModel):
+        raise TypeError("model must be a BrepModel")
+    start, end = _parameter(definition.start_parameter), _parameter(definition.end_parameter)
+    basis = _reference(model.curves, definition.basis_curve, "trimmed basis curve")
+    evaluate = prepare(basis, model, (*seen, definition.basis_curve))
+
+    def trimmed(t):
+        if not min(start, end) <= t <= max(start, end):
+            raise GeometryEvaluationError("parameter is outside the stored trim interval")
+        return evaluate(t)
+
+    return trimmed
+
+
+def _curve_2d_evaluator(curve, model, seen=()):
+    definition = curve.definition if isinstance(curve, CurveGeometry) else curve
+    if isinstance(definition, NurbsCurve):
+        return _NurbsCurveEvaluator(definition, dimension=2).evaluate_2d
+    if isinstance(definition, TrimmedCurve):
+        return _trim_evaluator(definition, model, seen, _curve_2d_evaluator)
+    raise GeometryEvaluationError(f"unsupported 2D curve evaluation: {type(definition).__name__}")
+
+
+def _surface_curve_evaluator(curve, model, seen=()):
+    definition = curve.definition if isinstance(curve, CurveGeometry) else curve
+    if isinstance(definition, TrimmedCurve):
+        return _trim_evaluator(definition, model, seen, _surface_curve_evaluator)
+    if not isinstance(definition, SurfaceParametricCurve):
+        raise GeometryEvaluationError("surface curve evaluation requires an SP_CURVE definition")
+    if not isinstance(model, BrepModel):
+        raise GeometryEvaluationError("surface curve evaluation needs its BrepModel")
+    uv_curve = _reference(model.curves, definition.parameter_curve, "SP_CURVE parameter curve")
+    support = _reference(model.surfaces, definition.surface, "SP_CURVE support surface")
+    evaluate_uv = _curve_2d_evaluator(uv_curve, model, seen)
+    derivatives = _surface_derivatives_evaluator(support)
+
+    def evaluate(t):
+        uv = evaluate_uv(t)
+        point, du, dv = derivatives(*uv.point)
+        tangent = _vector(_add(_scale(du, uv.tangent[0]), _scale(dv, uv.tangent[1])))
+        return SurfaceCurveEvaluation(uv.point, uv.tangent, point, tangent)
+
+    return evaluate
 
 
 def _curve_evaluator(curve, model, seen=()):
@@ -209,23 +309,15 @@ def _curve_evaluator(curve, model, seen=()):
     if isinstance(definition, NurbsCurve):
         return _NurbsCurveEvaluator(definition).evaluate
     if isinstance(definition, TrimmedCurve):
-        if model is None or definition.basis_curve in seen:
-            raise GeometryEvaluationError("trimmed curve needs an acyclic basis in its BrepModel")
-        bases = [c for c in model.curves if c.id == definition.basis_curve]
-        if len(bases) != 1:
-            raise GeometryEvaluationError("trimmed basis curve is missing or ambiguous")
-        evaluate = _curve_evaluator(bases[0], model, (*seen, definition.basis_curve))
+        return _trim_evaluator(definition, model, seen, _curve_evaluator)
+    if isinstance(definition, SurfaceParametricCurve):
+        evaluate_sp = _surface_curve_evaluator(curve, model, seen)
 
-        def trimmed(t):
-            if (
-                not min(definition.start_parameter, definition.end_parameter)
-                <= t
-                <= max(definition.start_parameter, definition.end_parameter)
-            ):
-                raise GeometryEvaluationError("parameter is outside the stored trim interval")
-            return evaluate(t)
+        def surface_curve(t):
+            result = evaluate_sp(t)
+            return CurveEvaluation(result.point, result.tangent)
 
-        return trimmed
+        return surface_curve
     if isinstance(definition, LineCurve):
         _unit(tuple(definition.direction))
         return lambda t: CurveEvaluation(
@@ -278,6 +370,93 @@ def evaluate_curve(
         raise GeometryEvaluationError("curve evaluation overflowed") from error
 
 
+def evaluate_curve_2d(
+    curve: CurveGeometry | NurbsCurve | TrimmedCurve,
+    parameter: float,
+    *,
+    model: BrepModel | None = None,
+) -> CurveEvaluation2D:
+    """Evaluate a nonperiodic 2D NURBS point and d(U,V)/dt, without OCCT.
+
+    Rational controls are homogeneous (u*w, v*w, w). Trim wrappers require
+    their model and retain stored basis parameters. Source sense is not applied.
+    """
+    try:
+        return _curve_2d_evaluator(curve, model)(_parameter(parameter))
+    except OverflowError as error:
+        raise GeometryEvaluationError("2D curve evaluation overflowed") from error
+
+
+def evaluate_surface_curve(
+    curve: CurveGeometry | SurfaceParametricCurve | TrimmedCurve,
+    parameter: float,
+    *,
+    model: BrepModel,
+) -> SurfaceCurveEvaluation:
+    """Evaluate SP_CURVE UV values, 3D point, and dS/du*du/dt + dS/dv*dv/dt.
+
+    References must resolve uniquely within model. Unsupported supports are
+    rejected; original_curve is never substituted. Trim containment on a FACE,
+    source senses, units conversion, and normal generation are not applied.
+    """
+    try:
+        return _surface_curve_evaluator(curve, model)(_parameter(parameter))
+    except OverflowError as error:
+        raise GeometryEvaluationError("surface curve evaluation overflowed") from error
+
+
+_Evaluation = TypeVar("_Evaluation")
+
+
+def _evaluate_many(
+    evaluate: Callable[[float], _Evaluation],
+    parameters: Iterable[float],
+    max_samples: int,
+) -> tuple[_Evaluation, ...]:
+    if type(max_samples) is not int or not 1 <= max_samples <= 1_000_000:
+        raise GeometryEvaluationError("max_samples must be an integer between 1 and 1000000")
+    results = []
+    try:
+        for parameter in parameters:
+            if len(results) >= max_samples:
+                raise GeometryEvaluationError("batch evaluation exceeds max_samples")
+            results.append(evaluate(_parameter(parameter)))
+    except OverflowError as error:
+        raise GeometryEvaluationError("batch curve evaluation overflowed") from error
+    return tuple(results)
+
+
+def evaluate_curve_2d_many(
+    curve: CurveGeometry | NurbsCurve | TrimmedCurve,
+    parameters: Iterable[float],
+    *,
+    model: BrepModel | None = None,
+    max_samples: int = 1_000_000,
+) -> tuple[CurveEvaluation2D, ...]:
+    """Evaluate 2D parameters in input order, preparing knots/derivatives once.
+
+    Iterables are bounded by max_samples; an empty input returns (). An invalid
+    parameter or sample-limit failure raises without returning partial results.
+    """
+    return _evaluate_many(_curve_2d_evaluator(curve, model), parameters, max_samples)
+
+
+def evaluate_surface_curve_many(
+    curve: CurveGeometry | SurfaceParametricCurve | TrimmedCurve,
+    parameters: Iterable[float],
+    *,
+    model: BrepModel,
+    max_samples: int = 1_000_000,
+) -> tuple[SurfaceCurveEvaluation, ...]:
+    """Lift a batch onto one support, preparing references and NURBS data once.
+
+    Parameter order, units, sense and failure semantics match the scalar API.
+    NURBS evaluation touches only each sample's local knot spans. No global
+    cache is retained and the immutable source model is unchanged.
+    """
+    return _evaluate_many(_surface_curve_evaluator(curve, model), parameters, max_samples)
+
+
 def sample_curve(
     curve: CurveGeometry | CurveDefinition,
     start: float,
@@ -310,25 +489,76 @@ def sample_curve(
         raise GeometryEvaluationError("curve sampling overflowed") from error
 
 
-def _nurbs_surface(surface, u, v):
-    if surface.u_periodic or surface.v_periodic:
-        raise GeometryEvaluationError("periodic NURBS evaluation is not yet supported")
-    if surface.vertex_dimension != 3 + int(surface.rational):
-        raise GeometryEvaluationError("surface evaluation requires 3D NURBS controls")
-    nu, nv = surface.u_control_vertex_count, surface.v_control_vertex_count
-    ku = _knots(surface.u_degree, nu, surface.u_knots, surface.u_knot_multiplicities)
-    kv = _knots(surface.v_degree, nv, surface.v_knots, surface.v_knot_multiplicities)
-    controls = _controls(surface.control_vertices, nu * nv, 3, surface.rational)
-    # Parasolid stores V as the fast-changing control index.
-    rows = [controls[i * nv : (i + 1) * nv] for i in range(nu)]
-    points = tuple(_deboor(row, surface.v_degree, kv, v) for row in rows)
-    v_derivatives = tuple(_derivative(row, surface.v_degree, kv, v) for row in rows)
-    point = _deboor(points, surface.u_degree, ku, u)
-    position, du = _cartesian(point, _derivative(points, surface.u_degree, ku, u))
-    _, dv = _cartesian(point, _deboor(v_derivatives, surface.u_degree, ku, u))
-    return SurfaceEvaluation(
-        _vector(position), _vector(du), _vector(dv), _vector(_unit(_cross(du, dv)))
+def _tensor_point(rows, u_degree, v_degree, u_knots, v_knots, u, v):
+    u_span = _span(u_degree, len(rows), u_knots, u)
+    v_span = _span(v_degree, len(rows[0]), v_knots, v)
+    values = tuple(
+        _deboor_local(row[v_span - v_degree : v_span + 1], v_degree, v_knots, v, v_span)
+        for row in rows[u_span - u_degree : u_span + 1]
     )
+    return _deboor_local(values, u_degree, u_knots, u, u_span)
+
+
+class _NurbsSurfaceEvaluator:
+    def __init__(self, surface):
+        if surface.u_periodic or surface.v_periodic:
+            raise GeometryEvaluationError("periodic NURBS evaluation is not yet supported")
+        if surface.vertex_dimension != 3 + int(surface.rational):
+            raise GeometryEvaluationError("surface evaluation requires 3D NURBS controls")
+        nu, nv = surface.u_control_vertex_count, surface.v_control_vertex_count
+        self.u_degree, self.v_degree = surface.u_degree, surface.v_degree
+        self.u_knots = _knots(self.u_degree, nu, surface.u_knots, surface.u_knot_multiplicities)
+        self.v_knots = _knots(self.v_degree, nv, surface.v_knots, surface.v_knot_multiplicities)
+        controls = _controls(surface.control_vertices, nu * nv, 3, surface.rational)
+        # Parasolid stores V as the fast-changing control index.
+        self.rows = tuple(controls[i * nv : (i + 1) * nv] for i in range(nu))
+        self.du_rows = tuple(
+            zip(
+                *(
+                    _derivative_controls(tuple(column), self.u_degree, self.u_knots)
+                    for column in zip(*self.rows, strict=True)
+                ),
+                strict=True,
+            )
+        )
+        self.dv_rows = tuple(
+            _derivative_controls(row, self.v_degree, self.v_knots) for row in self.rows
+        )
+        self.du_knots, self.dv_knots = self.u_knots[1:-1], self.v_knots[1:-1]
+
+    def derivatives(self, u, v):
+        point = _tensor_point(
+            self.rows, self.u_degree, self.v_degree, self.u_knots, self.v_knots, u, v
+        )
+        derivative_u = _tensor_point(
+            self.du_rows, self.u_degree - 1, self.v_degree, self.du_knots, self.v_knots, u, v
+        )
+        derivative_v = _tensor_point(
+            self.dv_rows, self.u_degree, self.v_degree - 1, self.u_knots, self.dv_knots, u, v
+        )
+        position, du = _cartesian(point, derivative_u)
+        _, dv = _cartesian(point, derivative_v)
+        return _vector(position), _vector(du), _vector(dv)
+
+    def evaluate(self, u, v):
+        point, du, dv = self.derivatives(u, v)
+        return SurfaceEvaluation(point, du, dv, _vector(_unit(_cross(tuple(du), tuple(dv)))))
+
+
+def _surface_derivatives_evaluator(surface):
+    definition = surface.definition if isinstance(surface, SurfaceGeometry) else surface
+    if isinstance(definition, NurbsSurface):
+        return _NurbsSurfaceEvaluator(definition).derivatives
+    if not isinstance(definition, (PlaneSurface, CylinderSurface, SphereSurface, TorusSurface)):
+        raise GeometryEvaluationError(
+            f"unsupported surface evaluation: {type(definition).__name__}"
+        )
+
+    def derivatives(u, v):
+        result = evaluate_surface(definition, u, v)
+        return result.point, result.du, result.dv
+
+    return derivatives
 
 
 def evaluate_surface(
@@ -343,7 +573,7 @@ def evaluate_surface(
     u, v = _parameter(u), _parameter(v)
     definition = surface.definition if isinstance(surface, SurfaceGeometry) else surface
     if isinstance(definition, NurbsSurface):
-        return _nurbs_surface(definition, u, v)
+        return _NurbsSurfaceEvaluator(definition).evaluate(u, v)
     if isinstance(definition, PlaneSurface):
         x, y, z = _frame(definition.normal, definition.x_axis)
         point = _add(definition.point, _add(_scale(x, u), _scale(y, v)))

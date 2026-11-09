@@ -237,7 +237,9 @@ points = sample_curve(line, start=0.0, end=10.0, count=101)
 
 `evaluate_curve(curve, parameter, *, model=None)` accepts a `CurveGeometry`
 or its definition. Supported definitions are line, circle, ellipse, parabola,
-hyperbola, and nonperiodic 3D NURBS. A `TrimmedCurve` additionally requires its
+hyperbola, nonperiodic 3D NURBS, and `SurfaceParametricCurve` (`SP_CURVE`). An
+SP_CURVE requires its owning `BrepModel` to resolve its 2D curve and support
+surface, and returns the lifted 3D point and derivative. A `TrimmedCurve` requires its
 owning `BrepModel` to resolve its basis; parameters use the stored basis
 interval, never a guessed normalized 0–1 range. The tangent is the derivative
 with respect to increasing parameter; source curve sense does not reverse it.
@@ -255,11 +257,63 @@ The normal follows `du × dv`; a sphere pole uses its analytic limiting normal.
 Face/surface senses and trim containment are not applied. Rational controls
 contain homogeneous weighted coordinates and require positive finite weights.
 
-Periodic NURBS forms, cones, intersection/SP_CURVE evaluation, and compound
+Periodic NURBS forms, cones, intersection curve evaluation, and compound
 surface definitions are not yet qualified for these new APIs. Invalid knots,
 out-of-domain parameters, unsupported definitions, cyclic trim references,
 and singular NURBS normals raise `GeometryEvaluationError`; they never fall
 back to a straight chord or an invented normal.
+
+### 2D NURBS and curves on surfaces
+
+`evaluate_curve_2d(curve, parameter, *, model=None)` evaluates a nonperiodic
+2D NURBS, returning `CurveEvaluation2D(point, tangent)` with `(u, v)` and
+`(du/dt, dv/dt)` pairs. Rational controls contain `(u*w, v*w, w)`, with positive
+weights. Trim wrappers require `model` and keep their stored basis parameters.
+
+`evaluate_surface_curve(curve, parameter, *, model)` accepts an SP_CURVE or
+a trim wrapper around it. It resolves the parameter curve and support surface
+in the supplied model and returns `SurfaceCurveEvaluation(uv, uv_tangent,
+point, tangent)`. The 3D tangent follows the chain rule:
+`dP/dt = (dS/du)*(du/dt) + (dS/dv)*(dv/dt)`. It is a derivative, not a unit
+direction. Supports are plane, cylinder, sphere, ring torus, and nonperiodic
+rational/nonrational NURBS surfaces.
+
+```python
+from parasolid_kit import NurbsCurve, evaluate_curve_2d, evaluate_surface_curve_many
+
+uv_curve = NurbsCurve(
+    degree=1, control_vertex_count=2, vertex_dimension=2, knot_type=0,
+    periodic=False, closed=False, rational=False, curve_form=0,
+    control_vertices=((0.2, 1.0), (0.6, 3.0)),
+    knots=(2.0, 4.0), knot_multiplicities=(2, 2), sources=(),
+)
+uv = evaluate_curve_2d(uv_curve, 3.0)
+print(uv.point, uv.tangent)  # (0.4, 2.0), (0.2, 1.0), approximately
+
+# For a parsed model and one of its SurfaceParametricCurve entities:
+def inspect_surface_curve(model, sp_curve, parameters):
+    # Supply parameters in the stored parameter curve's active knot/trim interval.
+    values = evaluate_surface_curve_many(sp_curve, parameters, model=model)
+    return [(value.uv, value.point, value.tangent) for value in values]
+```
+
+`evaluate_curve_2d_many(curve, parameters, *, model=None, max_samples=1_000_000)`
+and `evaluate_surface_curve_many(curve, parameters, *, model,
+max_samples=1_000_000)` accept iterables and return tuples in input order,
+including duplicates and descending parameters. Empty input returns `()` for
+valid geometry. Each call resolves references and prepares NURBS knots,
+controls, and derivative controls once; each sample evaluates its local knot
+spans. No global cache is retained or model mutated. `max_samples` must be an
+integer from 1 to 1,000,000; exceeding it or encountering an invalid sample
+raises `GeometryEvaluationError` without returning partial results.
+
+These APIs retain source units, natural parameter directions, and stored
+intervals. They do not normalize parameters, apply source senses, test FACE
+trim containment, extend finite NURBS supports, or substitute `original_curve`
+when evaluation fails. References must be unique. At an internal repeated
+knot the derivative uses the right span; the final endpoint uses the left
+span. A singular surface normal does not prevent evaluation of a defined
+point and tangent because this API does not generate normals.
 
 ### Assembly occurrences and placement
 
