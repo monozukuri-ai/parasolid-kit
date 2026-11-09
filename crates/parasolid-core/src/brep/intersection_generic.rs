@@ -1,6 +1,6 @@
 //! Local Newton evaluation for otherwise-unhandled XT intersection supports.
 
-use super::{evaluate_brep_surface, BrepModel, IntersectionEvaluationError, SurfaceKind};
+use super::{BrepModel, IntersectionEvaluationError, SurfaceKind, evaluate_brep_surface};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct GenericIntersectionEvaluation {
@@ -480,19 +480,21 @@ mod tests {
         assert!(norm(sub(a, b)) < 1.0e-8);
         assert!(dot(sub(result.point, chord_point), normalize(chord).unwrap()).abs() < 1.0e-8);
         assert!(dot(result.tangent, chord) > 0.0);
-        assert!(evaluate_generic_chart_intersection(
-            &brep,
-            &cylinder,
-            &plane,
-            [
-                [[0.0, 0.0], [std::f64::consts::FRAC_PI_2, 0.0]],
-                [[start[0], start[1]], [end[0], end[1]]],
-            ],
-            [start, end],
-            0.5,
-            Some(0.2),
-        )
-        .is_err());
+        assert!(
+            evaluate_generic_chart_intersection(
+                &brep,
+                &cylinder,
+                &plane,
+                [
+                    [[0.0, 0.0], [std::f64::consts::FRAC_PI_2, 0.0]],
+                    [[start[0], start[1]], [end[0], end[1]]],
+                ],
+                [start, end],
+                0.5,
+                Some(0.2),
+            )
+            .is_err()
+        );
     }
 
     #[test]
