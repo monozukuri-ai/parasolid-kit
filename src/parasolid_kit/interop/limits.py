@@ -16,6 +16,8 @@ class InteropLimits:
     max_vertices: int = 10_000_000
     max_output_bytes: int = 512 * 1024 * 1024
     max_diagnostics: int = 10_000
+    # Expanded instance links and body occurrences, including repeated subassemblies.
+    max_instances: int = 100_000
 
     def __post_init__(self) -> None:
         for item in fields(self):

@@ -10,13 +10,17 @@ from dataclasses import dataclass
 from math import isfinite
 
 from ..binary.document import ParasolidDocument, RawField
+from ..diagnostics import DiagnosticKind
 from ..schema.model import FieldType
+from ._errors import _OperationError
 from .placement import Placement
 from .topology import Sense, SourceNodeRef, Transform, Vector3
 
 
-class FacetedGeometryError(ValueError):
+class FacetedGeometryError(_OperationError):
     """Stored geometry has an unsupported schema, invalid data, or ambiguous indices."""
+
+    default_code = "faceted.invalid_geometry"
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +35,10 @@ class Polyline:
         """Return connected points with source sense and explicit closure applied."""
         if self.sense is Sense.UNKNOWN or len(self.points) < 2:
             raise FacetedGeometryError(
-                "polyline display needs at least two points and a known sense"
+                "polyline display needs at least two points and a known sense",
+                code="faceted.invalid_geometry",
+                source=self.source,
+                field="sense" if self.sense is Sense.UNKNOWN else "points",
             )
         points = self.points[::-1] if self.sense is Sense.NEGATIVE else self.points
         if self.closed and points[-1] != points[0]:
@@ -66,7 +73,12 @@ class EmbeddedMesh:
 
     def inferred_index_origin(self) -> int:
         if self.positions is None or self.position_indices is None:
-            raise FacetedGeometryError("mesh data is not embedded")
+            raise FacetedGeometryError(
+                "mesh data is not embedded",
+                code="faceted.missing_data",
+                source=self.source,
+                field="psm_imesh",
+            )
         indices = self.position_indices.values[: self.position_indices.count]
         candidates = [
             origin
@@ -75,14 +87,22 @@ class EmbeddedMesh:
         ]
         if len(candidates) != 1:
             raise FacetedGeometryError(
-                "mesh index origin is ambiguous or out of range; select 0 or 1 explicitly"
+                "mesh index origin is ambiguous or out of range; select 0 or 1 explicitly",
+                code="faceted.ambiguous_index_origin" if candidates else "faceted.invalid_indices",
+                source=self.source,
+                field="index_origin",
             )
         return candidates[0]
 
     def triangles(self, *, index_origin: int | None = None) -> tuple[tuple[Vector3, ...], ...]:
         """Decode and place triangles. Reverse winding for source sense and reflection."""
         if self.positions is None or self.position_indices is None:
-            raise FacetedGeometryError("mesh data is not embedded")
+            raise FacetedGeometryError(
+                "mesh data is not embedded",
+                code="faceted.missing_data",
+                source=self.source,
+                field="psm_imesh",
+            )
         if (
             self.positions.encoding != 1
             or self.positions.count <= 0
@@ -91,25 +111,56 @@ class EmbeddedMesh:
             or self.position_indices.count % 3
             or len(self.position_indices.values) < self.position_indices.count
         ):
-            raise FacetedGeometryError("mesh needs complete 3D positions and triangle indices")
+            raise FacetedGeometryError(
+                "mesh needs complete 3D positions and triangle indices",
+                code="faceted.invalid_pool",
+                source=self.source,
+                field="position_indices",
+            )
         if self.sense is Sense.UNKNOWN:
-            raise FacetedGeometryError("mesh surface sense is unknown")
+            raise FacetedGeometryError(
+                "mesh surface sense is unknown",
+                code="faceted.invalid_orientation",
+                source=self.source,
+                field="sense",
+            )
         origin = self.inferred_index_origin() if index_origin is None else index_origin
         if type(origin) is not int or origin not in (0, 1):
-            raise FacetedGeometryError("index_origin must be 0 or 1")
+            raise FacetedGeometryError(
+                "index_origin must be 0 or 1",
+                code="faceted.invalid_parameter",
+                source=self.source,
+                field="index_origin",
+                details={"value": index_origin},
+            )
         indices = self.position_indices.values[: self.position_indices.count]
         if any(
             type(i) is not int or not origin <= i < origin + self.positions.count for i in indices
         ):
-            raise FacetedGeometryError("mesh index is outside the selected position pool")
+            raise FacetedGeometryError(
+                "mesh index is outside the selected position pool",
+                code="faceted.invalid_indices",
+                source=self.source,
+                field="position_indices",
+                details={"index_origin": origin},
+            )
         result = []
         reverse = (self.sense is Sense.NEGATIVE) != (self.placement.determinant < 0)
         for start in range(0, len(indices), 3):
             points = []
             for index in indices[start : start + 3]:
                 offset = (index - origin) * 3
-                point = Vector3(*(float(v) for v in self.positions.values[offset : offset + 3]))
-                points.append(self.placement.apply_point(point))
+                try:
+                    point = Vector3(*(float(v) for v in self.positions.values[offset : offset + 3]))
+                    points.append(self.placement.apply_point(point))
+                except ValueError as error:
+                    raise FacetedGeometryError(
+                        "mesh contains invalid or unplaceable positions",
+                        code="faceted.invalid_geometry",
+                        source=self.source,
+                        field="positions",
+                        details={"triangle_index": start // 3, "position_index": index},
+                    ) from error
             if reverse:
                 points[1], points[2] = points[2], points[1]
             result.append(tuple(points))
@@ -139,23 +190,48 @@ class _Decoder:
             or document.schema_resolution.kind != "caller_supplied"
         ):
             raise FacetedGeometryError(
-                "stored geometry decoding requires an explicit named schema catalog"
+                "stored geometry decoding requires an explicit named schema catalog",
+                code="faceted.invalid_schema",
             )
         if type(max_pool_values) is not int or not 1 <= max_pool_values <= 10_000_000:
-            raise FacetedGeometryError("max_pool_values must be between 1 and 10000000")
+            raise FacetedGeometryError(
+                "max_pool_values must be between 1 and 10000000",
+                code="faceted.invalid_parameter",
+                field="max_pool_values",
+                details={"value": max_pool_values},
+            )
         self.nodes = {node.index: node for node in document.nodes}
         self.maximum = max_pool_values
         self.used = 0
 
-    def budget(self, count):
+    def budget(self, count, node, field):
         self.used += count
         if self.used > self.maximum:
-            raise FacetedGeometryError("stored geometry exceeds max_pool_values")
+            raise FacetedGeometryError(
+                "stored geometry exceeds max_pool_values",
+                code="faceted.limit_exceeded",
+                kind=DiagnosticKind.LIMIT,
+                source=_source(node),
+                field=field,
+                details={
+                    "resource": "max_pool_values",
+                    "observed": self.used,
+                    "limit": self.maximum,
+                },
+            )
 
-    def node(self, index, name):
+    def node(self, index, name, *, owner=None, field="node_index"):
         node = self.nodes.get(index)
         if node is None or node.type_name != name:
-            raise FacetedGeometryError(f"node {index} does not resolve to {name}")
+            raise FacetedGeometryError(
+                f"node {index} does not resolve to {name}",
+                code="faceted.invalid_reference",
+                source=_source(owner if owner is not None else node)
+                if owner is not None or node is not None
+                else None,
+                field=field,
+                details={"reference_id": index, "expected_type": name},
+            )
         return node
 
     def field(self, node, name, kind, *, scalar=False):
@@ -166,11 +242,19 @@ class _Decoder:
             or not found[0].definition.transmitted
         ):
             raise FacetedGeometryError(
-                f"node {node.index} has no unique transmitted {name} of type {kind.value}"
+                f"node {node.index} has no unique transmitted {name} of type {kind.value}",
+                code="faceted.invalid_field",
+                source=_source(node),
+                field=name,
             )
         field = found[0]
         if scalar and (field.definition.element_count != 0 or len(field.values) != 1):
-            raise FacetedGeometryError(f"node {node.index} field {name} is not scalar")
+            raise FacetedGeometryError(
+                f"node {node.index} field {name} is not scalar",
+                code="faceted.invalid_field",
+                source=_source(node),
+                field=name,
+            )
         values = tuple(value.value for value in field.values)
         return values[0] if scalar else values
 
@@ -178,7 +262,10 @@ class _Decoder:
         value = self.field(node, name, kind, scalar=True)
         if type(value) is not int or value < 0:
             raise FacetedGeometryError(
-                f"node {node.index} field {name} must be a nonnegative integer"
+                f"node {node.index} field {name} must be a nonnegative integer",
+                code="faceted.invalid_field",
+                source=_source(node),
+                field=name,
             )
         return value
 
@@ -186,11 +273,15 @@ class _Decoder:
         index = self.integer(node, field, FieldType.POINTER_INDEX)
         if optional and index == 0:
             return None
-        target = self.node(index, name)
+        target = self.node(index, name, owner=node, field=field)
         declaration = next(f.definition for f in node.fields if f.definition.name == field)
         if declaration.pointer_class < 1000 and declaration.pointer_class != target.node_type:
             raise FacetedGeometryError(
-                f"node {node.index} field {field} pointer class does not match its target"
+                f"node {node.index} field {field} pointer class does not match its target",
+                code="faceted.invalid_reference",
+                source=_source(node),
+                field=field,
+                details={"reference_id": index},
             )
         return target
 
@@ -198,7 +289,12 @@ class _Decoder:
         value = self.field(node, "sense", FieldType.CHARACTER, scalar=True)
         senses = {ord("+"): Sense.POSITIVE, ord("-"): Sense.NEGATIVE, ord("?"): Sense.UNKNOWN}
         if value not in senses:
-            raise FacetedGeometryError("invalid stored geometry sense")
+            raise FacetedGeometryError(
+                "invalid stored geometry sense",
+                code="faceted.invalid_orientation",
+                source=_source(node),
+                field="sense",
+            )
         return senses[value]
 
     def polyline(self, node):
@@ -206,16 +302,32 @@ class _Decoder:
         points = self.pointer(data, "pvec", "POINT_VALUES")
         count = self.integer(data, "n_pvecs")
         values = self.field(points, "values", FieldType.VECTOR)
-        self.budget(count * 3)
+        self.budget(count * 3, data, "n_pvecs")
         if len(values) != count:
-            raise FacetedGeometryError("polyline point count does not match its vector array")
+            raise FacetedGeometryError(
+                "polyline point count does not match its vector array",
+                code="faceted.invalid_pool",
+                source=_source(data),
+                field="n_pvecs",
+            )
         try:
             positions = tuple(Vector3(*value) for value in values)
         except (TypeError, ValueError) as error:
-            raise FacetedGeometryError("polyline contains incomplete or invalid points") from error
+            raise FacetedGeometryError(
+                "polyline contains incomplete or invalid points",
+                code="faceted.invalid_geometry",
+                source=_source(points),
+                field="values",
+            ) from error
         parameter = self.field(data, "base_parm", FieldType.DOUBLE, scalar=True)
         if parameter is None or not isfinite(parameter):
-            raise FacetedGeometryError("polyline base parameter must be finite")
+            raise FacetedGeometryError(
+                "polyline base parameter must be finite",
+                code="faceted.invalid_parameter",
+                source=_source(data),
+                field="base_parm",
+                details={"parameter": parameter},
+            )
         closed = self.field(data, "closed", FieldType.LOGICAL, scalar=True)
         return Polyline(positions, closed, self.sense(node), parameter, _source(node))
 
@@ -227,24 +339,51 @@ class _Decoder:
         shift = self.integer(comb, "shift")
         encoding = self.integer(comb, "encoding", FieldType.UNSIGNED_BYTE)
         if shift > 24 or count > capacity or encoding not in ((1, 2) if vector else (1,)):
-            raise FacetedGeometryError("unsupported or invalid mesh pool encoding/count/shift")
+            raise FacetedGeometryError(
+                "unsupported or invalid mesh pool encoding/count/shift",
+                code="faceted.invalid_pool",
+                source=_source(comb),
+                field="shift"
+                if shift > 24
+                else f"n_{count_name}"
+                if count > capacity
+                else "encoding",
+            )
         components = (3 if encoding == 1 else 2) if vector else 1
         if not vector and self.integer(comb, "n_bits_per_integer") != 32:
-            raise FacetedGeometryError("only 32-bit mesh integer pools are supported")
-        self.budget(capacity * components)
+            raise FacetedGeometryError(
+                "only 32-bit mesh integer pools are supported",
+                code="faceted.unsupported_geometry",
+                kind=DiagnosticKind.UNSUPPORTED,
+                source=_source(comb),
+                field="n_bits_per_integer",
+            )
+        self.budget(capacity * components, comb, f"n_max_{count_name}")
         tooth_size = 1 << shift
         indices = self.field(comb, "teeth", FieldType.POINTER_INDEX)
         if capacity % tooth_size or len(indices) != capacity // tooth_size:
-            raise FacetedGeometryError("mesh pool capacity does not match its teeth")
+            raise FacetedGeometryError(
+                "mesh pool capacity does not match its teeth",
+                code="faceted.invalid_pool",
+                source=_source(comb),
+                field="teeth",
+            )
         values = []
         kind = FieldType.DOUBLE if vector else FieldType.INTEGER
         for index in indices:
-            tooth = self.node(index, "VECTOR_TOOTH" if vector else "INTEGER_TOOTH")
+            tooth = self.node(
+                index, "VECTOR_TOOTH" if vector else "INTEGER_TOOTH", owner=comb, field="teeth"
+            )
             data = self.field(tooth, "values", kind)
             if len(data) != tooth_size * components or any(
                 v is None or not isfinite(v) for v in data
             ):
-                raise FacetedGeometryError("mesh tooth length or values are invalid")
+                raise FacetedGeometryError(
+                    "mesh tooth length or values are invalid",
+                    code="faceted.invalid_pool",
+                    source=_source(tooth),
+                    field="values",
+                )
             values.extend(data)
         return MeshPool(count, capacity, shift, encoding, tuple(values))
 
@@ -257,19 +396,40 @@ class _Decoder:
         scale = self.field(node, "scale", FieldType.DOUBLE, scalar=True)
         perspective = self.field(node, "perspective_vector", FieldType.VECTOR, scalar=True)
         if len(rotation) != 9 or any(v is None for v in rotation) or scale is None:
-            raise FacetedGeometryError("mesh transform has incomplete components")
+            raise FacetedGeometryError(
+                "mesh transform has incomplete components",
+                code="faceted.invalid_field",
+                source=_source(node),
+                field="rotation_matrix",
+            )
         # Never discard a non-null higher-precision correction record.
         if (
             any(f.definition.name == "precision" for f in node.fields)
             and self.integer(node, "precision", FieldType.POINTER_INDEX) != 0
         ):
-            raise FacetedGeometryError("mesh transform precision corrections are not yet supported")
+            raise FacetedGeometryError(
+                "mesh transform precision corrections are not yet supported",
+                code="faceted.unsupported_geometry",
+                kind=DiagnosticKind.UNSUPPORTED,
+                source=_source(node),
+                field="precision",
+            )
+        try:
+            translation_vector = Vector3(*translation)
+            perspective_vector = Vector3(*(0.0 if v is None else v for v in perspective))
+        except (ValueError, TypeError) as error:
+            raise FacetedGeometryError(
+                "mesh transform has incomplete components",
+                code="faceted.invalid_field",
+                source=_source(node),
+                field="translation_vector",
+            ) from error
         transform = Transform(
             tuple(tuple(rotation[i : i + 3]) for i in (0, 3, 6)),
-            Vector3(*translation),
+            translation_vector,
             scale,
             self.integer(node, "flag"),
-            Vector3(*(0.0 if v is None else v for v in perspective)),
+            perspective_vector,
             _source(node),
         )
         return Placement.from_transform(transform)
@@ -282,15 +442,36 @@ class _Decoder:
                 _source(node), sense, None, None, None, None, None, placement, node.fields
             )
         if self.integer(psm, "owner", FieldType.POINTER_INDEX) != 0:
-            raise FacetedGeometryError("reserved PSM_MESH owner must be null")
+            raise FacetedGeometryError(
+                "reserved PSM_MESH owner must be null",
+                code="faceted.invalid_reference",
+                source=_source(psm),
+                field="owner",
+            )
         if self.integer(psm, "precision", FieldType.UNSIGNED_BYTE) != 1:
-            raise FacetedGeometryError("only double precision PSM_MESH is supported")
+            raise FacetedGeometryError(
+                "only double precision PSM_MESH is supported",
+                code="faceted.unsupported_geometry",
+                kind=DiagnosticKind.UNSUPPORTED,
+                source=_source(psm),
+                field="precision",
+            )
         positions = self.pool(psm, "position_pool", vector=True)
         indices = self.pool(psm, "position_indices", vector=False)
         if positions.encoding != 1 or not indices.count or indices.count % 3:
-            raise FacetedGeometryError("mesh needs 3D positions and complete triangle indices")
+            raise FacetedGeometryError(
+                "mesh needs 3D positions and complete triangle indices",
+                code="faceted.invalid_pool",
+                source=_source(psm),
+                field="position_indices",
+            )
         if any(i < 0 or i > positions.count for i in indices.values[: indices.count]):
-            raise FacetedGeometryError("mesh position index is outside both possible origins")
+            raise FacetedGeometryError(
+                "mesh position index is outside both possible origins",
+                code="faceted.invalid_indices",
+                source=_source(psm),
+                field="position_indices",
+            )
         normal_type = self.integer(psm, "normal_type", FieldType.UNSIGNED_BYTE)
         normals = normal_indices = None
         if normal_type == 3:
@@ -299,13 +480,29 @@ class _Decoder:
             if normal_indices.count != indices.count or any(
                 i < 0 or i > normals.count for i in normal_indices.values[: normal_indices.count]
             ):
-                raise FacetedGeometryError("mesh normal indices must parallel its triangle corners")
+                raise FacetedGeometryError(
+                    "mesh normal indices must parallel its triangle corners",
+                    code="faceted.invalid_indices",
+                    source=_source(psm),
+                    field="normal_indices",
+                )
         elif normal_type != 1:
-            raise FacetedGeometryError("unsupported mesh normal storage type")
+            raise FacetedGeometryError(
+                "unsupported mesh normal storage type",
+                code="faceted.unsupported_geometry",
+                kind=DiagnosticKind.UNSUPPORTED,
+                source=_source(psm),
+                field="normal_type",
+            )
         elif self.integer(psm, "normal_pool", FieldType.POINTER_INDEX) or self.integer(
             psm, "normal_indices", FieldType.POINTER_INDEX
         ):
-            raise FacetedGeometryError("normal-none mesh has non-null normal links")
+            raise FacetedGeometryError(
+                "normal-none mesh has non-null normal links",
+                code="faceted.invalid_reference",
+                source=_source(psm),
+                field="normal_pool",
+            )
         return EmbeddedMesh(
             _source(node),
             sense,
@@ -323,20 +520,36 @@ def decode_polyline(
     document: ParasolidDocument, node_index: int, *, max_pool_values=1_000_000
 ) -> Polyline:
     """Decode POLYLINE → POLYLINE_DATA → POINT_VALUES from an explicit catalog."""
-    decoder = _Decoder(document, max_pool_values)
-    return decoder.polyline(decoder.node(node_index, "POLYLINE"))
+    try:
+        decoder = _Decoder(document, max_pool_values)
+        return decoder.polyline(decoder.node(node_index, "POLYLINE"))
+    except _OperationError as error:
+        error.add_context(schema_key=document.schema_key.raw)
+        raise
 
 
 def decode_embedded_mesh(
     document: ParasolidDocument, node_index: int, *, max_pool_values=1_000_000
 ) -> EmbeddedMesh:
     """Retain MESH/PSM_MESH pools and placement; external associated files are not loaded."""
-    decoder = _Decoder(document, max_pool_values)
-    return decoder.mesh(decoder.node(node_index, "MESH"))
+    try:
+        decoder = _Decoder(document, max_pool_values)
+        return decoder.mesh(decoder.node(node_index, "MESH"))
+    except _OperationError as error:
+        error.add_context(schema_key=document.schema_key.raw)
+        raise
 
 
 def faceted_geometry(document: ParasolidDocument, *, max_pool_values=1_000_000) -> FacetedGeometry:
     """Extract named stored records independently of B-Rep mapping and OCCT."""
+    try:
+        return _faceted_geometry(document, max_pool_values=max_pool_values)
+    except _OperationError as error:
+        error.add_context(schema_key=document.schema_key.raw)
+        raise
+
+
+def _faceted_geometry(document, *, max_pool_values):
     decoder = _Decoder(document, max_pool_values)
     polylines, meshes = [], []
     for node in decoder.nodes.values():

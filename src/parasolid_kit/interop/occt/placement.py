@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 from ...brep.model import BrepModel
-from ...brep.topology import InstancePartKind, Transform
+from ...brep.placement import AssemblyPlacementError, BodyOccurrence, assembly_occurrences
+from ...brep.placement import Placement as AffinePlacement
+from ...diagnostics import DiagnosticKind
 from .model import ShapeRelationKind, SourceEntityKind, SourceEntityRef
 from .topology import PendingRelation
-
-MAX_INSTANCE_DEPTH = 64
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,11 +24,28 @@ class Placement:
     bodies_unreferenced: int
 
 
+def prepare_instances(brep: BrepModel, max_instances: int) -> tuple[BodyOccurrence, ...]:
+    """Validate and expand once, before importing the optional OCCT runtime."""
+    occurrences = assembly_occurrences(brep, max_instances=max_instances)
+    for instance in brep.instances:
+        try:
+            _validate_similarity(AffinePlacement.from_transform(instance.transform), instance.id)
+        except AssemblyPlacementError as error:
+            error.add_context(
+                source=instance.transform.source if instance.transform else instance.source,
+                schema_key=brep.schema_key,
+                instance_id=instance.id,
+            )
+            raise
+    return occurrences
+
+
 def place_instances(
     brep: BrepModel,
     body_shapes: dict[int, object],
     relations: tuple[PendingRelation, ...],
     scale: float,
+    occurrences: tuple[BodyOccurrence, ...],
 ) -> Placement:
     """Place every body instance of the root assemblies as a transformed copy.
 
@@ -37,16 +55,15 @@ def place_instances(
     unit; the copy keeps the source relations of the body, rewritten onto its
     own subshapes and noted with the instance chain, and gains a ``generated``
     relation from the placing instance. A body no instance references stays
-    where it is. Negative instances are placed like positive ones and counted.
+    where it is. A negative flag anywhere along a chain marks the resulting
+    occurrence as negative; it is copied and counted, without a Boolean cut.
     """
     from OCP.BRep import BRep_Builder
     from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
-    from OCP.gp import gp_Trsf
     from OCP.TopExp import TopExp
     from OCP.TopoDS import TopoDS_Compound
     from OCP.TopTools import TopTools_IndexedMapOfShape
 
-    assemblies = {item.id: item for item in brep.assemblies}
     instances = {item.id: item for item in brep.instances}
     indexed_bodies = {}
     for body_id, shape in body_shapes.items():
@@ -60,43 +77,36 @@ def place_instances(
                 body_relations.setdefault(body_id, []).append(relation)
                 break
 
-    placed: list[tuple[tuple[int, ...], int, object, bool]] = []
-
-    def visit(assembly_id: int, parent: object, chain: tuple[int, ...], visited: frozenset) -> None:
-        if assembly_id in visited or len(chain) > MAX_INSTANCE_DEPTH:
-            raise ValueError(f"instance chain {chain} is circular or too deep")
-        assembly = assemblies.get(assembly_id)
-        if assembly is None:
-            raise ValueError(f"assembly {assembly_id} is missing")
-        for instance_id in assembly.instances:
-            instance = instances.get(instance_id)
-            if instance is None:
-                raise ValueError(f"instance {instance_id} is missing")
-            trsf = parent.Multiplied(_trsf(instance.transform, scale, instance_id))
-            if instance.part_kind is InstancePartKind.BODY:
-                placed.append(((*chain, instance_id), instance.part, trsf, instance.negative))
-            else:
-                visit(instance.part, trsf, (*chain, instance_id), visited | {assembly_id})
-
-    for assembly in brep.assemblies:
-        if not assembly.referencing_instances:
-            visit(assembly.id, gp_Trsf(), (), frozenset())
-
     shapes: list[object] = []
     new_relations: list[PendingRelation] = []
-    referenced: set[int] = set()
-    negative = 0
-    for chain, body_id, trsf, is_negative in placed:
-        referenced.add(body_id)
-        negative += int(is_negative)
+    placed = negative = unreferenced = 0
+    for occurrence in occurrences:
+        body_id, chain = occurrence.body_id, occurrence.instance_path
+        if chain:
+            placed += 1
+            negative += int(occurrence.negative)
         source = body_shapes.get(body_id)
         if source is None:
             # The body was not converted (a partial conversion dropped it).
             continue
+        if not chain:
+            unreferenced += 1
+            shapes.append(source)
+            new_relations.extend(body_relations.get(body_id, ()))
+            continue
+        try:
+            trsf = _trsf(occurrence.placement, scale, chain[-1])
+        except AssemblyPlacementError as error:
+            error.add_context(
+                entity=instances[chain[-1]],
+                instance_path="/".join(map(str, chain)),
+                schema_key=brep.schema_key,
+            )
+            raise
         transformer = BRepBuilderAPI_Transform(source, trsf, True)
         copy = transformer.Shape()
         note = "instance " + "/".join(str(item) for item in chain)
-        if is_negative:
+        if occurrence.negative:
             note += " (negative)"
         for relation in body_relations.get(body_id, ()):
             target = (
@@ -122,13 +132,6 @@ def place_instances(
             )
         )
         shapes.append(copy)
-    unreferenced = 0
-    for body_id, shape in body_shapes.items():
-        if body_id in referenced:
-            continue
-        unreferenced += 1
-        shapes.append(shape)
-        new_relations.extend(body_relations.get(body_id, ()))
     if not shapes:
         raise ValueError("no body is placed by an instance or stands on its own")
     if len(shapes) == 1:
@@ -140,53 +143,60 @@ def place_instances(
         for shape in shapes:
             builder.Add(compound, shape)
         root = compound
-    return Placement(root, tuple(new_relations), len(placed), negative, unreferenced)
+    return Placement(root, tuple(new_relations), placed, negative, unreferenced)
 
 
-def _trsf(transform: Transform | None, scale: float, instance_id: int) -> object:
-    from OCP.gp import gp_Trsf
-
-    trsf = gp_Trsf()
-    if transform is None:
-        return trsf
-    s = transform.scale
-    rows = transform.rotation
-    t = transform.translation
+def _validate_similarity(placement: AffinePlacement, instance_id: int) -> None:
+    rows = [row[:3] for row in placement.matrix]
     # OCCT accepts any matrix; only a rotation (or reflection) scaled uniformly
     # keeps the copied geometry exact, so the rows must be orthogonal and of
     # equal length.
     lengths = [sum(value * value for value in row) for row in rows]
     reference = max(lengths)
-    if not reference > 0 or not all(
-        abs(length - reference) <= 1e-9 * reference for length in lengths
+    if (
+        not isfinite(reference)
+        or not reference > 0
+        or not all(abs(length - reference) <= 1e-9 * reference for length in lengths)
     ):
-        raise ValueError(
-            f"transform of instance {instance_id} is not a rotation with a uniform scale"
+        raise AssemblyPlacementError(
+            f"transform of instance {instance_id} is not a rotation with a uniform scale",
+            code="assembly.unsupported_transform",
+            kind=DiagnosticKind.UNSUPPORTED,
+            field="matrix",
+            details={"instance_id": instance_id},
         )
     for first in range(3):
         for second in range(first + 1, 3):
             dot = sum(a * b for a, b in zip(rows[first], rows[second], strict=True))
             if abs(dot) > 1e-9 * reference:
-                raise ValueError(
-                    f"transform of instance {instance_id} is not a rotation with a uniform scale"
+                raise AssemblyPlacementError(
+                    f"transform of instance {instance_id} is not a rotation with a uniform scale",
+                    code="assembly.unsupported_transform",
+                    kind=DiagnosticKind.UNSUPPORTED,
+                    field="matrix",
+                    details={"instance_id": instance_id},
                 )
+
+
+def _trsf(placement: AffinePlacement, scale: float, instance_id: int) -> object:
+    from OCP.gp import gp_Trsf
+
+    _validate_similarity(placement, instance_id)
+    trsf = gp_Trsf()
     try:
         trsf.SetValues(
-            rows[0][0] * s,
-            rows[0][1] * s,
-            rows[0][2] * s,
-            t.x * s * scale,
-            rows[1][0] * s,
-            rows[1][1] * s,
-            rows[1][2] * s,
-            t.y * s * scale,
-            rows[2][0] * s,
-            rows[2][1] * s,
-            rows[2][2] * s,
-            t.z * s * scale,
+            *(
+                value * scale if column == 3 else value
+                for row in placement.matrix
+                for column, value in enumerate(row)
+            )
         )
     except Exception as error:  # OCCT raises Standard_ConstructionError without text
-        raise ValueError(
-            f"transform of instance {instance_id} is not a rotation with a uniform scale"
+        raise AssemblyPlacementError(
+            f"transform of instance {instance_id} is not a rotation with a uniform scale",
+            code="assembly.unsupported_transform",
+            kind=DiagnosticKind.UNSUPPORTED,
+            field="matrix",
+            details={"instance_id": instance_id},
         ) from error
     return trsf

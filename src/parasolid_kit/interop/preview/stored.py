@@ -6,8 +6,10 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from ...brep._errors import _OperationError
 from ...brep.evaluation import _cross, _unit
 from ...brep.faceted import FacetedGeometry, FacetedGeometryError
+from ...diagnostics import DiagnosticKind
 from ..limits import DEFAULT_INTEROP_LIMITS, InteropLimits
 from ..occt.options import UNIT_TO_METRES
 from .glb import GlbBuilder, validate_glb_bytes
@@ -40,6 +42,34 @@ def write_faceted_preview(
     overwrite: bool = False,
     include_edges: bool = True,
 ) -> StoredPreviewResult:
+    """Write selected stored geometry; operation failures carry structured diagnostics."""
+    try:
+        return _write_faceted_preview(
+            geometry,
+            destination,
+            source_unit=source_unit,
+            target_unit=target_unit,
+            index_origin=index_origin,
+            limits=limits,
+            overwrite=overwrite,
+            include_edges=include_edges,
+        )
+    except _OperationError as error:
+        error.add_context(schema_key=geometry.schema_key)
+        raise
+
+
+def _write_faceted_preview(
+    geometry,
+    destination,
+    *,
+    source_unit,
+    target_unit,
+    index_origin,
+    limits,
+    overwrite,
+    include_edges,
+):
     """Write stored triangles/line strips and the bundled viewer, without OCCT.
 
     This route displays only selected stored records, not the complete document
@@ -68,16 +98,25 @@ def write_faceted_preview(
     bounds = None
     triangles = vertices = samples = 0
 
-    def budget(name, observed):
+    def budget(name, observed, source=None):
         if observed > limits.limit_for(name):
-            raise FacetedGeometryError(f"stored preview exceeds {name}")
+            raise FacetedGeometryError(
+                f"stored preview exceeds {name}",
+                code="faceted.limit_exceeded",
+                kind=DiagnosticKind.LIMIT,
+                source=source,
+                details={"resource": name, "observed": observed, "limit": limits.limit_for(name)},
+            )
 
-    def append_primitive(method, **arguments):
+    def append_primitive(method, source, **arguments):
         try:
             method(**arguments)
         except OverflowError as error:
             raise FacetedGeometryError(
-                "stored preview exceeds max_output_bytes or the Float32 coordinate range"
+                "stored preview exceeds max_output_bytes or the Float32 coordinate range",
+                code="faceted.output_failed",
+                source=source,
+                field="positions",
             ) from error
 
     def metadata(source, kind, count, triangle_count=0):
@@ -115,27 +154,46 @@ def write_faceted_preview(
     budget("max_entities", len(geometry.meshes) + len(geometry.polylines))
     budget("max_occt_subshapes", len(geometry.meshes) + len(geometry.polylines))
     if len(geometry.meshes) + len(geometry.polylines) > 0xFFFFFF:
-        raise FacetedGeometryError("stored preview exceeds pick ID capacity")
+        raise FacetedGeometryError(
+            "stored preview exceeds pick ID capacity",
+            code="faceted.limit_exceeded",
+            kind=DiagnosticKind.LIMIT,
+            details={
+                "resource": "pick_ids",
+                "observed": len(geometry.meshes) + len(geometry.polylines),
+                "limit": 0xFFFFFF,
+            },
+        )
     for mesh in geometry.meshes:
         if mesh.position_indices is None:
-            raise FacetedGeometryError("mesh data is not embedded")
+            raise FacetedGeometryError(
+                "mesh data is not embedded",
+                code="faceted.missing_data",
+                source=mesh.source,
+                field="psm_imesh",
+            )
         count = mesh.position_indices.count // 3
-        budget("max_triangles", triangles + count)
-        budget("max_vertices", vertices + count * 3)
+        budget("max_triangles", triangles + count, mesh.source)
+        budget("max_vertices", vertices + count * 3, mesh.source)
         positions, normals = [], []
         for triangle in mesh.triangles(index_origin=index_origin):
             a, b, c = (tuple(point) for point in triangle)
-            normal = _unit(
-                _cross(
-                    tuple(y - x for x, y in zip(a, b, strict=True)),
-                    tuple(y - x for x, y in zip(a, c, strict=True)),
+            try:
+                normal = _unit(
+                    _cross(
+                        tuple(y - x for x, y in zip(a, b, strict=True)),
+                        tuple(y - x for x, y in zip(a, c, strict=True)),
+                    )
                 )
-            )
+            except _OperationError as error:
+                error.add_context(source=mesh.source, field="positions")
+                raise
             positions.extend(coordinate * scale for point in triangle for coordinate in point)
             normals.extend(normal * 3)
         item = metadata(mesh.source, "face", count * 3, count)
         append_primitive(
             builder.add_triangles,
+            mesh.source,
             target_key=item["target_key"],
             pick_id=item["pick_id"],
             positions=positions,
@@ -147,13 +205,20 @@ def write_faceted_preview(
         triangles += count
         vertices += count * 3
     for polyline in geometry.polylines if include_edges else ():
-        budget("max_curve_samples", samples + len(polyline.points) + int(polyline.closed))
-        budget("max_vertices", vertices + len(polyline.points) + int(polyline.closed))
+        budget(
+            "max_curve_samples",
+            samples + len(polyline.points) + int(polyline.closed),
+            polyline.source,
+        )
+        budget(
+            "max_vertices", vertices + len(polyline.points) + int(polyline.closed), polyline.source
+        )
         points = polyline.display_points()
         positions = [coordinate * scale for point in points for coordinate in point]
         item = metadata(polyline.source, "edge", len(points))
         append_primitive(
             builder.add_line_strip,
+            polyline.source,
             target_key=item["target_key"],
             pick_id=item["pick_id"],
             positions=positions,
@@ -163,10 +228,14 @@ def write_faceted_preview(
         samples += len(points)
         vertices += len(points)
     if not primitives:
-        raise FacetedGeometryError("stored preview contains no geometry")
+        raise FacetedGeometryError(
+            "stored preview contains no geometry", code="faceted.empty_geometry"
+        )
     glb = builder.build()
     if not validate_glb_bytes(glb).valid:
-        raise FacetedGeometryError("stored geometry did not produce a structurally valid GLB")
+        raise FacetedGeometryError(
+            "stored geometry did not produce a structurally valid GLB", code="faceted.output_failed"
+        )
     manifest = {
         "schema_version": 1,
         "producer": "parasolid-kit.interop.preview",

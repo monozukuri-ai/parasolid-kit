@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add structured `Diagnostic` values to geometry evaluation, assembly placement,
+  and stored-geometry errors while retaining their `ValueError` inheritance and
+  text messages. Codes, available source locations, fields, parameters and
+  failing batch indices are preserved through OCCT/preview wrappers and CLI JSON.
+- Share assembly graph validation, expansion, and composed placements between
+  the dependency-free API and OCCT conversion. Reject cycles, nonreciprocal
+  links, invalid transforms, and expansion overflow before loading OCCT;
+  inherit negative flags along the entire instance path. OCCT and assembly
+  previews use `InteropLimits.max_instances` (default 100,000).
 - Add dependency-free 2D NURBS evaluation and SP_CURVE lifting from UV to 3D
   points and exact parameter derivatives. Bounded batch APIs reuse reference,
   knot, and derivative preparation and evaluate local tensor-product spans.

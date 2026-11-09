@@ -340,13 +340,25 @@ returns `BodyOccurrence` values. `instance_path` and `assembly_path` run from
 root to leaf. Repeated references yield distinct occurrences; with no root
 selected, uninstanced bodies also appear once at identity. Graph validation
 rejects missing/duplicate IDs, nonreciprocal ownership, cycles, excessive
-expansion and paths deeper than 64. Negative-instance signs are retained.
+expansion and paths deeper than 64 assemblies. Forward and reverse assembly
+references must agree. The budget bounds both expanded instance links
+(including repeated subassemblies) and total body occurrences. A negative
+flag anywhere on an instance path marks that body occurrence as negative;
+nested negative flags do not cancel, and no Boolean subtraction is evaluated.
 
 `Placement` stores a row-major 3×4 affine matrix. `from_transform` applies the
 source `(R · point + translation) · scale` formula; `compose(local)` applies
 the local transform first. `apply_normal` uses inverse transpose, including
 nonuniform affine scale and reflection. Singular/nonfinite matrices,
 perspective transforms and unknown flag bits raise `AssemblyPlacementError`.
+
+OCCT placement uses the same validation and occurrence traversal. Its
+`place_instances=True` option and assembly previews share
+`InteropLimits(max_instances=100_000)`; this is separate from the source
+entity budget `max_entities`. Graph/transform failures and expansion overflow
+are rejected before loading OCCT for conversion. General affine matrices
+remain available through `Placement`; OCCT additionally requires every
+local transform to be a rotation/reflection with uniform scale.
 
 To apply occurrences in the viewer, generate an **unplaced** OCCT conversion
 and call `write_preview(converted, model, destination, assembly=True)`, or use:
@@ -576,11 +588,17 @@ in the target unit. Bodies no instance references stay where they are. The
 source map follows the copies: every relation of a placed body is rewritten
 onto the copy's subshapes with the instance chain in its note, and each copy
 gains a `generated` relation from its placing instance. The report counts
-`instances_placed`, `instances_negative` (negative instances are placed and
-counted, not subtracted) and `bodies_unreferenced`; its metrics and validity
+`instances_placed`, `instances_negative` (body occurrences with a negative
+flag anywhere on their path are placed and counted, without subtraction)
+and `bodies_unreferenced`; its metrics and validity
 describe the placed shape, while the source metrics are still compared with
 the bodies as built. A transform whose rows are not orthogonal and of equal
 length fails the conversion.
+The assembly graph and composed source placements come from
+`assembly_occurrences`; invalid graphs fail with `occt.invalid_topology`.
+`limits=InteropLimits(max_instances=...)` bounds expansion before body copies
+are constructed. An exceeded budget raises `occt.limit_exceeded` with
+`resource="max_instances"`, including with `partial=True`.
 Unsupported UV/intersection variants, blends with unequal offsets, invalid
 loop topology, unknown orientation, invalid OCCT shapes, and metric mismatches
 raise `OcctConversionError`. In the released packages rational, closed or
@@ -831,6 +849,8 @@ Tessellation is bounded by `InteropLimits.max_triangles`, `max_vertices`,
 `max_curve_samples`, `max_occt_subshapes`, `max_diagnostics`, and
 `max_output_bytes`. A limit raises `PreviewError` with
 `preview.limit_exceeded`; the writer never silently coarsens or drops the mesh.
+Assembly previews also apply `max_instances` to occurrence expansion and
+report it as the resource on `preview.limit_exceeded`.
 Missing source mappings are rejected by default.
 `PreviewOptions(allow_partial=True)` is an explicit inspection mode: the
 manifest lists known missing face/edge mappings and the UI shows a warning and list.
@@ -867,8 +887,86 @@ Package-defined failures derive from `ParasolidError`:
 - `SchemaError` reports unavailable or invalid schema resolution.
 - `LimitExceededError` reports the resource, actual value, and configured
   bound.
+- `GeometryEvaluationError`, `AssemblyPlacementError`, and `FacetedGeometryError`
+  also carry `.diagnostic`. They remain subclasses of `ValueError`, keep their
+  plain text messages, and additionally derive from `ParasolidError`.
 
 Ordinary Python contract errors use `TypeError` or `ValueError`.
+
+### Structured geometry operation failures
+
+Match `error.diagnostic.code`, rather than parsing `str(error)`. The existing
+`Diagnostic.to_dict()` format is used throughout; CLI error JSON includes the
+same object under `diagnostic`.
+
+```python
+import json
+from parasolid_kit import GeometryEvaluationError, evaluate_curve_2d_many
+
+
+def evaluate_uv_batch(curve, parameters, *, model=None):
+    try:
+        return evaluate_curve_2d_many(curve, parameters, model=model)
+    except GeometryEvaluationError as error:
+        diagnostic = error.diagnostic
+        if diagnostic.code == "geometry.parameter_out_of_range":
+            print(diagnostic.details.get("sample_index"), diagnostic.details.get("parameter"))
+        print(json.dumps(diagnostic.to_dict(), allow_nan=False))
+        raise
+```
+
+Known source information appears as `node_type`, `node_id`,
+`location.byte_offset`, and `schema_key`. `details.node_index` identifies the
+source record; it is distinct from the optional source node ID. A definition
+passed without provenance does not acquire invented node IDs or locations.
+Signed negative source tags are retained as `details.source_node_id`, since
+the shared `Diagnostic.node_id` field accepts only nonnegative IDs.
+Nested trim/SP_CURVE errors keep the failing basis curve or support surface
+as their primary source, even when an outer curve also has source metadata.
+
+The flat `details` map can include:
+
+| Key | Meaning |
+|---|---|
+| `entity_kind`, `entity_id` | Mapped entity associated with the failure, when known |
+| `field` | Source/model field or input argument being checked |
+| `parameter`, `minimum`, `maximum` | Rejected parameter and applicable interval |
+| `u`, `v`, `curve_parameter` | Support UV and the driving SP_CURVE parameter, when available |
+| `sample_index` | Zero-based index in the supplied batch or generated samples; absent for preparation failures |
+| `reference_id` | Missing, ambiguous, or inconsistent referenced ID |
+| `resource`, `observed`, `limit` | The resource ceiling that was exceeded |
+| `instance_path` | Slash-separated instance IDs from root to the failing placement |
+| `cause_code` | Original operation code retained by an OCCT/preview wrapper |
+
+Only available context is included. Non-finite invalid inputs are represented
+as strings (`"nan"`, `"inf"`, `"-inf"`); oversized invalid integers and other
+non-scalar argument types use descriptive strings. Diagnostics remain valid
+under strict JSON serialization without copying whole control/mesh arrays.
+
+Common codes include:
+
+| Code | Meaning |
+|---|---|
+| `geometry.invalid_parameter` | Invalid parameter type, non-finite parameter, or invalid sample-count argument |
+| `geometry.parameter_out_of_range` | Parameter outside an active knot or stored trim interval |
+| `geometry.invalid_nurbs` | Invalid NURBS controls, dimensions, knots, or weights |
+| `geometry.invalid_reference`, `geometry.cyclic_reference`, `geometry.missing_model` | A dependency cannot be resolved safely |
+| `geometry.unsupported_geometry` | Definition/profile not supported by this evaluator |
+| `geometry.degenerate_geometry`, `geometry.nonfinite_result` | An undefined direction/normal or non-finite result |
+| `assembly.invalid_reference`, `assembly.duplicate_id`, `assembly.cycle` | Invalid assembly graph |
+| `assembly.invalid_matrix`, `assembly.singular_matrix`, `assembly.invalid_scale` | Invalid affine placement |
+| `assembly.unsupported_transform` | Perspective/unknown flags, or an OCCT transform outside its supported similarity profile |
+| `geometry.depth_exceeded`, `assembly.depth_exceeded` | Reference path deeper than the supported ceiling |
+| `geometry.limit_exceeded`, `assembly.limit_exceeded`, `faceted.limit_exceeded` | Explicit resource ceiling exceeded |
+| `faceted.invalid_schema`, `faceted.invalid_field`, `faceted.invalid_reference` | Stored geometry schema/field/reference failure |
+| `faceted.invalid_pool`, `faceted.invalid_indices`, `faceted.ambiguous_index_origin` | Incomplete pool, invalid indices, or index origin requiring explicit selection |
+| `faceted.missing_data`, `faceted.unsupported_geometry`, `faceted.output_failed` | Missing embedded data, unsupported storage, or failed preview output |
+
+OCCT and preview retain their existing outer codes, such as
+`occt.invalid_topology` and `preview.limit_exceeded`. Their diagnostics add
+`details.cause_code` and preserve the operation's source and details. A batch
+failure still raises without returning partial results; these diagnostics do
+not introduce fallback geometry or change evaluation domains.
 
 ## CLI
 

@@ -6,7 +6,9 @@ from dataclasses import dataclass, replace
 from math import sqrt
 from typing import Any
 
+from ...brep._errors import _with_operation_cause
 from ...brep.model import BrepModel
+from ...brep.placement import _AssemblyExpansionLimitError
 from ...brep.topology import SourceNodeRef
 from ...diagnostics import Diagnostic, DiagnosticKind, DiagnosticSeverity, SourceLocation
 from ..dependency import require_occt
@@ -68,6 +70,23 @@ def tessellate_preview(
         return result
     except PreviewError:
         raise
+    except _AssemblyExpansionLimitError as error:
+        raise PreviewError(
+            _with_operation_cause(
+                _diagnostic(
+                    brep,
+                    code="preview.limit_exceeded",
+                    kind=DiagnosticKind.LIMIT,
+                    message=str(error),
+                    details={
+                        "resource": "max_instances",
+                        "observed": limits.max_instances + 1,
+                        "limit": limits.max_instances,
+                    },
+                ),
+                error,
+            )
+        ) from error
     except OverflowError as error:
         raise PreviewError(
             _diagnostic(
@@ -92,7 +111,7 @@ def tessellate_preview(
             message=f"OCCT preview tessellation failed: {error}",
             details={"exception_type": type(error).__name__},
         )
-        raise PreviewError(diagnostic) from error
+        raise PreviewError(_with_operation_cause(diagnostic, error)) from error
 
 
 def _validate_inputs(

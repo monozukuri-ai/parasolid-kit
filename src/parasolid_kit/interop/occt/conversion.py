@@ -10,6 +10,7 @@ from itertools import pairwise
 from math import isfinite
 
 from ... import __version__
+from ...brep._errors import _with_operation_cause
 from ...brep.geometry import (
     BlendBoundarySurface,
     BlendedEdgeSurface,
@@ -35,6 +36,7 @@ from ...brep.geometry import (
     TrimmedCurve,
 )
 from ...brep.model import BrepModel
+from ...brep.placement import _AssemblyExpansionLimitError
 from ...brep.topology import BodyKind, Sense, SourceNodeRef
 from ...diagnostics import (
     Diagnostic,
@@ -59,7 +61,7 @@ from .model import (
     SourceShapeMap,
 )
 from .options import LengthUnit, OcctConversionOptions, ValidationTolerances
-from .placement import Placement
+from .placement import Placement, prepare_instances
 from .placement import place_instances as _place_instances
 from .topology import PendingRelation, TopologyBuilder, is_isolated_fin
 from .validation import (
@@ -121,6 +123,43 @@ def to_occt(
     if preflight:
         _raise_conversion(context, preflight[0], diagnostics=preflight)
 
+    occurrences = ()
+    if options.place_instances:
+        try:
+            occurrences = prepare_instances(brep, limits.max_instances)
+        except _AssemblyExpansionLimitError as error:
+            _raise_conversion(
+                context,
+                _with_operation_cause(
+                    _diagnostic(
+                        context,
+                        code="occt.limit_exceeded",
+                        kind=DiagnosticKind.LIMIT,
+                        message=str(error),
+                        details={
+                            "resource": "max_instances",
+                            "observed": limits.max_instances + 1,
+                            "limit": limits.max_instances,
+                        },
+                    ),
+                    error,
+                ),
+            )
+        except ValueError as error:
+            _raise_conversion(
+                context,
+                _with_operation_cause(
+                    _diagnostic(
+                        context,
+                        code="occt.invalid_topology",
+                        kind=DiagnosticKind.INVALID,
+                        message=f"assembly placement failed: {error}",
+                        details={"exception_type": type(error).__name__},
+                    ),
+                    error,
+                ),
+            )
+
     runtime = require_occt()
     context.ocp_version = _optional_text(getattr(runtime, "__version__", None))
     context.ocp_distribution = _ocp_distribution()
@@ -151,9 +190,9 @@ def to_occt(
             )
         root, relations = built.shape, built.relations
         placement = None
-        if options.place_instances and brep.instances:
+        if options.place_instances and (brep.assemblies or brep.instances):
             placement = _place_instances(
-                brep, dict(built.body_shapes), built.relations, options.applied_scale
+                brep, dict(built.body_shapes), built.relations, options.applied_scale, occurrences
             )
             root, relations = placement.shape, placement.relations
             context.placement = placement
@@ -247,7 +286,7 @@ def to_occt(
             message=f"OCCT topology construction failed: {error}",
             details={"exception_type": type(error).__name__},
         )
-        conversion_error = _conversion_error(context, diagnostic)
+        conversion_error = _conversion_error(context, _with_operation_cause(diagnostic, error))
         raise conversion_error from error
 
     context.conversion_complete = not partial_result
@@ -300,6 +339,8 @@ class _ConversionContext:
                 self.brep.points,
                 self.brep.curves,
                 self.brep.surfaces,
+                self.brep.assemblies,
+                self.brep.instances,
             )
         )
 
