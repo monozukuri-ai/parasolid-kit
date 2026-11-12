@@ -145,7 +145,7 @@ fn exact_profile_layouts_and_canonical_hash() -> Result<()> {
     assert_eq!(family.metadata().profile_id, "family-9008");
     assert_eq!(family.members().len(), 1);
     assert_eq!(family.members()[0].profile_id, PROFILE);
-    assert!(family.base_members().is_empty());
+    assert_eq!(family.base_members(), []);
     assert_eq!(family.definitions().len(), TYPES.len());
     Ok(())
 }
@@ -237,5 +237,94 @@ fn every_legacy_profile_has_its_canonical_hash() -> Result<()> {
         }
     }
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+    Ok(())
+}
+
+#[test]
+fn parasolid_8_12_and_25001_layouts_follow_their_streams() -> Result<()> {
+    let registry = BuiltinProfileRegistry::compiled()?;
+    let profiles = legacy_standard_keys()?;
+    let profile = |id: &str| {
+        profiles
+            .iter()
+            .find(|item| item.metadata().profile_id == id)
+            .ok_or("profile")
+    };
+    let base = registry.profile("family-13006").ok_or("family 13006")?;
+
+    // Schema 8008 shares every edit of 9003: BODY without the "for future
+    // use" byte, FIN without its attribute pointer, the list without its
+    // transmission flag and thirteen owners without field names.
+    let parasolid_8 = profile("solidworks-800000-8008-r1")?;
+    assert_eq!(parasolid_8.metadata().provider_schema, "8008");
+    assert_eq!(
+        codes(parasolid_8, 12).as_deref(),
+        Some("dppppppffpppupuppppppp")
+    );
+    assert_eq!(codes(parasolid_8, 17).as_deref(), Some("ppppppppc"));
+    assert_eq!(codes(parasolid_8, 70).as_deref(), Some("dpppddddppd"));
+    assert_eq!(codes(parasolid_8, 80).as_deref(), Some("ppdulu"));
+    assert_eq!(codes(parasolid_8, 135).as_deref(), Some("u"));
+    let owners = parasolid_8.definition(80).ok_or("ATTRIB_DEF")?;
+    assert_eq!(owners.fields[4].element_count, 13);
+
+    // Schema 12006 as SolidWorks and CAD Exchanger write it: fourteen owners
+    // without field names; CURVE_DATA keeps its analytic-form pointer.
+    let reference = profile("solidworks-1200000-12006-r2")?;
+    assert_eq!(reference.metadata().revision, 2);
+    assert_eq!(codes(reference, 80).as_deref(), Some("ppdulu"));
+    let definition = reference.definition(80).ok_or("ATTRIB_DEF")?;
+    assert_eq!(definition.fields[4].name, "allowed_owners");
+    assert_eq!(definition.fields[4].element_count, 14);
+    assert_eq!(codes(reference, 135).as_deref(), Some("up"));
+    assert_eq!(codes(reference, 163).as_deref(), Some("vvcifff"));
+
+    // Schema 25001: the BODY of embedded 25001 streams (29 fields), the
+    // region owner, the list header and the pointer block's index origin.
+    let inventor = profile("inventor-2600169-25001-r1")?;
+    assert_eq!(inventor.metadata().provider_schema, "25001");
+    assert_eq!(
+        codes(inventor, 12).as_deref(),
+        Some("dppppppffpppupuupppppppdppppd")
+    );
+    let body = inventor.definition(12).ok_or("BODY")?;
+    assert_eq!(body.fields[13].pointer_class, 1040);
+    assert_eq!(body.fields[20].name, "region_head");
+    assert_eq!(codes(inventor, 19).as_deref(), Some("dpppppcp"));
+    assert_eq!(codes(inventor, 70).as_deref(), Some("dulpppdddpp"));
+    assert_eq!(codes(inventor, 74).as_deref(), Some("ddpp"));
+
+    // Every other declared type keeps its reviewed 13006 layout.
+    for (profile, edited) in [
+        (parasolid_8, &[12, 17, 70, 80, 135][..]),
+        (reference, &[80][..]),
+        (inventor, &[12, 19, 70, 74][..]),
+    ] {
+        for definition in profile.definitions() {
+            if edited.contains(&definition.node_type) {
+                continue;
+            }
+            if let Some(reviewed) = base.definition(definition.node_type) {
+                assert_eq!(
+                    definition.fields,
+                    reviewed.fields,
+                    "{} type {}",
+                    profile.metadata().profile_id,
+                    definition.node_type
+                );
+            }
+        }
+    }
+
+    // Other builds of the two new schemas resolve through their families.
+    for (key, family) in [
+        ("SCH_800194_8008", "family-8008"),
+        ("SCH_2600000_25001", "family-25001"),
+    ] {
+        let provider = registry
+            .provider_for_key(&SchemaKey::parse(key)?)
+            .ok_or("provider")?;
+        assert_eq!(provider.profile().metadata().profile_id, family);
+    }
     Ok(())
 }

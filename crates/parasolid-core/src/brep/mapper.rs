@@ -587,7 +587,9 @@ impl<'a> Mapper<'a> {
             .collect();
         let mut fields = Vec::new();
         for (position, target) in self.pointer_array(node, "fields")?.into_iter().enumerate() {
-            if target == 0 {
+            // An index that names no node in the file is read as zero (XT
+            // reference, printed page 11, "Unresolved indices"), an empty field.
+            let Some(value_node) = self.nodes.get(&target).copied() else {
                 fields.push(match declared_kinds.get(position) {
                     Some(1) => AttributeField::Integers(Vec::new()),
                     Some(2) => AttributeField::Reals(Vec::new()),
@@ -607,16 +609,7 @@ impl<'a> Mapper<'a> {
                     },
                 });
                 continue;
-            }
-            let value_node = self.nodes.get(&target).copied().ok_or_else(|| {
-                self.invalid_reference(
-                    node,
-                    "fields",
-                    target,
-                    "value node",
-                    "attribute field pointer is unresolved",
-                )
-            })?;
+            };
             fields.push(match self.roles.type_name(value_node) {
                 "INT_VALUES" => AttributeField::Integers(self.integer_array(value_node, "values")?),
                 "REAL_VALUES" => {
@@ -2901,12 +2894,12 @@ mod tests {
             let root = &model.assemblies[0];
             assert_eq!(root.kind, AssemblyKind::Collective);
             assert_eq!(root.instances, [0, 1]);
-            assert!(root.referencing_instances.is_empty());
+            assert_eq!(root.referencing_instances, [] as [u32; 0]);
             assert_eq!(root.source.node_id, None);
             let sub = &model.assemblies[1];
             assert_eq!(sub.kind, AssemblyKind::Disjunctive);
             assert_eq!(sub.referencing_instances, [1]);
-            assert!(sub.instances.is_empty());
+            assert_eq!(sub.instances, [] as [u32; 0]);
             let placed = &model.instances[0];
             assert!(!placed.negative);
             assert_eq!(placed.part, InstancePart::Body(0));
@@ -3412,10 +3405,7 @@ mod tests {
         if let Ok(SurfaceKind::Spun { profile, .. }) = spun {
             assert_eq!(
                 profile,
-                mapper
-                    .map_curve(2)
-                    .map(|curve| curve.id)
-                    .unwrap_or(u32::MAX)
+                mapper.map_curve(2).map_or(u32::MAX, |curve| curve.id)
             );
         }
         let swept = mapper.map_surface(swept_index).map(|surface| surface.kind);
@@ -3433,10 +3423,7 @@ mod tests {
         if let Ok(SurfaceKind::Swept { section, .. }) = swept {
             assert_eq!(
                 section,
-                mapper
-                    .map_curve(2)
-                    .map(|curve| curve.id)
-                    .unwrap_or(u32::MAX)
+                mapper.map_curve(2).map_or(u32::MAX, |curve| curve.id)
             );
         }
         let nurbs = mapper.map_surface(13);

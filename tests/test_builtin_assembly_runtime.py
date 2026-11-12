@@ -32,12 +32,12 @@ STANDARD_KEY = "SCH_2401000_20000"
 # SolidWorks 2020 schema (its family), an iCAD key completed by its family and
 # the standard 20000 key.
 KEYS = {
-    "SCH_3701229_37102_13006": "solidworks-sch37102-13006-r3",
-    "SCH_3101290_31100_13006": "solidworks-3101290-31100-13006-r2",
-    "SCH_2600169_25001_13006": "nx-2600169-25001-13006-r2",
+    "SCH_3701229_37102_13006": "solidworks-sch37102-13006-r4",
+    "SCH_3101290_31100_13006": "solidworks-3101290-31100-13006-r3",
+    "SCH_2600169_25001_13006": "nx-2600169-25001-13006-r3",
     "SCH_3101299_31100_13006": "family-31100-13006",
     "SCH_1901315_19008_13006": "icad-1901315-19008-13006-r1",
-    STANDARD_KEY: "icad-2401000-20000-r3",
+    STANDARD_KEY: "icad-2401000-20000-r4",
 }
 # A quarter turn about z, stored row by row.
 ROTATION = (0, -1, 0, 1, 0, 0, 0, 0, 1)

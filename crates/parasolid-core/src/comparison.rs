@@ -315,13 +315,10 @@ fn compare_views(
         options,
     );
 
-    loop {
-        let Some((&left_index, left_node)) = left_by_index
-            .iter()
-            .find(|(index, _)| !mapping.contains_key(*index) && !unmatched_left.contains(*index))
-        else {
-            break;
-        };
+    while let Some((&left_index, left_node)) = left_by_index
+        .iter()
+        .find(|(index, _)| !mapping.contains_key(*index) && !unmatched_left.contains(*index))
+    {
         let candidates = right_by_index
             .iter()
             .filter(|(index, right_node)| {
@@ -944,7 +941,7 @@ mod tests {
         assert!(report.equivalent);
         assert!(!report.node_index_layout_equal);
         assert_eq!(report.compared_node_count, 2);
-        assert!(report.differences.is_empty());
+        assert_eq!(report.differences.len(), 0);
         Ok(())
     }
 

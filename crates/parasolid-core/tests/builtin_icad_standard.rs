@@ -57,8 +57,10 @@ const EXPECTED: [Expected; 11] = [
     },
     Expected {
         key: "SCH_1500000_15003",
-        types: 28,
-        fields: 242,
+        // Revision 2 adds 45, 56, 59, 84 and the B-spline surface nodes
+        // (124-128) with their reviewed layouts.
+        types: 37,
+        fields: 320,
         body: "dppppppffpppupuuppppppp",
         body_references: &[],
         region_head: 20,
@@ -87,14 +89,18 @@ const EXPECTED: [Expected; 11] = [
     },
     Expected {
         key: "SCH_1901000_19008",
-        types: 20,
-        fields: 181,
+        // Revision 2 adds the assembly structure, the curve, surface and value
+        // types of SolidWorks, NX and Parasolid example files, the B-spline and
+        // SP_CURVE dependencies and the shared-geometry owner, with their
+        // reviewed layouts.
+        types: 47,
+        fields: 413,
         body: "dppppppffpppupuupppppppdppp",
         body_references: &[(24, 82), (25, 82), (26, 82)],
         region_head: 20,
         region: "dpppppc",
-        intersection: None,
-        limit: None,
+        intersection: Some("dpppppcpppp"),
+        limit: Some("ch"),
         list: "dulpppdddpp",
         block: "ddpp",
     },
@@ -104,9 +110,10 @@ const EXPECTED: [Expected; 11] = [
         // and the types of a public NX assembly: 10, 11, 100, 38, 40, 41, 60,
         // 67, 133, the SP_CURVE dependencies and the shared-geometry owner;
         // revision 3 the ellipse, sphere, torus, blends and B-spline surfaces
-        // of six public parts of another build.
-        types: 46,
-        fields: 411,
+        // of six public parts of another build; revision 4 the cone (52) and
+        // the vector and unicode value nodes (86, 98).
+        types: 49,
+        fields: 426,
         body: "dppppppffpppupuupppppppdppp",
         body_references: &[(24, 82), (25, 82), (26, 82)],
         region_head: 20,
@@ -254,8 +261,9 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
         assert_eq!(
             revision,
             match expected.key {
-                "SCH_2401000_20000" => 3,
-                "SCH_1700000_16100" | "SCH_2901000_28101" | "SCH_3200000_32001" => 2,
+                "SCH_2401000_20000" => 4,
+                "SCH_1500000_15003" | "SCH_1700000_16100" | "SCH_1901000_19008"
+                | "SCH_2901000_28101" | "SCH_3200000_32001" => 2,
                 _ => 1,
             }
         );
@@ -281,14 +289,15 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
             );
         }
         // SWEPT_SURF (67) reaches the standard 13006 keys through the family of
-        // the embedded profiles and is declared by the 20000 profile itself,
-        // where a public NX assembly carries it; other schemas keep it unknown.
+        // the embedded profiles and is declared by the 19008 and 20000 profiles
+        // themselves, where public SolidWorks and NX files carry it; other
+        // schemas keep it unknown.
         assert_eq!(
             matches!(
                 provider.lookup_type(schema, 67),
                 SchemaTypeLookup::Defined(_)
             ),
-            schema == "13006" || expected.key == "SCH_2401000_20000"
+            schema == "13006" || ["SCH_1901000_19008", "SCH_2401000_20000"].contains(&expected.key)
         );
         assert_eq!(provider.lookup_type("99999", 29), SchemaTypeLookup::Unknown);
         // The exact provider never accepts another key. Another build of the same

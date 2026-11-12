@@ -1266,6 +1266,10 @@ class ParametricTopologyBuilder(TopologyBuilder):
                 else:
                     a, b = sorted((a, b))
                 endpoints(curve.Value(a), curve.Value(b))
+                if vs is None and definition.start_parameter > definition.end_parameter:
+                    # A ring edge on the whole of a basis of negative sense:
+                    # the trim runs down its parameter, the built edge up it.
+                    self.reversed_edges.add(edge.id)
                 builder = (
                     BRepBuilderAPI_MakeEdge(curve, a, b)
                     if vs is None
@@ -1773,6 +1777,11 @@ class ParametricTopologyBuilder(TopologyBuilder):
         operation.SetContext(self.context)
         operation.SetPrecision(self.precision)
         operation.SetMaxTolerance(max(self.precision, Precision.Confusion_s()))
+        # A cone face bounded by one ring around its axis (a pointed cone, its
+        # apex an isolated vertex loop) needs the degenerated edge of the apex
+        # before the seam fix can close it.
+        if operation.FixPeriodicDegenerated():
+            self.operations.append("insert_degenerated_cone_apex_edge")
         if operation.FixMissingSeam():
             self.operations.append("generate_periodic_surface_seam")
         split = self._split_self_touching_loops(operation)

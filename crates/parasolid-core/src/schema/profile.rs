@@ -323,7 +323,7 @@ impl BuiltinSchemaProfile {
     /// Iterate over exact accepted transmit schema keys in lexical order.
     ///
     /// A family profile accepts keys by family instead and returns no exact key.
-    #[must_use]
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
     pub fn accepted_schema_keys(&self) -> impl ExactSizeIterator<Item = &SchemaKey> {
         self.accepted_schema_keys.iter()
     }
@@ -348,13 +348,13 @@ impl BuiltinSchemaProfile {
     }
 
     /// Iterate over node types excluded from a family because its members disagree.
-    #[must_use]
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
     pub fn conflicting_types(&self) -> impl ExactSizeIterator<Item = u16> + '_ {
         self.conflicting_types.iter().copied()
     }
 
     /// Iterate over reviewed definitions in ascending node-type order.
-    #[must_use]
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
     pub fn definitions(&self) -> impl ExactSizeIterator<Item = &TypeDefinition> {
         self.definitions.values()
     }
@@ -366,13 +366,13 @@ impl BuiltinSchemaProfile {
     }
 
     /// Iterate over confirmed base types whose definitions remain unsupported.
-    #[must_use]
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
     pub fn unsupported_base_types(&self) -> impl ExactSizeIterator<Item = u16> + '_ {
         self.unsupported_base_types.iter().copied()
     }
 
     /// Iterate over node types confirmed absent from the selected base schema.
-    #[must_use]
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
     pub fn absent_base_types(&self) -> impl ExactSizeIterator<Item = u16> + '_ {
         self.absent_base_types.iter().copied()
     }
@@ -581,13 +581,13 @@ impl BuiltinProfileRegistry {
     }
 
     /// Iterate over exact profiles in insertion order.
-    #[must_use]
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
     pub fn profiles(&self) -> impl ExactSizeIterator<Item = &BuiltinSchemaProfile> {
         self.profiles.iter()
     }
 
     /// Iterate over derived family profiles in family-ID order.
-    #[must_use]
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
     pub fn families(&self) -> impl ExactSizeIterator<Item = &BuiltinSchemaProfile> {
         self.families.iter()
     }
@@ -1183,7 +1183,7 @@ mod tests {
             family.metadata().profile_sha256,
             family_digest("90000", family.members(), family.base_members())
         );
-        assert!(family.base_members().is_empty());
+        assert_eq!(family.base_members().len(), 0);
     }
 
     #[test]

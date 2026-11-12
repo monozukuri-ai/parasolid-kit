@@ -95,8 +95,9 @@ See [preview controls and saving](docs/api.md#bounded-local-preview),
 
 Built-in profiles cover exact Onshape V30/V13/current, extracted iCAD and
 SolidWorks partition keys, five transmit-file keys (NX and the Parasolid 24
-and 26 acceptance tests) and six standard keys of Parasolid 9 to 16 (NX,
-MicroStation, IronCAD, SolidWorks). Each has `verified_subset` coverage and is
+and 26 acceptance tests) and eight standard keys of Parasolid 8 to 16 and
+schema 25001 (NX, MicroStation, IronCAD, SolidWorks, Autodesk Inventor). Each
+has `verified_subset` coverage and is
 completed
 by its schema family; application user fields are read. A key with no exact profile is read with the
 [schema family](docs/format-support.md#schema-families) of its effective

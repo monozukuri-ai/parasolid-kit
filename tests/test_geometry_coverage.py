@@ -278,17 +278,32 @@ def test_malformed_nurbs_is_rejected_before_occt_import() -> None:
 
 
 def test_periodic_flags_must_agree_with_topology_before_occt_import() -> None:
-    # Closed/periodic curves must have edge topology without end vertices.
+    # A closed curve that is not periodic has no arc between two vertices; two
+    # vertices may bound an arc of a periodic curve, as of a circle.
+    model = make_analytic_curve_sheet_model(CurveKind.NURBS)
+    curve = model.curves[0]
+    definition = curve.definition
+    assert isinstance(definition, NurbsCurve)
+    closed = replace(curve, definition=replace(definition, periodic=False, closed=True))
+
+    with pytest.raises(OcctConversionError) as captured:
+        to_occt(replace(model, curves=(closed, *model.curves[1:])), source_unit="mm")
+    assert captured.value.diagnostic.code == "occt.unsupported_curve"
+    assert "closed/periodic flags" in captured.value.diagnostic.message
+
+
+@pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")
+def test_an_arc_of_a_periodic_curve_reaches_the_geometry_check() -> None:
+    # The flags alone pass the topology check; the stored poles still decide.
     model = make_analytic_curve_sheet_model(CurveKind.NURBS)
     curve = model.curves[0]
     definition = curve.definition
     assert isinstance(definition, NurbsCurve)
     periodic = replace(curve, definition=replace(definition, periodic=True, closed=True))
-
     with pytest.raises(OcctConversionError) as captured:
         to_occt(replace(model, curves=(periodic, *model.curves[1:])), source_unit="mm")
-    assert captured.value.diagnostic.code == "occt.unsupported_curve"
-    assert "closed/periodic flags" in captured.value.diagnostic.message
+    assert captured.value.diagnostic.code == "occt.construction_failed"
+    assert "ends do not meet" in captured.value.diagnostic.message
 
 
 @pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")

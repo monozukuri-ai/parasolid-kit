@@ -171,8 +171,9 @@ unsupported value node kept by name. Bodies and faces list the
 ids of their own attributes; `attributes_of(kind, id)`, `colour_of(kind, id)`
 (the three reals of the system colour, 0 to 1) and `name_of(kind, id)` read
 them. An attribute whose definition, identifier or owner pointer does not
-resolve fails the mapping; the attribute chains of the nodes themselves are
-not followed.
+resolve fails the mapping; a field index that names no node of the file is an
+empty field of the declared kind, as the reference reads unresolved indices
+as zero. The attribute chains of the nodes themselves are not followed.
 
 `ParsedBrep.complete`, `BrepSummary.complete`, and `BrepModel.complete` describe
 the same source-mapping stage. A complete model may still have unavailable
@@ -513,10 +514,14 @@ analytic/NURBS faces using open surface-parameter curves (rational or not) and
 source-identified open intersections. It evaluates source UV curves on their
 supports and uses bounded numerical 3D approximation or intersection fitting.
 `to_occt()` selects it whenever the analytic path cannot express the source:
-surface-parameter or intersection curves, circle or ellipse edges bounded by
-vertices, trimmed sphere or torus faces, swept faces (a section curve swept
-along a direction), spun faces (a profile revolved about an axis), and NURBS
-or offset faces with several loops. A source cone measures its v along the axis, so parameter
+surface-parameter or intersection curves, circle, ellipse or periodic B-curve
+edges bounded by vertices, ring edges on a trimmed curve that spans its whole
+closed basis (XT reference, printed pp. 48-49; a surface-parametric basis
+whose trim points coincide), pointed cones (one ring and
+the apex as an isolated vertex loop, closed by the degenerated edge of the
+apex, `insert_degenerated_cone_apex_edge`), trimmed sphere or torus faces,
+swept faces (a section curve swept along a direction), spun faces (a profile
+revolved about an axis), and NURBS or offset faces with several loops. A source cone measures its v along the axis, so parameter
 curves on cones are mapped onto OCCT's generator parameter. An edge whose
 curve passes through a sphere pole or a cone apex, where no pcurve can follow
 it (a SolidWorks sphere is two halves cut along a great circle through its
@@ -566,7 +571,8 @@ The default is `require_complete=True, heal=False`; healing remains unavailable.
 
 `partial=True` keeps going when a face cannot be built: the face is dropped
 with its reason, the solid it bounded comes back as an open shell, and a body
-left without a converted face is skipped. The report then has
+left without a converted face, or a wire body of isolated vertices without an
+edge, is skipped. The report then has
 `conversion_complete=False`, lists `faces_dropped` (face and body ids, reason,
 source node), `bodies_failed` and `bodies_partial`, carries the
 `occt.faces_dropped` and `occt.bodies_failed` warnings (the first fifty entries

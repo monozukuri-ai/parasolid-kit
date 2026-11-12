@@ -125,11 +125,21 @@ def test_exact_keys_map_authored_wire_with_source_values(encoding, key):
     data = fixture(encoding, key, wire_records(key))
     doc = parse(encoding, data)
     assert doc.schema_resolution.schema_key == key
-    # Revision 2 of the 16100 and 20000 profiles added types observed in public
-    # NX and Inventor parts written under the same schemas; revision 2 of the
-    # 32001 profile added node type 3 observed in an ANSYS transmit file.
-    revision = {"SCH_2401000_20000": 3}.get(
-        key, 2 if key in ("SCH_1700000_16100", "SCH_2901000_28101", "SCH_3200000_32001") else 1
+    # Revision 2 of the 15003, 16100, 19008 and 20000 profiles added types
+    # observed in transmit files written under the same schemas; revision 2 of
+    # the 32001 profile added node type 3 observed in an ANSYS transmit file.
+    revision = {"SCH_2401000_20000": 4}.get(
+        key,
+        2
+        if key
+        in (
+            "SCH_1500000_15003",
+            "SCH_1700000_16100",
+            "SCH_1901000_19008",
+            "SCH_2901000_28101",
+            "SCH_3200000_32001",
+        )
+        else 1,
     )
     assert doc.schema_resolution.profile_id == f"icad-{key[4:].replace('_', '-')}-r{revision}"
     assert doc.schema_resolution.profile_revision == revision
@@ -214,9 +224,9 @@ def test_nearby_keys_and_unreviewed_types_fail_closed(encoding, key):
     assert exc.value.diagnostic.code == "schema.missing_base_schema"
     # A foreign surface (69) is declared by no profile; a swept surface (67) is
     # declared by the embedded 13006 profiles, which reach the standard 13006
-    # keys through their family, and by the 20000 profile (a public NX assembly
-    # carries it), but not by the other schema revisions.
-    swept = key.endswith("_13006") or key == "SCH_2401000_20000"
+    # keys through their family, and by the 19008 and 20000 profiles (public
+    # SolidWorks and NX files carry it), but not by the other schema revisions.
+    swept = key.endswith("_13006") or key in ("SCH_1901000_19008", "SCH_2401000_20000")
     for kind in (69,) if swept else (67, 69):
         if encoding == "x_t":
             data = text_header(key) + f"{kind} 1 0 ".encode()

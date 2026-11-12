@@ -3,8 +3,8 @@
 The [SolidWorks partition profile](solidworks-partitions.md) documents the
 additional exact V37 key, WORLD base layout, local validation and delta boundary.
 
-Thirty-two profiles are registered for default parsing. The complete internal
-stream key must match; a caller-selected provider always takes priority. The
+Fifty-nine exact profiles are registered for default parsing, and 38 schema
+families are derived from them. The complete internal stream key must match; a caller-selected provider always takes priority. The
 [shared support matrix](format-support.md#supported-profiles) records their
 current identities and separate raw, B-Rep, independent-geometry, conversion,
 and saved-state evidence. The campaign results below retain their original
@@ -1176,11 +1176,11 @@ the files' own headers.
 
 | Exact key | Profile | Source of the key |
 |---|---|---|
-| `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r2` | Parasolid 24.0.164 acceptance-test transmit files |
-| `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r2` | NX transmit files, Parasolid 26.0.169 |
-| `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r2` | Parasolid 26.0.217 acceptance-test transmit files |
-| `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r2` | NX transmit files, Parasolid 30.1.232 (three public parts) |
-| `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r2` | NX transmit files, Parasolid 34.0.176 (one public part) |
+| `SCH_2400164_20000_13006` | `parasolid-2400164-20000-13006-r3` | Parasolid 24.0.164 acceptance-test transmit files |
+| `SCH_2600169_25001_13006` | `nx-2600169-25001-13006-r3` | NX transmit files, Parasolid 26.0.169 |
+| `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r3` | Parasolid 26.0.217 acceptance-test transmit files |
+| `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r3` | NX transmit files, Parasolid 30.1.232 (three public parts) |
+| `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r3` | NX transmit files, Parasolid 34.0.176 (one public part) |
 
 The two NX keys are the first of schemas 30100 and 34001, which no SolidWorks
 or iCAD key uses; each anchors the family of its schema, so other NX builds
@@ -1320,9 +1320,9 @@ The files are not redistributed.
 |---|---|---|---|
 | `SCH_900141_9003` | `nx-900141-9003-r1` | NX (unigraphics) transmit files, Parasolid 9.0.141 | two assemblies of the NIST `engineering-design-models` repository (9 bodies, 9 instances each) |
 | `SCH_901297_9008` | `microstation-901297-9008-r1` | MicroStation modeler transmit files, Parasolid 9.0.129 | four Bentley files of the NIST `engineering-design-models` repository (`nut.x_t`, `ring.x_t`, `washer inch.x_t`, `buttom part inch.x_t`, 2 KB to 480 KB) and four files of other builds of the schema in its Unigraphics folder (three under `SCH_901209_9008`, one under `SCH_900254_9008`) through the family |
-| `SCH_1000252_10004` | `nx-1000252-10004-r1` | NX (unigraphics) transmit files, Parasolid 10.0.252 | two NX parts of the NIST repository (42 and 236 faces) and a SolidWorks 98Plus part of the ANSYS example data under `SCH_1000230_10004` through the family |
+| `SCH_1000252_10004` | `nx-1000252-10004-r1` (now revision 2, see [further standard keys](#further-standard-keys-parasolid-8-to-25)) | NX (unigraphics) transmit files, Parasolid 10.0.252 | two NX parts of the NIST repository (42 and 236 faces) and a SolidWorks 98Plus part of the ANSYS example data under `SCH_1000230_10004` through the family |
 | `SCH_1100129_11004` | `ironcad-1100129-11004-r1` | IronCAD transmit files, Parasolid 11.0.129 | ten IronCAD parts of the NIST repository's VDS folder (8 to 186 faces) |
-| `SCH_1200000_12006` | `solidworks-1200000-12006-r1` | SolidWorks 2022 transmit files under the reference key, Parasolid 12.0 | the reference's own transmit example (printed page 10), authored verbatim in the tests. The one public SolidWorks 2022 file of this key stops at its first CYLINDER (51) under this profile; the reference describes HELIX_CU_FORM (163) on printed pp. 43-44, but its layout is not reviewed for this standard schema |
+| `SCH_1200000_12006` | `solidworks-1200000-12006-r1` (now revision 2, see [further standard keys](#further-standard-keys-parasolid-8-to-25)) | SolidWorks 2022 transmit files under the reference key, Parasolid 12.0 | the reference's own transmit example (printed page 10), authored verbatim in the tests. The one public SolidWorks 2022 file of this key stopped at its first CYLINDER (51) under this revision |
 | `SCH_1600000_16004` | `nx-1600000-16004-r1` | NX (unigraphics) transmit files, Parasolid 16.0 | one NX part (an ONERA M6 wing of a turbulence-model repository) |
 
 The layouts differ from 13006 in a few records only:
@@ -1367,7 +1367,8 @@ to their terminators and map complete B-Reps; their conversions are
 measured in the corpus matrix (six of the ten IronCAD parts strict). Public
 Rust and Python tests author
 the reference's transmit example in the 9008 layouts in X_T and X_B, and
-verbatim under its own key `SCH_1200000_12006`, check the decoded values,
+verbatim under its own key `SCH_1200000_12006` (with fourteen legal owners
+since revision 2 of that profile), check the decoded values,
 the mapped disc and the families, and check that the V13 attribute
 definition and an unobserved value node fail closed under the keys.
 
@@ -1378,3 +1379,99 @@ and the contact curve of a rolling-ball blend is corrected by its chart-point
 residuals, the geometric contact being ill-conditioned along the surfaces
 when the spines are approximations (a blend whose support is another blend
 touches that pipe on the line to the pipe's spine, at the pipe radius).
+
+## Further standard keys: Parasolid 8 to 25
+
+Transmit files of further writers carry standard keys whose schemas no profile
+declared, or node types their profiles did not declare. Two exact profiles are
+added and five revised. Each declared type keeps its reviewed 13006 layout or
+an edit stated below; the public files named here read to their terminators
+and map complete B-Reps (6 to 568 faces), where the 0.3.14 release failed all
+of them. The files are not redistributed.
+
+| Exact key | Profile | Source of the key | Public files |
+|---|---|---|---|
+| `SCH_800000_8008` | `solidworks-800000-8008-r1` | SolidWorks transmit files saved as Parasolid 8 | two SolidWorks 2014 parts of a public-domain GitHub repository (120 and 568 faces); iCAD SX files under another build of the schema read through the family |
+| `SCH_2600169_25001` | `inventor-2600169-25001-r1` | Autodesk Inventor transmit files, Parasolid 26.0.169 | one Autodesk Inventor 2015 part (102 faces); iCAD SX files under `SCH_2600000_25001` read through the family |
+
+The two new schemas have the following layouts:
+
+- Schema 8008 writes every record as schema 9003 does: `BODY` without
+  `geometry_state`, `FIN` without its attribute pointer, `LIST` without its
+  transmission flag, `ATTRIB_DEF` without field names and with thirteen legal
+  owners, and `CURVE_DATA` with the self-intersection state alone. The other
+  records, the assembly structure, the part's `KEY` (102) and `VECTOR_VALUES`
+  (86) included, keep their 13006 layouts.
+- Schema 25001 takes the edits that the embedded 25001 streams of the NX and
+  Parasolid 26 transmit files (`SCH_2600169_25001_13006`,
+  `SCH_2600217_25001_13006`) carry against base 13006. `BODY` replaces the
+  owner pointer by a reference of class 1040 and appends the index origin,
+  three index maps, the child body and the lowest node id (29 fields: the
+  28002 edit without the boundary mesh); `REGION` appends its owning body;
+  `LIST` and `POINTER_LIS_BLOCK` take the edits of the iCAD standard keys.
+  Every other type those streams carry is unchanged, and so is every other
+  type declared here.
+
+| Profile | Added node types | Observed in |
+|---|---|---|
+| `nx-1000252-10004-r2` | CONE (52), SWEPT_SURF (67), SPUN_SURF (68) | NX transmit files and a public Kompas-3D part under `SCH_1000000_10004` |
+| `solidworks-1200000-12006-r2` | VERTEX (18), POINT (29), LINE (30), INTERSECTION (38), CHART (40), LIMIT (41), CYLINDER (51), SPHERE (53), TORUS (54), INT_VALUES (82), CHAR_VALUES (84), the assembly structure (10, 11, 100), the B-spline and SP_CURVE nodes (45, 124-128, 133-137), the shared-geometry owner (141) and the helical surface form (163) | a public SOLIDWORKS 2022 part and eight public CAD Exchanger 3.5-3.9 exports under the key |
+| `icad-1500000-15003-r2` | BSPLINE_VERTICES (45), BLENDED_EDGE (56), BLEND_BOUND (59), CHAR_VALUES (84), the B-spline surface nodes (124-128) | SolidWorks transmit files and a public ANSYS DesignModeler part under the key |
+| `icad-1901000-19008-r2` | the assembly structure (10, 11, 100), ELLIPSE (32), INTERSECTION (38), CHART (40), LIMIT (41), CONE (52), SPHERE (53), BLENDED_EDGE (56), BLEND_BOUND (59), SWEPT_SURF (67), REAL_VALUES (83), CHAR_VALUES (84), UNICODE_VALUES (98), the B-spline and SP_CURVE nodes (45, 124-128, 133-137), the shared-geometry owner (141) | a public SolidWorks 2014 part and a public Parasolid example, and SolidWorks and NX transmit files, under the key and `SCH_1900000_19008` |
+| `icad-2401000-20000-r4` | CONE (52), VECTOR_VALUES (86), UNICODE_VALUES (98) | SolidWorks transmit files under `SCH_2400000_20000` |
+
+The schema-12006 files of SOLIDWORKS 2022 and CAD Exchanger write
+`ATTRIB_DEF` without field names, as the earlier schemas do, but with
+fourteen legal owners: the count of the reference's own declaration (printed
+page 106), where the reference's transmit example (printed page 11) lists
+thirteen. Revision 2 follows the files, so the example reads under its key
+with fourteen owners (the tests author it so) and its thirteen-owner form
+fails closed. `CURVE_DATA` keeps its analytic-form pointer under 12006, as the
+CAD Exchanger files write it; the Parasolid 9 to 11 files carry the
+self-intersection state alone.
+
+A writer of these keys can leave an attribute's field index naming no node of
+the file. The reference reads an unresolved index as zero (printed page 11,
+"Unresolved indices"), so the B-Rep mapper returns an empty field of the kind
+the definition declares, as for a null field.
+
+Public Rust and Python tests author the reference's transmit example under
+the 12006 key, in the 8008 layouts under `SCH_800000_8008` and another build
+of the schema, and in the 25001 layouts in X_T and X_B under
+`SCH_2600169_25001` and another build, and check the decoded layouts, the
+mapped disc, the colour attribute and an unresolved attribute field index.
+
+## Helical forms and attribute field names
+
+A B-surface's analytic form is referenced by `SURFACE_DATA` (125) with
+analytic form type `'H'`, a B-curve's by `CURVE_DATA` (135). The public
+reference describes the two helical forms: `HELIX_SU_FORM` with the axis
+point and direction, the hand, the turns as one interval, the pitch, a gap
+and the tolerance (printed page 72), and `HELIX_CU_FORM` with the axis point
+and direction, a point on the helix, the hand, the turns, the pitch and the
+tolerance (printed pages 43-44). Its node-type table (printed page 118)
+numbers them 184 and 163. Streams use the numbers the other way round:
+SolidWorks writes the surface form as node type 163, under the 12006 key and
+over base 13006 with the unchanged marker, and the curve form as node type
+184 over base 13006. Revision 2 of the SolidWorks and transmit profiles (issue
+#13) declared 163 with the curve-form layout taken from the table, and such
+streams read out of step at their first descriptor. The current revisions
+declare 163 with the surface-form layout (`vvcifff`) and 184 with the
+curve-form layout (`vvvciff`); embedded edits address their seven field
+groups, the turns as one interval. Both reach every 13006 family through the
+base contributors, and the 12006 profile declares 163. The descriptors are
+kept in the raw document; conversion uses the owning B-surface's and
+B-curve's NURBS data. `CURVE_DATA`'s analytic-form field keeps its project
+pointer class 163; the parser does not check pointer classes against the
+node they name.
+
+`FIELD_NAMES` (99), the names of an attribute definition's fields, is one
+variable-length array of `CHAR_VALUES` or `UNICODE_VALUES` pointers (class
+`FIELD_NAME`, 1037), after the reference's printed pages 102-103. NX writes it
+over base 13006 with the unchanged marker; it is declared in the shared
+SolidWorks set and so reaches every 13006 family.
+
+Authored X_T/X_B fixtures cover both forms with unchanged and edited
+declarations, null turns and gaps, both handedness values, application user
+fields, the owning B-surface and B-curve, and a field-names array; a curve-form
+record written under 163, or a surface-form record under 184, fails closed.

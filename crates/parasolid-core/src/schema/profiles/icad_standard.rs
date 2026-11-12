@@ -25,11 +25,11 @@ pub(super) enum Edit {
 
 use Edit::{Drop, Keep};
 
-const fn pointer(name: &'static str, class: u16) -> Edit {
+pub(super) const fn pointer(name: &'static str, class: u16) -> Edit {
     Edit::Insert(name, FieldType::PointerIndex, class)
 }
 
-const fn integer(name: &'static str) -> Edit {
+pub(super) const fn integer(name: &'static str) -> Edit {
     Edit::Insert(name, FieldType::Integer, 0)
 }
 
@@ -118,7 +118,7 @@ const BODY_33103: &[Edit] = &[
     pointer("mesh_offset_ref", 206),
 ];
 
-const REGION: &[Edit] = &[Keep(7), pointer("owner_ref", 12)];
+pub(super) const REGION: &[Edit] = &[Keep(7), pointer("owner_ref", 12)];
 
 const INTERSECTION: &[Edit] = &[Keep(11), pointer("intersection_data", 204)];
 
@@ -145,7 +145,7 @@ pub(super) const LIST: &[Edit] = &[
     Drop,
 ];
 
-const POINTER_BLOCK: &[Edit] = &[Keep(1), integer("index_origin"), Keep(2)];
+pub(super) const POINTER_BLOCK: &[Edit] = &[Keep(1), integer("index_origin"), Keep(2)];
 
 pub(crate) struct ProfileSpec {
     pub key: &'static str,
@@ -181,15 +181,19 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         ],
         edits: &[],
     },
+    // Revision 2 adds the types observed in SolidWorks and ANSYS DesignModeler
+    // transmit files written under the same exact key: BSPLINE_VERTICES (45),
+    // BLENDED_EDGE (56), BLEND_BOUND (59), CHAR_VALUES (84) and the B-spline
+    // surface nodes (124-128); all keep their reviewed 13006 layouts.
     ProfileSpec {
         key: "SCH_1500000_15003",
-        id: "icad-1500000-15003-r1",
-        revision: 1,
-        sha256: "d3f7b3909050da2834e34c7f1ccf6b17f2f9cf16048053634dd7fc61506ad313",
+        id: "icad-1500000-15003-r2",
+        revision: 2,
+        sha256: "11605dd7169df56d66db672b72d35303dd1a0c670cac66ce658cc43975e53cbf",
         schema: "15003",
         types: &[
-            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 50, 51, 52, 54, 68, 70, 74,
-            79, 80, 81, 82, 83, 141,
+            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 54, 56, 59,
+            68, 70, 74, 79, 80, 81, 82, 83, 84, 124, 125, 126, 127, 128, 141,
         ],
         edits: &[(70, LIST)],
     },
@@ -212,14 +216,26 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         ],
         edits: &[(70, LIST)],
     },
+    // Revision 2 adds the types observed in SolidWorks, NX and Parasolid
+    // example transmit files written under this key and another build of it
+    // (`SCH_1900000_19008`): ASSEMBLY (10), INSTANCE (11), ELLIPSE (32),
+    // INTERSECTION (38), CHART (40), LIMIT (41), CONE (52), SPHERE (53),
+    // BLENDED_EDGE (56), BLEND_BOUND (59), SWEPT_SURF (67), REAL_VALUES (83),
+    // CHAR_VALUES (84), UNICODE_VALUES (98), TRANSFORM (100), the B-spline
+    // surface nodes (124-126), TRIMMED_CURVE (133), the SP_CURVE dependencies
+    // (45, 127, 128, 134-137) and the shared-geometry owner (141). All keep
+    // their reviewed 13006 layouts; the assembly records carry none of the
+    // BODY edit.
     ProfileSpec {
         key: "SCH_1901000_19008",
-        id: "icad-1901000-19008-r1",
-        revision: 1,
-        sha256: "c273c545b4b69f176457113d9bb1e158f170a39a4cd8babfbd687e9e0c325ba0",
+        id: "icad-1901000-19008-r2",
+        revision: 2,
+        sha256: "eba87e97007ee81812d6d3956c23e4dd59ba9cd68b96850f04062777d7a607cf",
         schema: "19008",
         types: &[
-            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 50, 51, 54, 70, 74, 79, 80, 81, 82,
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53,
+            54, 56, 59, 67, 70, 74, 79, 80, 81, 82, 83, 84, 98, 100, 124, 125, 126, 127, 128, 133,
+            134, 135, 136, 137, 141,
         ],
         edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
     },
@@ -235,16 +251,19 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     // (32), SPHERE (53), TORUS (54), BLENDED_EDGE (56), BLEND_BOUND (59) and
     // the B-spline surface nodes (124-126); all keep their reviewed 13006
     // layouts and the parts read to the terminator and map complete B-Reps.
+    // Revision 4 adds CONE (52), VECTOR_VALUES (86) and UNICODE_VALUES (98),
+    // observed in SolidWorks transmit files of that build, with the same
+    // reviewed 13006 layouts.
     ProfileSpec {
         key: "SCH_2401000_20000",
-        id: "icad-2401000-20000-r3",
-        revision: 3,
-        sha256: "fbdd2b2c31177b9fba0104c4a7d9ead562c38202aff91f2759f30101557fa53f",
+        id: "icad-2401000-20000-r4",
+        revision: 4,
+        sha256: "ef15815c7b2d6a43e8ffff95e2d54f726f195e001081864fdc4afa84755e48ff",
         schema: "20000",
         types: &[
-            10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 53, 54,
-            56, 59, 60, 67, 70, 74, 79, 80, 81, 82, 83, 84, 100, 124, 125, 126, 127, 128, 133, 134,
-            135, 136, 137, 141,
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53,
+            54, 56, 59, 60, 67, 70, 74, 79, 80, 81, 82, 83, 84, 86, 98, 100, 124, 125, 126, 127,
+            128, 133, 134, 135, 136, 137, 141,
         ],
         edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
     },
@@ -390,11 +409,13 @@ impl ProfileSpec {
         pool.extend(super::assembly_definitions());
         pool.extend(super::transmit::group_definitions());
         pool.push(super::legacy::key_definition());
-        // SWEPT_SURF (67) keeps the public-reference layout of the SolidWorks set.
+        pool.extend(super::sch13006_value_node_definitions());
+        // SWEPT_SURF (67) and the helical surface form (163) keep the
+        // public-reference layouts of the SolidWorks set.
         pool.extend(
             super::solidworks::solidworks_definitions()
                 .into_iter()
-                .filter(|d| d.node_type == 67),
+                .filter(|d| [67, 163].contains(&d.node_type)),
         );
         self.types
             .iter()

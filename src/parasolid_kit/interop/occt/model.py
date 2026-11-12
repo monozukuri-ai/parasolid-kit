@@ -397,8 +397,8 @@ class OcctConversionResult:
     def __post_init__(self) -> None:
         if self.shape is None:
             raise ValueError("shape must not be None")
-        keys = [item.key for item in self.subshapes]
-        if len(keys) != len(set(keys)):
+        keys = {item.key for item in self.subshapes}
+        if len(keys) != len(self.subshapes):
             raise ValueError("subshape keys must be unique")
         unknown_targets = {
             item.target_key for item in self.source_map.relations if item.target_key not in keys

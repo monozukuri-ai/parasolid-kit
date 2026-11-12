@@ -1326,7 +1326,7 @@ mod tests {
                 fields[12].values,
                 vec![FieldValue::IntersectionPoint([None, None, None])]
             );
-            assert!(fields[13].values.is_empty());
+            assert_eq!(fields[13].values.len(), 0);
         }
     }
 

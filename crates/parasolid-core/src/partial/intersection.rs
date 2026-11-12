@@ -357,7 +357,9 @@ fn solved_support_uv(
             [0usize, 1].map(|support| {
                 let mut control_points = record
                     .values
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|row| [row[support * 2], row[support * 2 + 1]])
                     .collect::<Vec<_>>();
                 if reversed {

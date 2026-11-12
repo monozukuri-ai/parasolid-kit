@@ -100,10 +100,10 @@ pub(crate) fn sha256_hex(data: &[u8]) -> String {
     message.extend_from_slice(&bit_length.to_be_bytes());
 
     let mut state = INITIAL_STATE;
-    for block in message.chunks_exact(64) {
+    for block in message.as_chunks::<64>().0 {
         let mut schedule = [0_u32; 64];
-        for (slot, word) in schedule.iter_mut().zip(block.chunks_exact(4)) {
-            *slot = u32::from_be_bytes(<[u8; 4]>::try_from(word).unwrap_or([0; 4]));
+        for (slot, word) in schedule.iter_mut().zip(block.as_chunks::<4>().0) {
+            *slot = u32::from_be_bytes(*word);
         }
         for index in 16..64 {
             let w15 = schedule[index - 15];

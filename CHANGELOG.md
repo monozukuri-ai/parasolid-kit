@@ -2,6 +2,57 @@
 
 ## Unreleased
 
+- Fix the helical forms of issue #13: node type 163 is the analytic form of a
+  B-surface (`SURFACE_DATA` with analytic form type `'H'`), declared with the
+  public reference's `HELIX_SU_FORM` fields (axis, hand, turns, pitch, gap,
+  tolerance; `vvcifff`), and node type 184 the analytic form of a B-curve
+  (`CURVE_DATA`), declared with the `HELIX_CU_FORM` fields (axis, point, hand,
+  turns, pitch, tolerance; `vvvciff`). The reference's node-type table gives
+  the two numbers the other way round; the previous declaration followed it
+  and read SolidWorks streams out of step after their first descriptor
+  (`text.invalid_token`). `FIELD_NAMES` (99), the names of an attribute
+  definition's fields, is declared from the reference (printed pp. 102-103).
+  The SolidWorks partition and transmit-file profiles move to revision 3
+  (`solidworks-sch37102-13006-r4` for the 2026 key) with new digests, and every
+  family over base 13006 changes its digest.
+- Add the exact standard keys `SCH_800000_8008` (`solidworks-800000-8008-r1`,
+  SolidWorks transmit files saved as Parasolid 8, written with the record
+  layouts of schema 9003) and `SCH_2600169_25001` (`inventor-2600169-25001-r1`,
+  Autodesk Inventor transmit files, with the edits embedded 25001 streams carry
+  against base 13006). Their families read other builds of the two schemas,
+  such as the iCAD SX keys `SCH_800194_8008` and `SCH_2600000_25001`; before,
+  these keys failed with `schema.missing_base_schema`.
+- Revise five standard profiles with the node types transmit files of further
+  writers carry under their keys, each with its reviewed 13006 layout:
+  `nx-1000252-10004-r2` (CONE, SWEPT_SURF, SPUN_SURF), `icad-1500000-15003-r2`
+  (B-spline surfaces, blends, CHAR_VALUES), `icad-1901000-19008-r2` (assembly
+  structure, intersections, cones, spheres, blends, swept surfaces, value
+  nodes, B-spline and SP_CURVE dependencies), `icad-2401000-20000-r4` (CONE,
+  VECTOR_VALUES, UNICODE_VALUES) and `solidworks-1200000-12006-r2` (27 types,
+  the helical surface form among them). Schema 12006 as SolidWorks and CAD
+  Exchanger write it lists fourteen legal owners in `ATTRIB_DEF` (the
+  reference's declaration) without field names, and keeps the analytic-form
+  pointer of `CURVE_DATA`; the reference's own transmit example, with thirteen
+  owners, now fails closed under the key. Before, these files stopped with
+  `schema.builtin_profile_uncovered_type` or `text.invalid_token`.
+- An attribute field index that names no node of the file maps as an empty
+  field of the declared kind, as the XT reference reads unresolved indices as
+  zero (printed p. 11); before, the mapping failed with `brep.invalid_reference`.
+- OCCT conversion: a ring edge on a trimmed curve that spans its whole closed
+  basis (XT reference, printed pp. 48-49: coincident trim points on a circle,
+  an ellipse, a closed or periodic B-curve or a surface-parametric curve) and
+  an edge bounded by two vertices
+  on a periodic B-curve take the parametric path instead of failing the whole
+  conversion with `occt.unsupported_curve`; a trim that runs down a basis of
+  negative sense is built up its parameter and reversed. A pointed cone (one
+  ring and the apex as an isolated vertex loop) is closed with the degenerated
+  edge of its apex (`insert_degenerated_cone_apex_edge`); before, the face was
+  invalid and a partial conversion dropped it. A partial conversion skips a
+  wire body without edges (`bodies_failed`, "wire body has no edges") instead
+  of failing outright.
+- OCCT conversion no longer spends quadratic time checking the result's
+  subshape keys and counting the faces of each surface.
+
 - Add structured `Diagnostic` values to geometry evaluation, assembly placement,
   and stored-geometry errors while retaining their `ValueError` inheritance and
   text messages. Codes, available source locations, fields, parameters and

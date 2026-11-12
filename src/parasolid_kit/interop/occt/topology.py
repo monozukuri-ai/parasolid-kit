@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from math import pi, sqrt
@@ -92,6 +93,7 @@ class TopologyBuilder:
         self.failed_bodies: dict[int, str] = {}
         self.partial_bodies: list[int] = []
         self._stage_faces: tuple[Face, ...] | None = None
+        self._surface_uses: Counter[int | None] | None = None
         self.bodies = {item.id: item for item in model.bodies}
         self.regions = {item.id: item for item in model.regions}
         self.shells = {item.id: item for item in model.shells}
@@ -821,7 +823,11 @@ class TopologyBuilder:
             # A wire body without a shell lists its edges on the body itself.
             edge_ids = list(dict.fromkeys(body.edges))
         if not edge_ids:
-            raise ValueError(f"wire body {body.id} has no edges")
+            # A wire body of isolated vertices alone has nothing to draw.
+            if not self.partial:
+                raise ValueError(f"wire body {body.id} has no edges")
+            self.failed_bodies[body.id] = "wire body has no edges"
+            return None
         available = [i for i in edge_ids if i in self.edge_shapes]
         if not available:
             self.failed_bodies[body.id] = "every edge was dropped"
@@ -1234,8 +1240,13 @@ class TopologyBuilder:
         return shape.Reversed()
 
     def _record_surface(self, surface: SurfaceGeometry, shape: object) -> None:
-        uses = sum(face.surface == surface.id for face in self.model.faces)
-        relation = ShapeRelationKind.SPLIT if uses > 1 else ShapeRelationKind.DIRECT
+        if self._surface_uses is None:
+            self._surface_uses = Counter(face.surface for face in self.model.faces)
+        relation = (
+            ShapeRelationKind.SPLIT
+            if self._surface_uses[surface.id] > 1
+            else ShapeRelationKind.DIRECT
+        )
         self._record(
             SourceEntityKind.SURFACE,
             surface.id,

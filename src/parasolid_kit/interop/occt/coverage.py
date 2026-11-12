@@ -74,7 +74,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "explicit basis, parameters, endpoint positions, and two vertices",
+        "explicit basis, parameters, endpoint positions, and two vertices, or a ring "
+        "edge on the whole of a closed basis",
     ),
     GeometryCoverage(
         "curve",
@@ -82,8 +83,8 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "conditional",
         "conditional",
-        "nonrational or rational 3D curves, open or in the stored periodic form, "
-        "or 2D curves used by SP_CURVE",
+        "nonrational or rational 3D curves, open or in the stored periodic form (an arc "
+        "of a periodic one between two vertices), or 2D curves used by SP_CURVE",
     ),
     GeometryCoverage(
         "curve",
@@ -128,9 +129,9 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
         "exact",
         "exact",
         "exact",
-        "frustum with two positive-radius circular boundary loops, or face trimmed by "
-        "its source loops; the source v is the distance along the axis; an edge "
-        "through the apex is split there",
+        "frustum with two positive-radius circular boundary loops, pointed cone closed "
+        "at its apex, or face trimmed by its source loops; the source v is the "
+        "distance along the axis; an edge through the apex is split there",
     ),
     GeometryCoverage(
         "surface",

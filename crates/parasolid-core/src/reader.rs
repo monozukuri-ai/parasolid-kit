@@ -333,7 +333,9 @@ impl<'a> BinaryReader<'a> {
         let start = self.position();
         let bytes = self.bytes(byte_count)?;
         let units = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_be_bytes([pair[0], pair[1]]));
         let mut text = String::new();
         for (index, decoded) in char::decode_utf16(units).enumerate() {

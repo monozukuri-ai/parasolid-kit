@@ -584,7 +584,7 @@ fn select_edge_use(
 
 fn xyz_bytes(xyz_m: [f64; 3]) -> [u8; 24] {
     let mut bytes = [0; 24];
-    for (slot, value) in bytes.chunks_exact_mut(8).zip(xyz_m) {
+    for (slot, value) in bytes.as_chunks_mut::<8>().0.iter_mut().zip(xyz_m) {
         slot.copy_from_slice(&value.to_be_bytes());
     }
     bytes
