@@ -387,6 +387,12 @@ stored = faceted_geometry(document)
 preview = write_faceted_preview(stored, "faceted.preview", source_unit="mm")
 ```
 
+A facet face of a built-in profile maps through `map_brep` instead: its
+surface is `SurfaceKind.MESH` with a `MeshSurface` whose `position_array()` and
+`triangle_array()` unpack the stored positions (model units) and zero-based
+triangle corners, and `to_occt` builds it as a face carrying only that
+triangulation.
+
 `decode_polyline(document, node_index)`, `decode_embedded_mesh(document,
 node_index)`, and `faceted_geometry(document)` are opt-in decoders for explicit
 caller-supplied **named** catalogs. They do not infer roles from names in

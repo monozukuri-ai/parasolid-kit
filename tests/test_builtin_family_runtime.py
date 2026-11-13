@@ -64,7 +64,23 @@ def test_family_listing_follows_the_exact_profiles():
         "solidworks-3501210-35102-13006-r3",
         "solidworks-3501256-35102-13006-r3",
     }
-    assert by_id["family-37102-13006"].absent_base_types == (176, 204)
+    # 204 and the facet types (above the 13006 type table) and Onshape's 176.
+    assert by_id["family-37102-13006"].absent_base_types == (
+        176,
+        189,
+        190,
+        191,
+        192,
+        193,
+        201,
+        204,
+        205,
+        206,
+        207,
+        208,
+        210,
+        211,
+    )
     assert by_id["family-30000"].members[0].profile_id == "onshape-sch30000-r3"
     assert by_id["family-30000"].to_dict()["members"][0]["profile_id"] == "onshape-sch30000-r3"
 

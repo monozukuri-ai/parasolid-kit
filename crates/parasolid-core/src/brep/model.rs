@@ -711,8 +711,37 @@ pub enum SurfaceKind {
     Offset { basis_surface: BrepId, offset: f64 },
     /// Exact NURBS definition assembled from auxiliary nodes.
     Nurbs(NurbsSurface),
+    /// Facets stored in the stream (a facet or "mesh" face).
+    Mesh(MeshSurface),
     /// Geometry type retained without claiming semantic support.
     Unsupported { type_name: String },
+}
+
+/// Facet geometry of a `MESH` surface: the triangles stored in the stream.
+///
+/// A mesh is not an exact surface; it carries no parameterization.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeshSurface {
+    /// Vertex positions in model units, three coordinates per vertex.
+    pub positions: Vec<f64>,
+    /// Zero-based vertex indices, three per triangle, in the stored winding.
+    pub triangles: Vec<u32>,
+    /// Raw-node provenance: `PSM_MESH`, then the position and index pools.
+    pub sources: Vec<SourceNodeRef>,
+}
+
+impl MeshSurface {
+    /// Number of vertices.
+    #[must_use]
+    pub fn vertex_count(&self) -> usize {
+        self.positions.len() / 3
+    }
+
+    /// Number of triangles.
+    #[must_use]
+    pub fn triangle_count(&self) -> usize {
+        self.triangles.len() / 3
+    }
 }
 
 impl SurfaceKind {
@@ -731,6 +760,7 @@ impl SurfaceKind {
             Self::Swept { .. } => "swept",
             Self::Offset { .. } => "offset",
             Self::Nurbs(_) => "nurbs",
+            Self::Mesh(_) => "mesh",
             Self::Unsupported { .. } => "unsupported",
         }
     }

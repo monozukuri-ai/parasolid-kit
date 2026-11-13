@@ -23,6 +23,7 @@ pub use onshape_current::onshape_sch37102_13006;
 pub(crate) use solidworks::PROFILE_SHA256 as SOLIDWORKS_PROFILE_SHA256;
 pub use solidworks::{solidworks_partitions_13006, solidworks_sch37102_13006};
 
+pub(crate) use sch13006::FACET_TYPES as SCH13006_FACET_TYPES;
 pub(crate) use sch13006::bspline_surface_definitions as sch13006_bspline_surface_definitions;
 pub(crate) use sch13006::definitions as sch13006_definitions;
 pub(crate) use sch13006::icad_sch30000_13006_definitions;

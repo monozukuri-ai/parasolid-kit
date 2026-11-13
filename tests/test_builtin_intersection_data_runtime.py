@@ -131,7 +131,7 @@ def test_absence_is_scoped_to_type_204_of_the_exact_embedded_profile(encoding, p
         parser(data_document(encoding, key=BASE))
     assert captured.value.diagnostic.code == "schema.builtin_profile_uncovered_type"
     data = data_document(encoding)
-    for kind in [185, 203, 205]:
+    for kind in [185, 202, 203]:
         replacement = f"{kind} ".encode() if encoding == "x_t" else struct.pack(">H", kind)
         marker = b"204 " if encoding == "x_t" else struct.pack(">H", 204)
         with pytest.raises(ParseError) as captured:

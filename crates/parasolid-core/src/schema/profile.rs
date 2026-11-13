@@ -255,6 +255,14 @@ impl BuiltinSchemaProfile {
             unsupported.extend(member.unsupported_base_types.iter().copied());
             absent.extend(member.absent_base_types.iter().copied());
         }
+        if provider_schema == "13006" {
+            // Above the base's type table; see `SCH13006_FACET_TYPES`.
+            absent.extend(
+                crate::schema::profiles::SCH13006_FACET_TYPES
+                    .iter()
+                    .copied(),
+            );
+        }
         conflicting.extend(
             definitions
                 .keys()
@@ -1344,7 +1352,16 @@ mod tests {
         let family = provider.profile();
         assert_eq!(family.metadata().profile_id, "family-90000-13006");
         assert_eq!(family.metadata().provider_schema, "13006");
-        assert_eq!(family.absent_base_types().collect::<Vec<_>>(), [176, 204]);
+        // A 13006 family also confirms the facet types above the base table.
+        let mut expected = vec![176, 204];
+        expected.extend(crate::schema::profiles::SCH13006_FACET_TYPES);
+        expected.sort_unstable();
+        assert_eq!(family.absent_base_types().collect::<Vec<_>>(), expected);
+        assert_eq!(provider.lookup_type("13006", 201), SchemaTypeLookup::Absent);
+        assert_eq!(
+            provider.lookup_type("13006", 230),
+            SchemaTypeLookup::Unknown
+        );
         assert_eq!(family.conflicting_types().collect::<Vec<_>>(), [45]);
         assert!(matches!(
             provider.lookup_type("13006", 12),

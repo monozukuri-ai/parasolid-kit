@@ -104,9 +104,11 @@ fn membership_is_explicit_and_scoped_to_the_exact_base() -> Result<()> {
     );
     assert_eq!(provider.lookup_type("13006", 204), SchemaTypeLookup::Absent);
     assert_eq!(
-        provider.lookup_type("13006", 205),
+        provider.lookup_type("13006", 202),
         SchemaTypeLookup::Unknown
     );
+    // A facet type above the base's type table is absent from every 13006 family.
+    assert_eq!(provider.lookup_type("13006", 205), SchemaTypeLookup::Absent);
     assert_eq!(
         provider.lookup_type("30000", 204),
         SchemaTypeLookup::Unknown
@@ -151,7 +153,7 @@ fn unknown_and_unsupported_types_never_enter_the_full_decoder() -> Result<()> {
     let provider = registry.provider_for_key(&key).ok_or("missing provider")?;
     for (kind, expected) in [
         (203, ErrorKind::UnsupportedBaseSchemaType),
-        (205, ErrorKind::UnknownBaseSchemaType),
+        (202, ErrorKind::UnknownBaseSchemaType),
     ] {
         // These valid full declarations formerly succeeded when None meant absent.
         let (xt, xb) = pair(kind, b"1 3 NEW0 5 value0 0 1 d1 91 ", &full_blob()?)?;

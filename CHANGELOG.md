@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- Read facet ("mesh") faces. The facet node types (`PSM_MESH` 189, the integer
+  and vector teeth and combs 190-193, `MESH` 201, `OFFSET_VALUES` 205,
+  `MESH_OFFSET_DATA` 206 and the schema data records 207, 208, 210 and 211)
+  lie above the 13006 base's type table, so a stream declares them in full; an
+  NX 36 transmit file with a facet body does. Every family of provider schema
+  13006 now confirms their absence from the base, and exact profiles reach it
+  through their family; before, such files failed with
+  `schema.unknown_base_type`. Other types above the base table keep unknown
+  membership.
+- The B-Rep mapper decodes a `MESH` surface stored in the stream (`PSM_MESH`
+  -> a vector comb of positions and an integer comb of triangle corners, each
+  a list of fixed-size teeth; the tooth list may run past the capacity with
+  null entries, and corners may be one- or zero-based) as `SurfaceKind.MESH`
+  with a `MeshSurface`: packed little-endian positions and zero-based triangle
+  corners, unpacked by `position_array()` and `triangle_array()`. Facets
+  stored outside the stream, in single precision, or placed by a transform are
+  retained as unsupported surfaces with `geometry.unsupported_surface`.
+- OCCT conversion builds a facet face as an OCCT face that carries only its
+  triangulation (`mesh_triangulation_face`): OCCT meshes, bounds, measures and
+  writes it from the triangles. A shell of facet faces only is closed as the
+  source body states (its faces have no edges to show it), and the validity
+  check leaves facet faces, with the shells and solids around them, out of the
+  kernel check, which needs a surface. Bounds use the triangulation of facet
+  faces.
+- OCCT validity of a face with more than 256 wires is checked in groups: the
+  inner wires whose parameter boxes overlap go into one group, and each group
+  is checked with the outer wire as a temporary face of the same surface. Two
+  wires with disjoint boxes can neither cross nor nest, so the verdict is the
+  kernel's whole-face check, which classifies every wire against every other
+  one: a plate with thousands of holes took minutes per check, and the
+  conversion checks each face and then the whole shape. A shape with such a
+  face is checked as its other faces, free edges and vertices, the grouped
+  faces, and the closure and orientation of its shells and solids. Faces on
+  periodic surfaces, or whose inner wires the outer wire does not box, are
+  checked whole.
+
 - Fix the helical forms of issue #13: node type 163 is the analytic form of a
   B-surface (`SURFACE_DATA` with analytic form type `'H'`), declared with the
   public reference's `HELIX_SU_FORM` fields (axis, hand, turns, pitch, gap,

@@ -55,7 +55,7 @@ fn base_profiles_have_independent_hashes_and_exact_scope() -> Result<()> {
         provider.lookup_type("30000", 204),
         SchemaTypeLookup::Unknown
     );
-    for node_type in [185, 203, 205] {
+    for node_type in [185, 202, 203] {
         assert_eq!(
             provider.lookup_type("13006", node_type),
             SchemaTypeLookup::Unknown

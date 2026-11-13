@@ -308,6 +308,19 @@ from 13006; all other types outside its reviewed subset remain unknown.
 Complete caller catalogs retain their existing missing-type behavior; a partial
 Rust provider must override `SchemaProvider::lookup_type`.
 
+Every family of provider schema 13006 also confirms the absence of the facet
+node types: `PSM_MESH` (189), `INTEGER_TOOTH` (190), `INTEGER_COMB` (191),
+`VECTOR_TOOTH` (192), `VECTOR_COMB` (193), `MESH` (201), `OFFSET_VALUES` (205),
+`MESH_OFFSET_DATA` (206), `SCHEMA_CHAR_VALUES` (207), `NEW_NODE_MAP` (208),
+`NEW_FIELD_MAP` (210) and `SCHEMA_DATA` (211). The 13006 catalog header bounds
+its type table at 184, so none of them can be a base type, and an NX 36
+transmit file with a facet body declares each of them in full, names included.
+The membership belongs to the families, not to an exact profile, so no profile
+digest changes; an exact profile reaches it through its family. Other types
+above the base table keep unknown membership and still fail closed. The B-Rep
+mapper gives a stream-declared `MESH` the surface role and reads its fields
+and those of its pools by the declared names.
+
 Full declarations, unchanged markers, and Copy/Delete/Insert/Append/End edits
 are exercised in synthetic text/binary tests. Those tests also cover truncation,
 non-transmitted variable fields, exact-key rejection, and conflicting membership

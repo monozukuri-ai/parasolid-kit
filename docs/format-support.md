@@ -466,6 +466,7 @@ recorded, while unsupported variants remain rejected.
 | surface | `offset` | exact | conditional | conditional | supported exact basis surface, offset along its normal and against it for a basis of negative sense; I7 verifies a non-periodic NURBS basis |
 | surface | `blended_edge` | exact | conditional | conditional | rolling-ball and cliff-edge blends of equal offsets as the B-spline pipe of the blend radius around the spine, within the validation tolerance; a zero-offset blend is a construction reference only |
 | surface | `blend_boundary` | exact | conditional | conditional | construction surface only: its intersection with a support is the blend's contact curve, interpolated from the spine within the validation tolerance |
+| surface | `mesh` | conditional | conditional | unsupported | facets stored in the stream in double precision and without a transform, as an OCCT face carrying only their triangulation; not an exact surface |
 | surface | `unsupported` | unsupported | unsupported | unsupported | unknown source semantics are retained without inference |
 <!-- END GENERATED I7 GEOMETRY COVERAGE -->
 

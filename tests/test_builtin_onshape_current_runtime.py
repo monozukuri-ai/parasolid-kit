@@ -117,7 +117,8 @@ def test_explicit_empty_provider_and_other_schemas_do_not_fallback(encoding):
 
 
 @pytest.mark.parametrize("encoding", ["x_t", "x_b"])
-@pytest.mark.parametrize("kind", [3, 110, 177, 205])
+# 205 (OFFSET_VALUES) is a facet type, confirmed absent from 13006; 202 is not.
+@pytest.mark.parametrize("kind", [3, 110, 177, 202])
 def test_types_outside_reviewed_subset_fail_even_with_full_declarations(encoding, kind):
     # Zero-field full declaration cannot establish unknown base membership.
     # WORLD (101) is not probed here: the SolidWorks profiles of the same 13006

@@ -18,6 +18,21 @@ use crate::schema::{FieldDefinition, FieldType, SchemaSource, TypeDefinition};
 use crate::{BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, ParseError};
 
 const BASE_SHA256: &str = "2748e9f9c28fa32b59edb9e0b16fea7a976ad081f698dd3d098d9cbd17e08fbb";
+
+/// Facet geometry node types that streams with base 13006 declare in full.
+///
+/// The complete 13006 catalog header declares a type-table upper bound of 184
+/// (a membership-only audit; no catalog field layouts are copied), so none of
+/// these can be a base type. An NX 36 transmit file with a facet body declares
+/// every one of them completely, with names: `PSM_MESH` (189), `INTEGER_TOOTH`
+/// (190), `INTEGER_COMB` (191), `VECTOR_TOOTH` (192), `VECTOR_COMB` (193),
+/// `MESH` (201), `OFFSET_VALUES` (205), `MESH_OFFSET_DATA` (206) and the schema
+/// data records `SCHEMA_CHAR_VALUES` (207), `NEW_NODE_MAP` (208),
+/// `NEW_FIELD_MAP` (210) and `SCHEMA_DATA` (211). Every family of provider
+/// schema 13006 confirms their absence; exact profiles reach it through their
+/// family.
+pub(crate) const FACET_TYPES: &[u16] =
+    &[189, 190, 191, 192, 193, 201, 205, 206, 207, 208, 210, 211];
 const EMBEDDED_SHA256: &str = "29d58f5c4aba74913689b9034b0532a17601bb660fafc01d21692ef5330f4f8e";
 
 fn metadata(id: &str, revision: u32, producer: &str, digest: &str) -> BuiltinProfileMetadata {

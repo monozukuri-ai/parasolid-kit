@@ -208,6 +208,15 @@ GEOMETRY_COVERAGE: tuple[GeometryCoverage, ...] = (
     ),
     GeometryCoverage(
         "surface",
+        SurfaceKind.MESH.value,
+        "conditional",
+        "conditional",
+        "unsupported",
+        "facets stored in the stream in double precision and without a transform, as an "
+        "OCCT face carrying only their triangulation; not an exact surface",
+    ),
+    GeometryCoverage(
+        "surface",
         SurfaceKind.UNSUPPORTED.value,
         "unsupported",
         "unsupported",

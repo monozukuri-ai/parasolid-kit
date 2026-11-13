@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import sys
+from array import array
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TypeAlias
 
@@ -38,6 +40,7 @@ class SurfaceKind(str, Enum):
     BLEND_BOUNDARY = "blend_boundary"
     OFFSET = "offset"
     NURBS = "nurbs"
+    MESH = "mesh"
     UNSUPPORTED = "unsupported"
 
 
@@ -291,6 +294,39 @@ class NurbsSurface:
     sources: tuple[SourceNodeRef, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class MeshSurface:
+    """Facets stored in the stream (a facet or "mesh" face), not an exact surface.
+
+    ``positions`` packs three little-endian doubles per vertex in model units;
+    ``triangles`` packs three little-endian unsigned 32-bit zero-based vertex
+    indices per triangle, in the stored winding. :meth:`position_array` and
+    :meth:`triangle_array` unpack them without a Python object per value.
+    """
+
+    vertex_count: int
+    triangle_count: int
+    positions: bytes = field(repr=False)
+    triangles: bytes = field(repr=False)
+    sources: tuple[SourceNodeRef, ...]
+
+    def position_array(self) -> array:
+        """Coordinates as ``array('d')``, x, y, z per vertex."""
+        return _unpack("d", self.positions)
+
+    def triangle_array(self) -> array:
+        """Corner indices as an unsigned 32-bit array, three per triangle."""
+        return _unpack("I" if array("I").itemsize == 4 else "L", self.triangles)
+
+
+def _unpack(code: str, data: bytes) -> array:
+    values = array(code)
+    values.frombytes(data)
+    if sys.byteorder != "little":
+        values.byteswap()
+    return values
+
+
 SurfaceDefinition: TypeAlias = (
     PlaneSurface
     | CylinderSurface
@@ -303,6 +339,7 @@ SurfaceDefinition: TypeAlias = (
     | BlendBoundarySurface
     | OffsetSurface
     | NurbsSurface
+    | MeshSurface
     | UnsupportedGeometry
 )
 

@@ -28,7 +28,8 @@ fn current_profile_has_bounded_membership_and_exact_identity() -> support::Resul
         profile.definition(54).ok_or("missing TORUS")?.fields.len(),
         12
     );
-    for kind in [3, 110, 177, 205] {
+    // 205 (OFFSET_VALUES) is a facet type, confirmed absent from 13006.
+    for kind in [3, 110, 177, 202] {
         assert_eq!(
             provider.lookup_type("13006", kind),
             SchemaTypeLookup::Unknown

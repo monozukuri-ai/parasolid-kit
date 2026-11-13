@@ -16,6 +16,7 @@ from ...brep.geometry import (
     EllipseCurve,
     HyperbolaCurve,
     LineCurve,
+    MeshSurface,
     NurbsCurve,
     NurbsSurface,
     OffsetSurface,
@@ -55,6 +56,32 @@ class GeometryFactory:
         from OCP.gp import gp_Pnt
 
         return gp_Pnt(*self.coordinates(value))
+
+    def triangulation(self, mesh: MeshSurface) -> object:
+        """The stored facets as a ``Poly_Triangulation`` in target units."""
+        from OCP.gp import gp_Pnt
+        from OCP.Poly import Poly_Triangle, Poly_Triangulation
+
+        positions, corners = mesh.position_array(), mesh.triangle_array()
+        if mesh.vertex_count < 3 or mesh.triangle_count < 1:
+            raise ValueError("a mesh surface needs at least one triangle")
+        result = Poly_Triangulation(mesh.vertex_count, mesh.triangle_count, False)
+        scale = self.scale
+        set_node, set_triangle = result.SetNode, result.SetTriangle
+        for index in range(mesh.vertex_count):
+            offset = 3 * index
+            set_node(
+                index + 1,
+                gp_Pnt(
+                    positions[offset] * scale,
+                    positions[offset + 1] * scale,
+                    positions[offset + 2] * scale,
+                ),
+            )
+        for index in range(mesh.triangle_count):
+            first, second, third = corners[3 * index : 3 * index + 3]
+            set_triangle(index + 1, Poly_Triangle(first + 1, second + 1, third + 1))
+        return result
 
     def direction(self, value: Vector3, *, role: str) -> object:
         from OCP.gp import gp_Dir

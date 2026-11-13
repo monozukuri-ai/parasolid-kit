@@ -175,11 +175,18 @@ fn producer_families_merge_the_expected_members() -> support::Result<()> {
     // Every embedded family over 13006 takes the reviewed declarations of all
     // 13006 profiles: the SolidWorks swept surface and blends reach the iCAD-only
     // families, and the Onshape 37.1 membership audit (176 absent) applies to all.
+    // The facet types above the base's type table are absent from every 13006
+    // family.
     for family_id in ["20000-13006", "19008-13006", "37102-13006", "30100-13006"] {
         let family = registry
             .profile(&format!("family-{family_id}"))
             .ok_or("family")?;
-        assert_eq!(family.absent_base_types().collect::<Vec<_>>(), [176, 204]);
+        assert_eq!(
+            family.absent_base_types().collect::<Vec<_>>(),
+            [
+                176, 189, 190, 191, 192, 193, 201, 204, 205, 206, 207, 208, 210, 211
+            ]
+        );
         for kind in [
             10, 11, 54, 56, 59, 60, 67, 68, 85, 86, 87, 88, 89, 90, 91, 99, 100, 101, 163, 184,
         ] {

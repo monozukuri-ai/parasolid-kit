@@ -14,6 +14,7 @@ from ...brep.geometry import (
     CylinderSurface,
     EllipseCurve,
     LineCurve,
+    MeshSurface,
     NurbsSurface,
     OffsetSurface,
     PlaneSurface,
@@ -128,6 +129,8 @@ class TopologyBuilder:
         self.vertex_shapes: dict[int, object] = {}
         self.edge_shapes: dict[int, object] = {}
         self.face_shapes: dict[int, object] = {}
+        # Facet faces built from their stored triangles, without a surface.
+        self.mesh_faces: set[int] = set()
         self.loop_shapes: dict[int, object] = {}
         self.half_edge_shapes: dict[int, object] = {}
         self.relations: list[PendingRelation] = []
@@ -143,6 +146,7 @@ class TopologyBuilder:
         self._build_vertices()
         self._build_initial_edges()
         for stage in (
+            self._build_mesh_faces,
             self._build_cylinder_faces,
             self._build_cone_faces,
             self._build_plane_faces,
@@ -575,6 +579,42 @@ class TopologyBuilder:
                 )
             self.operations.append("bounded_periodic_cone_face")
 
+    def _shell_closed(self, shell: object, face_ids: list[int]) -> bool:
+        """Whether a shell closes; facets have no edges to show it, so a shell of
+        facet faces only is taken as the source body states it."""
+        from OCP.BRep import BRep_Tool
+
+        if face_ids and all(face_id in self.mesh_faces for face_id in face_ids):
+            return True
+        return bool(BRep_Tool.IsClosed_s(shell))
+
+    def _build_mesh_faces(self) -> None:
+        """Facet faces: the stored triangles on a face that has no surface.
+
+        OCCT meshes, bounds, measures and writes such a face from its
+        triangulation; :func:`.validation.shape_is_valid` leaves it out of the
+        kernel checks, which require a surface.
+        """
+        from OCP.BRep import BRep_Builder
+        from OCP.TopoDS import TopoDS, TopoDS_Face
+
+        for face in self._faces():
+            if face.surface is None or face.id in self.face_shapes:
+                continue
+            surface = self._surface_for_face(face)
+            if not isinstance(surface.definition, MeshSurface):
+                continue
+            if self._trim_loops(face):
+                raise ValueError(f"mesh face {face.id} has boundary loops")
+            shape = TopoDS_Face()
+            BRep_Builder().MakeFace(shape, self.geometry.triangulation(surface.definition))
+            result = TopoDS.Face_s(self._orient_shape(shape, face.sense, surface.sense))
+            self.face_shapes[face.id] = result
+            self.mesh_faces.add(face.id)
+            self._record(SourceEntityKind.FACE, face.id, face.source, result)
+            self._record_surface(surface, result)
+            self.operations.append("mesh_triangulation_face")
+
     def _build_plane_faces(self) -> None:
         from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
         from OCP.TopoDS import TopoDS
@@ -878,7 +918,7 @@ class TopologyBuilder:
         return body_shape
 
     def _build_bodies(self) -> list[tuple[int, object]]:
-        from OCP.BRep import BRep_Builder, BRep_Tool
+        from OCP.BRep import BRep_Builder
         from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeSolid
         from OCP.TopoDS import TopoDS_Shell
 
@@ -927,7 +967,7 @@ class TopologyBuilder:
                 )
 
             if body.kind is BodyKind.SOLID and (
-                len(available) < len(face_ids) or not BRep_Tool.IsClosed_s(shell_shape)
+                len(available) < len(face_ids) or not self._shell_closed(shell_shape, available)
             ):
                 if not self.partial:
                     raise ValueError(f"body {body.id} boundary shell is not closed")

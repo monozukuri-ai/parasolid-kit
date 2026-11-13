@@ -21,6 +21,7 @@ from .geometry import (
     HyperbolaCurve,
     IntersectionCurve,
     LineCurve,
+    MeshSurface,
     NurbsCurve,
     NurbsSurface,
     OffsetSurface,
@@ -519,7 +520,28 @@ def _surface_definition(kind: SurfaceKind, value: Mapping[str, Any]) -> SurfaceD
         )
     if kind is SurfaceKind.NURBS:
         return _nurbs_surface(value)
+    if kind is SurfaceKind.MESH:
+        return _mesh_surface(value)
     return UnsupportedGeometry(type_name=_str(value, "type_name"))
+
+
+def _mesh_surface(value: Mapping[str, Any]) -> MeshSurface:
+    vertex_count, triangle_count = _int(value, "vertex_count"), _int(value, "triangle_count")
+    positions, triangles = value.get("positions"), value.get("triangles")
+    if (
+        not isinstance(positions, bytes)
+        or not isinstance(triangles, bytes)
+        or len(positions) != vertex_count * 24
+        or len(triangles) != triangle_count * 12
+    ):
+        raise TypeError("native mesh surface buffers do not match their counts")
+    return MeshSurface(
+        vertex_count=vertex_count,
+        triangle_count=triangle_count,
+        positions=positions,
+        triangles=triangles,
+        sources=tuple(_source(item) for item in _list(value, "sources")),
+    )
 
 
 def _nurbs_surface(value: Mapping[str, Any]) -> NurbsSurface:

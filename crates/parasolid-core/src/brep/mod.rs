@@ -11,7 +11,7 @@ pub use mapper::{
 pub use model::{
     Assembly, AssemblyKind, Attribute, AttributeField, AttributeOwner, Body, BodyKind, BoundingBox,
     BrepDiagnostic, BrepId, BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind,
-    Edge, Face, HalfEdge, Instance, InstancePart, Loop, NurbsCurve, NurbsSurface, PointGeometry,
-    Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind,
+    Edge, Face, HalfEdge, Instance, InstancePart, Loop, MeshSurface, NurbsCurve, NurbsSurface,
+    PointGeometry, Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind,
     TopologyValidation, Transform, Vector3, Vertex,
 };

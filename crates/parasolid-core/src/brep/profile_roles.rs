@@ -218,6 +218,7 @@ impl RoleAccess {
                 88 => "TAG_VALUES",
                 89 => "DIRECTION_VALUES",
                 98 => "UNICODE_VALUES",
+                _ if is_embedded_mesh(node) => "MESH",
                 _ => "", // List types cannot acquire roles from their names.
             },
         }
@@ -237,6 +238,10 @@ impl RoleAccess {
             // This optional source reference has a separately reviewed Append
             // contract; validate_base_roles checks its codec, class and origin.
             Self::Sch13006 if node.node_type == 38 && role == "intersection_data" => {
+                node.fields.iter().find(|f| f.definition.name == role)
+            }
+            // A type absent from the base carries its own field names (facets).
+            Self::Sch13006 if node.definition.source == SchemaSource::EmbeddedFull => {
                 node.fields.iter().find(|f| f.definition.name == role)
             }
             // Only copied/unchanged base fields acquire these identities; the
@@ -268,6 +273,7 @@ impl RoleAccess {
             Self::OnshapeSch30000 => matches!(node.node_type, 50..=54 | 124),
             Self::Sch13006 => {
                 matches!(node.node_type, 50..=54 | 56 | 59 | 60 | 67 | 68 | 124)
+                    || is_embedded_mesh(node)
             }
             Self::Named => {
                 self.has_common_geometry(node)
@@ -278,11 +284,31 @@ impl RoleAccess {
         }
     }
 
+    /// Whether the node's field names are its own: a caller catalog names every
+    /// type; a built-in profile only the types a stream declares in full.
+    pub(super) fn declares_names(self, node: &RawNode) -> bool {
+        matches!(self, Self::Named) || node.definition.source == SchemaSource::EmbeddedFull
+    }
+
     fn has_common_geometry(self, node: &RawNode) -> bool {
         ["owner", "next", "previous", "geometric_owner", "sense"]
             .into_iter()
             .all(|role| self.field(node, role).is_some())
     }
+}
+
+/// A facet surface whose complete declaration the stream carries.
+///
+/// `MESH` is absent from the 13006 base (see `SCH13006_FACET_TYPES`), so the
+/// stream declares it in full, field names included; only that declaration,
+/// with the owner of a surface (class 1007), acquires the surface role.
+fn is_embedded_mesh(node: &RawNode) -> bool {
+    node.definition.source == SchemaSource::EmbeddedFull
+        && node.definition.name == "MESH"
+        && node
+            .fields
+            .iter()
+            .any(|f| f.definition.name == "owner" && f.definition.pointer_class == 1007)
 }
 
 /// The reviewed base definitions behind one exact embedded 13006 key.
