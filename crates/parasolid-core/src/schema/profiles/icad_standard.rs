@@ -76,7 +76,7 @@ const BODY_28101: &[Edit] = &[
     integer("min_local_id"),
 ];
 
-const BODY_32001: &[Edit] = &[
+pub(super) const BODY_32001: &[Edit] = &[
     Keep(6),
     pointer("construction_mesh", 1006),
     pointer("construction_polyline", 1008),
@@ -118,11 +118,21 @@ const BODY_33103: &[Edit] = &[
     pointer("mesh_offset_ref", 206),
 ];
 
+// ASSEMBLY carries the mesh and polyline construction lists after its seventh
+// field, as the embedded edits of a later revision insert them (see
+// `assembly.rs`), without the mesh offset reference that revision appends.
+const ASSEMBLY_28101: &[Edit] = &[
+    Keep(7),
+    pointer("construction_mesh", 1006),
+    pointer("construction_polyline", 1008),
+    Keep(10),
+];
+
 pub(super) const REGION: &[Edit] = &[Keep(7), pointer("owner_ref", 12)];
 
-const INTERSECTION: &[Edit] = &[Keep(11), pointer("intersection_data", 204)];
+pub(super) const INTERSECTION: &[Edit] = &[Keep(11), pointer("intersection_data", 204)];
 
-const LIMIT: &[Edit] = &[
+pub(super) const LIMIT: &[Edit] = &[
     Keep(1),
     Edit::Insert("limit_state", FieldType::Character, 0),
     Keep(1),
@@ -185,15 +195,17 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     // transmit files written under the same exact key: BSPLINE_VERTICES (45),
     // BLENDED_EDGE (56), BLEND_BOUND (59), CHAR_VALUES (84) and the B-spline
     // surface nodes (124-128); all keep their reviewed 13006 layouts.
+    // Revision 3 adds UNICODE_VALUES (98), observed in a SolidWorks transmit
+    // file of the same exact key, with its reviewed 13006 layout.
     ProfileSpec {
         key: "SCH_1500000_15003",
-        id: "icad-1500000-15003-r2",
-        revision: 2,
-        sha256: "11605dd7169df56d66db672b72d35303dd1a0c670cac66ce658cc43975e53cbf",
+        id: "icad-1500000-15003-r3",
+        revision: 3,
+        sha256: "db080044b9852d8bc6fc67f24013e148618b983c29bb0ea64532355cc7e25fa6",
         schema: "15003",
         types: &[
             12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 54, 56, 59,
-            68, 70, 74, 79, 80, 81, 82, 83, 84, 124, 125, 126, 127, 128, 141,
+            68, 70, 74, 79, 80, 81, 82, 83, 84, 98, 124, 125, 126, 127, 128, 141,
         ],
         edits: &[(70, LIST)],
     },
@@ -254,16 +266,19 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     // Revision 4 adds CONE (52), VECTOR_VALUES (86) and UNICODE_VALUES (98),
     // observed in SolidWorks transmit files of that build, with the same
     // reviewed 13006 layouts.
+    // Revision 5 adds SPUN_SURF (68), observed in a SolidWorks transmit file
+    // written under another build of the same standard key
+    // (`SCH_2000000_20000`), with its reviewed 13006 layout.
     ProfileSpec {
         key: "SCH_2401000_20000",
-        id: "icad-2401000-20000-r4",
-        revision: 4,
-        sha256: "ef15815c7b2d6a43e8ffff95e2d54f726f195e001081864fdc4afa84755e48ff",
+        id: "icad-2401000-20000-r5",
+        revision: 5,
+        sha256: "2df60e0ec3987d681f3fdc9c41b8d46cc243f96ae2de69982760b6f1db7c0c93",
         schema: "20000",
         types: &[
             10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53,
-            54, 56, 59, 60, 67, 70, 74, 79, 80, 81, 82, 83, 84, 86, 98, 100, 124, 125, 126, 127,
-            128, 133, 134, 135, 136, 137, 141,
+            54, 56, 59, 60, 67, 68, 70, 74, 79, 80, 81, 82, 83, 84, 86, 98, 100, 124, 125, 126,
+            127, 128, 133, 134, 135, 136, 137, 141,
         ],
         edits: &[(12, BODY_20000), (70, LIST), (74, POINTER_BLOCK)],
     },
@@ -305,17 +320,23 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     // Revision 2 adds REAL_VALUES (83) and CHAR_VALUES (84), observed in
     // twenty public parts written under another build of the same standard
     // key (`SCH_2900166_28101`).
+    // Revision 3 adds the assembly structure, observed in an Autodesk Inventor
+    // assembly written under another build of the same standard key
+    // (`SCH_2900000_28101`): ASSEMBLY (10) with the mesh and polyline
+    // construction lists, and INSTANCE (11) and TRANSFORM (100) with their
+    // reviewed 13006 layouts. The assembly reads to the terminator.
     ProfileSpec {
         key: "SCH_2901000_28101",
-        id: "icad-2901000-28101-r2",
-        revision: 2,
-        sha256: "aa6770061f55dde9d96afcff1b8ab260293e1a9671cda701b262b775f2192548",
+        id: "icad-2901000-28101-r3",
+        revision: 3,
+        sha256: "4f3fa4cd14d2899519090d553cb42394fc0b59e93b471ddb813b49c3e53782f6",
         schema: "28101",
         types: &[
-            12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 38, 40, 41, 50, 51, 52, 70, 74, 79, 80, 81,
-            82, 83, 84, 141,
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 38, 40, 41, 50, 51, 52, 70, 74, 79,
+            80, 81, 82, 83, 84, 100, 141,
         ],
         edits: &[
+            (10, ASSEMBLY_28101),
             (12, BODY_28101),
             (19, REGION),
             (41, LIMIT),

@@ -56,11 +56,12 @@ const EXPECTED: [Expected; 11] = [
         block: "dpp",
     },
     Expected {
+        // Revision 3 adds UNICODE_VALUES (98).
         key: "SCH_1500000_15003",
         // Revision 2 adds 45, 56, 59, 84 and the B-spline surface nodes
         // (124-128) with their reviewed layouts.
-        types: 37,
-        fields: 320,
+        types: 38,
+        fields: 321,
         body: "dppppppffpppupuuppppppp",
         body_references: &[],
         region_head: 20,
@@ -111,9 +112,10 @@ const EXPECTED: [Expected; 11] = [
         // 67, 133, the SP_CURVE dependencies and the shared-geometry owner;
         // revision 3 the ellipse, sphere, torus, blends and B-spline surfaces
         // of six public parts of another build; revision 4 the cone (52) and
-        // the vector and unicode value nodes (86, 98).
-        types: 49,
-        fields: 426,
+        // the vector and unicode value nodes (86, 98); revision 5 the spun
+        // surface (68).
+        types: 50,
+        fields: 442,
         body: "dppppppffpppupuupppppppdppp",
         body_references: &[(24, 82), (25, 82), (26, 82)],
         region_head: 20,
@@ -166,8 +168,8 @@ const EXPECTED: [Expected; 11] = [
     Expected {
         key: "SCH_2901000_28101",
         // Revision 2 adds REAL_VALUES (83) and CHAR_VALUES (84) of twenty public parts.
-        types: 26,
-        fields: 216,
+        types: 29,
+        fields: 254,
         body: "dppppppppffpppupuupppppppppdppppd",
         body_references: &[
             (6, 1006),
@@ -261,9 +263,9 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
         assert_eq!(
             revision,
             match expected.key {
-                "SCH_2401000_20000" => 4,
-                "SCH_1500000_15003" | "SCH_1700000_16100" | "SCH_1901000_19008"
-                | "SCH_2901000_28101" | "SCH_3200000_32001" => 2,
+                "SCH_2401000_20000" => 5,
+                "SCH_1500000_15003" | "SCH_2901000_28101" => 3,
+                "SCH_1700000_16100" | "SCH_1901000_19008" | "SCH_3200000_32001" => 2,
                 _ => 1,
             }
         );
@@ -362,6 +364,41 @@ fn revision_layouts_have_the_stated_codecs_and_references() -> Result<()> {
             assert_eq!(profile.definition(204).is_some(), !data.is_empty());
         }
     }
+    Ok(())
+}
+
+#[test]
+fn schema_28101_declares_the_assembly_structure() -> Result<()> {
+    // ASSEMBLY carries the mesh and polyline construction lists after its
+    // seventh field (19 fields); INSTANCE and TRANSFORM keep their 13006
+    // layouts. Other builds of the standard key reach them through the family.
+    let profiles = icad_legacy_standard()?;
+    let profile = profiles
+        .iter()
+        .find(|item| item.metadata().profile_id == "icad-2901000-28101-r3")
+        .ok_or("28101 profile")?;
+    assert_eq!(codes(profile, 10).as_deref(), Some("dpppppppppffpppupup"));
+    let assembly = profile.definition(10).ok_or("ASSEMBLY")?;
+    assert_eq!(assembly.fields[7].name, "construction_mesh");
+    assert_eq!(assembly.fields[7].pointer_class, 1006);
+    assert_eq!(assembly.fields[8].name, "construction_polyline");
+    assert_eq!(assembly.fields[8].pointer_class, 1008);
+    assert_eq!(assembly.fields[9].name, "key_ref");
+    assert_eq!(assembly.fields[12].name, "instances");
+    let registry = BuiltinProfileRegistry::compiled()?;
+    let base = registry.profile("family-13006").ok_or("family 13006")?;
+    for node_type in [11, 100] {
+        assert_eq!(
+            profile.definition(node_type).map(|d| &d.fields),
+            base.definition(node_type).map(|d| &d.fields),
+            "type {node_type}"
+        );
+    }
+    let provider = registry
+        .provider_for_key(&SchemaKey::parse("SCH_2900000_28101")?)
+        .ok_or("provider")?;
+    assert_eq!(provider.profile().metadata().profile_id, "family-28101");
+    assert!(provider.profile().definition(10).is_some());
     Ok(())
 }
 

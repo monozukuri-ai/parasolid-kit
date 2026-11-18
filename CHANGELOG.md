@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Further standard keys read. Transmit files under `SCH_3100000_31001` have a
+  profile (`parasolid-3100000-31001-r1`, family `31001`): schema 31001 takes
+  the `BODY` and `INTERSECTION` declarations of the 32001 standard key. Three
+  profiles are revised with node types that transmit files of their keys
+  carry: `icad-1500000-15003-r3` (UNICODE_VALUES), `icad-2401000-20000-r5`
+  (SPUN_SURF) and `icad-2901000-28101-r3` (the assembly structure, with the
+  mesh and polyline construction lists of `ASSEMBLY`). Such files failed with
+  `schema.missing_base_schema` or `schema.builtin_profile_uncovered_type`. See
+  [later standard keys](docs/builtin-profiles.md#later-standard-keys-schemas-15003-to-31001).
 - Read facet ("mesh") faces. The facet node types (`PSM_MESH` 189, the integer
   and vector teeth and combs 190-193, `MESH` 201, `OFFSET_VALUES` 205,
   `MESH_OFFSET_DATA` 206 and the schema data records 207, 208, 210 and 211)

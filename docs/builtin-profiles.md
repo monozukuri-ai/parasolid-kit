@@ -1454,6 +1454,44 @@ of the schema, and in the 25001 layouts in X_T and X_B under
 `SCH_2600169_25001` and another build, and check the decoded layouts, the
 mapped disc, the colour attribute and an unresolved attribute field index.
 
+## Later standard keys: schemas 15003 to 31001
+
+Transmit files written under four more standard keys carried a schema that no
+profile declared, or node types their profiles did not declare. One exact
+profile is added and three are revised. Each declared type keeps its reviewed
+13006 layout or an edit stated below; transmit files of these keys, which
+failed with the 0.3.17 release, read to their terminators and map their
+B-Reps. The files are not redistributed.
+
+| Exact key | Profile | Change | Observed in |
+|---|---|---|---|
+| `SCH_3100000_31001` | `parasolid-3100000-31001-r1` | new profile | a transmit file under the key |
+| `SCH_1500000_15003` | `icad-1500000-15003-r3` | UNICODE_VALUES (98) | a SolidWorks transmit file under the key |
+| `SCH_2401000_20000` | `icad-2401000-20000-r5` | SPUN_SURF (68) | a SolidWorks transmit file under `SCH_2000000_20000` |
+| `SCH_2901000_28101` | `icad-2901000-28101-r3` | ASSEMBLY (10), INSTANCE (11), TRANSFORM (100) | an Autodesk Inventor assembly under `SCH_2900000_28101` |
+
+- Schema 31001 takes the edits of the 32001 standard key. `BODY` carries the
+  construction and boundary mesh and polyline lists, the container reference,
+  the index origin and three index maps, the child body, the lowest node id
+  and the mesh offset reference (34 fields); `INTERSECTION` appends its data
+  pointer, whose target (type 204) the profile declares; `REGION`, `LIMIT`,
+  `LIST` and `POINTER_LIS_BLOCK` take the edits of the iCAD standard keys. The
+  file reads to its terminator with these edits and with no other combination
+  of the 28101 and 32001 `BODY` and `INTERSECTION` declarations. Other builds
+  of the schema resolve through the family `31001`.
+- Under schema 28101 `ASSEMBLY` carries the mesh and polyline construction
+  lists after its seventh field (19 fields). This is the edit that the
+  embedded 31100 stream of a SolidWorks assembly inserts, without the mesh
+  offset reference that stream appends. `INSTANCE` and `TRANSFORM` keep their
+  13006 layouts.
+- UNICODE_VALUES under 15003 and SPUN_SURF under 20000 keep their reviewed
+  13006 layouts.
+
+Public Rust and Python tests author a wire body under the 31001 key and
+another build of the schema, and an assembly that places the wire body under
+the 28101 key and another build, in X_T and X_B, and check the decoded
+layouts, the mapped body, the assembly, its instance and the transform.
+
 ## Helical forms and attribute field names
 
 A B-surface's analytic form is referenced by `SURFACE_DATA` (125) with

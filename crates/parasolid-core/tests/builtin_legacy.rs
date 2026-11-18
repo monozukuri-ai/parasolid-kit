@@ -328,3 +328,70 @@ fn parasolid_8_12_and_25001_layouts_follow_their_streams() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn schema_31001_takes_the_edits_of_the_next_standard_key() -> Result<()> {
+    let registry = BuiltinProfileRegistry::compiled()?;
+    let profiles = legacy_standard_keys()?;
+    let profile = profiles
+        .iter()
+        .find(|item| item.metadata().profile_id == "parasolid-3100000-31001-r1")
+        .ok_or("31001 profile")?;
+    assert_eq!(profile.metadata().provider_schema, "31001");
+    assert_eq!(profile.metadata().revision, 1);
+
+    // BODY as the 32001 standard key declares it: the construction and
+    // boundary mesh and polyline lists, the container reference, the index
+    // maps, the child body, the lowest node id and the mesh offset reference
+    // (34 fields).
+    assert_eq!(
+        codes(profile, 12).as_deref(),
+        Some("dppppppppffpppupuupppppppppdppppdp")
+    );
+    let body = profile.definition(12).ok_or("BODY")?;
+    assert_eq!(body.fields[33].name, "mesh_offset_ref");
+    assert_eq!(body.fields[33].pointer_class, 206);
+    // INTERSECTION carries its data pointer and the profile declares the data.
+    let intersection = profile.definition(38).ok_or("INTERSECTION")?;
+    assert_eq!(intersection.fields.len(), 12);
+    assert_eq!(intersection.fields[11].name, "intersection_data");
+    assert_eq!(intersection.fields[11].pointer_class, 204);
+    assert!(profile.definition(204).is_some());
+    assert_eq!(codes(profile, 19).as_deref(), Some("dpppppcp"));
+    assert_eq!(codes(profile, 70).as_deref(), Some("dulpppdddpp"));
+    assert_eq!(codes(profile, 74).as_deref(), Some("ddpp"));
+
+    // The edited types equal those of the 32001 standard key; every other
+    // declared type keeps its reviewed 13006 layout.
+    let next = registry
+        .profile("icad-3200000-32001-r2")
+        .ok_or("32001 profile")?;
+    let base = registry.profile("family-13006").ok_or("family 13006")?;
+    let edited = [12, 19, 38, 41, 70, 74, 204];
+    for definition in profile.definitions() {
+        let reviewed = if edited.contains(&definition.node_type) {
+            next.definition(definition.node_type)
+        } else {
+            base.definition(definition.node_type)
+        };
+        if let Some(reviewed) = reviewed {
+            assert_eq!(
+                definition.fields, reviewed.fields,
+                "type {}",
+                definition.node_type
+            );
+        }
+    }
+
+    // Another build of the schema resolves through the family; the embedded
+    // form of the key belongs to another family.
+    let provider = registry
+        .provider_for_key(&SchemaKey::parse("SCH_3100203_31001")?)
+        .ok_or("provider")?;
+    assert_eq!(provider.profile().metadata().profile_id, "family-31001");
+    let embedded = registry
+        .provider_for_key(&SchemaKey::parse("SCH_3100203_31001_13006")?)
+        .ok_or("embedded provider")?;
+    assert_ne!(embedded.profile().metadata().profile_id, "family-31001");
+    Ok(())
+}

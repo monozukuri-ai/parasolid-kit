@@ -36,8 +36,8 @@ def test_family_listing_follows_the_exact_profiles():
     profiles = builtin_profiles()
     exact = [p for p in profiles if p.coverage == "verified_subset"]
     families = [p for p in profiles if p.coverage == "family_inferred"]
-    assert len(exact) == 59
-    assert len(families) == 38
+    assert len(exact) == 60
+    assert len(families) == 39
     by_id = {p.profile_id: p for p in profiles}
     assert len(by_id) == len(profiles)
     for profile in exact:

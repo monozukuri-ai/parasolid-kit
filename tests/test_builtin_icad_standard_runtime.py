@@ -128,18 +128,15 @@ def test_exact_keys_map_authored_wire_with_source_values(encoding, key):
     # Revision 2 of the 15003, 16100, 19008 and 20000 profiles added types
     # observed in transmit files written under the same schemas; revision 2 of
     # the 32001 profile added node type 3 observed in an ANSYS transmit file.
-    revision = {"SCH_2401000_20000": 4}.get(
+    # Later revisions added UNICODE_VALUES (15003, revision 3), SPUN_SURF
+    # (20000, revision 5) and the assembly structure (28101, revision 3).
+    revision = {
+        "SCH_2401000_20000": 5,
+        "SCH_1500000_15003": 3,
+        "SCH_2901000_28101": 3,
+    }.get(
         key,
-        2
-        if key
-        in (
-            "SCH_1500000_15003",
-            "SCH_1700000_16100",
-            "SCH_1901000_19008",
-            "SCH_2901000_28101",
-            "SCH_3200000_32001",
-        )
-        else 1,
+        2 if key in ("SCH_1700000_16100", "SCH_1901000_19008", "SCH_3200000_32001") else 1,
     )
     assert doc.schema_resolution.profile_id == f"icad-{key[4:].replace('_', '-')}-r{revision}"
     assert doc.schema_resolution.profile_revision == revision

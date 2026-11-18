@@ -10,12 +10,16 @@
 //! carries no field names and thirteen legal owners, as the reference's own
 //! schema-12006 transmit example (printed page 10) writes it, while the
 //! schema-12006 files of current writers list fourteen. Schema 25001 takes the
-//! edits that embedded 25001 streams carry against base 13006. The streams
-//! read to their terminators and map complete B-Reps; the files are not
-//! redistributed.
+//! edits that embedded 25001 streams carry against base 13006. Schema 31001
+//! takes the edits of the standard key of the next revision (32001): `BODY`
+//! with its mesh offset reference and `INTERSECTION` with its data pointer.
+//! The streams read to their terminators and map complete B-Reps; the files
+//! are not redistributed.
 
 use super::icad_standard::Edit::{self, Array, Drop, Keep};
-use super::icad_standard::{LIST, POINTER_BLOCK, ProfileSpec, REGION, integer, pointer};
+use super::icad_standard::{
+    BODY_32001, INTERSECTION, LIMIT, LIST, POINTER_BLOCK, ProfileSpec, REGION, integer, pointer,
+};
 use crate::{
     BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, FieldDefinition,
     FieldType, ParseError, SchemaSource, TypeDefinition,
@@ -101,6 +105,18 @@ const BODY_25001: &[Edit] = &[
 const SCHEMA_25001: &[(u16, &[Edit])] = &[
     (12, BODY_25001),
     (19, REGION),
+    (70, LIST),
+    (74, POINTER_BLOCK),
+];
+
+// A transmit file written under the standard key of schema 31001 reads to
+// its terminator with the edits of the 32001 standard key and with no other
+// combination of the neighbouring revisions' BODY and INTERSECTION edits.
+const SCHEMA_31001: &[(u16, &[Edit])] = &[
+    (12, BODY_32001),
+    (19, REGION),
+    (38, INTERSECTION),
+    (41, LIMIT),
     (70, LIST),
     (74, POINTER_BLOCK),
 ];
@@ -274,6 +290,22 @@ pub(crate) const PROFILES: &[LegacySpec] = &[
             edits: SCHEMA_25001,
         },
         producer: "Autodesk Inventor transmit files, Parasolid 26.0.169",
+    },
+    LegacySpec {
+        profile: ProfileSpec {
+            key: "SCH_3100000_31001",
+            id: "parasolid-3100000-31001-r1",
+            revision: 1,
+            sha256: "2887c464c9c858fe3f369daff35a37a69be5ad550e4a48808bb86870e5f1f52d",
+            schema: "31001",
+            // The node types of a transmit file written under this key.
+            types: &[
+                12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 56, 59,
+                70, 74, 79, 80, 81, 82, 83, 84, 98, 127, 128, 133, 134, 135, 136, 137, 141, 204,
+            ],
+            edits: SCHEMA_31001,
+        },
+        producer: "Transmit files under the standard key, Parasolid 31.0",
     },
 ];
 
