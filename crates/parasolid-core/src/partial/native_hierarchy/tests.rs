@@ -256,5 +256,20 @@ fn exterior_void_shell_uses_null_legacy_body_and_is_not_a_material_region() {
     assert_eq!(result[0].regions.len(), 1);
     assert_eq!(result[0].regions[0].attr, 101);
     u16_at(&mut data, shell + 8, 99);
+    assert!(scan(&data, SCHEMA, &tables).is_some());
+    u16_at(&mut data, shell + 18, 99);
     assert!(scan(&data, SCHEMA, &tables).is_none());
+}
+
+#[test]
+fn obsolete_body_shell_and_state_do_not_override_current_ownership() {
+    let (mut data, tables, starts) = fixture();
+    for start in starts {
+        data[start + 46] = 0x7f;
+        u16_at(&mut data, start + 51, 999);
+    }
+    let result = scan(&data, SCHEMA, &tables).unwrap();
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[0].regions[0].shells[0].attr, 201);
+    assert_eq!(result[1].regions[0].shells[0].attr, 211);
 }
