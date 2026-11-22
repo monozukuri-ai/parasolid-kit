@@ -1993,8 +1993,19 @@ impl<'a> Mapper<'a> {
 
     fn pointer(&self, node: &RawNode, name: &'static str) -> Result<u32, ParseError> {
         match self.value(node, name)? {
-            FieldValue::PointerIndex(value) => Ok(*value),
+            FieldValue::PointerIndex(value) => Ok(self.resolved_pointer(*value)),
             _ => Err(self.invalid_field(node, name, "required field is not a pointer")),
+        }
+    }
+
+    // XT Format Reference (July 2022), 2.1.4.4, PDF p17: indices of nodes not
+    // present in the file are interpreted as null. The serialized index stays
+    // in RawNode; it is normalized only when resolving semantics.
+    fn resolved_pointer(&self, index: u32) -> u32 {
+        if self.nodes.contains_key(&index) {
+            index
+        } else {
+            0
         }
     }
 
@@ -2017,7 +2028,7 @@ impl<'a> Mapper<'a> {
             .values
             .iter()
             .map(|value| match value {
-                FieldValue::PointerIndex(index) => Ok(*index),
+                FieldValue::PointerIndex(index) => Ok(self.resolved_pointer(*index)),
                 _ => Err(self.invalid_field(node, name, "array contains a non-pointer value")),
             })
             .collect()
@@ -3898,6 +3909,8 @@ mod tests {
 
     #[test]
     fn rejects_an_unresolved_required_body_chain_pointer() {
+        // XT 2.1.4.4: an index of a node not in the file is null, so the body
+        // loses its region; that breaks the region/body inverse.
         let mut nodes = wire_acorn_nodes();
         let body = &mut nodes[0];
         let region = body
@@ -3919,16 +3932,101 @@ mod tests {
         .err();
         assert_eq!(
             error.as_ref().map(ParseError::kind),
-            Some(ErrorKind::InvalidBrepReference)
+            Some(ErrorKind::InvalidBrepTopology)
         );
         assert_eq!(
             error.as_ref().map(ParseError::details),
-            Some(&ErrorDetails::BrepReference {
-                node_index: 1,
-                field: "region",
-                target_index: 99,
-                expected_type: "REGION",
+            Some(&ErrorDetails::BrepInvariant {
+                node_index: 2,
+                relationship: "region_body_inverse",
             })
+        );
+    }
+
+    #[test]
+    fn absent_indices_resolve_as_null_without_rewriting_source() {
+        let mut nodes = wire_acorn_nodes();
+        nodes.push(node(
+            6,
+            200,
+            "TEST",
+            vec![
+                field("absent", 88, vec![FieldValue::PointerIndex(99)]),
+                field("present", 88, vec![FieldValue::PointerIndex(5)]),
+                field("wrong_type", 88, vec![FieldValue::PointerIndex(1)]),
+                field(
+                    "pair",
+                    88,
+                    vec![FieldValue::PointerIndex(99), FieldValue::PointerIndex(5)],
+                ),
+                field("malformed", 0, vec![FieldValue::Integer(Some(99))]),
+            ],
+        ));
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        let owner = &nodes[5];
+        assert_eq!(mapper.pointer(owner, "absent"), Ok(0));
+        assert_eq!(mapper.optional_source(owner, "absent"), Ok(None));
+        assert_eq!(
+            mapper.optional_id(owner, "absent", "POINT", &mapper.ids.points),
+            Ok(None)
+        );
+        assert_eq!(mapper.pointer_array(owner, "pair"), Ok(vec![0, 5]));
+        assert_eq!(
+            mapper.optional_id_pair(owner, "pair", "POINT", &mapper.ids.points),
+            Ok([None, Some(0)])
+        );
+        assert_eq!(
+            mapper.required_id(owner, "present", "POINT", &mapper.ids.points),
+            Ok(0)
+        );
+        assert!(mapper.required_pointer(owner, "absent").is_err());
+        assert!(
+            mapper
+                .required_id_pair(owner, "pair", "POINT", &mapper.ids.points)
+                .is_err()
+        );
+        assert!(
+            mapper
+                .optional_id(owner, "wrong_type", "POINT", &mapper.ids.points)
+                .is_err()
+        );
+        assert!(mapper.pointer(owner, "malformed").is_err());
+        assert_eq!(
+            mapper.value(owner, "absent"),
+            Ok(&FieldValue::PointerIndex(99))
+        );
+    }
+
+    #[test]
+    fn absent_index_terminates_null_chain_but_not_required_ring() {
+        let nodes = vec![node(
+            1,
+            12,
+            "BODY",
+            vec![
+                field("first", 12, vec![FieldValue::PointerIndex(1)]),
+                field("next", 12, vec![FieldValue::PointerIndex(99)]),
+            ],
+        )];
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        assert_eq!(
+            mapper.null_chain(&nodes[0], "first", "BODY", "next", &mapper.ids.bodies),
+            Ok(vec![0])
+        );
+        assert!(
+            mapper
+                .required_ring(&nodes[0], "first", "BODY", "next", &mapper.ids.bodies)
+                .is_err()
         );
     }
 
@@ -4051,8 +4149,11 @@ mod tests {
     #[test]
     fn retains_placed_facets_and_rejects_malformed_pools() {
         let corners = [1, 3, 2, 1, 2, 4, 2, 3, 4, 1, 4, 3];
-        // A transform is not applied: the facets are kept, undecoded.
-        let model = map_nodes(&mesh_nodes(corners, 9, [25, 26, 27, 0]));
+        // A transform is not applied: the facets are kept, undecoded. The
+        // TRANSFORM node must exist: an index of an absent node is null.
+        let mut placed = mesh_nodes(corners, 9, [25, 26, 27, 0]);
+        placed.push(node(9, 100, "TRANSFORM", Vec::new()));
+        let model = map_nodes(&placed);
         assert!(model.is_ok(), "{model:?}");
         if let Ok(model) = model {
             assert!(!model.complete);

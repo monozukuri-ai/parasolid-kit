@@ -284,7 +284,8 @@ fn rejects_wrong_typed_references_broken_rings_and_negative_radii() -> Result<()
             7,
             5,
             FieldValue::PointerIndex(999),
-            ErrorKind::InvalidBrepReference,
+            // XT 2.1.4.4: unresolved means null; this still breaks the ring.
+            ErrorKind::InvalidBrepTopology,
         ),
         (
             12,
