@@ -2894,12 +2894,14 @@ mod tests {
         for name in ["res_size", "res_linear"] {
             for value in [0.0, -1.0] {
                 let mut nodes = wire_acorn_nodes();
-                nodes[0]
+                let field = nodes[0]
                     .fields
                     .iter_mut()
-                    .find(|f| f.definition.name == name)
-                    .unwrap()
-                    .values = vec![FieldValue::Double(Some(value))];
+                    .find(|f| f.definition.name == name);
+                assert!(field.is_some());
+                if let Some(field) = field {
+                    field.values = vec![FieldValue::Double(Some(value))];
+                }
                 assert!(
                     Mapper::new(
                         BrepSourceFormat::Binary,
@@ -2913,12 +2915,14 @@ mod tests {
             }
         }
         let mut nodes = wire_acorn_nodes();
-        nodes[3]
+        let tolerance = nodes[3]
             .fields
             .iter_mut()
-            .find(|f| f.definition.name == "tolerance")
-            .unwrap()
-            .values = vec![FieldValue::Double(Some(-1.0))];
+            .find(|f| f.definition.name == "tolerance");
+        assert!(tolerance.is_some());
+        if let Some(tolerance) = tolerance {
+            tolerance.values = vec![FieldValue::Double(Some(-1.0))];
+        }
         assert!(
             Mapper::new(
                 BrepSourceFormat::Binary,
@@ -2940,14 +2944,17 @@ mod tests {
             &nodes,
             RoleAccess::Named,
         );
-        let mut model = Mapper::new(
+        let model = Mapper::new(
             BrepSourceFormat::Binary,
             "SCH_TEST",
             &nodes,
             RoleAccess::Named,
         )
-        .map()
-        .unwrap();
+        .map();
+        assert!(model.is_ok(), "{model:?}");
+        let Ok(mut model) = model else {
+            return;
+        };
         model.bodies[0].kind = BodyKind::General;
         let source = model.vertices[0].source.clone();
         model.shells[0].back_faces = vec![0];
