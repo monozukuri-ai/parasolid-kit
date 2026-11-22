@@ -992,8 +992,11 @@ mod overflow_tests {
     use super::*;
     #[test]
     fn finite_comparison_does_not_turn_overflow_into_equality() {
-        let options = ComparisonOptions { absolute_tolerance: 0.0,
-            relative_tolerance: 1.5, max_differences: 1 };
+        let options = ComparisonOptions {
+            absolute_tolerance: 0.0,
+            relative_tolerance: 1.5,
+            max_differences: 1,
+        };
         assert!(!double_equal(f64::MAX, -f64::MAX, options));
         assert!(double_equal(f64::MAX, f64::MAX / 2.0, options));
         assert!(double_equal(0.0, -0.0, ComparisonOptions::default()));
