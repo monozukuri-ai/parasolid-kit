@@ -558,6 +558,7 @@ fn curve_kind_to_python<'py>(py: Python<'py>, kind: &CurveKind) -> PyResult<Boun
             end,
             end_points,
             intersection_data,
+            ..
         } => {
             value.set_item("surfaces", (surfaces[0], surfaces[1]))?;
             value.set_item("chart", source_to_python(py, chart)?)?;
