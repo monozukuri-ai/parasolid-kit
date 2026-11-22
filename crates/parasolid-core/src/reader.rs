@@ -338,13 +338,17 @@ impl<'a> BinaryReader<'a> {
             .iter()
             .map(|pair| u16::from_be_bytes([pair[0], pair[1]]));
         let mut text = String::new();
-        for (index, decoded) in char::decode_utf16(units).enumerate() {
+        let mut unit_offset = 0;
+        for decoded in char::decode_utf16(units) {
             match decoded {
-                Ok(value) => text.push(value),
+                Ok(value) => {
+                    text.push(value);
+                    unit_offset += value.len_utf16();
+                }
                 Err(_) => {
                     return Err(ParseError::new(
                         ErrorKind::InvalidUtf16,
-                        start + index * 2,
+                        start + unit_offset * 2,
                         "UTF-16BE text contains an unpaired surrogate",
                         crate::ErrorDetails::None,
                     ));
@@ -406,6 +410,24 @@ mod tests {
         assert_eq!(reader.i32(), Ok(123_456));
         assert_eq!(reader.box3(), Ok([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));
         assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn utf16_error_offsets_count_code_units_after_surrogate_pairs() {
+        for bad_unit in [0xd800_u16, 0xdc00_u16] {
+            let mut bytes = vec![0xaa];
+            for unit in [0x0041_u16, 0xd83d, 0xde00, bad_unit] {
+                bytes.extend_from_slice(&unit.to_be_bytes());
+            }
+            let mut reader = BinaryReader::new(&bytes);
+            assert_eq!(reader.u8(), Ok(0xaa));
+            let error = reader.utf16_be(4).err();
+            assert_eq!(
+                error.as_ref().map(ParseError::kind),
+                Some(ErrorKind::InvalidUtf16)
+            );
+            assert_eq!(error.as_ref().map(ParseError::offset), Some(7));
+        }
     }
 
     #[test]
