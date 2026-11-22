@@ -1312,8 +1312,17 @@ mod missing_storage_tests {
     #[test]
     fn absent_surface_knot_storage_is_rejected_without_panicking() {
         // Missing storage is a supported Option::None result, never an index panic.
-        assert!(super::unique_surface_knot_span(
-            &[], &super::Arrays::default(), 42, 43, 2, &[0.0, 1.0], &[2, 2]
-        ).is_none());
+        assert!(
+            super::unique_surface_knot_span(
+                &[],
+                &super::Arrays::default(),
+                42,
+                43,
+                2,
+                &[0.0, 1.0],
+                &[2, 2]
+            )
+            .is_none()
+        );
     }
 }
