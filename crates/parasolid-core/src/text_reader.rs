@@ -627,19 +627,19 @@ mod tests {
         Ok(())
     }
 }
-    #[test]
-    fn string_error_offsets_follow_physical_bytes_after_folds_and_escapes() -> Result<(), ParseError> {
-        // XT July 2022 3.2 pp19-21: physical folds/trailing blanks disappear;
-        // escapes and nine-space compression change logical string lengths.
-        for (data, length, expected) in [
-            (b"A  \r\n\xff".as_slice(), 2, 5),
-            (b"A\\9\xff".as_slice(), 11, 3),
-            (b"\\\\\n\xc3X".as_slice(), 3, 3),
-        ] {
-            let mut reader = TextReader::new(data, 0)?;
-            let error = reader.fixed_string(length, "test_string").unwrap_err();
-            assert_eq!(error.kind(), ErrorKind::InvalidAscii);
-            assert_eq!(error.offset(), expected);
-        }
-        Ok(())
+#[test]
+fn string_error_offsets_follow_physical_bytes_after_folds_and_escapes() -> Result<(), ParseError> {
+    // XT July 2022 3.2 pp19-21: physical folds/trailing blanks disappear;
+    // escapes and nine-space compression change logical string lengths.
+    for (data, length, expected) in [
+        (b"A  \r\n\xff".as_slice(), 2, 5),
+        (b"A\\9\xff".as_slice(), 11, 3),
+        (b"\\\\\n\xc3X".as_slice(), 3, 3),
+    ] {
+        let mut reader = TextReader::new(data, 0)?;
+        let error = reader.fixed_string(length, "test_string").unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidAscii);
+        assert_eq!(error.offset(), expected);
     }
+    Ok(())
+}
