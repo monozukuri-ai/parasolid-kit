@@ -1764,8 +1764,11 @@ impl<'a> Mapper<'a> {
         for loop_value in loops {
             let face = self.entity(faces, loop_value.face, &loop_value.source, "loop_face")?;
             if !face.loops.contains(&loop_value.id) {
-                return Err(self.invalid_topology_source(&loop_value.source, "loop_face_inverse",
-                    "loop is absent from its owning face chain"));
+                return Err(self.invalid_topology_source(
+                    &loop_value.source,
+                    "loop_face_inverse",
+                    "loop is absent from its owning face chain",
+                ));
             }
             let count = loop_value.half_edges.len();
             for (position, half_edge_id) in loop_value.half_edges.iter().enumerate() {
@@ -1801,18 +1804,27 @@ impl<'a> Mapper<'a> {
             if let Some(id) = fin.loop_id {
                 let owner = self.entity(loops, id, &fin.source, "fin_loop")?;
                 if !owner.half_edges.contains(&fin.id) {
-                    return Err(self.invalid_topology_source(&fin.source, "fin_loop_inverse",
-                        "fin is absent from its owning loop ring"));
+                    return Err(self.invalid_topology_source(
+                        &fin.source,
+                        "fin_loop_inverse",
+                        "fin is absent from its owning loop ring",
+                    ));
                 }
             } else if fin.forward.is_some() || fin.backward.is_some() || fin.curve.is_some() {
-                return Err(self.invalid_topology_source(&fin.source, "dummy_fin_fields",
-                    "dummy fin has a loop link or curve"));
+                return Err(self.invalid_topology_source(
+                    &fin.source,
+                    "dummy_fin_fields",
+                    "dummy fin has a loop link or curve",
+                ));
             }
             if let Some(id) = fin.edge {
                 let owner = self.entity(edges, id, &fin.source, "fin_edge")?;
                 if !owner.half_edges.contains(&fin.id) {
-                    return Err(self.invalid_topology_source(&fin.source, "fin_edge_inverse",
-                        "fin is absent from its owning edge ring"));
+                    return Err(self.invalid_topology_source(
+                        &fin.source,
+                        "fin_edge_inverse",
+                        "fin is absent from its owning edge ring",
+                    ));
                 }
             }
         }
@@ -2882,40 +2894,120 @@ mod tests {
         for name in ["res_size", "res_linear"] {
             for value in [0.0, -1.0] {
                 let mut nodes = wire_acorn_nodes();
-                nodes[0].fields.iter_mut().find(|f| f.definition.name == name).unwrap().values =
-                    vec![FieldValue::Double(Some(value))];
-                assert!(Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes, RoleAccess::Named).map().is_err());
+                nodes[0]
+                    .fields
+                    .iter_mut()
+                    .find(|f| f.definition.name == name)
+                    .unwrap()
+                    .values = vec![FieldValue::Double(Some(value))];
+                assert!(
+                    Mapper::new(
+                        BrepSourceFormat::Binary,
+                        "SCH_TEST",
+                        &nodes,
+                        RoleAccess::Named
+                    )
+                    .map()
+                    .is_err()
+                );
             }
         }
         let mut nodes = wire_acorn_nodes();
-        nodes[3].fields.iter_mut().find(|f| f.definition.name == "tolerance").unwrap().values =
-            vec![FieldValue::Double(Some(-1.0))];
-        assert!(Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes, RoleAccess::Named).map().is_err());
+        nodes[3]
+            .fields
+            .iter_mut()
+            .find(|f| f.definition.name == "tolerance")
+            .unwrap()
+            .values = vec![FieldValue::Double(Some(-1.0))];
+        assert!(
+            Mapper::new(
+                BrepSourceFormat::Binary,
+                "SCH_TEST",
+                &nodes,
+                RoleAccess::Named
+            )
+            .map()
+            .is_err()
+        );
     }
 
     #[test]
     fn rejects_orphan_loops_fins_and_dummy_loop_links() {
         let nodes = wire_acorn_nodes();
-        let mapper = Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes, RoleAccess::Named);
-        let mut model = Mapper::new(BrepSourceFormat::Binary, "SCH_TEST", &nodes, RoleAccess::Named).map().unwrap();
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        let mut model = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map()
+        .unwrap();
         model.bodies[0].kind = BodyKind::General;
         let source = model.vertices[0].source.clone();
-        model.shells[0].back_faces = vec![0];model.shells[0].front_faces = vec![0];
-        model.faces.push(Face { id: 0, back_shell: 0, front_shell: 0, loops: vec![0], surface: None,
-            sense: Sense::Positive, attributes: Vec::new(), source: source.clone() });
-        model.loops.push(Loop { id: 0, face: 0, half_edges: vec![0], source: source.clone() });
-        model.half_edges.push(HalfEdge { id: 0, loop_id: Some(0), forward: Some(0), backward: Some(0),
-            vertex: Some(0), other: None, edge: None, curve: None, sense: Sense::Unknown,
-            dummy: false, source });
-        let validate = |m: &BrepModel| mapper.validate_topology(&m.bodies, &m.regions, &m.shells,
-            &m.faces, &m.loops, &m.half_edges, &m.edges, &m.vertices);
+        model.shells[0].back_faces = vec![0];
+        model.shells[0].front_faces = vec![0];
+        model.faces.push(Face {
+            id: 0,
+            back_shell: 0,
+            front_shell: 0,
+            loops: vec![0],
+            surface: None,
+            sense: Sense::Positive,
+            attributes: Vec::new(),
+            source: source.clone(),
+        });
+        model.loops.push(Loop {
+            id: 0,
+            face: 0,
+            half_edges: vec![0],
+            source: source.clone(),
+        });
+        model.half_edges.push(HalfEdge {
+            id: 0,
+            loop_id: Some(0),
+            forward: Some(0),
+            backward: Some(0),
+            vertex: Some(0),
+            other: None,
+            edge: None,
+            curve: None,
+            sense: Sense::Unknown,
+            dummy: false,
+            source,
+        });
+        let validate = |m: &BrepModel| {
+            mapper.validate_topology(
+                &m.bodies,
+                &m.regions,
+                &m.shells,
+                &m.faces,
+                &m.loops,
+                &m.half_edges,
+                &m.edges,
+                &m.vertices,
+            )
+        };
         assert!(validate(&model).is_ok());
-        let mut orphan = model.clone();orphan.faces[0].loops.clear();
+        let mut orphan = model.clone();
+        orphan.faces[0].loops.clear();
         assert!(validate(&orphan).is_err());
-        let mut orphan = model.clone();let mut fin = orphan.half_edges[0].clone();fin.id = 1;
-        orphan.half_edges.push(fin);assert!(validate(&orphan).is_err());
-        let mut dummy = model.clone();let mut fin = dummy.half_edges[0].clone();
-        fin.id = 1;fin.loop_id = None;fin.dummy = true;dummy.half_edges.push(fin);
+        let mut orphan = model.clone();
+        let mut fin = orphan.half_edges[0].clone();
+        fin.id = 1;
+        orphan.half_edges.push(fin);
+        assert!(validate(&orphan).is_err());
+        let mut dummy = model.clone();
+        let mut fin = dummy.half_edges[0].clone();
+        fin.id = 1;
+        fin.loop_id = None;
+        fin.dummy = true;
+        dummy.half_edges.push(fin);
         assert!(validate(&dummy).is_err());
     }
 
