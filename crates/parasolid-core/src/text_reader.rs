@@ -637,9 +637,12 @@ fn string_error_offsets_follow_physical_bytes_after_folds_and_escapes() -> Resul
         (b"\\\\\n\xc3X".as_slice(), 3, 3),
     ] {
         let mut reader = TextReader::new(data, 0)?;
-        let error = reader.fixed_string(length, "test_string").unwrap_err();
-        assert_eq!(error.kind(), ErrorKind::InvalidAscii);
-        assert_eq!(error.offset(), expected);
+        let error = reader.fixed_string(length, "test_string").err();
+        assert_eq!(
+            error.as_ref().map(ParseError::kind),
+            Some(ErrorKind::InvalidAscii)
+        );
+        assert_eq!(error.as_ref().map(ParseError::offset), Some(expected));
     }
     Ok(())
 }
