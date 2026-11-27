@@ -230,6 +230,9 @@ impl RoleAccess {
             Self::OnshapeSch30000 if node.node_type == 38 && role == "intersection_data" => {
                 node.fields.get(11)
             }
+            Self::OnshapeSch30000 if node.node_type == 41 && role == "term_use" => {
+                node.fields.get(1)
+            }
             Self::OnshapeSch30000 if node.node_type == 41 && role == "hvec" => node.fields.get(2),
             Self::OnshapeSch30000 => field_roles(node.node_type)
                 .iter()
@@ -239,6 +242,25 @@ impl RoleAccess {
             // contract; validate_base_roles checks its codec, class and origin.
             Self::Sch13006 if node.node_type == 38 && role == "intersection_data" => {
                 node.fields.iter().find(|f| f.definition.name == role)
+            }
+            // The reviewed standard layouts name the optional scalar limit_state.
+            // Embedded streams insert term_use between the two copied 13006 fields.
+            Self::Sch13006 if node.node_type == 41 && role == "term_use" => {
+                let [kind, state, points] = node.fields.as_slice() else {
+                    return None;
+                };
+                let expected = match node.definition.source {
+                    SchemaSource::Base => "limit_state",
+                    SchemaSource::EmbeddedDelta => "term_use",
+                    _ => return None,
+                };
+                (kind.definition.name == "limit_kind"
+                    && points.definition.name == "limit_positions"
+                    && state.definition.name == expected
+                    && state.definition.field_type == crate::FieldType::Character
+                    && state.definition.pointer_class == 0
+                    && state.definition.element_count == 0)
+                    .then_some(state)
             }
             // A type absent from the base carries its own field names (facets).
             Self::Sch13006 if node.definition.source == SchemaSource::EmbeddedFull => {

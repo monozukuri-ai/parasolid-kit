@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Rust intersection curves expose chart parameters, error estimates, limit kinds
+  and terminator surface selections in the new `CurveKind::Intersection` field
+  `metadata`. Exhaustive Rust patterns must include this field or use `..`.
+  The logical chart length comes from `chart_count`.
+- B-Rep mapping treats absent node indices as null and preserves their serialized
+  values in the raw document. It checks precision and inverse topology ownership.
+  The partial native reader follows region ownership when legacy shell links are stale.
+- Correct error offsets in folded or escaped text and after UTF-16 surrogate
+  pairs. Enforce the field limit on unchanged embedded schemas, handle missing
+  spline knot storage, and compare opposite large numbers without overflow.
+
 - More standard keys read. Transmit files under `SCH_3701153_37102` (Altair
   Feko; `feko-3701153-37102-r1`, family `37102`) and `SCH_1200000_12103` (CAD
   Exchanger; `cadexchanger-1200000-12103-r1`, family `12103`) and under the

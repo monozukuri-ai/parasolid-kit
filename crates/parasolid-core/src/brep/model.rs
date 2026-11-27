@@ -623,6 +623,8 @@ pub enum TerminatorSurface {
     Unset,
     First,
     Second,
+    /// Uninterpreted state on a non-terminator limit.
+    Other(u8),
 }
 
 impl CurveKind {

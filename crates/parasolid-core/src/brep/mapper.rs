@@ -1330,11 +1330,18 @@ impl<'a> Mapper<'a> {
             };
             // A missing term_use (not in this effective schema) stays distinct
             // from an explicitly unset one ('?').
-            let term_use = if self.roles.field(limit, "term_use").is_some() {
+            let term_use = if self
+                .roles
+                .field(limit, "term_use")
+                .is_some_and(|field| field.definition.transmitted)
+            {
                 Some(match self.character(limit, "term_use")? {
                     b'?' => TerminatorSurface::Unset,
                     b'F' => TerminatorSurface::First,
                     b'S' => TerminatorSurface::Second,
+                    raw if kind != IntersectionLimitKind::Terminator => {
+                        TerminatorSurface::Other(raw)
+                    }
                     _ => {
                         return Err(self.invalid_geometry(
                             limit,
@@ -1780,6 +1787,7 @@ impl<'a> Mapper<'a> {
                 ));
             }
         }
+        let mut linked_loops = vec![false; loops.len()];
         for face in faces {
             let Some(back_shell) = shells.iter().find(|shell| shell.id == face.back_shell) else {
                 return Err(self.invalid_topology_source(
@@ -1805,14 +1813,15 @@ impl<'a> Mapper<'a> {
                 ));
             }
             for loop_id in &face.loops {
-                let Some(loop_value) = loops.get(usize::try_from(*loop_id).unwrap_or(usize::MAX))
-                else {
+                let index = *loop_id as usize;
+                let Some(loop_value) = loops.get(index) else {
                     return Err(self.invalid_topology_source(
                         &face.source,
                         "face_loops",
                         "face references an unmapped loop",
                     ));
                 };
+                linked_loops[index] = true;
                 if loop_value.face != face.id {
                     return Err(self.invalid_topology_source(
                         &loop_value.source,
@@ -1822,9 +1831,9 @@ impl<'a> Mapper<'a> {
                 }
             }
         }
-        for loop_value in loops {
-            let face = self.entity(faces, loop_value.face, &loop_value.source, "loop_face")?;
-            if !face.loops.contains(&loop_value.id) {
+        let mut fins_in_loops = vec![false; half_edges.len()];
+        for (loop_value, linked) in loops.iter().zip(linked_loops) {
+            if !linked {
                 return Err(self.invalid_topology_source(
                     &loop_value.source,
                     "loop_face_inverse",
@@ -1839,6 +1848,7 @@ impl<'a> Mapper<'a> {
                     &loop_value.source,
                     "loop_half_edges",
                 )?;
+                fins_in_loops[*half_edge_id as usize] = true;
                 if half_edge.loop_id != Some(loop_value.id) {
                     return Err(self.invalid_topology_source(
                         &half_edge.source,
@@ -1859,36 +1869,7 @@ impl<'a> Mapper<'a> {
                 }
             }
         }
-        // XT 5.3.8-5.3.9 (July 2022 pp95-96): verify ownership in both
-        // directions, including fins not reached by a loop or radial ring.
-        for fin in half_edges {
-            if let Some(id) = fin.loop_id {
-                let owner = self.entity(loops, id, &fin.source, "fin_loop")?;
-                if !owner.half_edges.contains(&fin.id) {
-                    return Err(self.invalid_topology_source(
-                        &fin.source,
-                        "fin_loop_inverse",
-                        "fin is absent from its owning loop ring",
-                    ));
-                }
-            } else if fin.forward.is_some() || fin.backward.is_some() || fin.curve.is_some() {
-                return Err(self.invalid_topology_source(
-                    &fin.source,
-                    "dummy_fin_fields",
-                    "dummy fin has a loop link or curve",
-                ));
-            }
-            if let Some(id) = fin.edge {
-                let owner = self.entity(edges, id, &fin.source, "fin_edge")?;
-                if !owner.half_edges.contains(&fin.id) {
-                    return Err(self.invalid_topology_source(
-                        &fin.source,
-                        "fin_edge_inverse",
-                        "fin is absent from its owning edge ring",
-                    ));
-                }
-            }
-        }
+        let mut fins_in_edges = vec![false; half_edges.len()];
         for edge in edges {
             if matches!(self.roles, RoleAccess::OnshapeSch30000)
                 && !bodies.iter().any(|body| {
@@ -1909,6 +1890,7 @@ impl<'a> Mapper<'a> {
             for (position, half_edge_id) in edge.half_edges.iter().enumerate() {
                 let half_edge =
                     self.entity(half_edges, *half_edge_id, &edge.source, "edge_half_edges")?;
+                fins_in_edges[*half_edge_id as usize] = true;
                 if half_edge.edge != Some(edge.id) {
                     return Err(self.invalid_topology_source(
                         &half_edge.source,
@@ -1924,6 +1906,32 @@ impl<'a> Mapper<'a> {
                         "half-edge other links do not form the mapped edge ring",
                     ));
                 }
+            }
+        }
+        // Check inverse membership once per fin, including fins absent from a ring.
+        for (i, fin) in half_edges.iter().enumerate() {
+            if fin.loop_id.is_some() && !fins_in_loops[i] {
+                return Err(self.invalid_topology_source(
+                    &fin.source,
+                    "fin_loop_inverse",
+                    "fin is absent from its owning loop ring",
+                ));
+            }
+            if fin.loop_id.is_none()
+                && (fin.forward.is_some() || fin.backward.is_some() || fin.curve.is_some())
+            {
+                return Err(self.invalid_topology_source(
+                    &fin.source,
+                    "dummy_fin_fields",
+                    "dummy fin has a loop link or curve",
+                ));
+            }
+            if fin.edge.is_some() && !fins_in_edges[i] {
+                return Err(self.invalid_topology_source(
+                    &fin.source,
+                    "fin_edge_inverse",
+                    "fin is absent from its owning edge ring",
+                ));
             }
         }
         for vertex in vertices {
@@ -3462,6 +3470,63 @@ mod tests {
             node(5, 50, "PLANE", common_surface_fields(0)),
             node(6, 51, "CYLINDER", common_surface_fields(0)),
         ]
+    }
+
+    #[test]
+    fn builtins_resolve_the_reviewed_limit_state_slot() {
+        for (roles, source, name) in [
+            (
+                RoleAccess::OnshapeSch30000,
+                SchemaSource::Base,
+                "limit_state",
+            ),
+            (RoleAccess::Sch13006, SchemaSource::Base, "limit_state"),
+            (
+                RoleAccess::Sch13006,
+                SchemaSource::EmbeddedDelta,
+                "term_use",
+            ),
+        ] {
+            let mut limit = node(
+                1,
+                41,
+                "limit",
+                vec![
+                    field("limit_kind", 0, vec![FieldValue::Character(b'T')]),
+                    field(name, 0, vec![FieldValue::Character(b'S')]),
+                    field(
+                        "limit_positions",
+                        0,
+                        vec![FieldValue::IntersectionPoint([Some(1.0); 3])],
+                    ),
+                ],
+            );
+            std::sync::Arc::make_mut(&mut limit.definition).source = source;
+            assert_eq!(roles.field(&limit, "term_use"), limit.fields.get(1));
+        }
+    }
+
+    #[test]
+    fn untransmitted_selection_and_non_terminator_states_preserve_geometry()
+    -> Result<(), ParseError> {
+        let mut nodes = intersection_nodes(Some(b'F'), b'L', None);
+        let state = &mut nodes[2].fields[1];
+        std::sync::Arc::make_mut(&mut state.definition).transmitted = false;
+        state.values.clear();
+        let mut state = state.clone();
+        std::sync::Arc::make_mut(&mut state.definition).transmitted = true;
+        state.values.push(FieldValue::Character(b'N'));
+        nodes[3].fields.insert(1, state);
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        let curve = mapper.intersection_curve(&nodes[0])?;
+        assert!(matches!(curve, CurveKind::Intersection { metadata, .. }
+            if metadata.start_term_use.is_none() && metadata.end_term_use == Some(TerminatorSurface::Other(b'N'))));
+        Ok(())
     }
 
     #[test]

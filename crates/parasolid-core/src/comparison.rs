@@ -817,14 +817,15 @@ fn double_equal(left: f64, right: f64, options: ComparisonOptions) -> bool {
     if !left.is_finite() || !right.is_finite() {
         return false;
     }
-    // Avoid overflow on both sides: infinity <= infinity would falsely equate
-    // opposite finite values near f64::MAX for a finite relative tolerance.
     let scale = left.abs().max(right.abs());
-    if scale == 0.0 {
-        return true;
+    let difference = (left - right).abs();
+    if difference.is_finite() {
+        return difference <= options.absolute_tolerance + options.relative_tolerance * scale;
     }
-    (left / scale - right / scale).abs()
-        <= options.absolute_tolerance / scale + options.relative_tolerance
+    // Opposite large finite values: halve both sides before the subtraction.
+    // The half difference is finite even for f64::MAX and -f64::MAX.
+    (left * 0.5 - right * 0.5).abs()
+        <= options.absolute_tolerance * 0.5 + options.relative_tolerance * (scale * 0.5)
 }
 
 fn node_type_counts(nodes: &[RawNode]) -> BTreeMap<u16, usize> {
@@ -1000,5 +1001,11 @@ mod overflow_tests {
         assert!(!double_equal(f64::MAX, -f64::MAX, options));
         assert!(double_equal(f64::MAX, f64::MAX / 2.0, options));
         assert!(double_equal(0.0, -0.0, ComparisonOptions::default()));
+        let exact_boundary = ComparisonOptions {
+            absolute_tolerance: 3.0,
+            relative_tolerance: 0.0,
+            ..options
+        };
+        assert!(double_equal(10.0, 7.0, exact_boundary));
     }
 }

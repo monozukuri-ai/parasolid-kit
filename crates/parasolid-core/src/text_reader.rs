@@ -351,23 +351,35 @@ impl TextReader {
         length: usize,
         resource: &'static str,
     ) -> Result<String, ParseError> {
+        let start = self.position;
+        let expansion = self.character_expansion.clone();
         let mut output = Vec::with_capacity(length);
-        let mut offsets = Vec::with_capacity(length);
         for _ in 0..length {
-            offsets.push(self.source_position());
             output.push(self.character()?);
         }
-        String::from_utf8(output).map_err(|error| {
-            ParseError::new(
-                ErrorKind::InvalidAscii,
-                offsets[error.utf8_error().valid_up_to()],
-                "text string contains invalid UTF-8 data",
-                ErrorDetails::InvalidText {
-                    field: resource,
-                    value: "invalid UTF-8".to_owned(),
-                },
-            )
-        })
+        let error = match String::from_utf8(output) {
+            Ok(text) => return Ok(text),
+            Err(error) => error.utf8_error(),
+        };
+        // Replay only the invalid string's prefix to recover its physical offset.
+        // Valid strings need no per-byte offset allocation.
+        let end = std::mem::replace(&mut self.position, start);
+        let end_expansion = std::mem::replace(&mut self.character_expansion, expansion);
+        for _ in 0..error.valid_up_to() {
+            self.character()?;
+        }
+        let offset = self.source_position();
+        self.position = end;
+        self.character_expansion = end_expansion;
+        Err(ParseError::new(
+            ErrorKind::InvalidAscii,
+            offset,
+            "text string contains invalid UTF-8 data",
+            ErrorDetails::InvalidText {
+                field: resource,
+                value: "invalid UTF-8".to_owned(),
+            },
+        ))
     }
 
     fn unsigned(&mut self, field: &'static str) -> Result<u64, ParseError> {
@@ -659,23 +671,25 @@ mod tests {
         }
         Ok(())
     }
-}
-#[test]
-fn string_error_offsets_follow_physical_bytes_after_folds_and_escapes() -> Result<(), ParseError> {
-    // XT July 2022 3.2 pp19-21: physical folds/trailing blanks disappear;
-    // escapes and nine-space compression change logical string lengths.
-    for (data, length, expected) in [
-        (b"A  \r\n\xff".as_slice(), 2, 5),
-        (b"A\\9\xff".as_slice(), 11, 3),
-        (b"\\\\\n\xc3X".as_slice(), 3, 3),
-    ] {
-        let mut reader = TextReader::new(data, 0)?;
-        let error = reader.fixed_string(length, "test_string").err();
-        assert_eq!(
-            error.as_ref().map(ParseError::kind),
-            Some(ErrorKind::InvalidAscii)
-        );
-        assert_eq!(error.as_ref().map(ParseError::offset), Some(expected));
+
+    #[test]
+    fn string_error_offsets_follow_physical_bytes_after_folds_and_escapes() -> Result<(), ParseError>
+    {
+        // XT July 2022 3.2 pp19-21: physical folds/trailing blanks disappear;
+        // escapes and nine-space compression change logical string lengths.
+        for (data, length, expected) in [
+            (b"A  \r\n\xff".as_slice(), 2, 5),
+            (b"A\\9\xff".as_slice(), 11, 3),
+            (b"\\\\\n\xc3X".as_slice(), 3, 3),
+        ] {
+            let mut reader = TextReader::new(data, 0)?;
+            let error = reader.fixed_string(length, "test_string").err();
+            assert_eq!(
+                error.as_ref().map(ParseError::kind),
+                Some(ErrorKind::InvalidAscii)
+            );
+            assert_eq!(error.as_ref().map(ParseError::offset), Some(expected));
+        }
+        Ok(())
     }
-    Ok(())
 }
