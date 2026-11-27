@@ -65,6 +65,15 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
         producer: "NX (unigraphics) transmit files, Parasolid 34.0.176",
         groups: false,
     },
+    // One NX assembly; the first family of schema 35002.
+    ProfileSpec {
+        key: "SCH_3500184_35002_13006",
+        id: "nx-3500184-35002-13006-r1",
+        revision: 1,
+        sha256: "da0a936ef7b6c8dbcafe2de10174f4b13a5c7d8299d23135dbfe706fda70af86",
+        producer: "NX (unigraphics) transmit files, Parasolid 35.0.184",
+        groups: false,
+    },
 ];
 
 /// Construct the standalone transmit-file profiles, one per exact key.

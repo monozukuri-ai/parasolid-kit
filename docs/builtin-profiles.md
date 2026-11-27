@@ -1182,7 +1182,7 @@ sample showed.
 
 ## Transmit-file keys and user fields
 
-Five exact profiles cover keys of complete transmit files rather than
+Six exact profiles cover keys of complete transmit files rather than
 extracted CAD streams. Their declarations are the reviewed 13006 set of the
 SolidWorks profiles; nothing is taken from a catalog, and the keys come from
 the files' own headers.
@@ -1194,16 +1194,19 @@ the files' own headers.
 | `SCH_2600217_25001_13006` | `parasolid-2600217-25001-13006-r3` | Parasolid 26.0.217 acceptance-test transmit files |
 | `SCH_3001232_30100_13006` | `nx-3001232-30100-13006-r3` | NX transmit files, Parasolid 30.1.232 (three public parts) |
 | `SCH_3400176_34001_13006` | `nx-3400176-34001-13006-r3` | NX transmit files, Parasolid 34.0.176 (one public part) |
+| `SCH_3500184_35002_13006` | `nx-3500184-35002-13006-r1` | NX transmit files, Parasolid 35.0.184 (one assembly, not redistributed) |
 
-The two NX keys are the first of schemas 30100 and 34001, which no SolidWorks
-or iCAD key uses; each anchors the family of its schema, so other NX builds
-of those schemas resolve through it. The four parts (6 to 28 faces) read to
+The NX keys of the last three rows are the first of schemas 30100, 34001 and
+35002, which no SolidWorks or iCAD key uses; each anchors the family of its
+schema, so other NX builds of those schemas resolve through it. The assembly
+under the 35002 key reads to its terminator with the shared set and maps a
+complete B-Rep. The four parts (6 to 28 faces) read to
 their terminators with the shared set, map complete B-Reps and convert to
 valid OCCT solids in strict mode. An embedded key whose family has no
 member still fails with `schema.missing_base_schema`: the stream's edits are
 relative to base 13006 whichever effective schema it names, so the reviewed
 13006 set could read such a key, but the registry declares a family only once
-a public file has shown the key reading to its terminator, and the provenance
+a file has shown the key reading to its terminator, and the provenance
 of every family names the member that did. Reading unobserved schemas with
 the base alone was considered for these two keys and not adopted.
 
@@ -1332,7 +1335,7 @@ The files are not redistributed.
 | Exact key | Profile | Source of the key | Public files |
 |---|---|---|---|
 | `SCH_900141_9003` | `nx-900141-9003-r1` | NX (unigraphics) transmit files, Parasolid 9.0.141 | two assemblies of the NIST `engineering-design-models` repository (9 bodies, 9 instances each) |
-| `SCH_901297_9008` | `microstation-901297-9008-r1` | MicroStation modeler transmit files, Parasolid 9.0.129 | four Bentley files of the NIST `engineering-design-models` repository (`nut.x_t`, `ring.x_t`, `washer inch.x_t`, `buttom part inch.x_t`, 2 KB to 480 KB) and four files of other builds of the schema in its Unigraphics folder (three under `SCH_901209_9008`, one under `SCH_900254_9008`) through the family |
+| `SCH_901297_9008` | `microstation-901297-9008-r1` (now revision 2, see [further standard keys](#further-standard-keys-schemas-9008-to-37102)) | MicroStation modeler transmit files, Parasolid 9.0.129 | four Bentley files of the NIST `engineering-design-models` repository (`nut.x_t`, `ring.x_t`, `washer inch.x_t`, `buttom part inch.x_t`, 2 KB to 480 KB) and four files of other builds of the schema in its Unigraphics folder (three under `SCH_901209_9008`, one under `SCH_900254_9008`) through the family |
 | `SCH_1000252_10004` | `nx-1000252-10004-r1` (now revision 2, see [further standard keys](#further-standard-keys-parasolid-8-to-25)) | NX (unigraphics) transmit files, Parasolid 10.0.252 | two NX parts of the NIST repository (42 and 236 faces) and a SolidWorks 98Plus part of the ANSYS example data under `SCH_1000230_10004` through the family |
 | `SCH_1100129_11004` | `ironcad-1100129-11004-r1` | IronCAD transmit files, Parasolid 11.0.129 | ten IronCAD parts of the NIST repository's VDS folder (8 to 186 faces) |
 | `SCH_1200000_12006` | `solidworks-1200000-12006-r1` (now revision 2, see [further standard keys](#further-standard-keys-parasolid-8-to-25)) | SolidWorks 2022 transmit files under the reference key, Parasolid 12.0 | the reference's own transmit example (printed page 10), authored verbatim in the tests. The one public SolidWorks 2022 file of this key stopped at its first CYLINDER (51) under this revision |
@@ -1405,7 +1408,7 @@ of them. The files are not redistributed.
 | Exact key | Profile | Source of the key | Public files |
 |---|---|---|---|
 | `SCH_800000_8008` | `solidworks-800000-8008-r1` | SolidWorks transmit files saved as Parasolid 8 | two SolidWorks 2014 parts of a public-domain GitHub repository (120 and 568 faces); iCAD SX files under another build of the schema read through the family |
-| `SCH_2600169_25001` | `inventor-2600169-25001-r1` | Autodesk Inventor transmit files, Parasolid 26.0.169 | one Autodesk Inventor 2015 part (102 faces); iCAD SX files under `SCH_2600000_25001` read through the family |
+| `SCH_2600169_25001` | `inventor-2600169-25001-r1` (now revision 2, see [further standard keys](#further-standard-keys-schemas-9008-to-37102)) | Autodesk Inventor transmit files, Parasolid 26.0.169 | one Autodesk Inventor 2015 part (102 faces); iCAD SX files under `SCH_2600000_25001` read through the family |
 
 The two new schemas have the following layouts:
 
@@ -1466,7 +1469,7 @@ B-Reps. The files are not redistributed.
 | Exact key | Profile | Change | Observed in |
 |---|---|---|---|
 | `SCH_3100000_31001` | `parasolid-3100000-31001-r1` | new profile | a transmit file under the key |
-| `SCH_1500000_15003` | `icad-1500000-15003-r3` | UNICODE_VALUES (98) | a SolidWorks transmit file under the key |
+| `SCH_1500000_15003` | `icad-1500000-15003-r3` (now revision 4, see [further standard keys](#further-standard-keys-schemas-9008-to-37102)) | UNICODE_VALUES (98) | a SolidWorks transmit file under the key |
 | `SCH_2401000_20000` | `icad-2401000-20000-r5` | SPUN_SURF (68) | a SolidWorks transmit file under `SCH_2000000_20000` |
 | `SCH_2901000_28101` | `icad-2901000-28101-r3` | ASSEMBLY (10), INSTANCE (11), TRANSFORM (100) | an Autodesk Inventor assembly under `SCH_2900000_28101` |
 
@@ -1491,6 +1494,61 @@ Public Rust and Python tests author a wire body under the 31001 key and
 another build of the schema, and an assembly that places the wire body under
 the 28101 key and another build, in X_T and X_B, and check the decoded
 layouts, the mapped body, the assembly, its instance and the transform.
+
+## Further standard keys: schemas 9008 to 37102
+
+Transmit files written under five more keys carried a schema that no profile
+declared, or node types their profiles did not declare. Three exact profiles
+are added and three are revised. Each declared type keeps its reviewed 13006
+layout or an edit stated below; transmit files of these keys, which failed
+with the 0.3.18 release, read to their terminators and map their B-Reps. The
+files are not redistributed.
+
+| Exact key | Profile | Change | Observed in |
+|---|---|---|---|
+| `SCH_3701153_37102` | `feko-3701153-37102-r1` | new profile | Altair Feko transmit files under the key |
+| `SCH_1200000_12103` | `cadexchanger-1200000-12103-r1` | new profile | a CAD Exchanger assembly under the key |
+| `SCH_3500184_35002_13006` | `nx-3500184-35002-13006-r1` | new profile of an embedded key, see [transmit-file keys](#transmit-file-keys-and-user-fields) | an NX assembly under the key |
+| `SCH_1500000_15003` | `icad-1500000-15003-r4` | SWEPT_SURF (67), TRIMMED_CURVE (133), B_CURVE (134), CURVE_DATA (135), NURBS_CURVE (136), SP_CURVE (137) | a VISI transmit file under the key |
+| `SCH_901297_9008` | `microstation-901297-9008-r2` | ASSEMBLY (10), INSTANCE (11), TRANSFORM (100), SWEPT_SURF (67), AXIS_VALUES (87), TRIMMED_CURVE (133), SP_CURVE (137) | a Solid Edge assembly saved under `SCH_901000_9008` |
+| `SCH_2600169_25001` | `inventor-2600169-25001-r2` | SPHERE (53), SPUN_SURF (68), UNICODE_VALUES (98), TRIMMED_CURVE (133), SP_CURVE (137), the multi-part transmit block (176) | transmit files under `SCH_2500000_25001` and `SCH_2600000_25001` |
+
+- Schema 37102 takes the edits that embedded 37102 streams carry against
+  base 13006. `BODY` carries the construction and boundary lattice, mesh and
+  polyline references, the container reference, the index origin and three
+  index maps, the child body, the lowest node id and the mesh offset
+  reference (36 fields: the 33103 layout with the boundary lattice after the
+  legacy shell). `REGION` carries a frame reference before its kind and its
+  owner after it, `ATTRIB_DEF` lists seventeen legal owners, and `LIST` and
+  `POINTER_LIS_BLOCK` take the edits of the later standard keys. Other builds
+  of the schema resolve through the family `37102`; the embedded keys of the
+  schema keep their own family.
+- Schema 12103 keeps every reviewed 13006 layout, the attribute definition
+  with its field names and fourteen legal owners included. The assembly reads
+  to its terminator with them and not with the 12006 `ATTRIB_DEF`, which has
+  no field names.
+- The multi-part transmit block (176) opens a transmit file of several parts.
+  Embedded streams of later revisions declare it in full: an entry count, the
+  index origin, the index and schema value references, a mesh offset reference
+  and the part entries. Under schema 25001 it has no mesh offset reference,
+  as `BODY` has none before schema 32001: a transmit file of the schema reads
+  to its terminator with this layout and with no other subset of those
+  fields. The B-Rep mapper assigns the node no role.
+- The assembly structure under schema 9008 and the other added types keep
+  their reviewed 13006 layouts.
+
+Text transmit files of schemas before 12 write character data byte for byte:
+the escape sequences (`\0`, `\n`, `\r`, `\\` and the `\9` run of spaces)
+belong to the text format of Parasolid 12 and later, and a current modeller
+that saves in an older schema writes none either. The reader therefore keeps
+a backslash under such a key as itself; the Solid Edge assembly above carries
+them as the second byte of double-byte characters.
+
+Public Rust and Python tests author the 37102 and 12103 layouts and a wire
+body under each key and another build of its schema, a transmit block in
+front of a wire body under the 25001 key, an assembly that places the wire
+body under the 9008 key, and character data with backslashes under schema
+9008 and under a later schema.
 
 ## Helical forms and attribute field names
 

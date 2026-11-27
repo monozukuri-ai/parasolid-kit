@@ -17,6 +17,8 @@ pub(crate) struct TextReader {
     source_len: usize,
     position: usize,
     character_expansion: Option<CharacterExpansion>,
+    /// Whether a backslash in character data opens an escape sequence.
+    character_escapes: bool,
 }
 
 impl TextReader {
@@ -67,6 +69,7 @@ impl TextReader {
             source_len: data.len(),
             position: 0,
             character_expansion: None,
+            character_escapes: true,
         })
     }
 
@@ -132,7 +135,16 @@ impl TextReader {
         Ok(())
     }
 
-    /// Decode one `c` value, including the post-V12 escape sequences.
+    /// Read character data as an older schema writes it: a backslash is the
+    /// character itself. See [`Self::character`].
+    pub(crate) const fn disable_character_escapes(&mut self) {
+        self.character_escapes = false;
+    }
+
+    /// Decode one `c` value, including the escape sequences of Parasolid 12
+    /// and later. A schema before 12 writes character data byte for byte, so a
+    /// backslash there (a path separator, or the second byte of a double-byte
+    /// character) stands for itself.
     pub(crate) fn character(&mut self) -> Result<u8, ParseError> {
         if let Some(expansion) = &mut self.character_expansion {
             expansion.remaining_spaces -= 1;
@@ -145,7 +157,7 @@ impl TextReader {
 
         let escape_offset = self.source_position();
         let value = self.take("character")?;
-        if value != b'\\' {
+        if value != b'\\' || !self.character_escapes {
             return Ok(value);
         }
         let escaped = self.take("character_escape")?;
@@ -508,6 +520,27 @@ mod tests {
             assert_eq!(reader.character(), Ok(b' '));
         }
         assert!(reader.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn keeps_backslashes_of_schemas_before_the_escape_sequences() -> Result<(), ParseError> {
+        // A double-byte character whose second byte is a backslash, then a
+        // path separator before a letter the escapes do not define.
+        let encoded = b"\x95\\\x8c\\U\\9";
+        let mut reader = TextReader::new(encoded, 0)?;
+        reader.disable_character_escapes();
+        for expected in encoded {
+            assert_eq!(reader.character(), Ok(*expected));
+        }
+        assert!(reader.is_empty());
+        // The same bytes under a later schema are not an escape sequence.
+        let mut reader = TextReader::new(encoded, 0)?;
+        assert_eq!(reader.character(), Ok(0x95));
+        assert_eq!(
+            reader.character().map_err(|error| error.kind()),
+            Err(ErrorKind::InvalidTextEscape)
+        );
         Ok(())
     }
 

@@ -118,6 +118,32 @@ const BODY_33103: &[Edit] = &[
     pointer("mesh_offset_ref", 206),
 ];
 
+// Embedded 37102 streams carry the 33103 BODY edit with the boundary lattice
+// after the legacy shell (36 fields).
+pub(super) const BODY_37102: &[Edit] = &[
+    Keep(3),
+    pointer("construction_lattice", 222),
+    Keep(3),
+    pointer("construction_mesh", 1006),
+    pointer("construction_polyline", 1008),
+    Keep(7),
+    Drop,
+    pointer("container_ref", 1040),
+    Keep(3),
+    pointer("boundary_lattice", 222),
+    Keep(3),
+    pointer("boundary_mesh", 1006),
+    pointer("boundary_polyline", 1008),
+    Keep(3),
+    integer("index_origin"),
+    pointer("index_values", 82),
+    pointer("node_id_values", 82),
+    pointer("schema_values", 82),
+    pointer("child_body", 12),
+    integer("min_local_id"),
+    pointer("mesh_offset_ref", 206),
+];
+
 // ASSEMBLY carries the mesh and polyline construction lists after its seventh
 // field, as the embedded edits of a later revision insert them (see
 // `assembly.rs`), without the mesh offset reference that revision appends.
@@ -131,6 +157,22 @@ const ASSEMBLY_28101: &[Edit] = &[
 pub(super) const REGION: &[Edit] = &[Keep(7), pointer("owner_ref", 12)];
 
 pub(super) const INTERSECTION: &[Edit] = &[Keep(11), pointer("intersection_data", 204)];
+
+// Embedded 37102 streams carry REGION with a frame reference before its kind.
+pub(super) const REGION_37102: &[Edit] = &[
+    Keep(6),
+    pointer("frame_ref", 230),
+    Keep(1),
+    pointer("owner_ref", 12),
+];
+
+// Embedded 37102 streams carry ATTRIB_DEF with seventeen legal owners.
+pub(super) const ATTRIB_DEF_37102: &[Edit] = &[
+    Keep(5),
+    Drop,
+    Edit::Array("allowed_owners", FieldType::Logical, 17),
+    Keep(1),
+];
 
 pub(super) const LIMIT: &[Edit] = &[
     Keep(1),
@@ -197,15 +239,19 @@ pub(crate) const PROFILES: &[ProfileSpec] = &[
     // surface nodes (124-128); all keep their reviewed 13006 layouts.
     // Revision 3 adds UNICODE_VALUES (98), observed in a SolidWorks transmit
     // file of the same exact key, with its reviewed 13006 layout.
+    // Revision 4 adds SWEPT_SURF (67), TRIMMED_CURVE (133) and the remaining
+    // SP_CURVE dependencies (134-137), observed in a VISI transmit file of the
+    // same exact key; their reviewed 13006 layouts read it to the terminator.
     ProfileSpec {
         key: "SCH_1500000_15003",
-        id: "icad-1500000-15003-r3",
-        revision: 3,
-        sha256: "db080044b9852d8bc6fc67f24013e148618b983c29bb0ea64532355cc7e25fa6",
+        id: "icad-1500000-15003-r4",
+        revision: 4,
+        sha256: "713b35f8ec32646d244b2d4ef02652e0b7ca54ea65383066ce2b66be391c4da7",
         schema: "15003",
         types: &[
             12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 54, 56, 59,
-            68, 70, 74, 79, 80, 81, 82, 83, 84, 98, 124, 125, 126, 127, 128, 141,
+            67, 68, 70, 74, 79, 80, 81, 82, 83, 84, 98, 124, 125, 126, 127, 128, 133, 134, 135,
+            136, 137, 141,
         ],
         edits: &[(70, LIST)],
     },
@@ -430,6 +476,7 @@ impl ProfileSpec {
         pool.extend(super::assembly_definitions());
         pool.extend(super::transmit::group_definitions());
         pool.push(super::legacy::key_definition());
+        pool.push(super::legacy::transmit_block_definition());
         pool.extend(super::sch13006_value_node_definitions());
         // SWEPT_SURF (67) and the helical surface form (163) keep the
         // public-reference layouts of the SolidWorks set.

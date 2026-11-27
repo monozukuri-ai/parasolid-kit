@@ -37,10 +37,10 @@ fn family_digest(family_id: &str, members: &[FamilyMember], base: &[FamilyMember
 #[test]
 fn every_exact_key_belongs_to_one_derived_family() -> support::Result<()> {
     let registry = BuiltinProfileRegistry::compiled()?;
-    // Twenty standard families (8008 … 33103) and nineteen embedded
-    // families (15003-13006 … 37102-13006) are derived from the 60 exact profiles.
-    assert_eq!(registry.profiles().len(), 60);
-    assert_eq!(registry.families().len(), 39);
+    // Twenty-two standard families (8008 … 37102) and twenty embedded
+    // families (15003-13006 … 37102-13006) are derived from the 63 exact profiles.
+    assert_eq!(registry.profiles().len(), 63);
+    assert_eq!(registry.families().len(), 42);
     let mut covered = 0;
     for profile in registry.profiles() {
         for key in profile.accepted_schema_keys() {
@@ -168,9 +168,13 @@ fn producer_families_merge_the_expected_members() -> support::Result<()> {
     // schemas resolve through them.
     assert_eq!(members("30100-13006")?, ["nx-3001232-30100-13006-r3"]);
     assert_eq!(members("34001-13006")?, ["nx-3400176-34001-13006-r3"]);
-    // The standard schemas 8008 and 25001 are anchored by one exact key each.
+    assert_eq!(members("35002-13006")?, ["nx-3500184-35002-13006-r1"]);
+    // The standard schemas 8008, 12103, 25001 and 37102 are anchored by one
+    // exact key each.
     assert_eq!(members("8008")?, ["solidworks-800000-8008-r1"]);
-    assert_eq!(members("25001")?, ["inventor-2600169-25001-r1"]);
+    assert_eq!(members("12103")?, ["cadexchanger-1200000-12103-r1"]);
+    assert_eq!(members("25001")?, ["inventor-2600169-25001-r2"]);
+    assert_eq!(members("37102")?, ["feko-3701153-37102-r1"]);
 
     // Every embedded family over 13006 takes the reviewed declarations of all
     // 13006 profiles: the SolidWorks swept surface and blends reach the iCAD-only

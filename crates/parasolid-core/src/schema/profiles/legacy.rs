@@ -13,12 +13,19 @@
 //! edits that embedded 25001 streams carry against base 13006. Schema 31001
 //! takes the edits of the standard key of the next revision (32001): `BODY`
 //! with its mesh offset reference and `INTERSECTION` with its data pointer.
+//! Schema 12103 keeps the reviewed 13006 layouts: a transmit file of that key
+//! reads to its terminator with them and not with the 12006 `ATTRIB_DEF`.
+//! Schema 37102 takes the edits that embedded 37102 streams carry against
+//! base 13006. The multi-part transmit block (176) of schema 25001 is the
+//! layout later embedded streams declare in full, without the mesh offset
+//! reference that `BODY` also lacks before schema 32001.
 //! The streams read to their terminators and map complete B-Reps; the files
 //! are not redistributed.
 
 use super::icad_standard::Edit::{self, Array, Drop, Keep};
 use super::icad_standard::{
-    BODY_32001, INTERSECTION, LIMIT, LIST, POINTER_BLOCK, ProfileSpec, REGION, integer, pointer,
+    ATTRIB_DEF_37102, BODY_32001, BODY_37102, INTERSECTION, LIMIT, LIST, POINTER_BLOCK,
+    ProfileSpec, REGION, REGION_37102, integer, pointer,
 };
 use crate::{
     BuiltinProfileCoverage, BuiltinProfileMetadata, BuiltinSchemaProfile, FieldDefinition,
@@ -121,6 +128,50 @@ const SCHEMA_31001: &[(u16, &[Edit])] = &[
     (74, POINTER_BLOCK),
 ];
 
+// A transmit file written under the standard key of schema 37102 reads to
+// its terminator with the edits that embedded 37102 streams carry: `BODY`
+// with its lattice references, `REGION` with its frame reference,
+// `ATTRIB_DEF` with seventeen legal owners and the list types of the later
+// standard keys.
+const SCHEMA_37102: &[(u16, &[Edit])] = &[
+    (12, BODY_37102),
+    (19, REGION_37102),
+    (70, LIST),
+    (74, POINTER_BLOCK),
+    (80, ATTRIB_DEF_37102),
+];
+
+/// The multi-part transmit block (176), the node that opens a transmit file
+/// of several parts. Embedded streams of later revisions declare it in full:
+/// an entry count, the index origin, the index and schema value references, a
+/// mesh offset reference and the part entries. A transmit file under the
+/// standard key of schema 25001 reads to its terminator without the mesh
+/// offset reference, which `BODY` also lacks before schema 32001, and with no
+/// other subset of those fields. The B-Rep mapper assigns the node no role.
+pub(crate) fn transmit_block_definition() -> TypeDefinition {
+    use FieldType::{Integer as D, PointerIndex as P};
+    let field = |name: &str, field_type, pointer_class, element_count| FieldDefinition {
+        name: name.into(),
+        field_type,
+        pointer_class,
+        element_count,
+        transmitted: true,
+    };
+    TypeDefinition::from_fields(
+        176,
+        "standard_type_176",
+        "Reviewed multi-part transmit block",
+        vec![
+            field("entry_count", D, 0, 0),
+            field("index_origin", D, 0, 0),
+            field("index_values", P, 82, 0),
+            field("schema_values", P, 82, 0),
+            field("entries", P, 1005, 1),
+        ],
+        SchemaSource::Base,
+    )
+}
+
 /// `KEY` (102): the part's key as a character string (public reference,
 /// printed page 83). Assemblies and bodies may point at one; the mapper reads
 /// neither.
@@ -185,17 +236,22 @@ pub(crate) const PROFILES: &[LegacySpec] = &[
     LegacySpec {
         profile: ProfileSpec {
             key: "SCH_901297_9008",
-            id: "microstation-901297-9008-r1",
-            revision: 1,
-            sha256: "9069e19228b0ad87331d428b316379fd674afe56af939f3af956cefbfbbd697f",
+            id: "microstation-901297-9008-r2",
+            revision: 2,
+            sha256: "aea055eee8fae1b4348815c5390838288551609674b842db4bc4daecaf851d91",
             schema: "9008",
             // The node types the eight public files carry (four of the NIST
             // repository's Bentley folder, four of other builds of the schema in
             // its Unigraphics folder).
+            // Revision 2 adds the assembly structure (10, 11, 100), SWEPT_SURF
+            // (67), AXIS_VALUES (87), TRIMMED_CURVE (133) and SP_CURVE (137),
+            // observed in a Solid Edge assembly saved under another build of
+            // the schema (`SCH_901000_9008`); all keep their reviewed 13006
+            // layouts and the assembly reads to the terminator.
             types: &[
-                12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53, 54,
-                56, 59, 60, 68, 70, 74, 79, 80, 81, 82, 83, 84, 90, 91, 124, 125, 126, 127, 128,
-                134, 135, 136, 141,
+                10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52,
+                53, 54, 56, 59, 60, 67, 68, 70, 74, 79, 80, 81, 82, 83, 84, 87, 90, 91, 100, 124,
+                125, 126, 127, 128, 133, 134, 135, 136, 137, 141,
             ],
             edits: PARASOLID_9,
         },
@@ -260,6 +316,23 @@ pub(crate) const PROFILES: &[LegacySpec] = &[
     },
     LegacySpec {
         profile: ProfileSpec {
+            key: "SCH_1200000_12103",
+            id: "cadexchanger-1200000-12103-r1",
+            revision: 1,
+            sha256: "c85519111531174eaed40542cefbc03f044c3d12784f8f6e06719fc571f36f35",
+            schema: "12103",
+            // The node types of a CAD Exchanger assembly written under this
+            // key. Every type keeps its reviewed 13006 layout.
+            types: &[
+                10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 45, 50, 51, 52, 53, 54, 70, 74,
+                79, 80, 81, 83, 84, 100, 124, 126, 127, 128, 133, 134, 135, 136, 137, 141,
+            ],
+            edits: &[],
+        },
+        producer: "CAD Exchanger transmit files under the standard key, Parasolid 12.1",
+    },
+    LegacySpec {
+        profile: ProfileSpec {
             key: "SCH_1600000_16004",
             id: "nx-1600000-16004-r1",
             revision: 1,
@@ -277,15 +350,21 @@ pub(crate) const PROFILES: &[LegacySpec] = &[
     LegacySpec {
         profile: ProfileSpec {
             key: "SCH_2600169_25001",
-            id: "inventor-2600169-25001-r1",
-            revision: 1,
-            sha256: "e2b78db4395a7b3004fa22c7e81a3f2bd306f9eb1259b3612c0816bfecf2564a",
+            id: "inventor-2600169-25001-r2",
+            revision: 2,
+            sha256: "6852a4b03ad92ed762ea6c5b773c46ea7daac3bc43a98ebba7a8f5a4ee6dac80",
             schema: "25001",
             // The node types of Autodesk Inventor 2015 transmit files under this
             // key and of iCAD SX transmit files under another build of the schema.
+            // Revision 2 adds SPHERE (53), SPUN_SURF (68), UNICODE_VALUES (98),
+            // TRIMMED_CURVE (133), SP_CURVE (137) and the multi-part transmit
+            // block (176), observed in transmit files of several parts and of
+            // Onshape under other builds of the schema (`SCH_2500000_25001`,
+            // `SCH_2600000_25001`).
             types: &[
                 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52,
-                54, 70, 74, 79, 80, 81, 82, 83, 84, 124, 125, 126, 127, 128, 134, 135, 136, 141,
+                53, 54, 68, 70, 74, 79, 80, 81, 82, 83, 84, 98, 124, 125, 126, 127, 128, 133, 134,
+                135, 136, 137, 141, 176,
             ],
             edits: SCHEMA_25001,
         },
@@ -306,6 +385,23 @@ pub(crate) const PROFILES: &[LegacySpec] = &[
             edits: SCHEMA_31001,
         },
         producer: "Transmit files under the standard key, Parasolid 31.0",
+    },
+    LegacySpec {
+        profile: ProfileSpec {
+            key: "SCH_3701153_37102",
+            id: "feko-3701153-37102-r1",
+            revision: 1,
+            sha256: "8fb4f530b0f8fa7eb1784078d3cb2d5ba969bc7672382dd0897030f7148f2c97",
+            schema: "37102",
+            // The node types of Altair Feko transmit files written under
+            // this key.
+            types: &[
+                12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 45, 50, 51, 52, 53, 70, 74, 79, 80, 81,
+                84, 127, 128, 134, 135, 136,
+            ],
+            edits: SCHEMA_37102,
+        },
+        producer: "Altair Feko transmit files, Parasolid 37.1.153",
     },
 ];
 

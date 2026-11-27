@@ -57,11 +57,14 @@ const EXPECTED: [Expected; 11] = [
     },
     Expected {
         // Revision 3 adds UNICODE_VALUES (98).
+        // Revision 4 adds SWEPT_SURF (67, ten fields), TRIMMED_CURVE (133,
+        // twelve) and the remaining SP_CURVE dependencies (134-137: nine, two,
+        // twelve and eleven fields).
         key: "SCH_1500000_15003",
         // Revision 2 adds 45, 56, 59, 84 and the B-spline surface nodes
         // (124-128) with their reviewed layouts.
-        types: 38,
-        fields: 321,
+        types: 44,
+        fields: 377,
         body: "dppppppffpppupuuppppppp",
         body_references: &[],
         region_head: 20,
@@ -264,7 +267,8 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
             revision,
             match expected.key {
                 "SCH_2401000_20000" => 5,
-                "SCH_1500000_15003" | "SCH_2901000_28101" => 3,
+                "SCH_1500000_15003" => 4,
+                "SCH_2901000_28101" => 3,
                 "SCH_1700000_16100" | "SCH_1901000_19008" | "SCH_3200000_32001" => 2,
                 _ => 1,
             }
@@ -291,15 +295,21 @@ fn exact_profiles_and_canonical_hashes() -> Result<()> {
             );
         }
         // SWEPT_SURF (67) reaches the standard 13006 keys through the family of
-        // the embedded profiles and is declared by the 19008 and 20000 profiles
-        // themselves, where public SolidWorks and NX files carry it; other
-        // schemas keep it unknown.
+        // the embedded profiles and is declared by the 15003, 19008 and 20000
+        // profiles themselves, where VISI, SolidWorks and NX files carry it;
+        // other schemas keep it unknown.
         assert_eq!(
             matches!(
                 provider.lookup_type(schema, 67),
                 SchemaTypeLookup::Defined(_)
             ),
-            schema == "13006" || ["SCH_1901000_19008", "SCH_2401000_20000"].contains(&expected.key)
+            schema == "13006"
+                || [
+                    "SCH_1500000_15003",
+                    "SCH_1901000_19008",
+                    "SCH_2401000_20000"
+                ]
+                .contains(&expected.key)
         );
         assert_eq!(provider.lookup_type("99999", 29), SchemaTypeLookup::Unknown);
         // The exact provider never accepts another key. Another build of the same

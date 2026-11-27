@@ -15,10 +15,11 @@ use parasolid_core::{
 use support::Result;
 
 const KEY: &str = "SCH_901297_9008";
-const PROFILE: &str = "microstation-901297-9008-r1";
-const TYPES: [u16; 44] = [
-    12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53, 54, 56, 59, 60,
-    68, 70, 74, 79, 80, 81, 82, 83, 84, 90, 91, 124, 125, 126, 127, 128, 134, 135, 136, 141,
+const PROFILE: &str = "microstation-901297-9008-r2";
+const TYPES: [u16; 51] = [
+    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 29, 30, 31, 32, 38, 40, 41, 45, 50, 51, 52, 53, 54, 56,
+    59, 60, 67, 68, 70, 74, 79, 80, 81, 82, 83, 84, 87, 90, 91, 100, 124, 125, 126, 127, 128, 133,
+    134, 135, 136, 137, 141,
 ];
 
 /// The public XT Format Reference's transmit example (printed page 10, a disc
@@ -76,7 +77,7 @@ fn exact_profile_layouts_and_canonical_hash() -> Result<()> {
     assert_eq!(profile.accepted_schema_keys().len(), 1);
     let metadata = profile.metadata();
     assert_eq!(metadata.profile_id, PROFILE);
-    assert_eq!(metadata.revision, 1);
+    assert_eq!(metadata.revision, 2);
     assert_eq!(metadata.provider_schema, "9008");
     assert_eq!(metadata.coverage, BuiltinProfileCoverage::VerifiedSubset);
     assert_eq!(metadata.profile_sha256, support::profile_hash(profile)?);
@@ -129,12 +130,24 @@ fn exact_profile_layouts_and_canonical_hash() -> Result<()> {
     // Only the observed types are declared; a neighbouring build of the same
     // schema resolves through the derived family of this one profile.
     let provider = registry.provider_for_key(key).ok_or("provider")?;
-    for kind in [10, 11, 67, 98, 100, 102, 133, 137] {
+    for kind in [98, 102, 163, 176] {
         assert_eq!(
             provider.lookup_type("9008", kind),
             SchemaTypeLookup::Unknown
         );
     }
+    // Revision 2: the assembly structure and the other types of a Solid Edge
+    // assembly saved under another build of the schema.
+    for kind in [10, 11, 67, 87, 100, 133, 137] {
+        assert!(matches!(
+            provider.lookup_type("9008", kind),
+            SchemaTypeLookup::Defined(_)
+        ));
+    }
+    assert_eq!(codes(profile, 10).as_deref(), Some("dpppppppffpppupup"));
+    assert_eq!(codes(profile, 11).as_deref(), Some("dpuppppppp"));
+    assert_eq!(codes(profile, 100).as_deref(), Some("dpppfvfdv"));
+    assert_eq!(codes(profile, 87).as_deref(), Some("v"));
     assert!(matches!(
         provider.lookup_type("9008", 54),
         SchemaTypeLookup::Defined(_)
@@ -161,7 +174,7 @@ fn the_reshaped_reference_example_decodes_to_its_terminator() -> Result<()> {
         &document.schema_provider,
         SchemaProviderResolution::Builtin {
             profile_id,
-            profile_revision: 1,
+            profile_revision: 2,
             schema_key,
             coverage: BuiltinProfileCoverage::VerifiedSubset,
             ..
@@ -228,6 +241,157 @@ fn the_reshaped_reference_example_decodes_to_its_terminator() -> Result<()> {
 }
 
 #[test]
+fn a_backslash_before_schema_12_is_character_data() -> Result<()> {
+    let registry = BuiltinProfileRegistry::compiled()?;
+    let key = SchemaKey::parse(KEY)?;
+    let provider = registry.provider_for_key(&key).ok_or("provider")?;
+    // A path separator before a letter no escape sequence defines, and one
+    // before a letter the later escapes do define: both are data here.
+    for literal in ["SDL\\TYSA_COLOUR", "SDL\\nYSA_COLOUR"] {
+        let nodes = DISC.replace("SDL/TYSA_COLOUR", literal);
+        let bytes = stream(KEY, &nodes);
+        let document = parse_xt(&bytes, &provider, DocumentLimits::default())?;
+        assert_eq!(document.terminator.byte_range.end, bytes.len());
+        let identifier = &document.nodes[14];
+        assert_eq!((identifier.node_type, identifier.index), (79, 16));
+        let characters: Vec<u8> = identifier.fields[0]
+            .values
+            .iter()
+            .filter_map(|value| match value {
+                FieldValue::Character(byte) => Some(*byte),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(characters, literal.as_bytes());
+    }
+
+    // From schema 12 on the same bytes open an escape sequence: an undefined
+    // one is rejected and a defined one shortens the identifier by a byte.
+    let later = SchemaKey::parse("SCH_1300218_13006")?;
+    let later_provider = registry.provider_for_key(&later).ok_or("later provider")?;
+    let identifier = |text: &str| stream("SCH_1300218_13006", &format!("79 15 1 {text}1 0 "));
+    assert!(
+        parse_xt(
+            &identifier("SDL/TYSA_COLOUR"),
+            &later_provider,
+            DocumentLimits::default()
+        )
+        .is_ok()
+    );
+    for text in ["SDL\\TYSA_COLOUR", "SDL\\nYSA_COLOUR"] {
+        assert!(
+            parse_xt(
+                &identifier(text),
+                &later_provider,
+                DocumentLimits::default()
+            )
+            .is_err(),
+            "{text}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn schema_12103_and_37102_layouts_follow_their_streams() -> Result<()> {
+    let registry = BuiltinProfileRegistry::compiled()?;
+    let profiles = legacy_standard_keys()?;
+    let profile = |id: &str| {
+        profiles
+            .iter()
+            .find(|item| item.metadata().profile_id == id)
+            .ok_or("profile")
+    };
+    let base = registry.profile("family-13006").ok_or("family 13006")?;
+
+    // Schema 12103 keeps every reviewed 13006 layout, the attribute
+    // definition with its field names and fourteen owners included.
+    let exchanger = profile("cadexchanger-1200000-12103-r1")?;
+    assert_eq!(exchanger.metadata().provider_schema, "12103");
+    assert_eq!(exchanger.definitions().len(), 37);
+    assert_eq!(codes(exchanger, 80).as_deref(), Some("ppduplu"));
+    let owners = exchanger.definition(80).ok_or("ATTRIB_DEF")?;
+    assert_eq!(owners.fields[4].name, "field_labels");
+    assert_eq!(owners.fields[5].element_count, 14);
+    for definition in exchanger.definitions() {
+        let reviewed = base
+            .definition(definition.node_type)
+            .ok_or("base definition")?;
+        assert_eq!(
+            definition.fields, reviewed.fields,
+            "type {}",
+            definition.node_type
+        );
+    }
+
+    // Schema 37102: BODY with its lattice, mesh and polyline references and
+    // the index fields (36 fields), REGION with a frame reference before its
+    // kind, seventeen legal owners and the list header of the later keys.
+    let feko = profile("feko-3701153-37102-r1")?;
+    assert_eq!(feko.metadata().provider_schema, "37102");
+    assert_eq!(feko.definitions().len(), 27);
+    assert_eq!(
+        codes(feko, 12).as_deref(),
+        Some("dpppppppppffpppupuuppppppppppdppppdp")
+    );
+    let body = feko.definition(12).ok_or("BODY")?;
+    assert_eq!(body.fields.len(), 36);
+    for (ordinal, class) in [
+        (3, 222),
+        (7, 1006),
+        (8, 1008),
+        (16, 1040),
+        (20, 222),
+        (24, 1006),
+        (25, 1008),
+        (30, 82),
+        (31, 82),
+        (32, 82),
+        (33, 12),
+        (35, 206),
+    ] {
+        assert_eq!(body.fields[ordinal].pointer_class, class, "field {ordinal}");
+    }
+    assert_eq!(body.fields[26].name, "region_head");
+    assert_eq!(codes(feko, 19).as_deref(), Some("dppppppcp"));
+    let region = feko.definition(19).ok_or("REGION")?;
+    assert_eq!(region.fields[6].pointer_class, 230);
+    assert_eq!(region.fields[7].name, "region_kind");
+    assert_eq!(codes(feko, 80).as_deref(), Some("ppduplu"));
+    let owners = feko.definition(80).ok_or("ATTRIB_DEF")?;
+    assert_eq!(owners.fields[5].element_count, 17);
+    assert_eq!(codes(feko, 70).as_deref(), Some("dulpppdddpp"));
+    assert_eq!(codes(feko, 74).as_deref(), Some("ddpp"));
+    for definition in feko.definitions() {
+        if [12, 19, 70, 74, 80].contains(&definition.node_type) {
+            continue;
+        }
+        let reviewed = base
+            .definition(definition.node_type)
+            .ok_or("base definition")?;
+        assert_eq!(
+            definition.fields, reviewed.fields,
+            "type {}",
+            definition.node_type
+        );
+    }
+
+    // Other builds of the two schemas resolve through their families; the
+    // embedded key of schema 37102 keeps its own family.
+    for (key, family) in [
+        ("SCH_1200113_12103", "family-12103"),
+        ("SCH_3700000_37102", "family-37102"),
+        ("SCH_3701300_37102_13006", "family-37102-13006"),
+    ] {
+        let provider = registry
+            .provider_for_key(&SchemaKey::parse(key)?)
+            .ok_or("provider")?;
+        assert_eq!(provider.profile().metadata().profile_id, family);
+    }
+    Ok(())
+}
+
+#[test]
 fn every_legacy_profile_has_its_canonical_hash() -> Result<()> {
     let mut mismatches = Vec::new();
     for profile in legacy_standard_keys()? {
@@ -281,8 +445,15 @@ fn parasolid_8_12_and_25001_layouts_follow_their_streams() -> Result<()> {
 
     // Schema 25001: the BODY of embedded 25001 streams (29 fields), the
     // region owner, the list header and the pointer block's index origin.
-    let inventor = profile("inventor-2600169-25001-r1")?;
+    let inventor = profile("inventor-2600169-25001-r2")?;
     assert_eq!(inventor.metadata().provider_schema, "25001");
+    assert_eq!(inventor.metadata().revision, 2);
+    // The multi-part transmit block: the layout later embedded streams
+    // declare in full, without their mesh offset reference.
+    assert_eq!(codes(inventor, 176).as_deref(), Some("ddppp"));
+    let block = inventor.definition(176).ok_or("transmit block")?;
+    assert!(block.variable);
+    assert_eq!(block.fields[4].pointer_class, 1005);
     assert_eq!(
         codes(inventor, 12).as_deref(),
         Some("dppppppffpppupuupppppppdppppd")

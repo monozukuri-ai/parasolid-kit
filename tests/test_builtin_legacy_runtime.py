@@ -88,12 +88,12 @@ DISC_25001 = (
 STANDARD = {
     KEY_8008: ("solidworks-800000-8008-r1", "8008"),
     "SCH_900141_9003": ("nx-900141-9003-r1", "9003"),
-    "SCH_901297_9008": ("microstation-901297-9008-r1", "9008"),
+    "SCH_901297_9008": ("microstation-901297-9008-r2", "9008"),
     "SCH_1000252_10004": ("nx-1000252-10004-r2", "10004"),
     "SCH_1100129_11004": ("ironcad-1100129-11004-r1", "11004"),
     REFERENCE_KEY: ("solidworks-1200000-12006-r2", "12006"),
     "SCH_1600000_16004": ("nx-1600000-16004-r1", "16004"),
-    KEY_25001: ("inventor-2600169-25001-r1", "25001"),
+    KEY_25001: ("inventor-2600169-25001-r2", "25001"),
 }
 
 
@@ -170,7 +170,7 @@ def test_the_example_in_the_8008_layouts_reads_under_the_parasolid_8_key(key):
 @pytest.mark.parametrize("key", [KEY_25001, "SCH_2600000_25001"])
 def test_the_example_in_the_25001_layouts_reads_under_the_inventor_key(key):
     doc = parse_xt(stream(key, DISC_25001))
-    expected = "inventor-2600169-25001-r1" if key == KEY_25001 else "family-25001"
+    expected = "inventor-2600169-25001-r2" if key == KEY_25001 else "family-25001"
     assert doc.schema_resolution.profile_id == expected
     assert_disc(doc, body_fields=29, fin_fields=10, owners=14)
     body = doc.nodes[0]
@@ -246,7 +246,7 @@ def test_the_25001_layouts_read_the_same_values_from_neutral_binary():
     text = parse_xt(stream(KEY_25001, DISC_25001))
     data = binary_25001()
     doc = parse_xb(data)
-    assert doc.schema_resolution.profile_id == "inventor-2600169-25001-r1"
+    assert doc.schema_resolution.profile_id == "inventor-2600169-25001-r2"
     assert [n.node_type for n in doc.nodes] == [n.node_type for n in text.nodes]
     assert [[f.values for f in n.fields] for n in doc.nodes] == [
         [f.values for f in n.fields] for n in text.nodes
@@ -256,6 +256,47 @@ def test_the_25001_layouts_read_the_same_values_from_neutral_binary():
     for end in range(len(data) - 1):
         with pytest.raises(ParseError):
             parse_xb(data[:end])
+
+
+@pytest.mark.parametrize("key", [KEY_25001, "SCH_2500000_25001"])
+def test_a_transmit_block_opens_a_25001_stream_of_several_parts(key):
+    # The multi-part transmit block (176): an entry count, the index origin,
+    # the index and schema value references and the part entries. It names the
+    # disc's body; the mapper gives it no role.
+    doc = parse_xt(stream(key, "176 1 21 1 0 0 0 1 " + DISC_25001))
+    expected = "inventor-2600169-25001-r2" if key == KEY_25001 else "family-25001"
+    assert doc.schema_resolution.profile_id == expected
+    block = doc.nodes[0]
+    assert (block.node_type, block.index) == (176, 21)
+    assert [f.definition.name for f in block.fields] == [
+        "entry_count",
+        "index_origin",
+        "index_values",
+        "schema_values",
+        "entries",
+    ]
+    assert [len(f.values) for f in block.fields] == [1, 1, 1, 1, 1]
+    assert block.fields[4].definition.pointer_class == 1005
+    body = doc.nodes[1]
+    assert (body.node_type, body.index) == (12, 1)
+    assert map_brep(doc).complete
+    # With the mesh offset reference of later revisions the stream does not
+    # read: the entry is taken for it and the next node type for the entry.
+    with pytest.raises(ParseError):
+        parse_xt(stream(key, "176 1 21 1 0 0 0 0 1 " + DISC_25001))
+
+
+def test_escape_sequences_begin_with_schema_12():
+    # The reference example under its own key (schema 12006): a backslash
+    # opens an escape sequence, and one the format does not define is rejected.
+    escaped = REFERENCE_EXAMPLE.replace("SDL/TYSA_COLOUR", "SDL\\TYSA_COLOUR")
+    with pytest.raises(ParseError) as exc:
+        parse_xt(stream(REFERENCE_KEY, escaped))
+    assert exc.value.diagnostic.code == "text.invalid_escape"
+    # An escaped backslash is one character, so fifteen need sixteen bytes.
+    doubled = REFERENCE_EXAMPLE.replace("SDL/TYSA_COLOUR", "SDL\\\\TYSA_COLOUR")
+    model = map_brep(parse_xt(stream(REFERENCE_KEY, doubled)))
+    assert model.attributes[0].identifier == "SDL\\TYSA_COLOUR"
 
 
 def test_an_attribute_field_index_without_its_node_is_an_empty_field():

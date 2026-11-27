@@ -28,7 +28,7 @@ from tests.support.parasolid_schema import positive_integer
 from tests.support.parasolid_text import text_header
 
 KEY = "SCH_901297_9008"
-PROFILE = "microstation-901297-9008-r1"
+PROFILE = "microstation-901297-9008-r2"
 MODELLER = ": TRANSMIT FILE created by modeller version 901297"
 DISC = (
     "12 1 12 0 2 0 0 0 0 1e3 1e-8 0 0 0 1 0 3 3 4 5 0 6 7 0 "
@@ -59,7 +59,7 @@ def test_exact_key_reads_the_reshaped_reference_example():
     resolution = doc.schema_resolution
     assert resolution.schema_key == KEY
     assert resolution.profile_id == PROFILE
-    assert resolution.profile_revision == 1
+    assert resolution.profile_revision == 2
     assert resolution.coverage == "verified_subset"
     assert all(s.definition.source.value == "base" and not s.edits for s in doc.schemas)
     assert len(doc.nodes) == 16
@@ -177,11 +177,26 @@ def test_builtin_listing_has_the_profile_and_its_family():
     assert profile.schema_keys == (KEY,)
     assert profile.provider_schema == "9008"
     assert profile.coverage == "verified_subset"
-    assert profile.type_count == 44
+    # Revision 2 adds the assembly structure, SWEPT_SURF, AXIS_VALUES,
+    # TRIMMED_CURVE and SP_CURVE.
+    assert profile.type_count == 51
     family = by_id["family-9008"]
     assert [m.profile_id for m in family.members] == [PROFILE]
     assert family.base_members == ()
-    assert family.type_count == 44
+    assert family.type_count == 51
+
+
+def test_a_backslash_under_schema_9008_is_character_data():
+    # Text of a schema before 12 has no escape sequences: a path separator and
+    # the second byte of a double-byte character are the characters themselves.
+    literal = parse_xt(stream(nodes=DISC.replace("SDL/TYSA_COLOUR", "SDL\\nYSA_COLOUR")))
+    assert map_brep(literal).attributes[0].identifier == "SDL\\nYSA_COLOUR"
+    double_byte = stream().replace(b"SDL/TYSA_COLOUR", b"SDL\x95\\\x8c\xbeA_COLOUR")
+    doc = parse_xt(double_byte)
+    identifier = doc.nodes[14]
+    assert identifier.node_type == 79
+    assert len(identifier.fields[0].values) == 15
+    assert doc.terminator is not None
 
 
 def test_other_layouts_and_unobserved_types_fail_closed():

@@ -258,6 +258,9 @@ fn read_header(
     let schema_offset = reader.source_position();
     let schema_key = reader.integer_string("schema_key", limits.max_string_bytes)?;
     let parsed_schema_key = SchemaKey::parse_at(&schema_key, schema_offset)?;
+    if predates_character_escapes(&parsed_schema_key) {
+        reader.disable_character_escapes();
+    }
     let schema_max_type = parsed_schema_key
         .base()
         .map(|_| reader.unsigned_short("schema_max_type"))
@@ -310,6 +313,18 @@ fn read_header(
         },
         reader,
     ))
+}
+
+/// Whether the text of this schema writes character data byte for byte.
+///
+/// The escape sequences (`\0`, `\n`, `\r`, `\\` and the `\9` run of
+/// spaces) belong to the text format of Parasolid 12 and later. A transmit
+/// file of an older schema, also one a current modeller saves in that format,
+/// keeps a backslash as itself.
+fn predates_character_escapes(key: &SchemaKey) -> bool {
+    key.effective()
+        .parse::<u32>()
+        .is_ok_and(|schema| schema < 12_000)
 }
 
 fn invalid_user_field_size(offset: usize, value: i32) -> ParseError {

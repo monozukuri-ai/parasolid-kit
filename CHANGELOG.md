@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- More standard keys read. Transmit files under `SCH_3701153_37102` (Altair
+  Feko; `feko-3701153-37102-r1`, family `37102`) and `SCH_1200000_12103` (CAD
+  Exchanger; `cadexchanger-1200000-12103-r1`, family `12103`) and under the
+  embedded key `SCH_3500184_35002_13006` (NX; `nx-3500184-35002-13006-r1`,
+  family `35002-13006`) have profiles: schema 37102 takes the edits that
+  embedded 37102 streams carry, schema 12103 keeps the reviewed 13006 layouts.
+  Three profiles are revised with node types that transmit files of their keys
+  carry: `icad-1500000-15003-r4` (SWEPT_SURF, TRIMMED_CURVE and the SP_CURVE
+  dependencies), `microstation-901297-9008-r2` (the assembly structure,
+  SWEPT_SURF, AXIS_VALUES, TRIMMED_CURVE and SP_CURVE) and
+  `inventor-2600169-25001-r2` (SPHERE, SPUN_SURF, UNICODE_VALUES,
+  TRIMMED_CURVE, SP_CURVE and the multi-part transmit block, type 176). Such
+  files failed with `schema.missing_base_schema` or
+  `schema.builtin_profile_uncovered_type`. See
+  [further standard keys](docs/builtin-profiles.md#further-standard-keys-schemas-9008-to-37102).
+- Text transmit files of schemas before 12 keep a backslash in character data
+  as itself. The escape sequences (`\0`, `\n`, `\r`, `\\` and the `\9` run
+  of spaces) belong to the text format of Parasolid 12 and later; a file of an
+  older schema, also one that a current modeller saves in that format, writes
+  character data byte for byte. A path separator or the second byte of a
+  double-byte character in such a file failed with `text.invalid_escape`.
 - Further standard keys read. Transmit files under `SCH_3100000_31001` have a
   profile (`parasolid-3100000-31001-r1`, family `31001`): schema 31001 takes
   the `BODY` and `INTERSECTION` declarations of the 32001 standard key. Three

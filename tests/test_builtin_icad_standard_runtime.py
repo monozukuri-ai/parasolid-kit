@@ -129,10 +129,11 @@ def test_exact_keys_map_authored_wire_with_source_values(encoding, key):
     # observed in transmit files written under the same schemas; revision 2 of
     # the 32001 profile added node type 3 observed in an ANSYS transmit file.
     # Later revisions added UNICODE_VALUES (15003, revision 3), SPUN_SURF
-    # (20000, revision 5) and the assembly structure (28101, revision 3).
+    # (20000, revision 5), the assembly structure (28101, revision 3) and the
+    # swept surface with the trimmed and SP curves (15003, revision 4).
     revision = {
         "SCH_2401000_20000": 5,
-        "SCH_1500000_15003": 3,
+        "SCH_1500000_15003": 4,
         "SCH_2901000_28101": 3,
     }.get(
         key,
@@ -221,9 +222,14 @@ def test_nearby_keys_and_unreviewed_types_fail_closed(encoding, key):
     assert exc.value.diagnostic.code == "schema.missing_base_schema"
     # A foreign surface (69) is declared by no profile; a swept surface (67) is
     # declared by the embedded 13006 profiles, which reach the standard 13006
-    # keys through their family, and by the 19008 and 20000 profiles (public
-    # SolidWorks and NX files carry it), but not by the other schema revisions.
-    swept = key.endswith("_13006") or key in ("SCH_1901000_19008", "SCH_2401000_20000")
+    # keys through their family, and by the 15003, 19008 and 20000 profiles
+    # (VISI, SolidWorks and NX files carry it), but not by the other schema
+    # revisions.
+    swept = key.endswith("_13006") or key in (
+        "SCH_1500000_15003",
+        "SCH_1901000_19008",
+        "SCH_2401000_20000",
+    )
     for kind in (69,) if swept else (67, 69):
         if encoding == "x_t":
             data = text_header(key) + f"{kind} 1 0 ".encode()
