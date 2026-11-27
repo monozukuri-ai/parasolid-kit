@@ -10,9 +10,10 @@ use super::metrics::derive_metrics;
 use super::model::{
     Assembly, AssemblyKind, Attribute, AttributeField, AttributeOwner, BlendType, Body, BodyKind,
     BrepDiagnostic, BrepId, BrepMetrics, BrepModel, BrepSourceFormat, CurveGeometry, CurveKind,
-    Edge, Face, HalfEdge, Instance, InstancePart, Loop, MeshSurface, NurbsCurve, NurbsSurface,
+    Edge, Face, HalfEdge, Instance, InstancePart, IntersectionChartParameters,
+    IntersectionLimitKind, IntersectionMetadata, Loop, MeshSurface, NurbsCurve, NurbsSurface,
     PointGeometry, Region, RegionKind, Sense, Shell, SourceNodeRef, SurfaceGeometry, SurfaceKind,
-    TopologyValidation, Transform, Vector3, Vertex,
+    TerminatorSurface, TopologyValidation, Transform, Vector3, Vertex,
 };
 use super::profile_roles::RoleAccess;
 
@@ -342,8 +343,8 @@ impl<'a> Mapper<'a> {
         Ok(Body {
             id: self.id(&self.ids.bodies, node, "BODY")?,
             kind,
-            size_resolution: self.double(node, "res_size")?,
-            linear_resolution: self.double(node, "res_linear")?,
+            size_resolution: self.positive_double(node, "res_size")?,
+            linear_resolution: self.positive_double(node, "res_linear")?,
             regions: self.null_chain(node, "region", "REGION", "next", &self.ids.regions)?,
             edges: self.null_chain(node, "edge", "EDGE", "next", &self.ids.edges)?,
             vertices: self.null_chain(node, "vertex", "VERTEX", "next", &self.ids.vertices)?,
@@ -737,7 +738,7 @@ impl<'a> Mapper<'a> {
             start_vertex,
             end_vertex,
             curve: self.optional_id(node, "curve", "curve geometry", &self.ids.curves)?,
-            tolerance: self.optional_double(node, "tolerance")?,
+            tolerance: self.optional_precision(node)?,
             source: self.source(node),
         })
     }
@@ -747,7 +748,7 @@ impl<'a> Mapper<'a> {
         Ok(Vertex {
             id: self.id(&self.ids.vertices, node, "VERTEX")?,
             point: self.required_id(node, "point", "POINT", &self.ids.points)?,
-            tolerance: self.optional_double(node, "tolerance")?,
+            tolerance: self.optional_precision(node)?,
             owner: self.required_source(node, "owner")?,
             source: self.source(node),
         })
@@ -1299,23 +1300,26 @@ impl<'a> Mapper<'a> {
 
     fn intersection_curve(&self, node: &RawNode) -> Result<CurveKind, ParseError> {
         let chart = self.required_typed_node(node, "chart", "CHART")?;
-        // The chart's base parameter and scale are not used by the mapping;
-        // MicroStation leaves the scale unset.
-        self.optional_double(chart, "base_parameter")?;
-        self.optional_double(chart, "base_scale")?;
-        self.optional_double(chart, "chordal_error")?;
-        self.optional_double(chart, "angular_error")?;
+        // Kept as transmitted (XT 5.2.1.5); MicroStation leaves the scale unset.
+        let chart_parameters = IntersectionChartParameters {
+            base_parameter: self.optional_double(chart, "base_parameter")?,
+            base_scale: self.optional_double(chart, "base_scale")?,
+            chordal_error: self.optional_double(chart, "chordal_error")?,
+            angular_error: self.optional_double(chart, "angular_error")?,
+        };
         let count = self.nonnegative_integer(chart, "chart_count")?;
         let chart_points =
             self.intersection_points(chart, usize::try_from(count).unwrap_or(usize::MAX))?;
-        let [start_points, end_points] = ["start", "end"].map(|field| {
+        let [start_limit, end_limit] = ["start", "end"].map(|field| {
             let limit = self.required_typed_node(node, field, "LIMIT")?;
-            let count = match self.character(limit, "type")? {
+            let (kind, count) = match self.character(limit, "type")? {
+                b'H' => (IntersectionLimitKind::Help, 1),
+                b'L' => (IntersectionLimitKind::Limit, 1),
                 // A spine boundary ('B') describes the end of a degenerate
                 // rolling-ball blend; SolidWorks writes one on intersection
                 // curves too, with the single position of an arbitrary limit.
-                b'H' | b'L' | b'B' => 1,
-                b'T' => 2,
+                b'B' => (IntersectionLimitKind::Boundary, 1),
+                b'T' => (IntersectionLimitKind::Terminator, 2),
                 _ => {
                     return Err(self.invalid_geometry(
                         limit,
@@ -1324,8 +1328,29 @@ impl<'a> Mapper<'a> {
                     ));
                 }
             };
-            self.intersection_points(limit, count)
+            // A missing term_use (not in this effective schema) stays distinct
+            // from an explicitly unset one ('?').
+            let term_use = if self.roles.field(limit, "term_use").is_some() {
+                Some(match self.character(limit, "term_use")? {
+                    b'?' => TerminatorSurface::Unset,
+                    b'F' => TerminatorSurface::First,
+                    b'S' => TerminatorSurface::Second,
+                    _ => {
+                        return Err(self.invalid_geometry(
+                            limit,
+                            "term_use",
+                            "invalid terminator surface selection",
+                        ));
+                    }
+                })
+            } else {
+                None
+            };
+            Ok((kind, term_use, self.intersection_points(limit, count)?))
         });
+        let (start_kind, start_term_use, start_points) = start_limit?;
+        let (end_kind, end_term_use, end_points) = end_limit?;
+        self.verify_chart_storage_ends(chart, &chart_points, &start_points, &end_points)?;
         let surface_indices = self.pointer_array(node, "surface")?;
         if surface_indices.len() != 2 {
             return Err(self.invalid_field(
@@ -1357,13 +1382,42 @@ impl<'a> Mapper<'a> {
         Ok(CurveKind::Intersection {
             surfaces,
             chart: self.required_source(node, "chart")?,
+            metadata: Box::new(IntersectionMetadata {
+                chart: chart_parameters,
+                start_kind,
+                start_term_use,
+                end_kind,
+                end_term_use,
+            }),
             chart_points,
             start: self.required_source(node, "start")?,
-            start_points: start_points?,
+            start_points,
             end: self.required_source(node, "end")?,
-            end_points: end_points?,
+            end_points,
             intersection_data,
         })
+    }
+
+    // A retained storage tail past chart_count must not become another part of
+    // the curve: independently verify both chart ends against the native LIMITs.
+    fn verify_chart_storage_ends(
+        &self,
+        chart: &RawNode,
+        chart_points: &[Vector3],
+        start_points: &[Vector3],
+        end_points: &[Vector3],
+    ) -> Result<(), ParseError> {
+        if self.field(chart, "hvec")?.values.len() > chart_points.len()
+            && (chart_points.first() != start_points.last()
+                || chart_points.last() != end_points.last())
+        {
+            return Err(self.invalid_geometry(
+                chart,
+                "hvec",
+                "logical chart endpoints disagree with limits in oversized storage",
+            ));
+        }
+        Ok(())
     }
 
     fn intersection_points(
@@ -1372,11 +1426,18 @@ impl<'a> Mapper<'a> {
         count: usize,
     ) -> Result<Vec<Vector3>, ParseError> {
         let values = &self.field(node, "hvec")?.values;
-        if count == 0 || values.len() != count {
+        // chart_count is the logical array length (XT July 2022 p45). Some
+        // native streams retain extra allocated hvec slots. LIMIT has no
+        // separate logical count and must still match its type's exact arity.
+        if count == 0
+            || values.len() < count
+            || (self.roles.type_name(node) != "CHART" && values.len() != count)
+        {
             return Err(self.invalid_geometry(node, "hvec", "intersection point count mismatch"));
         }
         values
             .iter()
+            .take(count)
             .map(|value| match value {
                 FieldValue::IntersectionPoint([Some(x), Some(y), Some(z)])
                     if x.is_finite() && y.is_finite() && z.is_finite() =>
@@ -1762,6 +1823,14 @@ impl<'a> Mapper<'a> {
             }
         }
         for loop_value in loops {
+            let face = self.entity(faces, loop_value.face, &loop_value.source, "loop_face")?;
+            if !face.loops.contains(&loop_value.id) {
+                return Err(self.invalid_topology_source(
+                    &loop_value.source,
+                    "loop_face_inverse",
+                    "loop is absent from its owning face chain",
+                ));
+            }
             let count = loop_value.half_edges.len();
             for (position, half_edge_id) in loop_value.half_edges.iter().enumerate() {
                 let half_edge = self.entity(
@@ -1786,6 +1855,36 @@ impl<'a> Mapper<'a> {
                         &half_edge.source,
                         "loop_ring_inverse",
                         "half-edge forward/backward links are not inverse ring links",
+                    ));
+                }
+            }
+        }
+        // XT 5.3.8-5.3.9 (July 2022 pp95-96): verify ownership in both
+        // directions, including fins not reached by a loop or radial ring.
+        for fin in half_edges {
+            if let Some(id) = fin.loop_id {
+                let owner = self.entity(loops, id, &fin.source, "fin_loop")?;
+                if !owner.half_edges.contains(&fin.id) {
+                    return Err(self.invalid_topology_source(
+                        &fin.source,
+                        "fin_loop_inverse",
+                        "fin is absent from its owning loop ring",
+                    ));
+                }
+            } else if fin.forward.is_some() || fin.backward.is_some() || fin.curve.is_some() {
+                return Err(self.invalid_topology_source(
+                    &fin.source,
+                    "dummy_fin_fields",
+                    "dummy fin has a loop link or curve",
+                ));
+            }
+            if let Some(id) = fin.edge {
+                let owner = self.entity(edges, id, &fin.source, "fin_edge")?;
+                if !owner.half_edges.contains(&fin.id) {
+                    return Err(self.invalid_topology_source(
+                        &fin.source,
+                        "fin_edge_inverse",
+                        "fin is absent from its owning edge ring",
                     ));
                 }
             }
@@ -1993,8 +2092,19 @@ impl<'a> Mapper<'a> {
 
     fn pointer(&self, node: &RawNode, name: &'static str) -> Result<u32, ParseError> {
         match self.value(node, name)? {
-            FieldValue::PointerIndex(value) => Ok(*value),
+            FieldValue::PointerIndex(value) => Ok(self.resolved_pointer(*value)),
             _ => Err(self.invalid_field(node, name, "required field is not a pointer")),
+        }
+    }
+
+    // XT Format Reference (July 2022), 2.1.4.4, PDF p17: indices of nodes not
+    // present in the file are interpreted as null. The serialized index stays
+    // in RawNode; it is normalized only when resolving semantics.
+    fn resolved_pointer(&self, index: u32) -> u32 {
+        if self.nodes.contains_key(&index) {
+            index
+        } else {
+            0
         }
     }
 
@@ -2017,7 +2127,7 @@ impl<'a> Mapper<'a> {
             .values
             .iter()
             .map(|value| match value {
-                FieldValue::PointerIndex(index) => Ok(*index),
+                FieldValue::PointerIndex(index) => Ok(self.resolved_pointer(*index)),
                 _ => Err(self.invalid_field(node, name, "array contains a non-pointer value")),
             })
             .collect()
@@ -2527,6 +2637,14 @@ impl<'a> Mapper<'a> {
         Ok(value)
     }
 
+    fn optional_precision(&self, node: &RawNode) -> Result<Option<f64>, ParseError> {
+        let value = self.optional_double(node, "tolerance")?;
+        if value.is_some_and(|v| v < 0.0) {
+            return Err(self.invalid_geometry(node, "tolerance", "precision must be non-negative"));
+        }
+        Ok(value)
+    }
+
     fn nonnegative_double(&self, node: &RawNode, field: &'static str) -> Result<f64, ParseError> {
         let value = self.double(node, field)?;
         if value < 0.0 {
@@ -2843,6 +2961,135 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn rejects_nonpositive_body_resolution_and_negative_local_precision() {
+        for name in ["res_size", "res_linear"] {
+            for value in [0.0, -1.0] {
+                let mut nodes = wire_acorn_nodes();
+                let field = nodes[0]
+                    .fields
+                    .iter_mut()
+                    .find(|f| f.definition.name == name);
+                assert!(field.is_some());
+                if let Some(field) = field {
+                    field.values = vec![FieldValue::Double(Some(value))];
+                }
+                assert!(
+                    Mapper::new(
+                        BrepSourceFormat::Binary,
+                        "SCH_TEST",
+                        &nodes,
+                        RoleAccess::Named
+                    )
+                    .map()
+                    .is_err()
+                );
+            }
+        }
+        let mut nodes = wire_acorn_nodes();
+        let tolerance = nodes[3]
+            .fields
+            .iter_mut()
+            .find(|f| f.definition.name == "tolerance");
+        assert!(tolerance.is_some());
+        if let Some(tolerance) = tolerance {
+            tolerance.values = vec![FieldValue::Double(Some(-1.0))];
+        }
+        assert!(
+            Mapper::new(
+                BrepSourceFormat::Binary,
+                "SCH_TEST",
+                &nodes,
+                RoleAccess::Named
+            )
+            .map()
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_orphan_loops_fins_and_dummy_loop_links() {
+        let nodes = wire_acorn_nodes();
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        let model = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        )
+        .map();
+        assert!(model.is_ok(), "{model:?}");
+        let Ok(mut model) = model else {
+            return;
+        };
+        model.bodies[0].kind = BodyKind::General;
+        let source = model.vertices[0].source.clone();
+        model.shells[0].back_faces = vec![0];
+        model.shells[0].front_faces = vec![0];
+        model.faces.push(Face {
+            id: 0,
+            back_shell: 0,
+            front_shell: 0,
+            loops: vec![0],
+            surface: None,
+            sense: Sense::Positive,
+            attributes: Vec::new(),
+            source: source.clone(),
+        });
+        model.loops.push(Loop {
+            id: 0,
+            face: 0,
+            half_edges: vec![0],
+            source: source.clone(),
+        });
+        model.half_edges.push(HalfEdge {
+            id: 0,
+            loop_id: Some(0),
+            forward: Some(0),
+            backward: Some(0),
+            vertex: Some(0),
+            other: None,
+            edge: None,
+            curve: None,
+            sense: Sense::Unknown,
+            dummy: false,
+            source,
+        });
+        let validate = |m: &BrepModel| {
+            mapper.validate_topology(
+                &m.bodies,
+                &m.regions,
+                &m.shells,
+                &m.faces,
+                &m.loops,
+                &m.half_edges,
+                &m.edges,
+                &m.vertices,
+            )
+        };
+        assert!(validate(&model).is_ok());
+        let mut orphan = model.clone();
+        orphan.faces[0].loops.clear();
+        assert!(validate(&orphan).is_err());
+        let mut orphan = model.clone();
+        let mut fin = orphan.half_edges[0].clone();
+        fin.id = 1;
+        orphan.half_edges.push(fin);
+        assert!(validate(&orphan).is_err());
+        let mut dummy = model.clone();
+        let mut fin = dummy.half_edges[0].clone();
+        fin.id = 1;
+        fin.loop_id = None;
+        fin.dummy = true;
+        dummy.half_edges.push(fin);
+        assert!(validate(&dummy).is_err());
+    }
+
     fn field(
         name: &str,
         pointer_class: u16,
@@ -3084,6 +3331,201 @@ mod tests {
                 ],
             ),
         ]
+    }
+
+    #[test]
+    fn chart_logical_length_retains_raw_capacity_and_rejects_short_storage() {
+        let point = |x| FieldValue::IntersectionPoint([Some(x), Some(0.0), Some(0.0)]);
+        let nodes = vec![
+            node(
+                1,
+                40,
+                "CHART",
+                vec![field("hvec", 0, vec![point(0.0), point(1.0), point(99.0)])],
+            ),
+            node(
+                2,
+                41,
+                "LIMIT",
+                vec![field("hvec", 0, vec![point(0.0), point(1.0)])],
+            ),
+        ];
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        let points = mapper.intersection_points(&nodes[0], 2);
+        assert!(points.is_ok(), "{points:?}");
+        let Ok(points) = points else {
+            return;
+        };
+        assert_eq!(points.len(), 2);
+        assert!((points[1].x - 1.0).abs() < 1.0e-12);
+        assert_eq!(nodes[0].fields[0].values.len(), 3);
+        assert!(mapper.intersection_points(&nodes[0], 4).is_err());
+        assert!(mapper.intersection_points(&nodes[0], 0).is_err());
+        assert!(mapper.intersection_points(&nodes[1], 1).is_err());
+    }
+
+    #[test]
+    fn oversized_chart_storage_must_end_at_the_limits() {
+        let point = |x| FieldValue::IntersectionPoint([Some(x), Some(0.0), Some(0.0)]);
+        for (tail, accepted) in [(point(1.0), true), (point(7.0), true)] {
+            let mut nodes = intersection_nodes(None, b'L', Some(3.5));
+            // One retained slot past chart_count: ignored when the logical
+            // chart already ends at the end limit.
+            if let Some(hvec) = nodes[1]
+                .fields
+                .iter_mut()
+                .find(|f| f.definition.name == "hvec")
+            {
+                hvec.values.push(tail);
+            }
+            let mapper = Mapper::new(
+                BrepSourceFormat::Binary,
+                "SCH_TEST",
+                &nodes,
+                RoleAccess::Named,
+            );
+            assert_eq!(mapper.intersection_curve(&nodes[0]).is_ok(), accepted);
+        }
+        // The logical chart ends elsewhere than the end limit: rejected.
+        let mut nodes = intersection_nodes(None, b'L', Some(3.5));
+        if let Some(hvec) = nodes[1]
+            .fields
+            .iter_mut()
+            .find(|f| f.definition.name == "hvec")
+        {
+            hvec.values = vec![point(0.0), point(0.5), point(1.0)];
+        }
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        assert!(mapper.intersection_curve(&nodes[0]).is_err());
+    }
+
+    fn intersection_nodes(
+        term_use: Option<u8>,
+        end_type: u8,
+        base_scale: Option<f64>,
+    ) -> Vec<RawNode> {
+        let point = |x| FieldValue::IntersectionPoint([Some(x), Some(0.0), Some(0.0)]);
+        let mut limit_fields = vec![field("type", 0, vec![FieldValue::Character(b'T')])];
+        if let Some(value) = term_use {
+            limit_fields.push(field("term_use", 0, vec![FieldValue::Character(value)]));
+        }
+        limit_fields.push(field("hvec", 0, vec![point(-1.0), point(0.0)]));
+        vec![
+            node(
+                1,
+                38,
+                "INTERSECTION",
+                vec![
+                    field(
+                        "surface",
+                        1006,
+                        vec![FieldValue::PointerIndex(5), FieldValue::PointerIndex(6)],
+                    ),
+                    field("chart", 40, vec![FieldValue::PointerIndex(2)]),
+                    field("start", 41, vec![FieldValue::PointerIndex(3)]),
+                    field("end", 41, vec![FieldValue::PointerIndex(4)]),
+                ],
+            ),
+            node(
+                2,
+                40,
+                "CHART",
+                vec![
+                    field("base_parameter", 0, vec![FieldValue::Double(Some(17.25))]),
+                    field("base_scale", 0, vec![FieldValue::Double(base_scale)]),
+                    field("chart_count", 0, vec![FieldValue::Integer(Some(2))]),
+                    field("chordal_error", 0, vec![FieldValue::Double(Some(0.001))]),
+                    field("angular_error", 0, vec![FieldValue::Double(None)]),
+                    field("hvec", 0, vec![point(0.0), point(1.0)]),
+                ],
+            ),
+            node(3, 41, "LIMIT", limit_fields),
+            node(
+                4,
+                41,
+                "LIMIT",
+                vec![
+                    field("type", 0, vec![FieldValue::Character(end_type)]),
+                    field("hvec", 0, vec![point(1.0)]),
+                ],
+            ),
+            node(5, 50, "PLANE", common_surface_fields(0)),
+            node(6, 51, "CYLINDER", common_surface_fields(0)),
+        ]
+    }
+
+    #[test]
+    fn preserves_native_intersection_parameterization_and_limit_selection() {
+        let same = |left: Option<f64>, right: Option<f64>| match (left, right) {
+            (Some(left), Some(right)) => (left - right).abs() < 1.0e-12,
+            (None, None) => true,
+            _ => false,
+        };
+        let cases: [(Option<u8>, u8, Option<f64>); 7] = [
+            (None, b'L', Some(3.5)),
+            (Some(b'?'), b'L', Some(3.5)),
+            (Some(b'F'), b'L', Some(3.5)),
+            (Some(b'S'), b'L', Some(3.5)),
+            (Some(b'X'), b'L', Some(3.5)),
+            // A spine boundary end, and a chart without a scale (MicroStation).
+            (Some(b'F'), b'B', Some(3.5)),
+            (None, b'L', None),
+        ];
+        for (term_use, end_type, base_scale) in cases {
+            let nodes = intersection_nodes(term_use, end_type, base_scale);
+            let mapper = Mapper::new(
+                BrepSourceFormat::Binary,
+                "SCH_TEST",
+                &nodes,
+                RoleAccess::Named,
+            );
+            let result = mapper.intersection_curve(&nodes[0]);
+            if term_use == Some(b'X') {
+                assert!(result.is_err());
+                continue;
+            }
+            assert!(result.is_ok(), "{result:?}");
+            let Ok(CurveKind::Intersection {
+                metadata,
+                start_points,
+                ..
+            }) = result
+            else {
+                return;
+            };
+            let chart = metadata.chart;
+            assert!(same(chart.base_parameter, Some(17.25)));
+            assert!(same(chart.base_scale, base_scale));
+            assert!(same(chart.chordal_error, Some(0.001)));
+            assert!(same(chart.angular_error, None));
+            assert_eq!(metadata.start_kind, IntersectionLimitKind::Terminator);
+            let end_kind = if end_type == b'B' {
+                IntersectionLimitKind::Boundary
+            } else {
+                IntersectionLimitKind::Limit
+            };
+            assert_eq!(metadata.end_kind, end_kind);
+            let expected = match term_use {
+                None => None,
+                Some(b'F') => Some(TerminatorSurface::First),
+                Some(b'S') => Some(TerminatorSurface::Second),
+                _ => Some(TerminatorSurface::Unset),
+            };
+            assert_eq!(metadata.start_term_use, expected);
+            assert_eq!(metadata.end_term_use, None);
+            assert_eq!(start_points.len(), 2);
+            assert!((start_points[0].x + 1.0).abs() < 1.0e-12);
+        }
     }
 
     #[test]
@@ -3898,6 +4340,8 @@ mod tests {
 
     #[test]
     fn rejects_an_unresolved_required_body_chain_pointer() {
+        // XT 2.1.4.4: an index of a node not in the file is null, so the body
+        // loses its region; that breaks the region/body inverse.
         let mut nodes = wire_acorn_nodes();
         let body = &mut nodes[0];
         let region = body
@@ -3919,16 +4363,101 @@ mod tests {
         .err();
         assert_eq!(
             error.as_ref().map(ParseError::kind),
-            Some(ErrorKind::InvalidBrepReference)
+            Some(ErrorKind::InvalidBrepTopology)
         );
         assert_eq!(
             error.as_ref().map(ParseError::details),
-            Some(&ErrorDetails::BrepReference {
-                node_index: 1,
-                field: "region",
-                target_index: 99,
-                expected_type: "REGION",
+            Some(&ErrorDetails::BrepInvariant {
+                node_index: 2,
+                relationship: "region_body_inverse",
             })
+        );
+    }
+
+    #[test]
+    fn absent_indices_resolve_as_null_without_rewriting_source() {
+        let mut nodes = wire_acorn_nodes();
+        nodes.push(node(
+            6,
+            200,
+            "TEST",
+            vec![
+                field("absent", 88, vec![FieldValue::PointerIndex(99)]),
+                field("present", 88, vec![FieldValue::PointerIndex(5)]),
+                field("wrong_type", 88, vec![FieldValue::PointerIndex(1)]),
+                field(
+                    "pair",
+                    88,
+                    vec![FieldValue::PointerIndex(99), FieldValue::PointerIndex(5)],
+                ),
+                field("malformed", 0, vec![FieldValue::Integer(Some(99))]),
+            ],
+        ));
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        let owner = &nodes[5];
+        assert_eq!(mapper.pointer(owner, "absent"), Ok(0));
+        assert_eq!(mapper.optional_source(owner, "absent"), Ok(None));
+        assert_eq!(
+            mapper.optional_id(owner, "absent", "POINT", &mapper.ids.points),
+            Ok(None)
+        );
+        assert_eq!(mapper.pointer_array(owner, "pair"), Ok(vec![0, 5]));
+        assert_eq!(
+            mapper.optional_id_pair(owner, "pair", "POINT", &mapper.ids.points),
+            Ok([None, Some(0)])
+        );
+        assert_eq!(
+            mapper.required_id(owner, "present", "POINT", &mapper.ids.points),
+            Ok(0)
+        );
+        assert!(mapper.required_pointer(owner, "absent").is_err());
+        assert!(
+            mapper
+                .required_id_pair(owner, "pair", "POINT", &mapper.ids.points)
+                .is_err()
+        );
+        assert!(
+            mapper
+                .optional_id(owner, "wrong_type", "POINT", &mapper.ids.points)
+                .is_err()
+        );
+        assert!(mapper.pointer(owner, "malformed").is_err());
+        assert_eq!(
+            mapper.value(owner, "absent"),
+            Ok(&FieldValue::PointerIndex(99))
+        );
+    }
+
+    #[test]
+    fn absent_index_terminates_null_chain_but_not_required_ring() {
+        let nodes = vec![node(
+            1,
+            12,
+            "BODY",
+            vec![
+                field("first", 12, vec![FieldValue::PointerIndex(1)]),
+                field("next", 12, vec![FieldValue::PointerIndex(99)]),
+            ],
+        )];
+        let mapper = Mapper::new(
+            BrepSourceFormat::Binary,
+            "SCH_TEST",
+            &nodes,
+            RoleAccess::Named,
+        );
+        assert_eq!(
+            mapper.null_chain(&nodes[0], "first", "BODY", "next", &mapper.ids.bodies),
+            Ok(vec![0])
+        );
+        assert!(
+            mapper
+                .required_ring(&nodes[0], "first", "BODY", "next", &mapper.ids.bodies)
+                .is_err()
         );
     }
 
@@ -4051,8 +4580,11 @@ mod tests {
     #[test]
     fn retains_placed_facets_and_rejects_malformed_pools() {
         let corners = [1, 3, 2, 1, 2, 4, 2, 3, 4, 1, 4, 3];
-        // A transform is not applied: the facets are kept, undecoded.
-        let model = map_nodes(&mesh_nodes(corners, 9, [25, 26, 27, 0]));
+        // A transform is not applied: the facets are kept, undecoded. The
+        // TRANSFORM node must exist: an index of an absent node is null.
+        let mut placed = mesh_nodes(corners, 9, [25, 26, 27, 0]);
+        placed.push(node(9, 100, "TRANSFORM", Vec::new()));
+        let model = map_nodes(&placed);
         assert!(model.is_ok(), "{model:?}");
         if let Ok(model) = model {
             assert!(!model.complete);

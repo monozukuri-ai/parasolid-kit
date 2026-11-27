@@ -685,6 +685,7 @@ fn decode_embedded_schema_text(
     let marker = reader.unsigned_byte("schema_field_count")?;
     let (definition, edits) = match base {
         Some(definition) if marker == u8::MAX => {
+            enforce_field_limit(definition.fields.len(), marker_offset, limits)?;
             let mut definition = definition.clone();
             definition.source = SchemaSource::EmbeddedUnchanged;
             (definition, Vec::new())
@@ -1283,6 +1284,42 @@ mod tests {
                 vec![FieldValue::Integer(Some(7))]
             );
         }
+    }
+
+    #[test]
+    fn unchanged_text_schema_cannot_bypass_field_limit() {
+        let fields = vec![
+            field("a", FieldType::Integer, 0, 0, true),
+            field("b", FieldType::Integer, 0, 0, true),
+        ];
+        let mut provider = InMemorySchemaProvider::new();
+        provider.insert("13006", definition(12, fields));
+        let mut data = embedded_header("SCH_3000000_30000_13006", 205);
+        data.extend_from_slice(b"12 255 1 7 8 1 0 ");
+        let error = parse_with_scan_parity(
+            &data,
+            &provider,
+            DocumentLimits {
+                max_fields_per_type: 1,
+                ..DocumentLimits::default()
+            },
+        )
+        .err();
+        assert_eq!(
+            error.as_ref().map(ParseError::kind),
+            Some(ErrorKind::LimitExceeded)
+        );
+        assert!(
+            parse_with_scan_parity(
+                &data,
+                &provider,
+                DocumentLimits {
+                    max_fields_per_type: 2,
+                    ..DocumentLimits::default()
+                }
+            )
+            .is_ok()
+        );
     }
 
     #[test]

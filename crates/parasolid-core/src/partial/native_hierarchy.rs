@@ -25,7 +25,6 @@ struct Body {
     next: u16,
     previous: u16,
     kind: BodyKind,
-    shell: u16,
     region: u16,
 }
 
@@ -44,7 +43,6 @@ struct Region {
 struct Shell {
     id: u16,
     offset: usize,
-    body: u16,
     next: u16,
     region: u16,
     face: u16,
@@ -95,7 +93,6 @@ fn body(data: &[u8], offset: usize, p: usize) -> Option<Body> {
         || scale <= 0.0
         || !tolerance.is_finite()
         || tolerance <= 0.0
-        || raw[46] != 1
         || View::u16_be_at(raw, 47)? != 2
         || raw[50] != 1
         || View::u16_be_at(raw, 87)? != 1
@@ -113,7 +110,6 @@ fn body(data: &[u8], offset: usize, p: usize) -> Option<Body> {
         next: View::u16_be_at(raw, 42)?,
         previous: View::u16_be_at(raw, 44)?,
         kind,
-        shell: View::u16_be_at(raw, 51)?,
         region: View::u16_be_at(raw, 65)?,
     })
 }
@@ -154,7 +150,6 @@ fn shell(data: &[u8], offset: usize, p: usize) -> Option<Shell> {
     Some(Shell {
         id,
         offset,
-        body: View::u16_be_at(raw, 8)?,
         front: View::u16_be_at(raw, 20)?,
         next: View::u16_be_at(raw, 10)?,
         region: View::u16_be_at(raw, 18)?,
@@ -267,12 +262,9 @@ pub fn scan(data: &[u8], schema: &str, tables: &Tables) -> Option<Vec<BodyRecord
                     return None;
                 }
                 let shell = shells.get(&linked_shell)?;
-                let legacy_body = if r.kind == b'V' && b.kind == BodyKind::Solid {
-                    1
-                } else {
-                    b.id
-                };
-                if shell.body != legacy_body || shell.region != r.id || shell.next == 0 {
+                // XT July 2022, 5.3.6 PDF p94: SHELL.body is obsolete.
+                // The current REGION link determines ownership.
+                if shell.region != r.id || shell.next == 0 {
                     return None;
                 }
                 let head = if r.kind == b'V' && b.kind == BodyKind::Solid {
@@ -343,12 +335,9 @@ pub fn scan(data: &[u8], schema: &str, tables: &Tables) -> Option<Vec<BodyRecord
             previous_region = region_id;
             region_id = r.next;
         }
-        if material_regions.is_empty()
-            || !material_regions
-                .iter()
-                .flat_map(|r| &r.shells)
-                .any(|s| s.attr == b.shell)
-        {
+        // XT July 2022, 5.3.4 PDF pp90-91: ignore BODY.shell and state.
+        // Do not require a duplicate legacy pointer to certify this graph.
+        if material_regions.is_empty() {
             return None;
         }
         out.push(BodyRecord {
@@ -397,7 +386,8 @@ pub fn verified_read_spans(
             for (start, end) in [
                 (p, p + 6),
                 (p + 24, p + 40),
-                (p + 42, p + 53),
+                (p + 42, p + 46),
+                (p + 47, p + 51),
                 (p + 65, p + 67),
                 (p + 87, p + 89),
             ] {
@@ -436,7 +426,7 @@ pub fn verified_read_spans(
     }
     for (at, p) in starts(data, 13, None) {
         if let Some(value) = shell(data, at, p) {
-            for (start, end) in [(at, p + 6), (p + 8, p + 22)] {
+            for (start, end) in [(at, p + 6), (p + 10, p + 22)] {
                 out.push(ReadSpan::new(
                     start,
                     end,

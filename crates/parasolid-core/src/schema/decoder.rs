@@ -61,6 +61,7 @@ pub fn decode_embedded_schema(
     let marker = reader.u8()?;
     let (definition, edits) = match base {
         Some(base_definition) if marker == u8::MAX => {
+            enforce_field_limit(base_definition.fields.len(), marker_offset, limits)?;
             let mut definition = base_definition.clone();
             definition.source = SchemaSource::EmbeddedUnchanged;
             (definition, Vec::new())
@@ -706,5 +707,45 @@ mod tests {
             Some(ErrorKind::LimitExceeded)
         );
         assert_eq!(error.as_ref().map(ParseError::offset), Some(0));
+    }
+
+    #[test]
+    fn unchanged_schema_cannot_bypass_field_limit() {
+        let base = TypeDefinition::from_fields(
+            12,
+            "BODY",
+            "Body",
+            vec![base_field("a"), base_field("b")],
+            SchemaSource::Base,
+        );
+        let error = decode_embedded_schema(
+            &[0, 0xff],
+            1,
+            12,
+            Some(&base),
+            SchemaLimits {
+                max_fields_per_type: 1,
+                ..SchemaLimits::default()
+            },
+        )
+        .err();
+        assert_eq!(
+            error.as_ref().map(ParseError::kind),
+            Some(ErrorKind::LimitExceeded)
+        );
+        assert_eq!(error.as_ref().map(ParseError::offset), Some(1));
+        assert!(
+            decode_embedded_schema(
+                &[0xff],
+                0,
+                12,
+                Some(&base),
+                SchemaLimits {
+                    max_fields_per_type: 2,
+                    ..SchemaLimits::default()
+                }
+            )
+            .is_ok()
+        );
     }
 }

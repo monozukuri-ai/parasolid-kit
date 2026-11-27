@@ -570,6 +570,8 @@ pub enum CurveKind {
     Intersection {
         surfaces: [BrepId; 2],
         chart: SourceNodeRef,
+        /// Native CHART parameters and LIMIT kinds/terminator selections (XT 5.2.1.5).
+        metadata: Box<IntersectionMetadata>,
         /// Ordered source points used to identify the intersection branch, not a fitted curve.
         chart_points: Vec<Vector3>,
         start: SourceNodeRef,
@@ -582,6 +584,45 @@ pub enum CurveKind {
     },
     /// Geometry type retained without claiming semantic support.
     Unsupported { type_name: String },
+}
+
+/// Native CHART and LIMIT metadata of an intersection curve (XT 5.2.1.5).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IntersectionMetadata {
+    pub chart: IntersectionChartParameters,
+    pub start_kind: IntersectionLimitKind,
+    /// `None` means this effective schema did not transmit `term_use`.
+    pub start_term_use: Option<TerminatorSurface>,
+    pub end_kind: IntersectionLimitKind,
+    pub end_term_use: Option<TerminatorSurface>,
+}
+
+/// CHART metadata (XT 5.2.1.5); chord lengths use the original source length unit.
+/// Base parameter and scale stay optional: some writers (`MicroStation`) leave the scale unset.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IntersectionChartParameters {
+    pub base_parameter: Option<f64>,
+    pub base_scale: Option<f64>,
+    pub chordal_error: Option<f64>,
+    pub angular_error: Option<f64>,
+}
+
+/// LIMIT type: help point ('H'), limit ('L'), terminator ('T', singularity then
+/// branch point) or spine boundary ('B', a degenerate rolling-ball blend end).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntersectionLimitKind {
+    Help,
+    Limit,
+    Terminator,
+    Boundary,
+}
+
+/// LIMIT `term_use`: which surface's terminator applies ('?', 'F', 'S').
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminatorSurface {
+    Unset,
+    First,
+    Second,
 }
 
 impl CurveKind {
