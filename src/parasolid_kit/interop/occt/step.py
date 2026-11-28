@@ -1083,7 +1083,7 @@ if nonempty:
         topology[name] = indexed.Extent()
     valid = bool(BRepCheck_Analyzer(shape).IsValid())
     box = Bnd_Box()
-    BRepBndLib.AddOptimal_s(shape, box, False, True)
+    BRepBndLib.AddOptimal_s(shape, box, False, False)
     if not box.IsVoid():
         bounds = [float(value) for value in box.Get()]
     surface = GProp_GProps()

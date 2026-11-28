@@ -264,7 +264,9 @@ def test_cli_check_human_reports_diagnostic_layer_and_entity(
     assert captured.err == ""
 
 
+@pytest.mark.parametrize("placed", [False, True])
 def test_cli_export_step_keeps_conversion_and_writer_lazy(
+    placed: bool,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -344,6 +346,7 @@ def test_cli_export_step_keeps_conversion_and_writer_lazy(
                 "--output-unit",
                 "ft",
                 "--overwrite",
+                *(["--place-instances"] if placed else []),
             ]
         )
         == 0
@@ -355,6 +358,7 @@ def test_cli_export_step_keeps_conversion_and_writer_lazy(
     assert calls["conversion_options"] == {
         "source_unit": "m",
         "target_unit": "mm",
+        "place_instances": placed,
         "source_identity": f"sha256:{expected_hash}",
     }
     assert calls["write_options"] == {

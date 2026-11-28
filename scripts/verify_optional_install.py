@@ -31,6 +31,7 @@ OPTIONAL_TEST_FILES = (
     "test_import_isolation.py",
     "test_occt_conversion.py",
     "test_occt_parametric.py",
+    "test_occt_spun.py",
     "test_step_export.py",
     "test_geometry_coverage.py",
     "test_preview.py",

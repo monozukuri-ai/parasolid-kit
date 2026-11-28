@@ -651,9 +651,6 @@ class TopologyBuilder:
             self.operations.append("trimmed_plane_face")
 
     def _build_closed_analytic_faces(self) -> None:
-        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
-        from OCP.TopoDS import TopoDS
-
         for face in self._faces():
             surface = self._surface_for_face(face)
             definition = surface.definition
@@ -663,17 +660,7 @@ class TopologyBuilder:
                 raise ValueError(
                     f"{surface.kind.value} face {face.id} must be an untrimmed closed face"
                 )
-            exact = (
-                self.geometry.sphere(definition)
-                if isinstance(definition, SphereSurface)
-                else self.geometry.torus(definition)
-            )
-            builder = BRepBuilderAPI_MakeFace(exact)
-            if not builder.IsDone():
-                raise ValueError(
-                    f"OCCT full {surface.kind.value} face {face.id} construction did not complete"
-                )
-            result = TopoDS.Face_s(self._orient_shape(builder.Face(), face.sense, surface.sense))
+            result = self._make_closed_analytic_face(face, surface)
             self.face_shapes[face.id] = result
             self._record(
                 SourceEntityKind.FACE,
@@ -689,7 +676,24 @@ class TopologyBuilder:
                 result,
                 note=f"OCCT full {surface.kind.value} seam topology",
             )
-            self.operations.append(f"full_periodic_{surface.kind.value}_face")
+
+    def _make_closed_analytic_face(self, face: Face, surface: SurfaceGeometry) -> object:
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+        from OCP.TopoDS import TopoDS
+
+        definition = surface.definition
+        exact = (
+            self.geometry.sphere(definition)
+            if isinstance(definition, SphereSurface)
+            else self.geometry.torus(definition)
+        )
+        builder = BRepBuilderAPI_MakeFace(exact)
+        if not builder.IsDone():
+            raise ValueError(
+                f"OCCT full {surface.kind.value} face {face.id} construction did not complete"
+            )
+        self.operations.append(f"full_periodic_{surface.kind.value}_face")
+        return TopoDS.Face_s(self._orient_shape(builder.Face(), face.sense, surface.sense))
 
     def _build_generic_surface_faces(self) -> None:
         from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace

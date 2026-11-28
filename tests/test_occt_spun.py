@@ -37,12 +37,13 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_parameter_curves_on_a_spun_surface_follow_the_source_formula():
+@pytest.mark.parametrize("target", ["m", "mm"])
+def test_parameter_curves_on_a_spun_surface_follow_the_source_formula(target):
     """A 2D line in (u, v) evaluates to R = Z(u) + (C(u) - Z(u)) cos v + A x (C(u) - Z(u)) sin v."""
     from parasolid_kit.interop.occt.geometry import GeometryFactory
     from parasolid_kit.interop.occt.options import OcctConversionOptions
 
-    factory = GeometryFactory(OcctConversionOptions(source_unit="mm", target_unit="mm"))
+    factory = GeometryFactory(OcctConversionOptions(source_unit="m", target_unit=target))
     radius = 2.0
     profile = LineCurve(Vector3(radius, 0.0, 0.0), Vector3(0.0, 0.0, 1.0))
     spun = SpunSurface(
@@ -64,6 +65,43 @@ def test_parameter_curves_on_a_spun_surface_follow_the_source_formula():
         u, v = 0.5 + t, 0.3 + 0.7 * t
         expected = (radius * cos(v), radius * sin(v), u)
         assert point.Distance(factory.point(Vector3(*expected))) < 1e-9
+
+
+@pytest.mark.parametrize("target,scale", [("m", 1.0), ("mm", 1000.0)])
+@pytest.mark.parametrize("one_sided", [False, True])
+@pytest.mark.parametrize("trimmed", [False, True])
+def test_line_profile_limits_use_target_lengths(target, scale, one_sided, trimmed):
+    from math import sqrt
+
+    from parasolid_kit import TrimmedCurve
+    from parasolid_kit.interop.occt.geometry import GeometryFactory
+    from parasolid_kit.interop.occt.options import OcctConversionOptions
+
+    factory = GeometryFactory(OcctConversionOptions(source_unit="m", target_unit=target))
+    start, end = Vector3(0.1, 0.0, 0.0), Vector3(0.0, 0.0, 0.1)
+    length = sqrt(0.02)
+    line = LineCurve(start, Vector3(-sqrt(0.5), 0.0, sqrt(0.5)))
+    basis = factory.curve3d(line, resolve_basis=lambda _: None)
+    profile = (
+        factory.curve3d(TrimmedCurve(1, start, end, 0.0, length), resolve_basis=lambda _: basis)
+        if trimmed
+        else basis
+    )
+    spun = SpunSurface(
+        1,
+        Vector3(0.0, 0.0, 0.0),
+        Vector3(0.0, 0.0, 1.0),
+        None if one_sided else start,
+        end,
+        None if one_sided else 0.0,
+        length,
+        None,
+    )
+    result = factory.spun_surface(spun, lambda _: profile)
+    assert result.Bounds()[3] == pytest.approx(length * scale)
+    assert result.Value(0.0, length * scale).Distance(factory.point(end)) < 1e-10
+    if trimmed or not one_sided:
+        assert result.Bounds()[2] == pytest.approx(0.0)
 
 
 def make_spun_cylinder_model(radius: float = 1.0, height: float = 2.0) -> BrepModel:
