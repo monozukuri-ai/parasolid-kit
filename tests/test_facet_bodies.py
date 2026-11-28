@@ -23,7 +23,7 @@ from parasolid_kit import (
 from parasolid_kit.schema import SchemaSource
 from tests.support.parasolid_binary import SyntheticXbBuilder
 from tests.support.parasolid_schema import embedded_field, full_schema, positive_integer
-from tests.test_builtin_icad_legacy_runtime import CODES as BASE_CODES
+from tests.test_builtin_assembly_runtime import CODES as BASE_CODES
 from tests.test_builtin_icad_legacy_runtime import wire_records
 
 KEY = "SCH_3400176_34001_13006"
@@ -127,6 +127,10 @@ def stream(*, corners=CORNERS, transform=0, integer_teeth=(25, 26, 27, 0), extra
     for kind, index, overrides in wire_records():
         builder.add_raw_node(kind, base_payload(kind, index, overrides, kind not in seen))
         seen.add(kind)
+    if transform:
+        # The referenced TRANSFORM is part of the stream. Its translation places the mesh.
+        placement = {**{4 + i: float(i % 4 == 0) for i in range(9)}, 13: (1, 2, 3), 14: 1, 15: 1}
+        builder.add_raw_node(100, base_payload(100, transform, placement, True))
     declared = set()
     for kind, index, values in records:
         name, fields = LAYOUTS[kind]

@@ -817,9 +817,15 @@ fn double_equal(left: f64, right: f64, options: ComparisonOptions) -> bool {
     if !left.is_finite() || !right.is_finite() {
         return false;
     }
+    let scale = left.abs().max(right.abs());
     let difference = (left - right).abs();
-    difference
-        <= options.absolute_tolerance + options.relative_tolerance * left.abs().max(right.abs())
+    if difference.is_finite() {
+        return difference <= options.absolute_tolerance + options.relative_tolerance * scale;
+    }
+    // Opposite large finite values: halve both sides before the subtraction.
+    // The half difference is finite even for f64::MAX and -f64::MAX.
+    (left * 0.5 - right * 0.5).abs()
+        <= options.absolute_tolerance * 0.5 + options.relative_tolerance * (scale * 0.5)
 }
 
 fn node_type_counts(nodes: &[RawNode]) -> BTreeMap<u16, usize> {
@@ -979,5 +985,27 @@ mod tests {
                 .any(|difference| difference.category == "field_value")
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod overflow_tests {
+    use super::*;
+    #[test]
+    fn finite_comparison_does_not_turn_overflow_into_equality() {
+        let options = ComparisonOptions {
+            absolute_tolerance: 0.0,
+            relative_tolerance: 1.5,
+            max_differences: 1,
+        };
+        assert!(!double_equal(f64::MAX, -f64::MAX, options));
+        assert!(double_equal(f64::MAX, f64::MAX / 2.0, options));
+        assert!(double_equal(0.0, -0.0, ComparisonOptions::default()));
+        let exact_boundary = ComparisonOptions {
+            absolute_tolerance: 3.0,
+            relative_tolerance: 0.0,
+            ..options
+        };
+        assert!(double_equal(10.0, 7.0, exact_boundary));
     }
 }

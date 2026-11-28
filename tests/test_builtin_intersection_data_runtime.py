@@ -150,7 +150,7 @@ def test_absence_is_scoped_to_type_204_of_the_exact_embedded_profile(encoding, p
 
 
 @pytest.mark.parametrize("shifted", [False, True])
-@pytest.mark.parametrize("target", [0, 10])
+@pytest.mark.parametrize("target", [0, 10, 99])
 def test_appended_data_reference_survives_shift_and_null(shifted, target):
     text, binary = [
         read_brep(intersection_with_data(enc, shifted=shifted, target=target))
@@ -160,7 +160,8 @@ def test_appended_data_reference_survives_shift_and_null(shifted, target):
     for result in [text, binary]:
         assert result.brep.complete and result.brep.topology.valid
         reference = result.brep.curves[0].definition.intersection_data
-        if target:
+        assert result.document.nodes[3].fields[-1].values[0].value == target
+        if target == 10:
             node = result.document.nodes[-1]
             assert reference.node_index == node.index == 10
             assert reference.byte_range == node.byte_range
@@ -171,7 +172,7 @@ def test_appended_data_reference_survives_shift_and_null(shifted, target):
 
 @pytest.mark.parametrize("encoding,parser", [("x_t", parse_xt), ("x_b", parse_xb)])
 @pytest.mark.parametrize(
-    "change", [{"op": "I"}, {"pointer_class": 41}, {"count": 2}, {"target": 5}, {"target": 99}]
+    "change", [{"op": "I"}, {"pointer_class": 41}, {"count": 2}, {"target": 5}]
 )
 def test_unreviewed_append_or_bad_target_does_not_gain_a_brep_role(encoding, parser, change):
     data = intersection_with_data(encoding, **change)

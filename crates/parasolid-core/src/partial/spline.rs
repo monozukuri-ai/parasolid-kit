@@ -667,7 +667,7 @@ fn unique_surface_knot_span(
     }
     pairs.sort_by_key(|(knots, multiplicities)| (knots.start, knots.count, multiplicities.start));
     pairs.dedup();
-    (pairs.len() == 1).then_some(pairs[0].0)
+    (pairs.len() == 1).then(|| pairs[0].0)
 }
 
 fn patch_f64_span(bytes: &mut [u8], span: ArraySpan, values: &[f64]) -> Option<()> {
@@ -1303,6 +1303,26 @@ mod read_span_tests {
                 80
             )
             .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod missing_storage_tests {
+    #[test]
+    fn absent_surface_knot_storage_is_rejected_without_panicking() {
+        // Missing storage is a supported Option::None result, never an index panic.
+        assert!(
+            super::unique_surface_knot_span(
+                &[],
+                &super::Arrays::default(),
+                42,
+                43,
+                2,
+                &[0.0, 1.0],
+                &[2, 2]
+            )
+            .is_none()
         );
     }
 }
