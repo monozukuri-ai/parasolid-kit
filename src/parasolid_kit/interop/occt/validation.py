@@ -374,7 +374,8 @@ def validate_and_measure(shape: object) -> tuple[bool, OcctMetrics]:
     valid = shape_is_valid(shape)
     bounding_box = Bnd_Box()
     # Only facet faces carry a triangulation at this point; it is their geometry.
-    BRepBndLib.AddOptimal_s(shape, bounding_box, True, True)
+    # Boundary tolerances can change in STEP exchange without moving the geometry.
+    BRepBndLib.AddOptimal_s(shape, bounding_box, True, False)
     bounds = None
     if not bounding_box.IsVoid():
         bounds = tuple(float(value) for value in bounding_box.Get())

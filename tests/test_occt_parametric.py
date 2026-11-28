@@ -10,6 +10,7 @@ from parasolid_kit import (
     CurveGeometry,
     CurveKind,
     NurbsCurve,
+    SurfaceKind,
     SurfaceParametricCurve,
     TrimmedCurve,
     Vector3,
@@ -25,6 +26,7 @@ from parasolid_kit.interop.occt.geometry import GeometryFactory
 from tests._occt_fixtures import (
     _Sources,
     make_box_model,
+    make_closed_analytic_surface_model,
     make_sphere_octant_model,
     make_torus_elbow_model,
 )
@@ -32,9 +34,10 @@ from tests._occt_fixtures import (
 pytest.importorskip("OCP")
 
 
-def uv_box(*, displacement=0.0):
+def uv_box(*, displacement=0.0, model=None):
     """Replace one box edge with independent UV curves on its two plane faces."""
-    model = make_box_model(4.0, 3.0, 2.0)
+    if model is None:
+        model = make_box_model(4.0, 3.0, 2.0)
     edge = model.edges[0]
     faces = {f.id: f for f in model.faces}
     loops = {p.id: p for p in model.loops}
@@ -322,6 +325,45 @@ def test_horn_and_apple_tori_are_exact_only_for_trimmed_faces(major, minor):
         assert surface.Value(u, v).Coord() == pytest.approx(expected, abs=1e-12)
     with pytest.raises(ValueError, match="ring torus"):
         factory.torus(torus)
+
+
+@pytest.mark.parametrize("kind", [SurfaceKind.SPHERE, SurfaceKind.TORUS])
+def test_mixed_solids_preserve_whole_closed_faces(kind):
+    from OCP.BRepCheck import BRepCheck_Analyzer
+
+    closed = make_closed_analytic_surface_model(kind)
+    box = uv_box(
+        model=make_box_model(
+            4.0, 3.0, 2.0, _origin=(20.0, 0.0, 0.0), _id_offset=10, _source_offset=1000
+        )
+    )
+    model = replace(
+        box,
+        bodies=box.bodies + closed.bodies,
+        regions=box.regions + closed.regions,
+        shells=box.shells + closed.shells,
+        faces=box.faces + closed.faces,
+        surfaces=box.surfaces + closed.surfaces,
+        metrics=replace(
+            box.metrics,
+            bounding_box=None,
+            surface_area=52.0 + closed.metrics.surface_area,
+            volume=24.0 + closed.metrics.volume,
+        ),
+    )
+    result = to_occt(model, source_unit="mm")
+    assert result.report.conversion_complete and BRepCheck_Analyzer(result.shape).IsValid()
+    counts = result.report.output_topology.to_dict()
+    assert (counts["solids"], counts["faces"]) == (2, 7)
+    assert result.report.metrics.volume == pytest.approx(model.metrics.volume)
+    assert result.report.metrics.surface_area == pytest.approx(model.metrics.surface_area)
+    assert f"full_periodic_{kind.value}_face" in result.report.topology_operations
+    assert any(
+        r.source.kind is SourceEntityKind.FACE
+        and r.source.entity_id == closed.faces[0].id
+        and r.relation is ShapeRelationKind.GENERATED
+        for r in result.source_map.relations
+    )
 
 
 def test_loop_through_a_sphere_pole_gets_its_degenerated_edge():

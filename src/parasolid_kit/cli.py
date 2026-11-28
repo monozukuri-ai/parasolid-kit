@@ -114,6 +114,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="skip the default separate-process STEP reimport check",
     )
+    export_step_command.add_argument(
+        "--place-instances",
+        action="store_true",
+        help="export bodies at their assembly instance placements",
+    )
     _add_format_argument(export_step_command)
 
     view_command = commands.add_parser(
@@ -516,6 +521,7 @@ def _run(arguments: argparse.Namespace) -> int:
             parsed.brep,
             source_unit=arguments.source_unit,
             target_unit="mm",
+            place_instances=arguments.place_instances,
             source_identity=f"sha256:{source_sha256}",
         )
         exported = write_step(

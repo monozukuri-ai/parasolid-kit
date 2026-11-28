@@ -1015,7 +1015,8 @@ the built-in subset. An explicit
 `export-step` additionally requires `--source-unit`; it hashes the source for
 the sidecar, converts to an mm OCCT working result, writes AP242 in
 `--output-unit` (default `mm`), and rejects existing outputs unless
-`--overwrite` is supplied.
+`--overwrite` is supplied. With `--place-instances`, the STEP contains bodies at
+their assembly placements, including repeated and nested instances.
 `viewer` (`view` alias) also requires `--source-unit`, writes a persistent preview directory,
 and serves it on `127.0.0.1` and an ephemeral port. `--no-open` suppresses
 browser launch, `--write-only` generates artifacts and exits, and

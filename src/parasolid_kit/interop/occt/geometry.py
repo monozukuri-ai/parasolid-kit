@@ -280,16 +280,26 @@ class GeometryFactory:
                 raise ValueError("trimmed curve parameters must be finite")
             if definition.start_parameter == definition.end_parameter:
                 raise ValueError("trimmed curve parameters must be distinct")
+            basis = resolve_basis(definition.basis_curve)
+            scale = self._curve_parameter_scale(basis)
             return Geom_TrimmedCurve(
-                resolve_basis(definition.basis_curve),
-                definition.start_parameter,
-                definition.end_parameter,
+                basis,
+                definition.start_parameter * scale,
+                definition.end_parameter * scale,
                 True,
                 True,
             )
         if isinstance(definition, NurbsCurve):
             return self.nurbs_curve(definition)
         raise ValueError(f"unsupported exact curve definition: {type(definition).__name__}")
+
+    def _curve_parameter_scale(self, curve: object) -> float:
+        """Parameter multiplier for a uniform change of length unit, including trimmed bases."""
+        from OCP.gp import gp_Pnt, gp_Trsf
+
+        units = gp_Trsf()
+        units.SetScale(gp_Pnt(), self.scale)
+        return curve.ParametricTransformation(units)
 
     def line(self, curve: LineCurve) -> object:
         from OCP.gp import gp_Lin
@@ -493,18 +503,11 @@ class GeometryFactory:
             u_scale, v_scale = 1.0, self.scale / surface.cos_half_angle
         elif isinstance(surface, (SphereSurface, TorusSurface, NurbsSurface)):
             u_scale, v_scale = 1.0, 1.0
-        elif isinstance(surface, SweptSurface):
-            # u is the section's own parameter, a length only along a line;
-            # v is the distance along the sweep direction.
-            u_scale = self.scale if isinstance(section, LineCurve) else 1.0
-            v_scale = self.scale
-        elif isinstance(surface, SpunSurface):
-            # The source parameterises a spun surface by profile parameter u
-            # (a length along a line profile) and angle v; OCCT puts the angle
-            # first, and `spun_surface` reverses the axis so the normals
-            # agree, which also reverses the angle: (u, v) maps to (-v, u).
-            u_scale = self.scale if isinstance(section, LineCurve) else 1.0
-            v_scale = 1.0
+        elif isinstance(surface, (SweptSurface, SpunSurface)):
+            # Source u follows the section or profile. The second parameter is a
+            # distance along a sweep or an angle around the spin axis.
+            u_scale = self.scale if isinstance(section, (LineCurve, ParabolaCurve)) else 1.0
+            v_scale = self.scale if isinstance(surface, SweptSurface) else 1.0
         else:
             raise ValueError("unsupported parameter-curve support surface")
         from OCP.TColStd import TColStd_Array1OfReal
@@ -632,9 +635,11 @@ class GeometryFactory:
         if surface.x_axis is not None:
             self._validate_frame(surface.axis, surface.x_axis, role="spun")
         profile = resolve_curve(surface.profile)
-        first, last = surface.start_parameter, surface.end_parameter
+        scale = self._curve_parameter_scale(profile)
+        first = None if surface.start_parameter is None else surface.start_parameter * scale
+        last = None if surface.end_parameter is None else surface.end_parameter * scale
         if (first is None) != (last is None):
-            first, last = self._one_sided_spin_range(surface, profile)
+            first, last = self._one_sided_spin_range(surface, profile, first, last)
         if first is not None and last is not None:
             if not (isfinite(first) and isfinite(last)) or first == last:
                 raise ValueError("spun surface profile parameters must be finite and distinct")
@@ -660,7 +665,9 @@ class GeometryFactory:
         )
         return Geom_SurfaceOfRevolution(profile, axis)
 
-    def _one_sided_spin_range(self, surface: SpunSurface, profile: object) -> tuple[float, float]:
+    def _one_sided_spin_range(
+        self, surface: SpunSurface, profile: object, first: float | None, last: float | None
+    ) -> tuple[float, float]:
         """The profile range of a spun surface whose profile meets its axis at one end.
 
         XT records where the profile meets the spin axis (the surface's
@@ -676,8 +683,8 @@ class GeometryFactory:
         from OCP.gp import gp_Lin
 
         refused = ValueError("spun surface with a one-sided profile parameter range is unsupported")
-        at_start = surface.start_parameter is not None
-        parameter = surface.start_parameter if at_start else surface.end_parameter
+        at_start = first is not None
+        parameter = first if at_start else last
         point = surface.start if at_start else surface.end
         if point is None or parameter is None or not isfinite(parameter):
             raise refused

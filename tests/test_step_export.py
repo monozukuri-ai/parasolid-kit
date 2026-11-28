@@ -226,6 +226,28 @@ def test_cylinder_step_preserves_body_face_and_metrics_without_edge_identity(
 
 
 @pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")
+def test_step_bounds_measure_geometry_when_edge_tolerances_change(tmp_path: Path) -> None:
+    from OCP.BRep import BRep_Builder
+    from OCP.TopAbs import TopAbs_EDGE, TopAbs_VERTEX
+    from OCP.TopoDS import TopoDS
+
+    from parasolid_kit.interop.occt.parametric import subshapes
+    from parasolid_kit.interop.occt.validation import validate_and_measure
+
+    converted = to_occt(make_box_model(), source_unit="mm")
+    builder = BRep_Builder()
+    for edge in subshapes(converted.shape, TopAbs_EDGE):
+        builder.UpdateEdge(TopoDS.Edge_s(edge), 1e-5)
+    for vertex in subshapes(converted.shape, TopAbs_VERTEX):
+        builder.UpdateVertex(TopoDS.Vertex_s(vertex), 1e-5)
+    valid, metrics = validate_and_measure(converted.shape)
+    assert valid
+    assert metrics.bounding_box == pytest.approx((0, 0, 0, 40, 30, 20), abs=1e-9)
+    measured = replace(converted, report=replace(converted.report, metrics=metrics))
+    assert write_step(measured, tmp_path / "tolerant.step").report.validation.passed
+
+
+@pytest.mark.skipif(not HAS_OCP, reason="requires the optional OCCT profile")
 def test_validation_mismatch_keeps_only_a_partial_report_and_no_final_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

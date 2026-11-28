@@ -984,6 +984,13 @@ class ParametricTopologyBuilder(TopologyBuilder):
             section = self.curves[support.section].definition
         elif isinstance(support, SpunSurface):
             section = self.curves[support.profile].definition
+        # A trim keeps the parameter units of its basis.
+        seen_curves = set()
+        while isinstance(section, TrimmedCurve):
+            if section.basis_curve in seen_curves:
+                raise ValueError("section curve basis chain is circular")
+            seen_curves.add(section.basis_curve)
+            section = self.curves[section.basis_curve].definition
         return self.geometry.parameter_curve(curve, support, section=section)
 
     def _wrapped_trim(self, definition, curve, evaluated, tolerance):
@@ -1751,6 +1758,10 @@ class ParametricTopologyBuilder(TopologyBuilder):
     def _build_face(self, face):
         loops = self._trim_loops(face)
         if not loops:
+            surface = self._surface_for_face(face)
+            if isinstance(surface.definition, (SphereSurface, TorusSurface)):
+                self.face_shapes[face.id] = self._make_closed_analytic_face(face, surface)
+                return
             raise ValueError(f"parametric face {face.id} requires explicit source trim loops")
         shape = TopoDS_Face()
         builder = BRep_Builder()
@@ -1789,6 +1800,9 @@ class ParametricTopologyBuilder(TopologyBuilder):
         self.face_shapes[face.id] = shape
 
     def _finish_face(self, face):
+        # The natural face already has its oriented seam and singularity edges.
+        if not self._trim_loops(face):
+            return
         shape = self._order_wire_edges(TopoDS.Face_s(self.context.Apply(self.face_shapes[face.id])))
         operation = ShapeFix_Face(shape)
         operation.SetContext(self.context)

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- OCCT converts spun surfaces with length-parameterized line profiles across
+  unit changes and builds whole spheres and ring tori alongside trimmed faces.
+- `export-step --place-instances` exports assembly occurrences at their stored
+  placements. STEP round-trip validation compares geometric bounds without
+  expanding them by each shape's modeling tolerance.
+
 - Rust intersection curves expose chart parameters, error estimates, limit kinds
   and terminator surface selections in the new `CurveKind::Intersection` field
   `metadata`. Exhaustive Rust patterns must include this field or use `..`.
